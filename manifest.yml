@@ -5,9 +5,9 @@
 
 id: AdvancedTimeIsland
 name: AdvancedTimeIsland
-description: 插件描述
+description: 提供更高级的时间相关的内容
 entranceAssembly: "AdvancedTimeIsland.dll"
-url: https://example.com
+url: https://github.com/inf2147483647/AdvancedTimeIsland
 version: 0.0.0.0
 apiVersion: 2.0.0.0
-author: 无名氏
+author: inf2147483647
