@@ -26,6 +26,14 @@
         <None Update="icon.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <None Update="Assets\icon.png">
+          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
+      <Folder Include="Automation\Views\Conditions\" />
+      <Folder Include="Automation\Views\Triggers\" />
     </ItemGroup>
 
 </Project>
