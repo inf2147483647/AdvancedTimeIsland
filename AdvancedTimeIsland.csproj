@@ -26,14 +26,20 @@
         <None Update="icon.png">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
-        <None Update="Assets\icon.png">
-          <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
+        <None Remove="qodana.yaml" />
     </ItemGroup>
 
     <ItemGroup>
-      <Folder Include="Automation\Views\Conditions\" />
-      <Folder Include="Automation\Views\Triggers\" />
+      <Folder Include="Assets\Icons\" />
+      <Folder Include="Assets\Markdown\" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <AvaloniaXaml Remove="Views\Main\AdvancedDateControl.axaml" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <Compile Remove="Views\Main\AdvancedDateControl.axaml.cs" />
     </ItemGroup>
 
 </Project>
