@@ -1,9 +1,11 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <TargetFramework>net8.0-windows</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <CreateCipx>true</CreateCipx>
     </PropertyGroup>
 
     <PropertyGroup>
@@ -12,6 +14,9 @@
 
     <ItemGroup>
         <PackageReference Include="ClassIsland.PluginSdk" Version="$(ClassIslandPluginSdkVersion)">
+            <ExcludeAssets>runtime; native</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="ClassIsland.Core" Version="$(ClassIslandPluginSdkVersion)">
             <ExcludeAssets>runtime; native</ExcludeAssets>
         </PackageReference>
     </ItemGroup>
@@ -40,6 +45,16 @@
 
     <ItemGroup>
       <Compile Remove="Views\Main\AdvancedDateControl.axaml.cs" />
+    </ItemGroup>
+
+    <!-- 排除空的 XAML 文件 -->
+    <ItemGroup>
+      <AvaloniaXaml Remove="Views\Settings\AboutPage.xaml" />
+      <AvaloniaXaml Remove="Views\Settings\TimeConverterPage.xaml" />
+      <AvaloniaXaml Remove="Views\Settings\PluginSettingsPage.xaml" />
+      <AvaloniaXaml Remove="Views\Settings\GlossaryPage.xaml" />
+      <AvaloniaXaml Remove="Views\Settings\EasterEggPage.xaml" />
+      <AvaloniaXaml Remove="Views\Main\CountdownControl.xaml" />
     </ItemGroup>
 
 </Project>

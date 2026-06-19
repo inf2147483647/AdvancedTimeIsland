@@ -1,58 +1,125 @@
-﻿using System;
-using Avalonia.Controls;
-using Avalonia.Media;
-using Avalonia.Data;
-using ClassIsland.Core.Abstractions.Controls;
-using ClassIsland.Core.Attributes;
+﻿﻿using System;
 using AdvancedTimeIsland.ViewModels.Main;
-using AdvancedTimeIsland.Services;
-using Microsoft.Extensions.DependencyInjection;
+using Avalonia.Controls;
+using Avalonia.Layout;
+using Avalonia.Media;
 
 namespace AdvancedTimeIsland.Views.Main;
 
 /// <summary>
-/// 高级日期显示控件，支持自定义日期格式
+/// 日期/地方时/区时显示控件
+/// 使用纯 C# 代码构建 UI
 /// </summary>
-[ComponentInfo(
-    "98765432-5678-5678-5678-567812345678",
-    "高级日期显示",
-    "\uE9B0",
-    "支持显示自定义格式的日期，包括星期全称/简称和标准日期格式")]
-public partial class AdvancedDateControl : ComponentBase<AdvancedDateViewModel>
+public class AdvancedDateControl : UserControl
 {
-    private readonly TextBlock _dateTextBlock;
+    private readonly AdvancedDateViewModel _viewModel;
+    private TextBlock? _exactTimeTextBlock;
+    private TextBlock? _dateTextBlock;
+    private TextBlock? _timeTextBlock;
 
-    public AdvancedDateControl(IServiceProvider serviceProvider)
+    public AdvancedDateControl(AdvancedDateViewModel viewModel)
     {
-        // 获取服务，使用注入的服务Provider，避免直接访问App
-        var timeBaseService = serviceProvider.GetRequiredService<TimeBaseService>();
-        ViewModel = new AdvancedDateViewModel(timeBaseService);
+        _viewModel = viewModel;
         
-        // 纯C#构建UI，无XAML
+        // 初始化组件
+        InitializeComponent();
+        
+        // 设置数据上下文
+        DataContext = _viewModel;
+    }
+
+    /// <summary>
+    /// 初始化 UI 组件
+    /// </summary>
+    private void InitializeComponent()
+    {
+        // 创建主容器
+        var mainPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 8
+        };
+
+        // 创建精确时间显示
+        _exactTimeTextBlock = new TextBlock
+        {
+            FontSize = 24,
+            FontWeight = FontWeight.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = Brushes.White,
+            Text = "精确时间加载中..."
+        };
+
+        // 创建日期显示
         _dateTextBlock = new TextBlock
         {
             FontSize = 14,
-            Foreground = Brushes.White,
-            HorizontalAlignment = Avalonia.Layout.HorizontalAlignment.Center,
-            VerticalAlignment = Avalonia.Layout.VerticalAlignment.Center
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = Brushes.LightGray,
+            Text = ""
         };
-        
-        // 使用传统绑定，不依赖ReactiveUI，避免依赖缺失问题
-        _dateTextBlock.Bind(
-            TextBlock.TextProperty, 
-            new Binding(nameof(ViewModel.FormattedDate))
-        );
-        
-        // 订阅Unloaded事件，释放资源，避免重写方法的签名错误
-        Unloaded += (s, e) =>
+
+        // 创建时间显示
+        _timeTextBlock = new TextBlock
         {
-            // 释放ViewModel资源，停止定时器
-            ViewModel.Dispose();
+            FontSize = 18,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = Brushes.White,
+            Text = ""
         };
-        
+
+        // 添加到主容器
+        mainPanel.Children.Add(_exactTimeTextBlock);
+        mainPanel.Children.Add(_dateTextBlock);
+        mainPanel.Children.Add(_timeTextBlock);
+
         // 设置控件内容
-        Content = _dateTextBlock;
+        Content = mainPanel;
+
+        // 绑定数据
+        SetupBindings();
     }
 
-    public AdvancedDateViewModel ViewModel { get; set; }
+    /// <summary>
+    /// 设置数据绑定
+    /// </summary>
+    private void SetupBindings()
+    {
+        // 手动绑定（不使用 XAML 绑定）
+        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
+    }
+
+    /// <summary>
+    /// 视图模型属性变更处理
+    /// </summary>
+    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(AdvancedDateViewModel.ExactTime):
+                _exactTimeTextBlock!.Text = $"精确时间: {_viewModel.ExactTime}";
+                break;
+            case nameof(AdvancedDateViewModel.DateDisplay):
+                _dateTextBlock!.Text = _viewModel.DateDisplay;
+                break;
+            case nameof(AdvancedDateViewModel.TimeDisplay):
+                _timeTextBlock!.Text = _viewModel.TimeDisplay;
+                break;
+        }
+    }
+
+    /// <summary>
+    /// 清理资源
+    /// </summary>
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        
+        if (_viewModel is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+    }
 }

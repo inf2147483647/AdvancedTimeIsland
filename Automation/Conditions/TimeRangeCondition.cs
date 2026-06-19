@@ -1,35 +1,25 @@
-﻿using System;
+﻿﻿using System;
+using System.ComponentModel;
+using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Services;
 
 namespace AdvancedTimeIsland.Automation.Conditions;
 
 /// <summary>
-/// 时间范围条件：检查当前时间是否在指定的时间范围内
+/// 时间范围条件
+/// 支持公历/Unix时间范围判断
 /// </summary>
-public class TimeRangeCondition
+public class TimeRangeCondition : INotifyPropertyChanged
 {
     private readonly TimeBaseService _timeBaseService;
-
-    /// <summary>
-    /// 条件唯一ID
-    /// </summary>
-    public static Guid ConditionId => new("87654321-4321-4321-4321-210987654321");
-
-    /// <summary>
-    /// 条件显示名称
-    /// </summary>
-    public static string DisplayName => "精确时间在范围[YYYY-MM-DD-hh-mm-ss]₁ ~ [YYYY-MM-DD-hh-mm-ss]₂内";
-
-    /// <summary>
-    /// 范围开始时间
-    /// </summary>
-    public DateTime StartTime { get; set; }
-
-    /// <summary>
-    /// 范围结束时间
-    /// </summary>
-    public DateTime EndTime { get; set; }
+    private string _startTimeString = string.Empty;
+    private string _endTimeString = string.Empty;
+    private long _startUnixTimestamp;
+    private long _endUnixTimestamp;
+    private ConditionMode _mode = ConditionMode.ExactTime;
+    private bool _isInclusive = true;
 
     public TimeRangeCondition(TimeBaseService timeBaseService)
     {
@@ -37,39 +27,182 @@ public class TimeRangeCondition
     }
 
     /// <summary>
-    /// 异步检查是否满足条件
+    /// 条件模式
     /// </summary>
-    /// <returns>是否满足条件</returns>
-    public async Task<bool> CheckConditionAsync()
+    public enum ConditionMode
     {
-        // 异步操作，避免阻塞UI线程
-        await Task.Yield();
+        /// <summary>
+        /// 精确时间模式 (YYYY-MM-DD-hh-mm-ss)
+        /// </summary>
+        ExactTime,
         
-        var currentTime = _timeBaseService.GetCurrentTime();
-        
-        // 检查当前时间是否在范围内
-        return currentTime >= StartTime && currentTime <= EndTime;
+        /// <summary>
+        /// Unix时间戳模式（秒）
+        /// </summary>
+        UnixTimestamp
     }
 
     /// <summary>
-    /// 解析时间范围字符串
+    /// 条件模式
     /// </summary>
-    /// <param name="startStr">开始时间字符串</param>
-    /// <param name="endStr">结束时间字符串</param>
-    /// <param name="startTime">解析后的开始时间</param>
-    /// <param name="endTime">解析后的结束时间</param>
-    /// <returns>是否解析成功</returns>
-    public static bool TryParseRange(string startStr, string endStr, out DateTime startTime, out DateTime endTime)
+    public ConditionMode Mode
     {
-        startTime = default;
-        endTime = default;
-        
-        if (!DateTime.TryParseExact(startStr, "yyyy-MM-dd-HH-mm-ss", null, System.Globalization.DateTimeStyles.None, out startTime))
+        get => _mode;
+        set
+        {
+            if (_mode != value)
+            {
+                _mode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 开始时间字符串 (YYYY-MM-DD-hh-mm-ss)
+    /// </summary>
+    public string StartTimeString
+    {
+        get => _startTimeString;
+        set
+        {
+            if (_startTimeString != value)
+            {
+                _startTimeString = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 结束时间字符串 (YYYY-MM-DD-hh-mm-ss)
+    /// </summary>
+    public string EndTimeString
+    {
+        get => _endTimeString;
+        set
+        {
+            if (_endTimeString != value)
+            {
+                _endTimeString = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 开始Unix时间戳（秒）
+    /// </summary>
+    public long StartUnixTimestamp
+    {
+        get => _startUnixTimestamp;
+        set
+        {
+            if (_startUnixTimestamp != value)
+            {
+                _startUnixTimestamp = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 结束Unix时间戳（秒）
+    /// </summary>
+    public long EndUnixTimestamp
+    {
+        get => _endUnixTimestamp;
+        set
+        {
+            if (_endUnixTimestamp != value)
+            {
+                _endUnixTimestamp = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否包含边界
+    /// </summary>
+    public bool IsInclusive
+    {
+        get => _isInclusive;
+        set
+        {
+            if (_isInclusive != value)
+            {
+                _isInclusive = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 异步检查当前时间是否在范围内
+    /// </summary>
+    /// <returns>是否在范围内</returns>
+    public async Task<bool> CheckConditionAsync()
+    {
+        var currentTime = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
+        var currentTimestamp = UnixTimeHelper.ToUnixTimestamp(currentTime);
+
+        return Mode switch
+        {
+            ConditionMode.ExactTime => CheckExactTimeRange(currentTime),
+            ConditionMode.UnixTimestamp => CheckUnixTimestampRange(currentTimestamp),
+            _ => false
+        };
+    }
+
+    /// <summary>
+    /// 检查精确时间范围
+    /// </summary>
+    private bool CheckExactTimeRange(DateTime currentTime)
+    {
+        if (string.IsNullOrEmpty(StartTimeString) || string.IsNullOrEmpty(EndTimeString))
             return false;
-            
-        if (!DateTime.TryParseExact(endStr, "yyyy-MM-dd-HH-mm-ss", null, System.Globalization.DateTimeStyles.None, out endTime))
+
+        if (!UnixTimeHelper.TryParseExactTime(StartTimeString, out var startTime) ||
+            !UnixTimeHelper.TryParseExactTime(EndTimeString, out var endTime))
             return false;
-            
-        return true;
+
+        return IsInclusive
+            ? currentTime >= startTime && currentTime <= endTime
+            : currentTime > startTime && currentTime < endTime;
+    }
+
+    /// <summary>
+    /// 检查Unix时间戳范围
+    /// </summary>
+    private bool CheckUnixTimestampRange(long currentTimestamp)
+    {
+        if (StartUnixTimestamp <= 0 || EndUnixTimestamp <= 0)
+            return false;
+
+        return IsInclusive
+            ? currentTimestamp >= StartUnixTimestamp && currentTimestamp <= EndUnixTimestamp
+            : currentTimestamp > StartUnixTimestamp && currentTimestamp < EndUnixTimestamp;
+    }
+
+    /// <summary>
+    /// 获取条件描述
+    /// </summary>
+    /// <returns>条件描述字符串</returns>
+    public string GetConditionDescription()
+    {
+        return Mode switch
+        {
+            ConditionMode.ExactTime => $"精确时间在范围 [{StartTimeString}] ~ [{EndTimeString}]",
+            ConditionMode.UnixTimestamp => $"Unix时间戳在范围 [{StartUnixTimestamp}] ~ [{EndUnixTimestamp}]",
+            _ => "未知条件"
+        };
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }

@@ -3,72 +3,128 @@ using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
 
+/// <summary>
+/// 插件全局设置
+/// </summary>
 public class PluginSettings : INotifyPropertyChanged
 {
-    private bool _isLunarEnabled = true;
-    private bool _isGeoTimeEnabled = true;
-    private string _timeBase = "ClassIsland";
-    private double _longitude;
-    private bool _isWomenWearEnabled;
-    private bool _isWomenWearVisible;
+    private bool _enableLunarCalendar = true;
+    private bool _isLunarInstalled = false;
+    private int _timeBaseMode = 0; // 0: ClassIsland时间, 1: 系统时间
+    private double _longitude = 116.4; // 默认北京经度
+    private string _timeZoneId = "China Standard Time";
+    private bool _enableCountdownNotification = true;
+    private int _countdownAlertSeconds = 60;
 
-    public bool IsLunarEnabled
+    /// <summary>
+    /// 是否启用农历功能
+    /// </summary>
+    public bool EnableLunarCalendar
     {
-        get => _isLunarEnabled;
+        get => _enableLunarCalendar;
         set
         {
-            _isLunarEnabled = value;
-            OnPropertyChanged();
+            if (_enableLunarCalendar != value)
+            {
+                _enableLunarCalendar = value;
+                OnPropertyChanged();
+            }
         }
     }
 
-    public bool IsGeoTimeEnabled
+    /// <summary>
+    /// 是否已安装农历组件
+    /// </summary>
+    public bool IsLunarInstalled
     {
-        get => _isGeoTimeEnabled;
+        get => _isLunarInstalled;
         set
         {
-            _isGeoTimeEnabled = value;
-            OnPropertyChanged();
+            if (_isLunarInstalled != value)
+            {
+                _isLunarInstalled = value;
+                OnPropertyChanged();
+            }
         }
     }
 
-    public string TimeBase
+    /// <summary>
+    /// 时间基准模式 (0: ClassIsland时间, 1: 系统时间)
+    /// </summary>
+    public int TimeBaseMode
     {
-        get => _timeBase;
+        get => _timeBaseMode;
         set
         {
-            _timeBase = value;
-            OnPropertyChanged();
+            if (_timeBaseMode != value)
+            {
+                _timeBaseMode = value;
+                OnPropertyChanged();
+            }
         }
     }
 
+    /// <summary>
+    /// 经度（用于地方时计算）
+    /// </summary>
     public double Longitude
     {
         get => _longitude;
         set
         {
-            _longitude = value;
-            OnPropertyChanged();
+            if (Math.Abs(_longitude - value) > 0.0001)
+            {
+                _longitude = value;
+                OnPropertyChanged();
+            }
         }
     }
 
-    public bool IsWomenWearEnabled
+    /// <summary>
+    /// 时区ID
+    /// </summary>
+    public string TimeZoneId
     {
-        get => _isWomenWearEnabled;
+        get => _timeZoneId;
         set
         {
-            _isWomenWearEnabled = value;
-            OnPropertyChanged();
+            if (_timeZoneId != value)
+            {
+                _timeZoneId = value;
+                OnPropertyChanged();
+            }
         }
     }
 
-    public bool IsWomenWearVisible
+    /// <summary>
+    /// 是否启用倒计时通知
+    /// </summary>
+    public bool EnableCountdownNotification
     {
-        get => _isWomenWearVisible;
+        get => _enableCountdownNotification;
         set
         {
-            _isWomenWearVisible = value;
-            OnPropertyChanged();
+            if (_enableCountdownNotification != value)
+            {
+                _enableCountdownNotification = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 倒计时提醒时间（秒）
+    /// </summary>
+    public int CountdownAlertSeconds
+    {
+        get => _countdownAlertSeconds;
+        set
+        {
+            if (_countdownAlertSeconds != value)
+            {
+                _countdownAlertSeconds = value;
+                OnPropertyChanged();
+            }
         }
     }
 
