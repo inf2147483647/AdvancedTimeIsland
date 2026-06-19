@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
@@ -9,6 +9,7 @@ using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
 using AdvancedTimeIsland.Automation.Conditions;
+using AdvancedTimeIsland.Automation.Rules;
 
 namespace AdvancedTimeIsland;
 
@@ -37,6 +38,28 @@ public class Plugin : PluginBase
         services.AddSingleton<ExactTimeTrigger>();
 
         services.AddSingleton<TimeRangeCondition>();
+
+        // 注册规则：精确时间在范围
+        services.AddRule<ExactTimeRangeRuleSettings, ExactTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.exact_time_range",
+            "精确时间在范围",
+            "\uecc2",
+            settings =>
+            {
+                if (settings is not ExactTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = DateTime.Now;
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
     }

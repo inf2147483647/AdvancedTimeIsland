@@ -15,6 +15,26 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// </summary>
 public class PluginSettingsPage : UserControl
 {
+    private static SolidColorBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return new SolidColorBrush(Colors.DodgerBlue);
+    }
+
+    private static IBrush GetAccentTextBrush(SolidColorBrush accentBrush)
+    {
+        var color = accentBrush.Color;
+        var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
+        return luminance > 0.6 ? Brushes.Black : Brushes.White;
+    }
+
     private readonly PluginSettings? _settings;
     private readonly LunarInstallerService? _lunarInstaller;
     private ToggleSwitch? _easterEggToggle;
@@ -129,7 +149,9 @@ public class PluginSettingsPage : UserControl
         {
             Background = new SolidColorBrush(Color.Parse("#2D2D30")),
             Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12)
+            Margin = new Thickness(0, 0, 0, 12),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true
         };
 
         var content = new StackPanel
@@ -138,10 +160,10 @@ public class PluginSettingsPage : UserControl
             Spacing = 4
         };
 
-        // 标题行
-        var titlePanel = new DockPanel
+        // 标题行：使用 Grid 让标题左对齐、按钮右对齐且在同一行
+        var titlePanel = new Grid
         {
-            LastChildFill = true
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
         };
 
         var titleText = new TextBlock
@@ -149,14 +171,16 @@ public class PluginSettingsPage : UserControl
             Text = title,
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center
         };
-
-        DockPanel.SetDock(titleText, Dock.Left);
+        Grid.SetColumn(titleText, 0);
         titlePanel.Children.Add(titleText);
+
         if (valueControl != null)
         {
-            DockPanel.SetDock(valueControl, Dock.Right);
+            valueControl.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(valueControl, 1);
             titlePanel.Children.Add(valueControl);
         }
 
@@ -196,12 +220,13 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     private Button CreateLinkButton(string text, EventHandler<RoutedEventArgs> handler)
     {
+        var accentBrush = GetAccentBrush();
         var button = new Button
         {
             Content = $"➜ {text}",
             Padding = new Avalonia.Thickness(12, 4),
-            Background = Brushes.DodgerBlue,
-            Foreground = Brushes.White,
+            Background = accentBrush,
+            Foreground = GetAccentTextBrush(accentBrush),
             CornerRadius = new Avalonia.CornerRadius(4)
         };
         button.Click += handler;

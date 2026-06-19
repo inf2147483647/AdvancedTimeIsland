@@ -1,7 +1,6 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -15,6 +14,22 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// </summary>
 public class GlossaryPage : UserControl
 {
+    /// <summary>
+    /// 获取 ClassIsland 强调色画刷
+    /// </summary>
+    private static IBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return Brushes.DodgerBlue;
+    }
+
     public GlossaryPage()
     {
         InitializeComponent();
@@ -40,7 +55,7 @@ public class GlossaryPage : UserControl
             Text = "专业名词解释",
             FontSize = 22,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.DodgerBlue,
+            Foreground = GetAccentBrush(),
             HorizontalAlignment = HorizontalAlignment.Center,
             Margin = new Thickness(0, 0, 0, 8)
         });
@@ -136,7 +151,7 @@ public class GlossaryPage : UserControl
                     Text = line.Substring(3).Trim(),
                     FontSize = 18,
                     FontWeight = FontWeight.Bold,
-                    Foreground = Brushes.DodgerBlue,
+                    Foreground = GetAccentBrush(),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 12, 0, 4)
                 });
@@ -173,9 +188,10 @@ public class GlossaryPage : UserControl
             if (line.StartsWith("> "))
             {
                 FlushParagraph();
+                var accentBrush = GetAccentBrush();
                 var quotePanel = new Border
                 {
-                    BorderBrush = new SolidColorBrush(Color.Parse("#1E90FF")),
+                    BorderBrush = accentBrush is SolidColorBrush sb ? sb : new SolidColorBrush(Color.Parse("#1E90FF")),
                     BorderThickness = new Thickness(3, 0, 0, 0),
                     Padding = new Thickness(10, 6, 6, 6),
                     Margin = new Thickness(0, 4, 0, 4),
@@ -199,7 +215,7 @@ public class GlossaryPage : UserControl
                 {
                     Text = "•",
                     FontSize = 13,
-                    Foreground = Brushes.DodgerBlue,
+                    Foreground = GetAccentBrush(),
                     FontWeight = FontWeight.Bold
                 });
                 itemPanel.Children.Add(BuildInlineTextBlock(line.Substring(2).Trim(), 13, Brushes.LightGray, false));
@@ -221,84 +237,16 @@ public class GlossaryPage : UserControl
     /// </summary>
     private TextBlock BuildInlineTextBlock(string text, double fontSize, IBrush defaultBrush, bool isItalic)
     {
-        var textBlock = new TextBlock
+        // 简化处理：去除 Markdown 标记，保留纯文本
+        var cleanText = text.Replace("**", "").Replace("`", "");
+
+        return new TextBlock
         {
+            Text = cleanText,
             FontSize = fontSize,
             Foreground = defaultBrush,
             TextWrapping = TextWrapping.Wrap,
             FontStyle = isItalic ? FontStyle.Italic : FontStyle.Normal
         };
-
-        var runs = new System.Collections.Generic.List<Run>();
-        int i = 0;
-        while (i < text.Length)
-        {
-            if (i + 1 < text.Length && text[i] == '*' && text[i + 1] == '*')
-            {
-                var end = text.IndexOf("**", i + 2);
-                if (end > i)
-                {
-                    var content = text.Substring(i + 2, end - i - 2);
-                    runs.Add(new Run
-                    {
-                        Text = content,
-                        FontWeight = FontWeight.Bold,
-                        Foreground = Brushes.Gold
-                    });
-                    i = end + 2;
-                    continue;
-                }
-            }
-
-            if (text[i] == '`')
-            {
-                var end = text.IndexOf('`', i + 1);
-                if (end > i)
-                {
-                    var content = text.Substring(i + 1, end - i - 1);
-                    runs.Add(new Run
-                    {
-                        Text = content,
-                        FontFamily = new FontFamily("Consolas"),
-                        Foreground = Brushes.LightGreen
-                    });
-                    i = end + 1;
-                    continue;
-                }
-            }
-
-            int next = text.Length;
-            for (int j = i; j < text.Length - 1; j++)
-            {
-                if ((text[j] == '*' && text[j + 1] == '*') || text[j] == '`')
-                {
-                    next = j;
-                    break;
-                }
-            }
-            var plainText = text.Substring(i, next - i);
-            runs.Add(new Run { Text = plainText, Foreground = defaultBrush });
-            i = next;
-        }
-
-        foreach (var run in runs)
-        {
-            if (textBlock.Inlines != null)
-            {
-                textBlock.Inlines.Add(run);
-            }
-        }
-
-        if (textBlock.Inlines == null || textBlock.Inlines.Count == 0)
-        {
-            var combined = "";
-            foreach (var run in runs)
-            {
-                combined += run.Text;
-            }
-            textBlock.Text = combined;
-        }
-
-        return textBlock;
     }
 }

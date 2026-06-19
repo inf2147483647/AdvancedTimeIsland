@@ -18,6 +18,26 @@ namespace AdvancedTimeIsland.Views.Settings;
 [SettingsPageInfo("AdvancedTimeIsland", "AdvancedTimeIsland 设置")]
 public class AboutPage : SettingsPageBase
 {
+    private static SolidColorBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return new SolidColorBrush(Colors.DodgerBlue);
+    }
+
+    private static IBrush GetAccentTextBrush(SolidColorBrush accentBrush)
+    {
+        var color = accentBrush.Color;
+        var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
+        return luminance > 0.6 ? Brushes.Black : Brushes.White;
+    }
+
     private EasterEggDetector _easterEggDetector;
     private Border _iconBorder = null!;
     private TabControl? _tabControl;
@@ -112,11 +132,12 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private Border CreateIconBorder()
     {
+        var accentBrush = GetAccentBrush();
         var iconBorder = new Border
         {
             Width = 64,
             Height = 64,
-            Background = Brushes.DodgerBlue,
+            Background = accentBrush,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(0, 0, 16, 0),
@@ -126,7 +147,7 @@ public class AboutPage : SettingsPageBase
                 FontSize = 12,
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
-                Foreground = Brushes.White
+                Foreground = GetAccentTextBrush(accentBrush)
             }
         };
 
@@ -145,6 +166,53 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
+    /// 显示彩蛋触发提示窗口
+    /// </summary>
+    private static void ShowEasterEggDialog()
+    {
+        var dialog = new Window
+        {
+            Title = "提示",
+            Width = 280,
+            Height = 140,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Content = new StackPanel
+            {
+                Margin = new Thickness(20),
+                Spacing = 16,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "触发彩蛋成功~",
+                        FontSize = 16,
+                        Foreground = Brushes.White,
+                        HorizontalAlignment = HorizontalAlignment.Center
+                    },
+                    new Button
+                    {
+                        Content = "确定",
+                        Width = 80,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Background = GetAccentBrush(),
+                        Foreground = GetAccentTextBrush(GetAccentBrush()),
+                        CornerRadius = new CornerRadius(4)
+                    }
+                }
+            }
+        };
+
+        if (dialog.Content is StackPanel panel && panel.Children[1] is Button okButton)
+        {
+            okButton.Click += (s, e) => dialog.Close();
+        }
+
+        dialog.Show();
+    }
+
+    /// <summary>
     /// 彩蛋激活处理
     /// </summary>
     private void OnEasterEggActivated(object? sender, EventArgs e)
@@ -153,6 +221,7 @@ public class AboutPage : SettingsPageBase
         _easterEggActive = true;
 
         UpdateTabOrder(true);
+        ShowEasterEggDialog();
     }
 
     /// <summary>
@@ -276,8 +345,8 @@ public class AboutPage : SettingsPageBase
             FontSize = 12,
             Padding = new Thickness(8, 2),
             Background = Brushes.Transparent,
-            Foreground = Brushes.DodgerBlue,
-            BorderBrush = Brushes.DodgerBlue,
+            Foreground = GetAccentBrush(),
+            BorderBrush = GetAccentBrush(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4)
         };

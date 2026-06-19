@@ -14,6 +14,19 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// </summary>
 public class EasterEggPage : UserControl
 {
+    private static IBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return Brushes.DodgerBlue;
+    }
+
     public EasterEggPage()
     {
         InitializeComponent();
@@ -46,19 +59,15 @@ public class EasterEggPage : UserControl
         // Markdown 内容
         var markdownContent = @"## 图片展示
 
-以下是一些女装图片链接：
+![图片1](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6868.jpg)
 
-- [图片1](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear/1.jpg)
-- [图片2](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear/2.jpg)
-- [图片3](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear/3.jpg)
-- [图片4](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear/4.jpg)
-- [图片5](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear/5.jpg)
+![图片2](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6871.jpg)
 
-## 来源
+![图片3](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6880.jpg)
 
-更多内容请访问：[Cute-Dress/Dress](https://github.com/Cute-Dress/Dress)
+![图片4](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6892.jpg)
 
-还有更多……
+![图片5](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6907.jpg)
 
 ---
 
@@ -123,6 +132,15 @@ public class EasterEggPage : UserControl
                     Background = Brushes.Gray,
                     Margin = new Thickness(0, 8, 0, 8)
                 });
+            }
+            else if (line.StartsWith("!["))
+            {
+                // Markdown 图片 ![alt](url)
+                var imageControl = CreateMarkdownImage(line);
+                if (imageControl != null)
+                {
+                    content.Children.Add(imageControl);
+                }
             }
             else if (line.StartsWith("- ["))
             {
@@ -199,7 +217,7 @@ public class EasterEggPage : UserControl
             {
                 Text = text,
                 FontSize = 13,
-                Foreground = Brushes.DodgerBlue,
+                Foreground = GetAccentBrush(),
                 Cursor = new Cursor(StandardCursorType.Hand),
                 TextDecorations = TextDecorations.Underline
             };
@@ -289,7 +307,7 @@ public class EasterEggPage : UserControl
                 {
                     Text = linkText,
                     FontSize = 13,
-                    Foreground = Brushes.DodgerBlue,
+                    Foreground = GetAccentBrush(),
                     Cursor = new Cursor(StandardCursorType.Hand),
                     TextDecorations = TextDecorations.Underline
                 };
@@ -324,5 +342,62 @@ public class EasterEggPage : UserControl
 
         textBlock.Text = line.Replace("[", "").Replace("]", "").Split('(')[0].Trim();
         return textBlock;
+    }
+
+    /// <summary>
+    /// 创建 Markdown 图片控件
+    /// </summary>
+    private Control CreateMarkdownImage(string line)
+    {
+        var startBracket = line.IndexOf('[');
+        var endBracket = line.IndexOf(']');
+        var startParen = line.IndexOf('(');
+        var endParen = line.IndexOf(')');
+
+        if (startBracket < 0 || endBracket <= startBracket || startParen <= endBracket || endParen <= startParen)
+            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = Brushes.Gray };
+
+        var assetPath = line.Substring(startParen + 1, endParen - startParen - 1);
+        if (string.IsNullOrWhiteSpace(assetPath))
+            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = Brushes.Gray };
+
+        var image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+
+        var container = new Border
+        {
+            Child = image,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Width = 0
+        };
+
+        container.Loaded += (s, e) =>
+        {
+            var parent = container.Parent as Control;
+            if (parent != null)
+            {
+                container.Width = parent.Bounds.Width * 0.8;
+            }
+        };
+
+        LoadLocalImage(assetPath, image);
+
+        return container;
+    }
+
+    private void LoadLocalImage(string assetPath, Image imageControl)
+    {
+        try
+        {
+            var bitmap = new Avalonia.Media.Imaging.Bitmap(assetPath);
+            imageControl.Source = bitmap;
+        }
+        catch
+        {
+            imageControl.Source = null;
+        }
     }
 }
