@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
@@ -18,7 +18,67 @@ public class Plugin : PluginBase
 {
     public static Guid PluginId => new("11223344-5566-7788-9900-aabbccddeeff");
 
+    public static Plugin Instance { get; private set; } = null!;
+
     public PluginSettings Settings { get; set; } = new();
+
+    public Plugin()
+    {
+        Instance = this;
+    }
+
+    /// <summary>
+    /// 获取当前时间（应用插件全局偏移）
+    /// </summary>
+    public static DateTime GetCurrentTime()
+    {
+        var offset = Instance?.Settings.TimeOffsetSeconds ?? 0;
+        return DateTime.Now.AddSeconds(offset);
+    }
+
+    /// <summary>
+    /// 计算地方时
+    /// </summary>
+    public static DateTime GetLocalSolarTime(DateTime localTime)
+    {
+        var longitude = Instance?.Settings.Longitude ?? 116.4;
+        return GetLocalSolarTime(localTime, longitude);
+    }
+
+    /// <summary>
+    /// 计算地方时（指定经度）
+    /// </summary>
+    public static DateTime GetLocalSolarTime(DateTime localTime, double longitude)
+    {
+        var standardMeridian = TimeZoneInfo.Local.BaseUtcOffset.TotalHours * 15;
+        var timeDifferenceMinutes = (longitude - standardMeridian) * 4;
+        return localTime.AddMinutes(timeDifferenceMinutes);
+    }
+
+    /// <summary>
+    /// 计算区时
+    /// </summary>
+    public static DateTime GetTimeZoneTime(DateTime localTime)
+    {
+        var timeZoneId = Instance?.Settings.TimeZoneId ?? "China Standard Time";
+        return GetTimeZoneTime(localTime, timeZoneId);
+    }
+
+    /// <summary>
+    /// 计算区时（指定时区）
+    /// </summary>
+    public static DateTime GetTimeZoneTime(DateTime localTime, string timeZoneId)
+    {
+        try
+        {
+            var targetTimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return TimeZoneInfo.ConvertTime(localTime, targetTimeZone);
+        }
+        catch
+        {
+            return localTime.ToLocalTime();
+        }
+    }
 
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
@@ -42,6 +102,8 @@ public class Plugin : PluginBase
 
         services.AddSingleton<TimeRangeCondition>();
 
+        // ========== 现有条件：时间基准改为插件全局偏移后的时间 ==========
+
         // 注册规则：精确时间是
         services.AddRule<ExactTimeRuleSettings, ExactTimeRuleSettingsControl>(
             "advancedtimeisland.exact_time_is",
@@ -58,7 +120,7 @@ public class Plugin : PluginBase
                 if (!Helpers.UnixTimeHelper.TryParseExactTime(s.TargetTime, out var targetTime))
                     return false;
 
-                var currentTime = DateTime.Now;
+                var currentTime = GetCurrentTime();
                 return currentTime.Year == targetTime.Year &&
                        currentTime.Month == targetTime.Month &&
                        currentTime.Day == targetTime.Day &&
@@ -85,7 +147,7 @@ public class Plugin : PluginBase
                     !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
                     return false;
 
-                var currentTime = DateTime.Now;
+                var currentTime = GetCurrentTime();
                 return currentTime >= startTime && currentTime <= endTime;
             }
         );
@@ -122,15 +184,12 @@ public class Plugin : PluginBase
                     !int.TryParse(endParts[4], out int endSecond))
                     return false;
 
-                var now = DateTime.Now;
+                var now = GetCurrentTime();
                 var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
                 var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
 
-                // 处理跨年情况
                 if (startTimeThisYear > endTimeThisYear)
                 {
-                    // 跨年：如果当前时间大于开始时间，则结束时间是下一年
-                    // 如果当前时间小于结束时间，则开始时间是上一年
                     if (now >= startTimeThisYear)
                         endTimeThisYear = endTimeThisYear.AddYears(1);
                     else
@@ -171,11 +230,10 @@ public class Plugin : PluginBase
                     !int.TryParse(endParts[3], out int endSecond))
                     return false;
 
-                var now = DateTime.Now;
+                var now = GetCurrentTime();
                 var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
                 var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
 
-                // 处理跨月情况
                 if (startTimeThisMonth > endTimeThisMonth)
                 {
                     if (now >= startTimeThisMonth)
@@ -216,11 +274,10 @@ public class Plugin : PluginBase
                     !int.TryParse(endParts[2], out int endSecond))
                     return false;
 
-                var now = DateTime.Now;
+                var now = GetCurrentTime();
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                // 处理跨天情况
                 if (startTimeToday > endTimeToday)
                 {
                     if (now >= startTimeToday)
@@ -259,11 +316,10 @@ public class Plugin : PluginBase
                     !int.TryParse(endParts[1], out int endSecond))
                     return false;
 
-                var now = DateTime.Now;
+                var now = GetCurrentTime();
                 var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
                 var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
 
-                // 处理跨小时情况
                 if (startTimeThisHour > endTimeThisHour)
                 {
                     if (now >= startTimeThisHour)
@@ -293,11 +349,10 @@ public class Plugin : PluginBase
                     !int.TryParse(s.EndSecond, out int endSecond))
                     return false;
 
-                var now = DateTime.Now;
+                var now = GetCurrentTime();
                 var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
                 var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
 
-                // 处理跨分钟情况
                 if (startTimeThisMinute > endTimeThisMinute)
                 {
                     if (now >= startTimeThisMinute)
@@ -307,6 +362,447 @@ public class Plugin : PluginBase
                 }
 
                 return now >= startTimeThisMinute && now <= endTimeThisMinute;
+            }
+        );
+
+        // ========== 地方时条件（6个，带经度设置）==========
+
+        // 1. 地方时精确时间在范围
+        services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_exact_time_range",
+            "地方时精确时间在范围",
+            "\uecc2",
+            settings =>
+            {
+                if (settings is not LocalSolarExactTimeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
+
+        // 2. 地方时每年时间范围
+        services.AddRule<LocalSolarYearlyTimeRangeRuleSettings, LocalSolarYearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_yearly_time_range",
+            "地方时每年时间范围",
+            "\uecc3",
+            settings =>
+            {
+                if (settings is not LocalSolarYearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 5 || endParts.Length < 5)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMonth) ||
+                    !int.TryParse(startParts[1], out int startDay) ||
+                    !int.TryParse(startParts[2], out int startHour) ||
+                    !int.TryParse(startParts[3], out int startMinute) ||
+                    !int.TryParse(startParts[4], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMonth) ||
+                    !int.TryParse(endParts[1], out int endDay) ||
+                    !int.TryParse(endParts[2], out int endHour) ||
+                    !int.TryParse(endParts[3], out int endMinute) ||
+                    !int.TryParse(endParts[4], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
+                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+
+                if (startTimeThisYear > endTimeThisYear)
+                {
+                    if (now >= startTimeThisYear)
+                        endTimeThisYear = endTimeThisYear.AddYears(1);
+                    else
+                        startTimeThisYear = startTimeThisYear.AddYears(-1);
+                }
+
+                return now >= startTimeThisYear && now <= endTimeThisYear;
+            }
+        );
+
+        // 3. 地方时每月时间范围
+        services.AddRule<LocalSolarMonthlyTimeRangeRuleSettings, LocalSolarMonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_monthly_time_range",
+            "地方时每月时间范围",
+            "\uecc4",
+            settings =>
+            {
+                if (settings is not LocalSolarMonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 4 || endParts.Length < 4)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startDay) ||
+                    !int.TryParse(startParts[1], out int startHour) ||
+                    !int.TryParse(startParts[2], out int startMinute) ||
+                    !int.TryParse(startParts[3], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endDay) ||
+                    !int.TryParse(endParts[1], out int endHour) ||
+                    !int.TryParse(endParts[2], out int endMinute) ||
+                    !int.TryParse(endParts[3], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
+                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+
+                if (startTimeThisMonth > endTimeThisMonth)
+                {
+                    if (now >= startTimeThisMonth)
+                        endTimeThisMonth = endTimeThisMonth.AddMonths(1);
+                    else
+                        startTimeThisMonth = startTimeThisMonth.AddMonths(-1);
+                }
+
+                return now >= startTimeThisMonth && now <= endTimeThisMonth;
+            }
+        );
+
+        // 4. 地方时每天时间范围
+        services.AddRule<LocalSolarDailyTimeRangeRuleSettings, LocalSolarDailyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_daily_time_range",
+            "地方时每天时间范围",
+            "\uecc5",
+            settings =>
+            {
+                if (settings is not LocalSolarDailyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (startTimeToday > endTimeToday)
+                {
+                    if (now >= startTimeToday)
+                        endTimeToday = endTimeToday.AddDays(1);
+                    else
+                        startTimeToday = startTimeToday.AddDays(-1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // 5. 地方时每小时时间范围
+        services.AddRule<LocalSolarHourlyTimeRangeRuleSettings, LocalSolarHourlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_hourly_time_range",
+            "地方时每小时时间范围",
+            "\uecc6",
+            settings =>
+            {
+                if (settings is not LocalSolarHourlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 2 || endParts.Length < 2)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMinute) ||
+                    !int.TryParse(startParts[1], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMinute) ||
+                    !int.TryParse(endParts[1], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
+                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+
+                if (startTimeThisHour > endTimeThisHour)
+                {
+                    if (now >= startTimeThisHour)
+                        endTimeThisHour = endTimeThisHour.AddHours(1);
+                    else
+                        startTimeThisHour = startTimeThisHour.AddHours(-1);
+                }
+
+                return now >= startTimeThisHour && now <= endTimeThisHour;
+            }
+        );
+
+        // 6. 地方时每分钟时间范围
+        services.AddRule<LocalSolarMinutelyTimeRangeRuleSettings, LocalSolarMinutelyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_minutely_time_range",
+            "地方时每分钟时间范围",
+            "\uecc7",
+            settings =>
+            {
+                if (settings is not LocalSolarMinutelyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartSecond) || string.IsNullOrWhiteSpace(s.EndSecond))
+                    return false;
+
+                if (!int.TryParse(s.StartSecond, out int startSecond) ||
+                    !int.TryParse(s.EndSecond, out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
+                var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
+
+                if (startTimeThisMinute > endTimeThisMinute)
+                {
+                    if (now >= startTimeThisMinute)
+                        endTimeThisMinute = endTimeThisMinute.AddMinutes(1);
+                    else
+                        startTimeThisMinute = startTimeThisMinute.AddMinutes(-1);
+                }
+
+                return now >= startTimeThisMinute && now <= endTimeThisMinute;
+            }
+        );
+
+        // ========== 区时条件（5个，带时区设置）==========
+
+        // 7. 区时精确时间在范围
+        services.AddRule<TimeZoneExactTimeRuleSettings, TimeZoneExactTimeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_exact_time_range",
+            "区时精确时间在范围",
+            "\uecc2",
+            settings =>
+            {
+                if (settings is not TimeZoneExactTimeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
+
+        // 8. 区时每年时间范围
+        services.AddRule<TimeZoneYearlyTimeRangeRuleSettings, TimeZoneYearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_yearly_time_range",
+            "区时每年时间范围",
+            "\uecc3",
+            settings =>
+            {
+                if (settings is not TimeZoneYearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 5 || endParts.Length < 5)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMonth) ||
+                    !int.TryParse(startParts[1], out int startDay) ||
+                    !int.TryParse(startParts[2], out int startHour) ||
+                    !int.TryParse(startParts[3], out int startMinute) ||
+                    !int.TryParse(startParts[4], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMonth) ||
+                    !int.TryParse(endParts[1], out int endDay) ||
+                    !int.TryParse(endParts[2], out int endHour) ||
+                    !int.TryParse(endParts[3], out int endMinute) ||
+                    !int.TryParse(endParts[4], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
+                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+
+                if (startTimeThisYear > endTimeThisYear)
+                {
+                    if (now >= startTimeThisYear)
+                        endTimeThisYear = endTimeThisYear.AddYears(1);
+                    else
+                        startTimeThisYear = startTimeThisYear.AddYears(-1);
+                }
+
+                return now >= startTimeThisYear && now <= endTimeThisYear;
+            }
+        );
+
+        // 9. 区时每月时间范围
+        services.AddRule<TimeZoneMonthlyTimeRangeRuleSettings, TimeZoneMonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_monthly_time_range",
+            "区时每月时间范围",
+            "\uecc4",
+            settings =>
+            {
+                if (settings is not TimeZoneMonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 4 || endParts.Length < 4)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startDay) ||
+                    !int.TryParse(startParts[1], out int startHour) ||
+                    !int.TryParse(startParts[2], out int startMinute) ||
+                    !int.TryParse(startParts[3], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endDay) ||
+                    !int.TryParse(endParts[1], out int endHour) ||
+                    !int.TryParse(endParts[2], out int endMinute) ||
+                    !int.TryParse(endParts[3], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
+                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+
+                if (startTimeThisMonth > endTimeThisMonth)
+                {
+                    if (now >= startTimeThisMonth)
+                        endTimeThisMonth = endTimeThisMonth.AddMonths(1);
+                    else
+                        startTimeThisMonth = startTimeThisMonth.AddMonths(-1);
+                }
+
+                return now >= startTimeThisMonth && now <= endTimeThisMonth;
+            }
+        );
+
+        // 10. 区时每天时间范围
+        services.AddRule<TimeZoneDailyTimeRangeRuleSettings, TimeZoneDailyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_daily_time_range",
+            "区时每天时间范围",
+            "\uecc5",
+            settings =>
+            {
+                if (settings is not TimeZoneDailyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (startTimeToday > endTimeToday)
+                {
+                    if (now >= startTimeToday)
+                        endTimeToday = endTimeToday.AddDays(1);
+                    else
+                        startTimeToday = startTimeToday.AddDays(-1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // 11. 区时每小时时间范围
+        services.AddRule<TimeZoneHourlyTimeRangeRuleSettings, TimeZoneHourlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_hourly_time_range",
+            "区时每小时时间范围",
+            "\uecc6",
+            settings =>
+            {
+                if (settings is not TimeZoneHourlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 2 || endParts.Length < 2)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMinute) ||
+                    !int.TryParse(startParts[1], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMinute) ||
+                    !int.TryParse(endParts[1], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
+                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+
+                if (startTimeThisHour > endTimeThisHour)
+                {
+                    if (now >= startTimeThisHour)
+                        endTimeThisHour = endTimeThisHour.AddHours(1);
+                    else
+                        startTimeThisHour = startTimeThisHour.AddHours(-1);
+                }
+
+                return now >= startTimeThisHour && now <= endTimeThisHour;
             }
         );
 

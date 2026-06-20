@@ -8,15 +8,12 @@ using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
-/// <summary>
-/// 每小时时间范围规则设置控件
-/// 格式：mm-ss
-/// 使用 TimePicker
-/// </summary>
 public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<HourlyTimeRangeRuleSettings>
 {
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private TextBox _startMinuteBox = null!;
+    private TextBox _startSecondBox = null!;
+    private TextBox _endMinuteBox = null!;
+    private TextBox _endSecondBox = null!;
 
     public HourlyTimeRangeRuleSettingsControl()
     {
@@ -34,13 +31,13 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        mainPanel.Children.Add(CreateTimePickerGroup("开始时间:", true));
-        mainPanel.Children.Add(CreateTimePickerGroup("结束时间:", false));
+        mainPanel.Children.Add(CreateInputGroup("开始时间:", true));
+        mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
         Content = mainPanel;
     }
 
-    private StackPanel CreateTimePickerGroup(string label, bool isStart)
+    private StackPanel CreateInputGroup(string label, bool isStart)
     {
         var groupPanel = new StackPanel
         {
@@ -56,39 +53,59 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        // 时间选择器
-        var timePicker = new TimePicker
+        var inputPanel = new StackPanel
         {
-            Width = 300,
-            ClockIdentifier = "24HourClock",
-            UseSeconds = true,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+
+        var minuteBox = new TextBox
+        {
+            Width = 120,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Watermark = "分钟 (0-59)"
+        };
+
+        var secondBox = new TextBox
+        {
+            Width = 120,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Watermark = "秒数 (0-59)"
         };
 
         if (isStart)
         {
-            _startTimePicker = timePicker;
+            _startMinuteBox = minuteBox;
+            _startSecondBox = secondBox;
         }
         else
         {
-            _endTimePicker = timePicker;
+            _endMinuteBox = minuteBox;
+            _endSecondBox = secondBox;
         }
 
-        // 解析初始值
         var initialValue = isStart ? Settings?.StartTime ?? "" : Settings?.EndTime ?? "";
         ParseTimeString(initialValue, out int minute, out int second);
 
-        timePicker.SelectedTime = new TimeSpan(0, minute, second);
+        minuteBox.Text = minute.ToString("D2");
+        secondBox.Text = second.ToString("D2");
 
-        // 监听变化
-        timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
+        // 输入时只更新值，不格式化
+        minuteBox.TextChanged += (s, e) => UpdateSettingsValue();
+        secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
-        // 用ScrollViewer包裹
+        // 失去焦点时验证并格式化
+        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+
+        inputPanel.Children.Add(minuteBox);
+        inputPanel.Children.Add(secondBox);
+
         var scrollViewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = timePicker
+            Content = inputPanel
         };
 
         groupPanel.Children.Add(scrollViewer);
@@ -96,17 +113,52 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         return groupPanel;
     }
 
+    private void ValidateAndFormatTextBox(TextBox textBox)
+    {
+        var text = textBox.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            textBox.Text = "00";
+            return;
+        }
+
+        if (double.TryParse(text, out double value))
+        {
+            int rounded = (int)Math.Round(value);
+            int clamped = Math.Clamp(rounded, 0, 59);
+            textBox.Text = clamped.ToString("D2");
+        }
+        else
+        {
+            textBox.Text = "00";
+        }
+    }
+
     private void UpdateSettingsValue()
     {
         if (Settings == null) return;
 
-        // 开始时间
-        var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
-        Settings.StartTime = $"{startTime.Minutes:D2}-{startTime.Seconds:D2}";
+        int startMinute = ParseMinute(_startMinuteBox.Text);
+        int startSecond = ParseSecond(_startSecondBox.Text);
+        Settings.StartTime = $"{startMinute:D2}-{startSecond:D2}";
 
-        // 结束时间
-        var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
-        Settings.EndTime = $"{endTime.Minutes:D2}-{endTime.Seconds:D2}";
+        int endMinute = ParseMinute(_endMinuteBox.Text);
+        int endSecond = ParseSecond(_endSecondBox.Text);
+        Settings.EndTime = $"{endMinute:D2}-{endSecond:D2}";
+    }
+
+    private int ParseMinute(string text)
+    {
+        if (int.TryParse(text, out int value))
+            return Math.Clamp(value, 0, 59);
+        return 0;
+    }
+
+    private int ParseSecond(string text)
+    {
+        if (int.TryParse(text, out int value))
+            return Math.Clamp(value, 0, 59);
+        return 0;
     }
 
     private void ParseTimeString(string value, out int minute, out int second)

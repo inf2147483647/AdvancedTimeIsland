@@ -8,15 +8,10 @@ using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
-/// <summary>
-/// 每分钟时间范围规则设置控件
-/// 格式：ss
-/// 使用 TimePicker
-/// </summary>
 public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<MinutelyTimeRangeRuleSettings>
 {
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private TextBox _startSecondBox = null!;
+    private TextBox _endSecondBox = null!;
 
     public MinutelyTimeRangeRuleSettingsControl()
     {
@@ -34,13 +29,13 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        mainPanel.Children.Add(CreateTimePickerGroup("开始秒数:", true));
-        mainPanel.Children.Add(CreateTimePickerGroup("结束秒数:", false));
+        mainPanel.Children.Add(CreateInputGroup("开始秒数:", true));
+        mainPanel.Children.Add(CreateInputGroup("结束秒数:", false));
 
         Content = mainPanel;
     }
 
-    private StackPanel CreateTimePickerGroup(string label, bool isStart)
+    private StackPanel CreateInputGroup(string label, bool isStart)
     {
         var groupPanel = new StackPanel
         {
@@ -56,40 +51,39 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        // 时间选择器
-        var timePicker = new TimePicker
+        var secondBox = new TextBox
         {
-            Width = 300,
-            ClockIdentifier = "24HourClock",
-            UseSeconds = true,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Width = 120,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            Watermark = "秒数 (0-59)"
         };
 
         if (isStart)
         {
-            _startTimePicker = timePicker;
+            _startSecondBox = secondBox;
         }
         else
         {
-            _endTimePicker = timePicker;
+            _endSecondBox = secondBox;
         }
 
-        // 解析初始值
         var initialValue = isStart ? Settings?.StartSecond ?? "" : Settings?.EndSecond ?? "";
         if (int.TryParse(initialValue, out int second))
         {
-            timePicker.SelectedTime = new TimeSpan(0, 0, second);
+            secondBox.Text = second.ToString("D2");
         }
 
-        // 监听变化
-        timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
+        // 输入时只更新值，不格式化
+        secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
-        // 用ScrollViewer包裹
+        // 失去焦点时验证并格式化
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+
         var scrollViewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = timePicker
+            Content = secondBox
         };
 
         groupPanel.Children.Add(scrollViewer);
@@ -97,16 +91,42 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         return groupPanel;
     }
 
+    private void ValidateAndFormatTextBox(TextBox textBox)
+    {
+        var text = textBox.Text;
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            textBox.Text = "00";
+            return;
+        }
+
+        if (double.TryParse(text, out double value))
+        {
+            int rounded = (int)Math.Round(value);
+            int clamped = Math.Clamp(rounded, 0, 59);
+            textBox.Text = clamped.ToString("D2");
+        }
+        else
+        {
+            textBox.Text = "00";
+        }
+    }
+
     private void UpdateSettingsValue()
     {
         if (Settings == null) return;
 
-        // 开始秒数
-        var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
-        Settings.StartSecond = $"{startTime.Seconds:D2}";
+        int startSecond = ParseSecond(_startSecondBox.Text);
+        Settings.StartSecond = $"{startSecond:D2}";
 
-        // 结束秒数
-        var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
-        Settings.EndSecond = $"{endTime.Seconds:D2}";
+        int endSecond = ParseSecond(_endSecondBox.Text);
+        Settings.EndSecond = $"{endSecond:D2}";
+    }
+
+    private int ParseSecond(string text)
+    {
+        if (int.TryParse(text, out int value))
+            return Math.Clamp(value, 0, 59);
+        return 0;
     }
 }
