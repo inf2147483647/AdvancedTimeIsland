@@ -1,14 +1,22 @@
 using System;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
+/// <summary>
+/// 精确时间规则设置控件
+/// 使用 DatePicker 和 TimePicker 替代下拉框
+/// </summary>
 public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRuleSettings>
 {
+    private DatePicker _datePicker = null!;
+    private TimePicker _timePicker = null!;
+
     public ExactTimeRuleSettingsControl()
     {
         InitializeComponent();
@@ -25,16 +33,12 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        mainPanel.Children.Add(CreateDateTimePickerGroup("精确时间:", Settings?.TargetTime ?? "", time =>
-        {
-            if (Settings != null)
-                Settings.TargetTime = time;
-        }));
+        mainPanel.Children.Add(CreateDateTimePickerGroup("精确时间:"));
 
         Content = mainPanel;
     }
 
-    private StackPanel CreateDateTimePickerGroup(string label, string initialValue, Action<string> onValueChanged)
+    private StackPanel CreateDateTimePickerGroup(string label)
     {
         var groupPanel = new StackPanel
         {
@@ -50,119 +54,65 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var pickerRow = new WrapPanel
+        // 日期选择器
+        _datePicker = new DatePicker
         {
-            Orientation = Orientation.Horizontal,
+            Width = 400,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
+        // 时间选择器
+        _timePicker = new TimePicker
+        {
+            Width = 300,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        // 解析初始值
+        var initialValue = Settings?.TargetTime ?? "";
         ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
 
-        var yearCombo = new ComboBox
+        if (year > 0 && month > 0 && day > 0)
         {
-            Width = 90,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
+            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
+        }
+        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+
+        // 监听变化
+        _datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
+        _timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
+
+        // 水平排列的日期时间选择器
+        var pickerRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
         };
-        for (int i = 1900; i <= 2100; i++)
-        {
-            yearCombo.Items.Add($"{i}年");
-        }
-        if (year >= 1900 && year <= 2100)
-            yearCombo.SelectedIndex = year - 1900;
-        pickerRow.Children.Add(yearCombo);
+        pickerRow.Children.Add(_datePicker);
+        pickerRow.Children.Add(_timePicker);
 
-        var monthCombo = new ComboBox
+        // 用ScrollViewer包裹，实现水平滚动
+        var scrollViewer = new ScrollViewer
         {
-            Width = 70,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = pickerRow
         };
-        for (int i = 1; i <= 12; i++)
-        {
-            monthCombo.Items.Add($"{i}月");
-        }
-        if (month >= 1 && month <= 12)
-            monthCombo.SelectedIndex = month - 1;
-        pickerRow.Children.Add(monthCombo);
 
-        var dayCombo = new ComboBox
-        {
-            Width = 70,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
-        };
-        for (int i = 1; i <= 31; i++)
-        {
-            dayCombo.Items.Add($"{i}日");
-        }
-        if (day >= 1 && day <= 31)
-            dayCombo.SelectedIndex = day - 1;
-        pickerRow.Children.Add(dayCombo);
-
-        var hourCombo = new ComboBox
-        {
-            Width = 60,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
-        };
-        for (int i = 0; i < 24; i++)
-        {
-            hourCombo.Items.Add($"{i:D2}时");
-        }
-        if (hour >= 0 && hour < 24)
-            hourCombo.SelectedIndex = hour;
-        pickerRow.Children.Add(hourCombo);
-
-        var minuteCombo = new ComboBox
-        {
-            Width = 60,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
-        };
-        for (int i = 0; i < 60; i++)
-        {
-            minuteCombo.Items.Add($"{i:D2}分");
-        }
-        if (minute >= 0 && minute < 60)
-            minuteCombo.SelectedIndex = minute;
-        pickerRow.Children.Add(minuteCombo);
-
-        var secondCombo = new ComboBox
-        {
-            Width = 60,
-            SelectedIndex = -1,
-            Margin = new Thickness(0, 0, 6, 4)
-        };
-        for (int i = 0; i < 60; i++)
-        {
-            secondCombo.Items.Add($"{i:D2}秒");
-        }
-        if (second >= 0 && second < 60)
-            secondCombo.SelectedIndex = second;
-        pickerRow.Children.Add(secondCombo);
-
-        void OnSelectionChanged(object? s, EventArgs e)
-        {
-            var y = yearCombo.SelectedIndex >= 0 ? yearCombo.SelectedIndex + 1900 : 0;
-            var mo = monthCombo.SelectedIndex >= 0 ? monthCombo.SelectedIndex + 1 : 0;
-            var d = dayCombo.SelectedIndex >= 0 ? dayCombo.SelectedIndex + 1 : 0;
-            var h = hourCombo.SelectedIndex >= 0 ? hourCombo.SelectedIndex : 0;
-            var mi = minuteCombo.SelectedIndex >= 0 ? minuteCombo.SelectedIndex : 0;
-            var s2 = secondCombo.SelectedIndex >= 0 ? secondCombo.SelectedIndex : 0;
-            onValueChanged($"{y:D4}-{mo:D2}-{d:D2}-{h:D2}-{mi:D2}-{s2:D2}");
-        }
-
-        yearCombo.SelectionChanged += OnSelectionChanged;
-        monthCombo.SelectionChanged += OnSelectionChanged;
-        dayCombo.SelectionChanged += OnSelectionChanged;
-        hourCombo.SelectionChanged += OnSelectionChanged;
-        minuteCombo.SelectionChanged += OnSelectionChanged;
-        secondCombo.SelectionChanged += OnSelectionChanged;
-
-        groupPanel.Children.Add(pickerRow);
+        groupPanel.Children.Add(scrollViewer);
 
         return groupPanel;
+    }
+
+    private void UpdateSettingsValue()
+    {
+        if (Settings == null) return;
+
+        var date = _datePicker.SelectedDate?.DateTime ?? DateTime.Today;
+        var time = _timePicker.SelectedTime ?? TimeSpan.Zero;
+        Settings.TargetTime = $"{date.Year:D4}-{date.Month:D2}-{date.Day:D2}-{time.Hours:D2}-{time.Minutes:D2}-{time.Seconds:D2}";
     }
 
     private void ParseDateTimeString(string value, out int year, out int month, out int day, out int hour, out int minute, out int second)
