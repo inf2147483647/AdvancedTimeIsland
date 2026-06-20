@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -7,10 +7,6 @@ using AdvancedTimeIsland.Services;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-/// <summary>
-/// 精确时间触发器
-/// 支持精确时间(YYYY-MM-DD-hh-mm-ss)、绝对时间(Unix)、周期性触发
-/// </summary>
 public class ExactTimeTrigger : INotifyPropertyChanged
 {
     private readonly TimeBaseService _timeBaseService;
@@ -26,30 +22,13 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         _timeBaseService = timeBaseService;
     }
 
-    /// <summary>
-    /// 触发模式
-    /// </summary>
     public enum TriggerMode
     {
-        /// <summary>
-        /// 精确时间模式 (YYYY-MM-DD-hh-mm-ss)
-        /// </summary>
         ExactTime,
-        
-        /// <summary>
-        /// Unix时间戳模式（秒）
-        /// </summary>
         UnixTimestamp,
-        
-        /// <summary>
-        /// 周期性触发模式
-        /// </summary>
         Periodic
     }
 
-    /// <summary>
-    /// 触发模式
-    /// </summary>
     public TriggerMode Mode
     {
         get => _mode;
@@ -63,9 +42,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 目标时间字符串 (YYYY-MM-DD-hh-mm-ss)
-    /// </summary>
     public string TargetTimeString
     {
         get => _targetTimeString;
@@ -79,9 +55,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 目标Unix时间戳（秒）
-    /// </summary>
     public long TargetUnixTimestamp
     {
         get => _targetUnixTimestamp;
@@ -95,9 +68,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 周期性触发间隔（秒）
-    /// </summary>
     public int PeriodicIntervalSeconds
     {
         get => _periodicIntervalSeconds;
@@ -111,9 +81,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 是否启用
-    /// </summary>
     public bool IsEnabled
     {
         get => _isEnabled;
@@ -127,10 +94,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 检查是否应该触发
-    /// </summary>
-    /// <returns>是否触发</returns>
     public async Task<bool> CheckTriggerAsync()
     {
         if (!IsEnabled)
@@ -148,9 +111,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         };
     }
 
-    /// <summary>
-    /// 检查精确时间触发
-    /// </summary>
     private bool CheckExactTime(DateTime currentTime)
     {
         if (string.IsNullOrEmpty(TargetTimeString))
@@ -159,7 +119,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         if (!UnixTimeHelper.TryParseExactTime(TargetTimeString, out var targetTime))
             return false;
 
-        // 检查是否到达目标时间（精确到秒）
         if (currentTime.Year == targetTime.Year &&
             currentTime.Month == targetTime.Month &&
             currentTime.Day == targetTime.Day &&
@@ -181,15 +140,11 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         return false;
     }
 
-    /// <summary>
-    /// 检查Unix时间戳触发
-    /// </summary>
     private bool CheckUnixTimestamp(long currentTimestamp)
     {
         if (TargetUnixTimestamp <= 0)
             return false;
 
-        // 检查是否到达或超过目标时间戳
         if (currentTimestamp >= TargetUnixTimestamp && !_hasTriggered)
         {
             _hasTriggered = true;
@@ -199,15 +154,11 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         return false;
     }
 
-    /// <summary>
-    /// 检查周期性触发
-    /// </summary>
     private bool CheckPeriodic(long currentTimestamp)
     {
         if (PeriodicIntervalSeconds <= 0)
             return false;
 
-        // 检查是否到达周期触发时间
         if (currentTimestamp % PeriodicIntervalSeconds == 0)
         {
             return true;
@@ -216,9 +167,6 @@ public class ExactTimeTrigger : INotifyPropertyChanged
         return false;
     }
 
-    /// <summary>
-    /// 重置触发状态
-    /// </summary>
     public void Reset()
     {
         _hasTriggered = false;

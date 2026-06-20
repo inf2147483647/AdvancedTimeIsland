@@ -1,125 +1,84 @@
-﻿﻿using System;
+using System;
 using AdvancedTimeIsland.ViewModels.Main;
+using AdvancedTimeIsland.Services;
+using AdvancedTimeIsland.Models;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-/// <summary>
-/// 日期/地方时/区时显示控件
-/// 使用纯 C# 代码构建 UI
-/// </summary>
-public class AdvancedDateControl : UserControl
+[ComponentInfo(
+    "11223344-5566-7788-9900-112233445566",
+    "高级日期（ATI）",
+    "\uE121",
+    "显示精确日期"
+)]
+public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 {
-    private readonly AdvancedDateViewModel _viewModel;
-    private TextBlock? _exactTimeTextBlock;
-    private TextBlock? _dateTextBlock;
-    private TextBlock? _timeTextBlock;
+    private AdvancedDateViewModel vm;
+    private TextBlock tb;
+    private Border rootBorder;
+    private readonly TimeBaseService _timeBaseService;
 
-    public AdvancedDateControl(AdvancedDateViewModel viewModel)
+    public AdvancedDateControl(TimeBaseService tbs)
     {
-        _viewModel = viewModel;
-        
-        // 初始化组件
+        _timeBaseService = tbs;
         InitializeComponent();
-        
-        // 设置数据上下文
-        DataContext = _viewModel;
     }
 
-    /// <summary>
-    /// 初始化 UI 组件
-    /// </summary>
     private void InitializeComponent()
     {
-        // 创建主容器
-        var mainPanel = new StackPanel
+        rootBorder = new Border
         {
-            Orientation = Orientation.Vertical,
-            HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            Spacing = 8
+            HorizontalAlignment = HorizontalAlignment.Center
         };
-
-        // 创建精确时间显示
-        _exactTimeTextBlock = new TextBlock
-        {
-            FontSize = 24,
-            FontWeight = FontWeight.Bold,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = Brushes.White,
-            Text = "精确时间加载中..."
-        };
-
-        // 创建日期显示
-        _dateTextBlock = new TextBlock
-        {
-            FontSize = 14,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = Brushes.LightGray,
-            Text = ""
-        };
-
-        // 创建时间显示
-        _timeTextBlock = new TextBlock
-        {
-            FontSize = 18,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = Brushes.White,
-            Text = ""
-        };
-
-        // 添加到主容器
-        mainPanel.Children.Add(_exactTimeTextBlock);
-        mainPanel.Children.Add(_dateTextBlock);
-        mainPanel.Children.Add(_timeTextBlock);
-
-        // 设置控件内容
-        Content = mainPanel;
-
-        // 绑定数据
-        SetupBindings();
+        tb = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "Loading..." };
+        rootBorder.Child = tb;
+        Content = rootBorder;
     }
 
-    /// <summary>
-    /// 设置数据绑定
-    /// </summary>
-    private void SetupBindings()
+    private void UpdateFontColor(string colorStr)
     {
-        // 手动绑定（不使用 XAML 绑定）
-        _viewModel.PropertyChanged += ViewModel_PropertyChanged;
-    }
-
-    /// <summary>
-    /// 视图模型属性变更处理
-    /// </summary>
-    private void ViewModel_PropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
-    {
-        switch (e.PropertyName)
+        try
         {
-            case nameof(AdvancedDateViewModel.ExactTime):
-                _exactTimeTextBlock!.Text = $"精确时间: {_viewModel.ExactTime}";
-                break;
-            case nameof(AdvancedDateViewModel.DateDisplay):
-                _dateTextBlock!.Text = _viewModel.DateDisplay;
-                break;
-            case nameof(AdvancedDateViewModel.TimeDisplay):
-                _timeTextBlock!.Text = _viewModel.TimeDisplay;
-                break;
+            if (colorStr.StartsWith("#") && colorStr.Length == 7)
+            {
+                var color = Avalonia.Media.Color.Parse(colorStr);
+                tb.Foreground = new SolidColorBrush(color);
+            }
+        }
+        catch
+        {
+            tb.Foreground = Brushes.White;
         }
     }
 
-    /// <summary>
-    /// 清理资源
-    /// </summary>
+    private void UpdateFontSize(double fontSize)
+    {
+        tb.FontSize = fontSize;
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        vm = new AdvancedDateViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
+        DataContext = vm;
+        tb.Text = vm.DateDisplay;
+        vm.PropertyChanged += (s, e) =>
+        {
+            if (e.PropertyName == nameof(vm.DateDisplay)) tb.Text = vm.DateDisplay;
+        };
+        UpdateFontColor(Settings.FontColor);
+        UpdateFontSize(Settings.DateFontSize);
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        
-        if (_viewModel is IDisposable disposable)
-        {
-            disposable.Dispose();
-        }
+        (vm as IDisposable)?.Dispose();
     }
 }

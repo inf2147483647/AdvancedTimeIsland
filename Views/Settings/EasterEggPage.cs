@@ -1,4 +1,6 @@
 using System;
+using System.IO;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -59,15 +61,15 @@ public class EasterEggPage : UserControl
         // Markdown 内容
         var markdownContent = @"## 图片展示
 
-![图片1](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6868.jpg)
+![图片1](Assets/Images/womenswear_IMG_6868.jpg)
 
-![图片2](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6871.jpg)
+![图片2](Assets/Images/womenswear_IMG_6871.jpg)
 
-![图片3](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6880.jpg)
+![图片3](Assets/Images/womenswear_IMG_6880.jpg)
 
-![图片4](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6892.jpg)
+![图片4](Assets/Images/womenswear_IMG_6892.jpg)
 
-![图片5](avares://AdvancedTimeIsland/Assets/Images/womenswear_IMG_6907.jpg)
+![图片5](Assets/Images/womenswear_IMG_6907.jpg)
 
 ---
 
@@ -392,8 +394,24 @@ public class EasterEggPage : UserControl
     {
         try
         {
-            var bitmap = new Avalonia.Media.Imaging.Bitmap(assetPath);
-            imageControl.Source = bitmap;
+            var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+            var pluginDir = Path.GetDirectoryName(assemblyLocation);
+            if (string.IsNullOrEmpty(pluginDir))
+            {
+                imageControl.Source = null;
+                return;
+            }
+
+            var fullPath = Path.Combine(pluginDir, assetPath);
+            if (File.Exists(fullPath))
+            {
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
+                imageControl.Source = bitmap;
+            }
+            else
+            {
+                imageControl.Source = null;
+            }
         }
         catch
         {

@@ -6,6 +6,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
@@ -43,14 +44,20 @@ public class AboutPage : SettingsPageBase
     private TabControl? _tabControl;
     private bool _easterEggActive;
     private readonly LunarInstallerService? _lunarInstaller;
+    private readonly PluginSettings? _pluginSettings;
 
-    public AboutPage() : this(null)
+    public AboutPage() : this(null, null)
     {
     }
 
-    public AboutPage(LunarInstallerService? lunarInstaller = null)
+    public AboutPage(LunarInstallerService? lunarInstaller = null) : this(lunarInstaller, null)
+    {
+    }
+
+    public AboutPage(LunarInstallerService? lunarInstaller = null, PluginSettings? pluginSettings = null)
     {
         _lunarInstaller = lunarInstaller;
+        _pluginSettings = pluginSettings;
         _easterEggDetector = new EasterEggDetector(11, 5);
         _easterEggDetector.OnActivated += OnEasterEggActivated;
 
@@ -453,7 +460,7 @@ public class AboutPage : SettingsPageBase
                     tabItem.Content = new TimeConverterPage();
                     break;
                 case "PluginSettings":
-                    var pluginSettings = new PluginSettingsPage(null, _lunarInstaller);
+                    var pluginSettings = new PluginSettingsPage(_pluginSettings, _lunarInstaller);
                     if (_easterEggActive)
                     {
                         pluginSettings.ShowEasterEggSetting();

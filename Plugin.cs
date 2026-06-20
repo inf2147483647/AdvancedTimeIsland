@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
@@ -32,12 +32,41 @@ public class Plugin : PluginBase
 
         services.AddSingleton<TimeBaseService>();
 
-        services.AddSingleton<AdvancedDateViewModel>();
-        services.AddSingleton<AdvancedDateControl>();
+        services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
+
+        services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
+
+        services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
 
         services.AddSingleton<ExactTimeTrigger>();
 
         services.AddSingleton<TimeRangeCondition>();
+
+        // 注册规则：精确时间是
+        services.AddRule<ExactTimeRuleSettings, ExactTimeRuleSettingsControl>(
+            "advancedtimeisland.exact_time_is",
+            "精确时间是",
+            "\uecc1",
+            settings =>
+            {
+                if (settings is not ExactTimeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.TargetTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.TargetTime, out var targetTime))
+                    return false;
+
+                var currentTime = DateTime.Now;
+                return currentTime.Year == targetTime.Year &&
+                       currentTime.Month == targetTime.Month &&
+                       currentTime.Day == targetTime.Day &&
+                       currentTime.Hour == targetTime.Hour &&
+                       currentTime.Minute == targetTime.Minute &&
+                       currentTime.Second == targetTime.Second;
+            }
+        );
 
         // 注册规则：精确时间在范围
         services.AddRule<ExactTimeRangeRuleSettings, ExactTimeRangeRuleSettingsControl>(

@@ -36,10 +36,8 @@ public class PluginSettingsPage : UserControl
     }
 
     private readonly PluginSettings? _settings;
-    private readonly LunarInstallerService? _lunarInstaller;
     private ToggleSwitch? _easterEggToggle;
     private Border? _easterEggItem;
-    private Button? _lunarInstallButton;
 
     public PluginSettingsPage() : this(null, null)
     {
@@ -52,7 +50,6 @@ public class PluginSettingsPage : UserControl
     public PluginSettingsPage(PluginSettings? settings, LunarInstallerService? lunarInstaller)
     {
         _settings = settings;
-        _lunarInstaller = lunarInstaller;
         InitializeComponent();
     }
 
@@ -74,21 +71,31 @@ public class PluginSettingsPage : UserControl
             Foreground = Brushes.White
         });
 
-        // 设置项列表
+        // 通用设置
+        mainPanel.Children.Add(new TextBlock
+        {
+            Text = "通用设置",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brushes.White,
+            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+        });
+
+        // 许可证声明
+        mainPanel.Children.Add(new TextBlock
+        {
+            Text = "本项目基于 GNU Lesser General Public License v3.0 获得许可",
+            FontSize = 12,
+            Foreground = Brushes.LightGray,
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        });
+
+        // 启用农历功能
         mainPanel.Children.Add(CreateSettingItem(
             "启用农历功能",
             "开启后将显示农历日期",
             CreateToggleSwitch(_settings?.EnableLunarCalendar ?? true, OnLunarCalendarToggleChanged),
-            null
-        ));
-
-        // 安装lunar-csharp
-        var isLunarInstalled = _lunarInstaller?.IsInstalled ?? false;
-        _lunarInstallButton = isLunarInstalled ? CreateInstalledButton() : CreateLinkButton("安装", OnLunarPackageClick);
-        mainPanel.Children.Add(CreateSettingItem(
-            "安装 lunar-csharp 的 NuGet 包",
-            "农历转换功能依赖此包",
-            _lunarInstallButton,
             null
         ));
 
@@ -100,11 +107,27 @@ public class PluginSettingsPage : UserControl
             null
         ));
 
-        // 时间基准
+        // 地方时经度设置
         mainPanel.Children.Add(CreateSettingItem(
-            "时间基准",
-            "选择使用ClassIsland时间还是系统时间",
-            CreateTimeBaseComboBox(),
+            "地方时经度",
+            "设置地方时计算使用的经度（范围：-180 到 180）",
+            CreateLongitudeTextBox(),
+            null
+        ));
+
+        // 区时时区设置
+        mainPanel.Children.Add(CreateSettingItem(
+            "区时时区",
+            "选择区时显示使用的时区",
+            CreateTimeZoneComboBox(),
+            null
+        ));
+
+        // 插件时间偏移设置（与ClassIsland时间独立）
+        mainPanel.Children.Add(CreateSettingItem(
+            "插件时间偏移",
+            "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
+            CreateTimeOffsetTextBox(),
             null
         ));
 
@@ -234,35 +257,66 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 创建已安装按钮
+    /// 创建时间偏移输入框（秒）
     /// </summary>
-    private Button CreateInstalledButton()
+    private TextBox CreateTimeOffsetTextBox()
     {
-        return new Button
+        var textBox = new TextBox
         {
-            Content = "✓ 已安装",
-            Padding = new Avalonia.Thickness(12, 4),
-            Background = Brushes.Green,
-            Foreground = Brushes.White,
-            CornerRadius = new Avalonia.CornerRadius(4),
-            IsEnabled = false
+            Width = 100,
+            Text = (_settings?.TimeOffsetSeconds ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Watermark = "0"
         };
+        textBox.LostFocus += OnTimeOffsetLostFocus;
+        return textBox;
     }
 
     /// <summary>
-    /// 创建时间基准下拉框
+    /// 创建经度输入框
     /// </summary>
-    private ComboBox CreateTimeBaseComboBox()
+    private TextBox CreateLongitudeTextBox()
+    {
+        var textBox = new TextBox
+        {
+            Width = 100,
+            Text = _settings?.Longitude.ToString("F4") ?? "116.4",
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        textBox.LostFocus += OnLongitudeLostFocus;
+        return textBox;
+    }
+
+    /// <summary>
+    /// 创建时区下拉框
+    /// </summary>
+    private ComboBox CreateTimeZoneComboBox()
     {
         var comboBox = new ComboBox
         {
-            Width = 150
+            Width = 200
         };
 
-        comboBox.Items.Add("ClassIsland");
-        comboBox.Items.Add("系统");
-        comboBox.SelectedIndex = _settings?.TimeBaseMode ?? 0;
-        comboBox.SelectionChanged += OnTimeBaseSelectionChanged;
+        var timeZones = TimeZoneInfo.GetSystemTimeZones();
+        foreach (var tz in timeZones)
+        {
+            comboBox.Items.Add(tz);
+        }
+
+        if (_settings != null)
+        {
+            foreach (var item in comboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == _settings.TimeZoneId)
+                {
+                    comboBox.SelectedItem = item;
+                    break;
+                }
+            }
+        }
+
+        comboBox.SelectionChanged += OnTimeZoneSelectionChanged;
+        comboBox.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<TimeZoneInfo>((tz, ns) => new TextBlock { Text = tz?.DisplayName ?? "" });
 
         return comboBox;
     }
@@ -314,51 +368,42 @@ public class PluginSettingsPage : UserControl
         // 区时/地方时功能开关
     }
 
-    private async void OnLunarPackageClick(object? sender, RoutedEventArgs e)
+    private void OnTimeOffsetLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (_lunarInstallButton != null)
+        if (_settings != null && sender is TextBox textBox)
         {
-            _lunarInstallButton.Content = "安装中...";
-            _lunarInstallButton.IsEnabled = false;
-        }
-
-        try
-        {
-            bool success = false;
-            if (_lunarInstaller != null)
+            if (double.TryParse(textBox.Text, out double offset))
             {
-                success = await _lunarInstaller.TryInstallAsync();
+                // 限制偏移范围为 -86400 到 86400 秒（-24小时到+24小时）
+                offset = Math.Max(-86400, Math.Min(86400, offset));
+                _settings.TimeOffsetSeconds = offset;
+                textBox.Text = offset.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
-            if (success && _lunarInstallButton != null)
+            else
             {
-                _lunarInstallButton.Content = "✓ 已安装";
-                _lunarInstallButton.Background = Brushes.Green;
-                if (_settings != null)
-                {
-                    _settings.IsLunarInstalled = true;
-                }
-            }
-            else if (_lunarInstallButton != null)
-            {
-                _lunarInstallButton.Content = "➜ 安装";
-                _lunarInstallButton.IsEnabled = true;
-            }
-        }
-        catch
-        {
-            if (_lunarInstallButton != null)
-            {
-                _lunarInstallButton.Content = "➜ 安装";
-                _lunarInstallButton.IsEnabled = true;
+                textBox.Text = _settings.TimeOffsetSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
             }
         }
     }
 
-    private void OnTimeBaseSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (_settings != null && sender is ComboBox comboBox)
+        if (_settings != null && sender is TextBox textBox)
         {
-            _settings.TimeBaseMode = comboBox.SelectedIndex;
+            if (double.TryParse(textBox.Text, out double longitude))
+            {
+                longitude = Math.Max(-180, Math.Min(180, longitude));
+                _settings.Longitude = longitude;
+                textBox.Text = longitude.ToString("F4");
+            }
+        }
+    }
+
+    private void OnTimeZoneSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_settings != null && sender is ComboBox comboBox && comboBox.SelectedItem is TimeZoneInfo tz)
+        {
+            _settings.TimeZoneId = tz.Id;
         }
     }
 

@@ -1,4 +1,4 @@
-﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -10,7 +10,7 @@ public class PluginSettings : INotifyPropertyChanged
 {
     private bool _enableLunarCalendar = true;
     private bool _isLunarInstalled = false;
-    private int _timeBaseMode = 0; // 0: ClassIsland时间, 1: 系统时间
+    private double _timeOffsetSeconds = 0; // 时间偏移（秒），与ClassIsland时间独立
     private double _longitude = 116.4; // 默认北京经度
     private string _timeZoneId = "China Standard Time";
     private bool _enableCountdownNotification = true;
@@ -49,16 +49,17 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 时间基准模式 (0: ClassIsland时间, 1: 系统时间)
+    /// 时间偏移（秒），与ClassIsland时间独立
+    /// 增大偏移抵消铃声滞后，减小偏移抵消铃声提前
     /// </summary>
-    public int TimeBaseMode
+    public double TimeOffsetSeconds
     {
-        get => _timeBaseMode;
+        get => _timeOffsetSeconds;
         set
         {
-            if (_timeBaseMode != value)
+            if (Math.Abs(_timeOffsetSeconds - value) > 0.001)
             {
-                _timeBaseMode = value;
+                _timeOffsetSeconds = value;
                 OnPropertyChanged();
             }
         }
