@@ -949,6 +949,11 @@ public class TimeConverterPage : UserControl
             _beijingResultTextBlock!.Text = "请输入有效的日期和时间";
             return;
         }
+        if (!LunarCalendarHelper.IsDateSupported(dt))
+        {
+            _beijingResultTextBlock!.Text = "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)";
+            return;
+        }
         var lunar = LunarCalendarHelper.SolarToLunar(dt);
         _beijingResultTextBlock!.Text = $"农历: {lunar}";
         FillLunarComboBoxes(dt);

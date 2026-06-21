@@ -7,6 +7,18 @@ public static class LunarCalendarHelper
 {
     private static readonly ChineseLunisolarCalendar _calendar = new();
 
+    // 农历支持范围
+    private static readonly DateTime _minLunarDate = new(1901, 2, 19);
+    private static readonly DateTime _maxLunarDate = new(2101, 1, 28, 23, 59, 59);
+
+    /// <summary>
+    /// 判断日期是否在农历支持范围内
+    /// </summary>
+    public static bool IsDateSupported(DateTime date)
+    {
+        return date >= _minLunarDate && date <= _maxLunarDate;
+    }
+
     private static readonly string[] _tiangan = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
     private static readonly string[] _dizhi = { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
 
@@ -17,6 +29,10 @@ public static class LunarCalendarHelper
     {
         try
         {
+            if (!IsDateSupported(date))
+            {
+                return "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)";
+            }
             var lunarYear = _calendar.GetYear(date);
             var lunarMonth = _calendar.GetMonth(date);
             var lunarDay = _calendar.GetDayOfMonth(date);
@@ -120,7 +136,15 @@ public static class LunarCalendarHelper
     /// </summary>
     public static int GetLunarYear(DateTime date)
     {
-        return _calendar.GetYear(date);
+        if (!IsDateSupported(date)) return 0;
+        try
+        {
+            return _calendar.GetYear(date);
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>
@@ -143,7 +167,15 @@ public static class LunarCalendarHelper
     /// </summary>
     public static int GetLunarDay(DateTime date)
     {
-        return _calendar.GetDayOfMonth(date);
+        if (!IsDateSupported(date)) return 0;
+        try
+        {
+            return _calendar.GetDayOfMonth(date);
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>
