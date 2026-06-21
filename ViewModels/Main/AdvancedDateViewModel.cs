@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -29,7 +29,7 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         
         UpdateTime();
         
-        _updateTimer = new System.Timers.Timer(20);
+        _updateTimer = new System.Timers.Timer(200);
         _updateTimer.Elapsed += OnTimerElapsed;
         _updateTimer.AutoReset = true;
         _updateTimer.Enabled = true;

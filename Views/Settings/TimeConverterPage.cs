@@ -1189,7 +1189,8 @@ public class TimeConverterPage : UserControl
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
         var offset = _timeZones.GetValueOrDefault(zoneName ?? "中时区", 0);
-        var zoneTime = dt.AddHours(-offset);
+        var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
+        var zoneTime = dt.AddHours(offset - 8 + dstOffset);
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
         _zoneYearComboBox!.SelectedItem = $"{zoneTime.Year}年";
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
@@ -1212,7 +1213,8 @@ public class TimeConverterPage : UserControl
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
-        var localTime = dt.AddMinutes(-offsetMinutes);
+        var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var localTime = dt.AddMinutes(offsetMinutes + dstOffset);
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
         _localYearComboBox!.SelectedItem = $"{localTime.Year}年";
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
