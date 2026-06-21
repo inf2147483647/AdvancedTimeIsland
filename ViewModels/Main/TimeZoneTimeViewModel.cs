@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -127,7 +127,17 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
                 double offset = tz.BaseUtcOffset.TotalHours;
                 string sign = offset >= 0 ? "东" : "西";
                 int hours = Math.Abs((int)offset);
-                return $"{sign}{hours}区";
+                int minutes = Math.Abs(tz.BaseUtcOffset.Minutes);
+                
+                string decimalPart = "";
+                if (minutes == 15)
+                    decimalPart = ".25";
+                else if (minutes == 30)
+                    decimalPart = ".5";
+                else if (minutes == 45)
+                    decimalPart = ".75";
+                
+                return $"{sign}{hours}{decimalPart}区";
             }
             return "未知时区";
         }
