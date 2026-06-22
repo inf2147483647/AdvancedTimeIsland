@@ -1,7 +1,13 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
+
+public enum LongitudeDisplayMode
+{
+    Decimal,
+    Dms
+}
 
 /// <summary>
 /// 插件全局设置
@@ -10,11 +16,12 @@ public class PluginSettings : INotifyPropertyChanged
 {
     private bool _enableLunarCalendar = true;
     private bool _isLunarInstalled = false;
-    private double _timeOffsetSeconds = 0; // 时间偏移（秒），与ClassIsland时间独立
-    private double _longitude = 116.4; // 默认北京经度
+    private double _timeOffsetSeconds = 0;
+    private double _longitude = 116.4;
     private string _timeZoneId = "China Standard Time";
     private bool _enableCountdownNotification = true;
     private int _countdownAlertSeconds = 60;
+    private LongitudeDisplayMode _longitudeDisplayMode = LongitudeDisplayMode.Decimal;
 
     /// <summary>
     /// 是否启用农历功能
@@ -124,6 +131,22 @@ public class PluginSettings : INotifyPropertyChanged
             if (_countdownAlertSeconds != value)
             {
                 _countdownAlertSeconds = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 经度显示方式（小数/度分秒）
+    /// </summary>
+    public LongitudeDisplayMode LongitudeDisplayMode
+    {
+        get => _longitudeDisplayMode;
+        set
+        {
+            if (_longitudeDisplayMode != value)
+            {
+                _longitudeDisplayMode = value;
                 OnPropertyChanged();
             }
         }

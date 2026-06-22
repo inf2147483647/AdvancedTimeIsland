@@ -115,6 +115,14 @@ public class PluginSettingsPage : UserControl
             null
         ));
 
+        // 经纬度表示方式
+        mainPanel.Children.Add(CreateSettingItem(
+            "经纬度表示方式",
+            "选择经度的显示格式",
+            CreateLongitudeModeComboBox(),
+            null
+        ));
+
         // 区时时区设置
         mainPanel.Children.Add(CreateSettingItem(
             "区时时区",
@@ -288,6 +296,33 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
+    /// 创建经度表示方式下拉框
+    /// </summary>
+    private ComboBox CreateLongitudeModeComboBox()
+    {
+        var comboBox = new ComboBox
+        {
+            Width = 150,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        comboBox.Items.Add("小数");
+        comboBox.Items.Add("度分秒");
+
+        if (_settings != null)
+        {
+            comboBox.SelectedIndex = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal ? 0 : 1;
+        }
+        else
+        {
+            comboBox.SelectedIndex = 0;
+        }
+
+        comboBox.SelectionChanged += OnLongitudeModeSelectionChanged;
+        return comboBox;
+    }
+
+    /// <summary>
     /// 创建时区下拉框
     /// </summary>
     private ComboBox CreateTimeZoneComboBox()
@@ -396,6 +431,16 @@ public class PluginSettingsPage : UserControl
                 _settings.Longitude = longitude;
                 textBox.Text = longitude.ToString("F4");
             }
+        }
+    }
+
+    private void OnLongitudeModeSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_settings != null && sender is ComboBox comboBox)
+        {
+            _settings.LongitudeDisplayMode = comboBox.SelectedIndex == 0 
+                ? LongitudeDisplayMode.Decimal 
+                : LongitudeDisplayMode.Dms;
         }
     }
 

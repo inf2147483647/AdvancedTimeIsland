@@ -457,7 +457,7 @@ public class AboutPage : SettingsPageBase
             switch (tabItem.Tag?.ToString())
             {
                 case "TimeConverter":
-                    tabItem.Content = new TimeConverterPage();
+                    tabItem.Content = new TimeConverterPage(_pluginSettings);
                     break;
                 case "PluginSettings":
                     var pluginSettings = new PluginSettingsPage(_pluginSettings, _lunarInstaller);

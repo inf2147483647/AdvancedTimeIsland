@@ -1,5 +1,7 @@
 using System;
+using System.ComponentModel;
 using System.Threading.Tasks;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
@@ -13,13 +15,24 @@ namespace AdvancedTimeIsland.Views.Main;
 public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSettings>
 {
     private TextBox _longitudeTextBox;
+    private TextBox _longitudeDmsTextBox;
     private TextBox _colorTextBox;
     private TextBox _fontSizeTextBox;
     private Button _getLocationButton;
     private TextBlock _statusText;
+    private readonly PluginSettings? _pluginSettings;
 
-    public LocalSolarTimeSettingsControl()
+    public LocalSolarTimeSettingsControl() : this(null)
     {
+    }
+
+    public LocalSolarTimeSettingsControl(PluginSettings? pluginSettings = null)
+    {
+        _pluginSettings = pluginSettings;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
+        }
         InitializeComponent();
     }
 
@@ -41,10 +54,17 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         Grid.SetColumn(longitudeLabel, 0);
         longitudeRow.Children.Add(longitudeLabel);
 
-        _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+
+        _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
         Grid.SetColumn(_longitudeTextBox, 1);
         _longitudeTextBox.LostFocus += OnLongitudeLostFocus;
         longitudeRow.Children.Add(_longitudeTextBox);
+
+        _longitudeDmsTextBox = new TextBox { Width = 160, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
+        Grid.SetColumn(_longitudeDmsTextBox, 1);
+        _longitudeDmsTextBox.LostFocus += OnLongitudeDmsLostFocus;
+        longitudeRow.Children.Add(_longitudeDmsTextBox);
 
         _getLocationButton = new Button
         {
@@ -106,17 +126,45 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        _longitudeTextBox.Text = Settings.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+        _longitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(Settings.Longitude);
+        if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
+        {
+            _longitudeTextBox.IsVisible = false;
+            _longitudeDmsTextBox.IsVisible = true;
+        }
+        else
+        {
+            _longitudeTextBox.IsVisible = true;
+            _longitudeDmsTextBox.IsVisible = false;
+        }
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }
 
     private void OnLongitudeLostFocus(object? sender, EventArgs e)
     {
-        if (double.TryParse(_longitudeTextBox.Text, out double lon))
+        if (LongitudeConverter.TryParseDecimal(_longitudeTextBox.Text, out double lon))
         {
             Settings.Longitude = lon;
-            _longitudeTextBox.Text = Settings.Longitude.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(lon);
+        }
+        else
+        {
+            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+        }
+    }
+
+    private void OnLongitudeDmsLostFocus(object? sender, EventArgs e)
+    {
+        if (LongitudeConverter.TryParseDms(_longitudeDmsTextBox.Text, out double lon))
+        {
+            Settings.Longitude = lon;
+            _longitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(lon);
+        }
+        else
+        {
+            _longitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(Settings.Longitude);
         }
     }
 
@@ -135,8 +183,16 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
                 // 精确到0.0001（保留4位小数）
                 var longitude = Math.Round(location.Value, 4);
                 Settings.Longitude = longitude;
-                _longitudeTextBox.Text = longitude.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
-                _statusText.Text = $"已获取位置：经度 {longitude:F4}°";
+                if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
+                {
+                    _longitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(longitude);
+                    _statusText.Text = $"已获取位置：经度 {LongitudeConverter.ToDmsString(longitude)}";
+                }
+                else
+                {
+                    _longitudeTextBox.Text = longitude.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
+                    _statusText.Text = $"已获取位置：经度 {longitude:F4}°";
+                }
                 _statusText.Foreground = Brushes.LightGreen;
             }
             else
@@ -247,6 +303,32 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         else
         {
             _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        }
+    }
+
+    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.LongitudeDisplayMode))
+        {
+            UpdateLongitudeDisplay();
+        }
+    }
+
+    private void UpdateLongitudeDisplay()
+    {
+        if (_pluginSettings == null)
+            return;
+
+        _longitudeTextBox.IsVisible = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal;
+        _longitudeDmsTextBox.IsVisible = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+
+        if (_pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
+        {
+            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+        }
+        else
+        {
+            _longitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(Settings.Longitude);
         }
     }
 }

@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
+using System.ComponentModel;
 using System.Globalization;
 using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -49,7 +51,7 @@ public class TimeConverterPage : UserControl
     }
 
     // 北京时间转换模块控件
-    private ComboBox? _beijingYearComboBox;
+    private TextBox? _beijingYearTextBox;
     private ComboBox? _beijingMonthComboBox;
     private ComboBox? _beijingDayComboBox;
     private ComboBox? _beijingHourComboBox;
@@ -73,7 +75,7 @@ public class TimeConverterPage : UserControl
     private TextBlock? _lunarResultTextBlock;
 
     // 区时转换模块控件
-    private ComboBox? _zoneYearComboBox;
+    private TextBox? _zoneYearTextBox;
     private ComboBox? _zoneMonthComboBox;
     private ComboBox? _zoneDayComboBox;
     private ComboBox? _zoneHourComboBox;
@@ -83,18 +85,25 @@ public class TimeConverterPage : UserControl
     private TextBlock? _zoneResultTextBlock;
 
     // 地方时转换模块控件
-    private ComboBox? _localYearComboBox;
+    private TextBox? _localYearTextBox;
     private ComboBox? _localMonthComboBox;
     private ComboBox? _localDayComboBox;
     private ComboBox? _localHourComboBox;
     private ComboBox? _localMinuteComboBox;
     private ComboBox? _localSecondComboBox;
     private TextBox? _localLongitudeTextBox;
+    private TextBox? _localLongitudeDmsTextBox;
     private TextBlock? _localResultTextBlock;
+
+    // 提示文本定时器（用于自动清除提示）
+    private readonly Dictionary<TextBlock, System.Timers.Timer> _resultTimers = new();
 
     // 夏令时开关
     private CheckBox? _zoneDstCheckBox;
     private CheckBox? _localDstCheckBox;
+
+    // 插件设置（用于获取经度显示方式）
+    private readonly PluginSettings? _settings;
 
     // 天干列表
     private readonly string[] _tiangan = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
@@ -103,37 +112,61 @@ public class TimeConverterPage : UserControl
     private readonly string[] _dizhi = { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
 
     // 时区列表
-    private readonly Dictionary<string, int> _timeZones = new()
+    private readonly Dictionary<string, double> _timeZones = new()
     {
-        { "西十二区", -12 },
-        { "西十一区", -11 },
-        { "西十区", -10 },
-        { "西九区", -9 },
-        { "西八区", -8 },
-        { "西七区", -7 },
-        { "西六区", -6 },
-        { "西五区", -5 },
-        { "西四区", -4 },
-        { "西三区", -3 },
-        { "西二区", -2 },
-        { "西一区", -1 },
-        { "中时区", 0 },
-        { "东一区", 1 },
-        { "东二区", 2 },
-        { "东三区", 3 },
-        { "东四区", 4 },
-        { "东五区", 5 },
-        { "东六区", 6 },
-        { "东七区", 7 },
-        { "东八区", 8 },
-        { "东九区", 9 },
-        { "东十区", 10 },
-        { "东十一区", 11 },
-        { "东十二区", 12 }
+        { "(UTC-12:00) 贝克岛", -12.0 },
+        { "(UTC-11:00) 美属萨摩亚", -11.0 },
+        { "(UTC-10:00) 夏威夷", -10.0 },
+        { "(UTC-09:30) 马克萨斯群岛", -9.5 },
+        { "(UTC-09:00) 阿拉斯加", -9.0 },
+        { "(UTC-08:00) 太平洋时间", -8.0 },
+        { "(UTC-07:00) 山地时间", -7.0 },
+        { "(UTC-06:00) 中部时间", -6.0 },
+        { "(UTC-05:00) 东部时间", -5.0 },
+        { "(UTC-04:00) 大西洋时间", -4.0 },
+        { "(UTC-03:30) 纽芬兰", -3.5 },
+        { "(UTC-03:00) 巴西利亚", -3.0 },
+        { "(UTC-02:00) 南乔治亚岛", -2.0 },
+        { "(UTC-01:00) 亚速尔群岛", -1.0 },
+        { "(UTC±00:00) 伦敦", 0.0 },
+        { "(UTC+01:00) 巴黎", 1.0 },
+        { "(UTC+02:00) 开罗", 2.0 },
+        { "(UTC+03:00) 莫斯科", 3.0 },
+        { "(UTC+03:30) 德黑兰", 3.5 },
+        { "(UTC+04:00) 迪拜", 4.0 },
+        { "(UTC+04:30) 喀布尔", 4.5 },
+        { "(UTC+05:00) 伊斯兰堡", 5.0 },
+        { "(UTC+05:30) 孟买", 5.5 },
+        { "(UTC+05:45) 加德满都", 5.75 },
+        { "(UTC+06:00) 达卡", 6.0 },
+        { "(UTC+06:30) 仰光", 6.5 },
+        { "(UTC+07:00) 曼谷", 7.0 },
+        { "(UTC+08:00) 北京", 8.0 },
+        { "(UTC+08:30) 科科斯群岛", 8.5 },
+        { "(UTC+08:45) 尤克拉", 8.75 },
+        { "(UTC+09:00) 东京", 9.0 },
+        { "(UTC+09:30) 达尔文", 9.5 },
+        { "(UTC+10:00) 悉尼", 10.0 },
+        { "(UTC+10:30) 豪勋爵岛", 10.5 },
+        { "(UTC+11:00) 新喀里多尼亚", 11.0 },
+        { "(UTC+11:30) 诺福克岛", 11.5 },
+        { "(UTC+12:00) 奥克兰", 12.0 },
+        { "(UTC+12:45) 查塔姆群岛", 12.75 },
+        { "(UTC+13:00) 斐济", 13.0 },
+        { "(UTC+14:00) 基里巴斯", 14.0 }
     };
 
-    public TimeConverterPage()
+    public TimeConverterPage() : this(null)
     {
+    }
+
+    public TimeConverterPage(PluginSettings? settings)
+    {
+        _settings = settings;
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
         InitializeComponent();
     }
 
@@ -202,7 +235,7 @@ public class TimeConverterPage : UserControl
         var content = GetModuleContent(module);
 
         // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _beijingYearComboBox, out _beijingMonthComboBox, out _beijingDayComboBox);
+        var datePanel = CreateDatePickerRow("日期输入:", out _beijingYearTextBox, out _beijingMonthComboBox, out _beijingDayComboBox);
         content.Children.Add(datePanel);
 
         // 时间选择
@@ -318,10 +351,11 @@ public class TimeConverterPage : UserControl
         });
 
         _lunarYearRangeComboBox = new ComboBox { Width = 180 };
+        _lunarYearRangeComboBox.Items.Add("1901-1923");
         _lunarYearRangeComboBox.Items.Add("1924-1983");
         _lunarYearRangeComboBox.Items.Add("1984-2043");
-        _lunarYearRangeComboBox.Items.Add("2044-2103");
-        _lunarYearRangeComboBox.SelectedIndex = 1; // 默认1984-2043
+        _lunarYearRangeComboBox.Items.Add("2044-2101");
+        _lunarYearRangeComboBox.SelectedIndex = 2; // 默认1984-2043
         yearRangePanel.Children.Add(_lunarYearRangeComboBox);
 
         content.Children.Add(yearRangePanel);
@@ -438,7 +472,7 @@ public class TimeConverterPage : UserControl
         var content = GetModuleContent(module);
 
         // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _zoneYearComboBox, out _zoneMonthComboBox, out _zoneDayComboBox);
+        var datePanel = CreateDatePickerRow("日期输入:", out _zoneYearTextBox, out _zoneMonthComboBox, out _zoneDayComboBox);
         content.Children.Add(datePanel);
 
         // 时间选择
@@ -461,14 +495,12 @@ public class TimeConverterPage : UserControl
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _zoneComboBox = new ComboBox { Width = 100 };
-        _zoneComboBox.Items.Add("中时区");
+        _zoneComboBox = new ComboBox { Width = 200 };
         foreach (var zone in _timeZones.Keys)
         {
-            if (zone != "中时区")
-                _zoneComboBox.Items.Add(zone);
+            _zoneComboBox.Items.Add(zone);
         }
-        _zoneComboBox.SelectedIndex = 0;
+        _zoneComboBox.SelectedIndex = 15; // 默认选中中时区(UTC±00:00)
         zonePanel.Children.Add(_zoneComboBox);
 
         zonePanel.Children.Add(new TextBlock
@@ -521,7 +553,7 @@ public class TimeConverterPage : UserControl
         var content = GetModuleContent(module);
 
         // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _localYearComboBox, out _localMonthComboBox, out _localDayComboBox);
+        var datePanel = CreateDatePickerRow("日期输入:", out _localYearTextBox, out _localMonthComboBox, out _localDayComboBox);
         content.Children.Add(datePanel);
 
         // 时间选择
@@ -529,9 +561,27 @@ public class TimeConverterPage : UserControl
         content.Children.Add(timePanel);
 
         // 经度输入
-        var lonPanel = CreateInputRow("经度（单位：度，正数东经，负数西经）:", 100);
-        _localLongitudeTextBox = (TextBox)lonPanel.Children[1];
-        _localLongitudeTextBox.Watermark = "如：116.4";
+        var lonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        lonPanel.Children.Add(new TextBlock
+        {
+            Text = "经度:",
+            FontSize = 13,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var isDms = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        
+        _localLongitudeTextBox = new TextBox { Width = 100, Watermark = "如：116.4", IsVisible = !isDms };
+        _localLongitudeTextBox.Text = "116.4";
+        _localLongitudeTextBox.LostFocus += OnLongitudeTextBoxLostFocus;
+        
+        _localLongitudeDmsTextBox = new TextBox { Width = 150, Watermark = "如：116°24'0\"E", IsVisible = isDms };
+        _localLongitudeDmsTextBox.Text = "116°24'0\"E";
+        _localLongitudeDmsTextBox.LostFocus += OnLongitudeDmsTextBoxLostFocus;
+        
+        lonPanel.Children.Add(_localLongitudeTextBox);
+        lonPanel.Children.Add(_localLongitudeDmsTextBox);
         content.Children.Add(lonPanel);
 
         // 夏令时选择
@@ -663,7 +713,7 @@ public class TimeConverterPage : UserControl
         return panel;
     }
 
-    private StackPanel CreateDatePickerRow(string label, out ComboBox yearComboBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    private StackPanel CreateDatePickerRow(string label, out TextBox yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
     {
         var panel = new StackPanel
         {
@@ -686,17 +736,15 @@ public class TimeConverterPage : UserControl
             Spacing = 6
         };
 
-        yearComboBox = new ComboBox
+        // 年份输入框
+        yearTextBox = new TextBox
         {
-            Width = 100,
+            Width = 80,
             CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
+            Watermark = "年"
         };
-        for (int i = 1900; i <= 2100; i++)
-        {
-            yearComboBox.Items.Add($"{i}年");
-        }
-        datePanel.Children.Add(yearComboBox);
+        yearTextBox.LostFocus += OnYearTextBoxLostFocus;
+        datePanel.Children.Add(yearTextBox);
 
         monthComboBox = new ComboBox
         {
@@ -825,7 +873,7 @@ public class TimeConverterPage : UserControl
 
     private TextBlock CreateResultTextBlock()
     {
-        return new TextBlock
+        var textBlock = new TextBlock
         {
             Text = "",
             FontSize = 14,
@@ -834,6 +882,40 @@ public class TimeConverterPage : UserControl
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Margin = new Avalonia.Thickness(0, 8, 0, 0)
         };
+
+        // 为每个TextBlock创建定时器
+        var timer = new System.Timers.Timer(5000); // 5秒后自动清除
+        timer.Elapsed += (s, e) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                textBlock.Text = "";
+            });
+            timer.Stop();
+        };
+        timer.AutoReset = false;
+        _resultTimers[textBlock] = timer;
+
+        return textBlock;
+    }
+
+    private void SetResultText(TextBlock? textBlock, string message)
+    {
+        if (textBlock == null) return;
+
+        // 先停止之前的定时器
+        if (_resultTimers.TryGetValue(textBlock, out var existingTimer))
+        {
+            existingTimer.Stop();
+        }
+
+        textBlock.Text = message;
+
+        // 启动新的定时器，5秒后清除提示
+        if (_resultTimers.TryGetValue(textBlock, out var timer))
+        {
+            timer.Start();
+        }
     }
 
     private StackPanel CreateNotesPanel()
@@ -881,7 +963,7 @@ public class TimeConverterPage : UserControl
     private void OnClearAllClick(object? sender, RoutedEventArgs e)
     {
         // 清除所有输入框
-        if (_beijingYearComboBox != null) _beijingYearComboBox.SelectedIndex = -1;
+        if (_beijingYearTextBox != null) _beijingYearTextBox.Text = "";
         if (_beijingMonthComboBox != null) _beijingMonthComboBox.SelectedIndex = -1;
         if (_beijingDayComboBox != null) _beijingDayComboBox.SelectedIndex = -1;
         if (_beijingHourComboBox != null) _beijingHourComboBox.SelectedIndex = -1;
@@ -901,7 +983,7 @@ public class TimeConverterPage : UserControl
         if (_lunarSecondComboBox != null) _lunarSecondComboBox.SelectedIndex = -1;
         if (_lunarResultTextBlock != null) _lunarResultTextBlock.Text = "";
 
-        if (_zoneYearComboBox != null) _zoneYearComboBox.SelectedIndex = -1;
+        if (_zoneYearTextBox != null) _zoneYearTextBox.Text = "";
         if (_zoneMonthComboBox != null) _zoneMonthComboBox.SelectedIndex = -1;
         if (_zoneDayComboBox != null) _zoneDayComboBox.SelectedIndex = -1;
         if (_zoneHourComboBox != null) _zoneHourComboBox.SelectedIndex = -1;
@@ -910,7 +992,7 @@ public class TimeConverterPage : UserControl
         if (_zoneComboBox != null) _zoneComboBox.SelectedIndex = -1;
         if (_zoneResultTextBlock != null) _zoneResultTextBlock.Text = "";
 
-        if (_localYearComboBox != null) _localYearComboBox.SelectedIndex = -1;
+        if (_localYearTextBox != null) _localYearTextBox.Text = "";
         if (_localMonthComboBox != null) _localMonthComboBox.SelectedIndex = -1;
         if (_localDayComboBox != null) _localDayComboBox.SelectedIndex = -1;
         if (_localHourComboBox != null) _localHourComboBox.SelectedIndex = -1;
@@ -920,10 +1002,67 @@ public class TimeConverterPage : UserControl
         if (_localResultTextBlock != null) _localResultTextBlock.Text = "";
     }
 
+    /// <summary>
+    /// 年份输入框失去焦点时验证并修正输入值
+    /// </summary>
+    private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            var text = textBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(text))
+            {
+                textBox.Text = "2026";
+                return;
+            }
+
+            // 尝试解析数字
+            if (double.TryParse(text, out var value))
+            {
+                // 四舍五入到整数
+                var intValue = (int)Math.Round(value);
+                // 限制范围 1-9999
+                if (intValue < 1) intValue = 1;
+                if (intValue > 9999) intValue = 9999;
+                textBox.Text = intValue.ToString();
+            }
+            else
+            {
+                // 无效输入，恢复为2026
+                textBox.Text = "2026";
+            }
+        }
+    }
+
+    private void OnLongitudeTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            var text = textBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(text))
+            {
+                textBox.Text = "120";
+                return;
+            }
+
+            if (double.TryParse(text, out var value))
+            {
+                value = Math.Round(value, 4);
+                if (value < -180) value = -180;
+                if (value > 180) value = 180;
+                textBox.Text = value.ToString("F4");
+            }
+            else
+            {
+                textBox.Text = "120";
+            }
+        }
+    }
+
     private void OnBeijingCurrentTimeClick(object? sender, RoutedEventArgs e)
     {
         var now = DateTime.Now;
-        _beijingYearComboBox!.SelectedItem = $"{now.Year}年";
+        _beijingYearTextBox!.Text = now.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{now.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{now.Day}日";
         _beijingHourComboBox!.SelectedItem = now.Hour.ToString("D2");
@@ -935,7 +1074,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            _beijingResultTextBlock!.Text = "请输入有效的日期和时间";
+            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
             return;
         }
         var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
@@ -946,16 +1085,16 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            _beijingResultTextBlock!.Text = "请输入有效的日期和时间";
+            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
             return;
         }
         if (!LunarCalendarHelper.IsDateSupported(dt))
         {
-            _beijingResultTextBlock!.Text = "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)";
+            SetResultText(_beijingResultTextBlock, "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)");
             return;
         }
         var lunar = LunarCalendarHelper.SolarToLunar(dt);
-        _beijingResultTextBlock!.Text = $"农历: {lunar}";
+        SetResultText(_beijingResultTextBlock, $"农历: {lunar}");
         FillLunarComboBoxes(dt);
     }
 
@@ -965,18 +1104,28 @@ public class TimeConverterPage : UserControl
         var lunarMonth = LunarCalendarHelper.GetLunarMonth(dt);
         var lunarDay = LunarCalendarHelper.GetLunarDay(dt);
         var isLeapMonth = LunarCalendarHelper.IsLeapMonth(dt);
+
+        // 如果农历年份为0，说明超出支持范围
+        if (lunarYear == 0)
+        {
+            SetResultText(_lunarResultTextBlock, "转换结果超出有效范围(1901-02-19 ~ 2101-01-28)");
+            return;
+        }
+
         var tiangan = LunarCalendarHelper.GetTiangan(lunarYear);
         var dizhi = LunarCalendarHelper.GetDizhi(lunarYear);
 
         // 设置年份范围
         if (_lunarYearRangeComboBox != null)
         {
-            if (lunarYear >= 1924 && lunarYear <= 1983)
+            if (lunarYear >= 1901 && lunarYear <= 1923)
+                _lunarYearRangeComboBox.SelectedItem = "1901-1923";
+            else if (lunarYear >= 1924 && lunarYear <= 1983)
                 _lunarYearRangeComboBox.SelectedItem = "1924-1983";
             else if (lunarYear >= 1984 && lunarYear <= 2043)
                 _lunarYearRangeComboBox.SelectedItem = "1984-2043";
-            else if (lunarYear >= 2044 && lunarYear <= 2103)
-                _lunarYearRangeComboBox.SelectedItem = "2044-2103";
+            else if (lunarYear >= 2044 && lunarYear <= 2101)
+                _lunarYearRangeComboBox.SelectedItem = "2044-2101";
         }
 
         // 设置天干地支
@@ -992,9 +1141,12 @@ public class TimeConverterPage : UserControl
             _lunarMonthComboBox.SelectedItem = monthText;
         }
 
-        // 设置日期
+        // 设置日期（自动修正非法日期）
         if (_lunarDayComboBox != null)
-            _lunarDayComboBox.SelectedItem = $"{lunarDay}日";
+        {
+            var safeDay = ValidateAndFixDay(dt.Year, dt.Month, lunarDay);
+            _lunarDayComboBox.SelectedItem = $"{safeDay}日";
+        }
 
         // 设置时间
         if (_lunarHourComboBox != null)
@@ -1009,22 +1161,32 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            _beijingResultTextBlock!.Text = "请输入有效的日期和时间";
+            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            _beijingResultTextBlock!.Text = "请先选择时区";
+            SetResultText(_beijingResultTextBlock, "请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
-        var offset = _timeZones.GetValueOrDefault(zoneName ?? "中时区", 0);
+        var offset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var zoneTime = dt.AddHours(offset - 8 + dstOffset);
+        DateTime zoneTime;
+        try
+        {
+            zoneTime = dt.AddHours(offset - 8 + dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_beijingResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
-        _zoneYearComboBox!.SelectedItem = $"{zoneTime.Year}年";
+        var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
+        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
-        _zoneDayComboBox!.SelectedItem = $"{zoneTime.Day}日";
+        _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
         _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
         _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
@@ -1034,21 +1196,31 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            _beijingResultTextBlock!.Text = "请输入有效的日期和时间";
+            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
             return;
         }
         if (!TryParseLongitude(out var longitude))
         {
-            _beijingResultTextBlock!.Text = "请输入有效的经度";
+            SetResultText(_beijingResultTextBlock, "请输入有效的经度");
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
         var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
-        var localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+        DateTime localTime;
+        try
+        {
+            localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_beijingResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
-        _localYearComboBox!.SelectedItem = $"{localTime.Year}年";
+        var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
+        _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
-        _localDayComboBox!.SelectedItem = $"{localTime.Day}日";
+        _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
         _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
         _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
@@ -1079,14 +1251,24 @@ public class TimeConverterPage : UserControl
     {
         if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
         {
-            _unixResultTextBlock!.Text = "请输入有效的时间戳（整数）";
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
             return;
         }
-        var dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+        DateTime dt;
+        try
+        {
+            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
-        _beijingYearComboBox!.SelectedItem = $"{dt.Year}年";
+        var safeDay = ValidateAndFixDay(dt.Year, dt.Month, dt.Day);
+        _beijingYearTextBox!.Text = dt.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
-        _beijingDayComboBox!.SelectedItem = $"{dt.Day}日";
+        _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingHourComboBox!.SelectedItem = dt.Hour.ToString("D2");
         _beijingMinuteComboBox!.SelectedItem = dt.Minute.ToString("D2");
         _beijingSecondComboBox!.SelectedItem = dt.Second.ToString("D2");
@@ -1096,12 +1278,21 @@ public class TimeConverterPage : UserControl
     {
         if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
         {
-            _unixResultTextBlock!.Text = "请输入有效的时间戳（整数）";
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
             return;
         }
-        var dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+        DateTime dt;
+        try
+        {
+            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            return;
+        }
         var lunar = LunarCalendarHelper.SolarToLunar(dt);
-        _unixResultTextBlock!.Text = $"农历: {lunar}";
+        SetResultText(_unixResultTextBlock, $"农历: {lunar}");
         FillLunarComboBoxes(dt);
     }
 
@@ -1109,45 +1300,84 @@ public class TimeConverterPage : UserControl
     {
         if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
         {
-            _unixResultTextBlock!.Text = "请输入有效的时间戳（整数）";
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            _unixResultTextBlock!.Text = "请先选择时区";
+            SetResultText(_unixResultTextBlock, "请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
-        var offset = _timeZones.GetValueOrDefault(zoneName ?? "中时区", 0);
-        var dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp).AddHours(offset);
-        var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
-        _zoneYearComboBox!.SelectedItem = $"{dt.Year}年";
-        _zoneMonthComboBox!.SelectedItem = $"{dt.Month}月";
-        _zoneDayComboBox!.SelectedItem = $"{dt.Day}日";
-        _zoneHourComboBox!.SelectedItem = dt.Hour.ToString("D2");
-        _zoneMinuteComboBox!.SelectedItem = dt.Minute.ToString("D2");
-        _zoneSecondComboBox!.SelectedItem = dt.Second.ToString("D2");
+        var offset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
+        DateTime dt;
+        try
+        {
+            dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            return;
+        }
+        DateTime zoneTime;
+        try
+        {
+            zoneTime = dt.AddHours(offset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
+        var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
+        var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
+        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
+        _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
+        _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
+        _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
+        _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
+        _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
     }
 
     private void OnUnixToLocal(object? sender, RoutedEventArgs e)
     {
         if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
         {
-            _unixResultTextBlock!.Text = "请输入有效的时间戳（整数）";
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
             return;
         }
         if (!TryParseLongitude(out var longitude))
         {
-            _unixResultTextBlock!.Text = "请输入有效的经度";
+            SetResultText(_unixResultTextBlock, "请输入有效的经度");
             return;
         }
-        var dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp);
+        DateTime dt;
+        try
+        {
+            dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            return;
+        }
         var offsetMinutes = (longitude - 120) * 4;
-        var localTime = dt.AddMinutes(offsetMinutes);
+        DateTime localTime;
+        try
+        {
+            localTime = dt.AddMinutes(offsetMinutes);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_unixResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
-        _localYearComboBox!.SelectedItem = $"{localTime.Year}年";
+        var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
+        _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
-        _localDayComboBox!.SelectedItem = $"{localTime.Day}日";
+        _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
         _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
         _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
@@ -1157,13 +1387,14 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            _lunarResultTextBlock!.Text = "请输入有效的农历日期和时间";
+            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
-        _beijingYearComboBox!.SelectedItem = $"{dt.Year}年";
+        var safeDay = ValidateAndFixDay(dt.Year, dt.Month, dt.Day);
+        _beijingYearTextBox!.Text = dt.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
-        _beijingDayComboBox!.SelectedItem = $"{dt.Day}日";
+        _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingHourComboBox!.SelectedItem = dt.Hour.ToString("D2");
         _beijingMinuteComboBox!.SelectedItem = dt.Minute.ToString("D2");
         _beijingSecondComboBox!.SelectedItem = dt.Second.ToString("D2");
@@ -1173,7 +1404,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            _lunarResultTextBlock!.Text = "请输入有效的农历日期和时间";
+            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
@@ -1184,22 +1415,32 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            _lunarResultTextBlock!.Text = "请输入有效的农历日期和时间";
+            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            _lunarResultTextBlock!.Text = "请先选择时区";
+            SetResultText(_lunarResultTextBlock, "请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
-        var offset = _timeZones.GetValueOrDefault(zoneName ?? "中时区", 0);
+        var offset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var zoneTime = dt.AddHours(offset - 8 + dstOffset);
+        DateTime zoneTime;
+        try
+        {
+            zoneTime = dt.AddHours(offset - 8 + dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_lunarResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
-        _zoneYearComboBox!.SelectedItem = $"{zoneTime.Year}年";
+        var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
+        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
-        _zoneDayComboBox!.SelectedItem = $"{zoneTime.Day}日";
+        _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
         _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
         _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
@@ -1209,21 +1450,31 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            _lunarResultTextBlock!.Text = "请输入有效的农历日期和时间";
+            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         if (!TryParseLongitude(out var longitude))
         {
-            _lunarResultTextBlock!.Text = "请输入有效的经度";
+            SetResultText(_lunarResultTextBlock, "请输入有效的经度");
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
         var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
-        var localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+        DateTime localTime;
+        try
+        {
+            localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_lunarResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
-        _localYearComboBox!.SelectedItem = $"{localTime.Year}年";
+        var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
+        _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
-        _localDayComboBox!.SelectedItem = $"{localTime.Day}日";
+        _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
         _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
         _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
@@ -1233,15 +1484,31 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            _zoneResultTextBlock!.Text = "请输入有效的日期、时间和时区";
+            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
             return;
         }
+        // 验证结果年份在有效范围内
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var beijingTime = dt.AddHours(8 - offset - dstOffset);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddHours(8 - offset - dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
+        if (beijingTime.Year < 1 || beijingTime.Year > 9999)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出有效范围(1-9999年)");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
-        _beijingYearComboBox!.SelectedItem = $"{beijingTime.Year}年";
+        var safeDay = ValidateAndFixDay(beijingTime.Year, beijingTime.Month, beijingTime.Day);
+        _beijingYearTextBox!.Text = beijingTime.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
-        _beijingDayComboBox!.SelectedItem = $"{beijingTime.Day}日";
+        _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingHourComboBox!.SelectedItem = beijingTime.Hour.ToString("D2");
         _beijingMinuteComboBox!.SelectedItem = beijingTime.Minute.ToString("D2");
         _beijingSecondComboBox!.SelectedItem = beijingTime.Second.ToString("D2");
@@ -1251,11 +1518,20 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            _zoneResultTextBlock!.Text = "请输入有效的日期、时间和时区";
+            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
             return;
         }
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var utcTime = DateTime.SpecifyKind(dt.AddHours(-offset - dstOffset), DateTimeKind.Utc);
+        DateTime utcTime;
+        try
+        {
+            utcTime = DateTime.SpecifyKind(dt.AddHours(-offset - dstOffset), DateTimeKind.Utc);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var timestamp = UnixTimeHelper.ToUnixTimestamp(utcTime);
         _unixInputTextBox!.Text = timestamp.ToString();
     }
@@ -1264,13 +1540,22 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            _zoneResultTextBlock!.Text = "请输入有效的日期、时间和时区";
+            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
             return;
         }
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var beijingTime = dt.AddHours(8 - offset - dstOffset);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddHours(8 - offset - dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var lunar = LunarCalendarHelper.SolarToLunar(beijingTime);
-        _zoneResultTextBlock!.Text = $"农历: {lunar}";
+        SetResultText(_zoneResultTextBlock, $"农历: {lunar}");
         FillLunarComboBoxes(beijingTime);
     }
 
@@ -1278,23 +1563,48 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            _zoneResultTextBlock!.Text = "请输入有效的日期、时间和时区";
+            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
             return;
         }
         if (!TryParseLongitude())
         {
-            _zoneResultTextBlock!.Text = "请输入有效的经度";
+            SetResultText(_zoneResultTextBlock, "请输入有效的经度");
             return;
         }
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var beijingTime = dt.AddHours(8 - offset - dstOffset);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddHours(8 - offset - dstOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var longitude = double.Parse(_localLongitudeTextBox!.Text ?? "0");
         var offsetMinutes = (longitude - 120) * 4;
-        var localTime = beijingTime.AddMinutes(offsetMinutes);
+        DateTime localTime;
+        try
+        {
+            localTime = beijingTime.AddMinutes(offsetMinutes);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
+        // 验证结果年份在有效范围内
+        if (localTime.Year < 1 || localTime.Year > 9999)
+        {
+            SetResultText(_zoneResultTextBlock, "转换结果超出有效范围(1-9999年)");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
-        _localYearComboBox!.SelectedItem = $"{localTime.Year}年";
+        var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
+        _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
-        _localDayComboBox!.SelectedItem = $"{localTime.Day}日";
+        _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
         _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
         _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
@@ -1304,15 +1614,25 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            _localResultTextBlock!.Text = "请输入有效的日期、时间和经度";
+            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
-        var beijingTime = dt.AddMinutes(-offsetMinutes);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddMinutes(-offsetMinutes);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
-        _beijingYearComboBox!.SelectedItem = $"{beijingTime.Year}年";
+        var safeDay = ValidateAndFixDay(beijingTime.Year, beijingTime.Month, beijingTime.Day);
+        _beijingYearTextBox!.Text = beijingTime.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
-        _beijingDayComboBox!.SelectedItem = $"{beijingTime.Day}日";
+        _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingHourComboBox!.SelectedItem = beijingTime.Hour.ToString("D2");
         _beijingMinuteComboBox!.SelectedItem = beijingTime.Minute.ToString("D2");
         _beijingSecondComboBox!.SelectedItem = beijingTime.Second.ToString("D2");
@@ -1322,11 +1642,20 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            _localResultTextBlock!.Text = "请输入有效的日期、时间和经度";
+            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
-        var beijingTime = dt.AddMinutes(-offsetMinutes);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddMinutes(-offsetMinutes);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var timestamp = UnixTimeHelper.ToUnixTimestamp(beijingTime);
         _unixInputTextBox!.Text = timestamp.ToString();
     }
@@ -1335,13 +1664,22 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            _localResultTextBlock!.Text = "请输入有效的日期、时间和经度";
+            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
-        var beijingTime = dt.AddMinutes(-offsetMinutes);
+        DateTime beijingTime;
+        try
+        {
+            beijingTime = dt.AddMinutes(-offsetMinutes);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var lunar = LunarCalendarHelper.SolarToLunar(beijingTime);
-        _localResultTextBlock!.Text = $"农历: {lunar}";
+        SetResultText(_localResultTextBlock, $"农历: {lunar}");
         FillLunarComboBoxes(beijingTime);
     }
 
@@ -1349,24 +1687,34 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            _localResultTextBlock!.Text = "请输入有效的日期、时间和经度";
+            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var beijingTime = dt.AddMinutes(-offsetMinutes);
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            _localResultTextBlock!.Text = "请先选择时区";
+            SetResultText(_localResultTextBlock, "请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
-        var offset = _timeZones.GetValueOrDefault(zoneName ?? "中时区", 0);
+        var zoneOffset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
         var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var zoneTime = beijingTime.AddHours(offset + dstOffset);
+        var localOffset = longitude / 15.0;
+        var totalOffset = zoneOffset - localOffset + dstOffset;
+        DateTime zoneTime;
+        try
+        {
+            zoneTime = dt.AddHours(totalOffset);
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            return;
+        }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
-        _zoneYearComboBox!.SelectedItem = $"{zoneTime.Year}年";
+        var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
+        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
-        _zoneDayComboBox!.SelectedItem = $"{zoneTime.Day}日";
+        _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
         _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
         _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
@@ -1380,12 +1728,12 @@ public class TimeConverterPage : UserControl
     {
         result = DateTime.MinValue;
 
-        if (_beijingYearComboBox?.SelectedItem == null ||
+        if (string.IsNullOrWhiteSpace(_beijingYearTextBox?.Text) ||
             _beijingMonthComboBox?.SelectedItem == null ||
             _beijingDayComboBox?.SelectedItem == null)
             return false;
 
-        if (!int.TryParse(_beijingYearComboBox.SelectedItem.ToString()?.Replace("年", ""), out var year))
+        if (!int.TryParse(_beijingYearTextBox.Text, out var year))
             return false;
         if (!int.TryParse(_beijingMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
@@ -1399,21 +1747,36 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(_beijingSecondComboBox?.SelectedItem?.ToString(), out var second))
             return false;
 
-        result = new DateTime(year, month, day, hour, minute, second);
-        return true;
+        // 校验日期是否合法，并自动修正为合法日期
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
+            return false;
+        if (day > DateTime.DaysInMonth(year, month))
+            return false;
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+            return false;
+
+        try
+        {
+            result = new DateTime(year, month, day, hour, minute, second);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
-    private bool TryParseZoneDateTime(out DateTime result, out int offset)
+    private bool TryParseZoneDateTime(out DateTime result, out double offset)
     {
         result = DateTime.MinValue;
         offset = 0;
 
-        if (_zoneYearComboBox?.SelectedItem == null ||
+        if (string.IsNullOrWhiteSpace(_zoneYearTextBox?.Text) ||
             _zoneMonthComboBox?.SelectedItem == null ||
             _zoneDayComboBox?.SelectedItem == null)
             return false;
 
-        if (!int.TryParse(_zoneYearComboBox.SelectedItem.ToString()?.Replace("年", ""), out var year))
+        if (!int.TryParse(_zoneYearTextBox.Text, out var year))
             return false;
         if (!int.TryParse(_zoneMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
@@ -1427,12 +1790,26 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(_zoneSecondComboBox?.SelectedItem?.ToString(), out var second))
             return false;
 
-        var zoneName = _zoneComboBox?.SelectedItem?.ToString() ?? "中时区";
+        var zoneName = _zoneComboBox?.SelectedItem?.ToString() ?? "(UTC±00:00) 伦敦";
 
         offset = _timeZones.GetValueOrDefault(zoneName, 0);
 
-        result = new DateTime(year, month, day, hour, minute, second);
-        return true;
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
+            return false;
+        if (day > DateTime.DaysInMonth(year, month))
+            return false;
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+            return false;
+
+        try
+        {
+            result = new DateTime(year, month, day, hour, minute, second);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     private bool TryParseLocalDateTime(out DateTime result, out double longitude)
@@ -1440,12 +1817,12 @@ public class TimeConverterPage : UserControl
         result = DateTime.MinValue;
         longitude = 0;
 
-        if (_localYearComboBox?.SelectedItem == null ||
+        if (string.IsNullOrWhiteSpace(_localYearTextBox?.Text) ||
             _localMonthComboBox?.SelectedItem == null ||
             _localDayComboBox?.SelectedItem == null)
             return false;
 
-        if (!int.TryParse(_localYearComboBox.SelectedItem.ToString()?.Replace("年", ""), out var year))
+        if (!int.TryParse(_localYearTextBox.Text, out var year))
             return false;
         if (!int.TryParse(_localMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
@@ -1462,8 +1839,22 @@ public class TimeConverterPage : UserControl
         if (!TryParseLongitude(out longitude))
             return false;
 
-        result = new DateTime(year, month, day, hour, minute, second);
-        return true;
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
+            return false;
+        if (day > DateTime.DaysInMonth(year, month))
+            return false;
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+            return false;
+
+        try
+        {
+            result = new DateTime(year, month, day, hour, minute, second);
+            return true;
+        }
+        catch (ArgumentOutOfRangeException)
+        {
+            return false;
+        }
     }
 
     private bool TryParseLongitude()
@@ -1474,13 +1865,41 @@ public class TimeConverterPage : UserControl
     private bool TryParseLongitude(out double result)
     {
         result = 0;
-        var text = _localLongitudeTextBox?.Text ?? "";
-        if (string.IsNullOrWhiteSpace(text)) return false;
+        
+        if (_settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
+        {
+            var text = _localLongitudeDmsTextBox?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            return LongitudeConverter.TryParseDms(text, out result);
+        }
+        else
+        {
+            var text = _localLongitudeTextBox?.Text ?? "";
+            if (string.IsNullOrWhiteSpace(text)) return false;
+            return LongitudeConverter.TryParseDecimal(text, out result);
+        }
+    }
 
-        if (!double.TryParse(text, out result)) return false;
-        if (result <= -180 || result > 180) return false;
+    private void OnLongitudeDmsTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            var text = textBox.Text?.Trim() ?? "";
+            if (string.IsNullOrEmpty(text))
+            {
+                textBox.Text = "116°24'0\"E";
+                return;
+            }
 
-        return true;
+            if (LongitudeConverter.TryParseDms(text, out var longitude))
+            {
+                textBox.Text = LongitudeConverter.ToDmsString(longitude);
+            }
+            else
+            {
+                textBox.Text = "116°24'0\"E";
+            }
+        }
     }
 
     private bool TryParseLunarDateTime(out DateTime result)
@@ -1556,9 +1975,83 @@ public class TimeConverterPage : UserControl
         var solarDate = LunarCalendarHelper.LunarToSolar(lunarYear, lunarMonth, isLeapMonth, lunarDay, hour, minute, second);
         if (solarDate == null) return false;
 
+        // 验证转换结果年份在有效范围内(1-9999)
+        if (solarDate.Value.Year < 1 || solarDate.Value.Year > 9999) return false;
+
         result = solarDate.Value;
         return true;
     }
 
+    /// <summary>
+    /// 验证并调整日期，如果日期无效则自动调整为该月最后一天
+    /// </summary>
+    private int ValidateAndFixDay(int year, int month, int day)
+    {
+        // 获取该月的最后一天
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        return Math.Min(day, daysInMonth);
+    }
+
+    /// <summary>
+    /// 尝试使用安全的日期解析，非法日期自动调整为合法日期
+    /// </summary>
+    private bool TryParseSafeDateTime(int year, int month, int day, int hour, int minute, int second, out DateTime result)
+    {
+        result = DateTime.MinValue;
+        try
+        {
+            // 调整日期到该月最后一天（如果无效）
+            var safeDay = ValidateAndFixDay(year, month, day);
+            result = new DateTime(year, month, safeDay, hour, minute, second);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
     #endregion
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.LongitudeDisplayMode))
+        {
+            UpdateLongitudeDisplay();
+        }
+    }
+
+    private void UpdateLongitudeDisplay()
+    {
+        if (_settings == null || _localLongitudeTextBox == null || _localLongitudeDmsTextBox == null)
+            return;
+
+        var currentLongitude = 116.4;
+        if (_settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
+        {
+            if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out var lon))
+                currentLongitude = lon;
+            else if (LongitudeConverter.TryParseDms(_localLongitudeDmsTextBox.Text ?? "", out lon))
+                currentLongitude = lon;
+        }
+        else
+        {
+            if (LongitudeConverter.TryParseDms(_localLongitudeDmsTextBox.Text ?? "", out var lon))
+                currentLongitude = lon;
+            else if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out lon))
+                currentLongitude = lon;
+        }
+
+        _localLongitudeTextBox.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal;
+        _localLongitudeDmsTextBox.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+
+        if (_settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
+        {
+            _localLongitudeTextBox.Text = LongitudeConverter.ToDecimalString(currentLongitude);
+        }
+        else
+        {
+            _localLongitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(currentLongitude);
+        }
+    }
 }

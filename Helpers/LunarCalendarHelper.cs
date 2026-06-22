@@ -152,14 +152,22 @@ public static class LunarCalendarHelper
     /// </summary>
     public static int GetLunarMonth(DateTime date)
     {
-        var lunarMonth = _calendar.GetMonth(date);
-        var leapMonth = _calendar.GetLeapMonth(_calendar.GetYear(date));
-
-        if (leapMonth > 0 && lunarMonth >= leapMonth)
+        if (!IsDateSupported(date)) return 0;
+        try
         {
-            return lunarMonth - 1;
+            var lunarMonth = _calendar.GetMonth(date);
+            var leapMonth = _calendar.GetLeapMonth(_calendar.GetYear(date));
+
+            if (leapMonth > 0 && lunarMonth >= leapMonth)
+            {
+                return lunarMonth - 1;
+            }
+            return lunarMonth;
         }
-        return lunarMonth;
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>
@@ -183,10 +191,18 @@ public static class LunarCalendarHelper
     /// </summary>
     public static bool IsLeapMonth(DateTime date)
     {
-        var lunarYear = _calendar.GetYear(date);
-        var lunarMonth = _calendar.GetMonth(date);
-        var leapMonth = _calendar.GetLeapMonth(lunarYear);
-        return leapMonth > 0 && lunarMonth == leapMonth;
+        if (!IsDateSupported(date)) return false;
+        try
+        {
+            var lunarYear = _calendar.GetYear(date);
+            var lunarMonth = _calendar.GetMonth(date);
+            var leapMonth = _calendar.GetLeapMonth(lunarYear);
+            return leapMonth > 0 && lunarMonth == leapMonth;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     /// <summary>
