@@ -1,104 +1,184 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System;
 
 namespace AdvancedTimeIsland.Helpers;
 
-/// <summary>
-/// Unix时间戳与DateTime互转工具类
-/// 注意：Unix时间戳单位为秒
-/// </summary>
 public static class UnixTimeHelper
 {
-    /// <summary>
-    /// Unix纪元时间 (1970-01-01 00:00:00 UTC)
-    /// </summary>
     private static readonly DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
 
-    /// <summary>
-    /// 将DateTime转换为Unix时间戳（秒）
-    /// </summary>
-    /// <param name="dateTime">要转换的时间</param>
-    /// <returns>Unix时间戳（秒）</returns>
+    private static readonly DateTime JulianCalendarLastDay = new(1582, 10, 4, 23, 59, 59, DateTimeKind.Utc);
+
+    private static readonly DateTime GregorianCalendarFirstDay = new(1582, 10, 15, 0, 0, 0, DateTimeKind.Utc);
+
+    private const double JulianGregorianOffsetDays = 10.0;
+
+    private static readonly TimeSpan JulianGregorianOffset = TimeSpan.FromDays(JulianGregorianOffsetDays);
+
+    public static bool IsNonExistentDate1582October(DateTime dateTime)
+    {
+        var local = dateTime.ToLocalTime();
+        return local.Year == 1582 && local.Month == 10 && local.Day >= 5 && local.Day <= 14;
+    }
+
+    private static bool IsJulianLeapYear(int year)
+    {
+        return year > 0 && year % 4 == 0;
+    }
+
+    private static bool IsGregorianLeapYear(int year)
+    {
+        if (year <= 0) return false;
+        if (year % 400 == 0) return true;
+        if (year % 100 == 0) return false;
+        return year % 4 == 0;
+    }
+
+    private static int GetJulianDaysInFebruary(int year)
+    {
+        return IsJulianLeapYear(year) ? 29 : 28;
+    }
+
+    private static int GetJulianDaysInMonth(int year, int month)
+    {
+        if (month == 2)
+            return GetJulianDaysInFebruary(year);
+
+        if (month == 1 || month == 3 || month == 5 || month == 7 ||
+            month == 8 || month == 10 || month == 12)
+            return 31;
+
+        return 30;
+    }
+
+    public static bool IsValidJulianDate(int year, int month, int day)
+    {
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
+            return false;
+
+        return day <= GetJulianDaysInMonth(year, month);
+    }
+
+    private static DateTime AdjustDateForJulianGregorianDiff(DateTime dateTime)
+    {
+        if (dateTime.Year >= 1582)
+            return dateTime;
+
+        var year = dateTime.Year;
+        var month = dateTime.Month;
+        var day = dateTime.Day;
+
+        if (month == 2 && day == 29)
+        {
+            if (IsJulianLeapYear(year) && !IsGregorianLeapYear(year))
+            {
+                return new DateTime(year, 3, 1, dateTime.Hour, dateTime.Minute, dateTime.Second,
+                    dateTime.Millisecond, dateTime.Kind);
+            }
+        }
+
+        return dateTime;
+    }
+
     public static long ToUnixTimestamp(DateTime dateTime)
     {
-        // 转换为UTC时间
-        var utcTime = dateTime.ToUniversalTime();
-        // 计算与Unix纪元的差值（秒）
-        return (long)(utcTime - UnixEpoch).TotalSeconds;
+        return (long)ToUnixTimestampDouble(dateTime);
     }
 
-    /// <summary>
-    /// 将DateTime转换为Unix时间戳（秒，带小数）
-    /// </summary>
-    /// <param name="dateTime">要转换的时间</param>
-    /// <returns>Unix时间戳（秒，带毫秒精度）</returns>
     public static double ToUnixTimestampDouble(DateTime dateTime)
     {
-        var utcTime = dateTime.ToUniversalTime();
-        return (utcTime - UnixEpoch).TotalSeconds;
+        var utcDateTime = dateTime.Kind == DateTimeKind.Unspecified 
+            ? DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime()
+            : dateTime.ToUniversalTime();
+
+        // 如果UTC时间是1582-10-4或更早（但年份>=1582），需要加10天偏移
+        // 因为本地时间1582-10-4实际上对应的是UTC删除日期范围内的某个时间
+        if (utcDateTime.Year == 1582 && utcDateTime.Month == 10 && utcDateTime.Day <= 4)
+        {
+            return (utcDateTime.Add(JulianGregorianOffset) - UnixEpoch).TotalSeconds;
+        }
+
+        // 如果UTC时间在1582年之前，需要处理儒略历/格里高利历的差异
+        DateTime adjustedUtcTime;
+        if (utcDateTime.Year < 1582)
+        {
+            adjustedUtcTime = utcDateTime.Subtract(JulianGregorianOffset);
+            adjustedUtcTime = AdjustDateForJulianGregorianDiff(adjustedUtcTime);
+            return (adjustedUtcTime - UnixEpoch).TotalSeconds;
+        }
+
+        return (utcDateTime - UnixEpoch).TotalSeconds;
     }
 
-    /// <summary>
-    /// 将Unix时间戳（秒）转换为DateTime
-    /// </summary>
-    /// <param name="timestamp">Unix时间戳（秒）</param>
-    /// <returns>DateTime（本地时间）</returns>
+    public static double ToUnixTimestampUtcDouble(DateTime utcDateTime)
+    {
+        // 如果UTC时间是1582-10-4或更早（但年份>=1582），需要加10天偏移
+        if (utcDateTime.Year == 1582 && utcDateTime.Month == 10 && utcDateTime.Day <= 4)
+        {
+            return (utcDateTime.Add(JulianGregorianOffset) - UnixEpoch).TotalSeconds;
+        }
+
+        DateTime adjustedUtcTime;
+        if (utcDateTime.Year < 1582)
+        {
+            adjustedUtcTime = utcDateTime.Subtract(JulianGregorianOffset);
+            adjustedUtcTime = AdjustDateForJulianGregorianDiff(adjustedUtcTime);
+            return (adjustedUtcTime - UnixEpoch).TotalSeconds;
+        }
+
+        return (utcDateTime - UnixEpoch).TotalSeconds;
+    }
+
     public static DateTime FromUnixTimestamp(long timestamp)
     {
-        return UnixEpoch.AddSeconds(timestamp).ToLocalTime();
+        return FromUnixTimestampUtc(timestamp).ToLocalTime();
     }
 
-    /// <summary>
-    /// 将Unix时间戳（秒，带小数）转换为DateTime
-    /// </summary>
-    /// <param name="timestamp">Unix时间戳（秒，带小数）</param>
-    /// <returns>DateTime（本地时间）</returns>
     public static DateTime FromUnixTimestamp(double timestamp)
     {
-        return UnixEpoch.AddSeconds(timestamp).ToLocalTime();
+        return FromUnixTimestampUtc((long)timestamp).ToLocalTime();
     }
 
-    /// <summary>
-    /// 将Unix时间戳（秒）转换为DateTime（UTC时间）
-    /// </summary>
-    /// <param name="timestamp">Unix时间戳（秒）</param>
-    /// <returns>DateTime（UTC时间）</returns>
     public static DateTime FromUnixTimestampUtc(long timestamp)
     {
-        return UnixEpoch.AddSeconds(timestamp);
+        var utcTime = UnixEpoch.AddSeconds(timestamp);
+        var localTime = utcTime.ToLocalTime();
+
+        // 如果本地时间落在1582年10月5-14日范围内（这10天不存在），映射到1582-10-4
+        if (IsNonExistentDate1582October(localTime))
+        {
+            return new DateTime(1582, 10, 4, utcTime.Hour, utcTime.Minute, utcTime.Second,
+                utcTime.Millisecond, DateTimeKind.Utc);
+        }
+
+        // 如果UTC时间在1582年之前，需要处理儒略历/格里高利历的差异
+        DateTime adjustedUtcTime;
+        if (utcTime.Year < 1582)
+        {
+            adjustedUtcTime = utcTime.Subtract(JulianGregorianOffset);
+            adjustedUtcTime = AdjustDateForJulianGregorianDiff(adjustedUtcTime);
+            return adjustedUtcTime;
+        }
+
+        return utcTime;
     }
 
-    /// <summary>
-    /// 获取当前Unix时间戳（秒）
-    /// </summary>
-    /// <returns>当前Unix时间戳（秒）</returns>
     public static long GetCurrentUnixTimestamp()
     {
         return ToUnixTimestamp(DateTime.Now);
     }
 
-    /// <summary>
-    /// 获取当前Unix时间戳（秒，带毫秒精度）
-    /// </summary>
-    /// <returns>当前Unix时间戳（秒，带小数）</returns>
     public static double GetCurrentUnixTimestampDouble()
     {
         return ToUnixTimestampDouble(DateTime.Now);
     }
 
-    /// <summary>
-    /// 解析精确时间字符串 (YYYY-MM-DD-hh-mm-ss)
-    /// </summary>
-    /// <param name="timeString">时间字符串</param>
-    /// <param name="result">解析结果</param>
-    /// <returns>是否解析成功</returns>
     public static bool TryParseExactTime(string timeString, out DateTime result)
     {
         result = DateTime.MinValue;
-        
+
         if (string.IsNullOrWhiteSpace(timeString))
             return false;
 
-        // 支持格式：YYYY-MM-DD-hh-mm-ss
         var formats = new[]
         {
             "yyyy-MM-dd-HH-mm-ss",
@@ -107,33 +187,25 @@ public static class UnixTimeHelper
             "yyyy-MM-ddTHH:mm:ss"
         };
 
-        return DateTime.TryParseExact(timeString, formats, 
-            System.Globalization.CultureInfo.InvariantCulture, 
-            System.Globalization.DateTimeStyles.None, 
+        return DateTime.TryParseExact(timeString, formats,
+            System.Globalization.CultureInfo.InvariantCulture,
+            System.Globalization.DateTimeStyles.None,
             out result);
     }
 
-    /// <summary>
-    /// 将DateTime格式化为精确时间字符串 (YYYY-MM-DD-hh-mm-ss)
-    /// </summary>
-    /// <param name="dateTime">要格式化的时间</param>
-    /// <returns>格式化后的字符串</returns>
     public static string ToExactTimeString(DateTime dateTime)
     {
         return dateTime.ToString("yyyy-MM-dd-HH-mm-ss");
     }
 
-    /// <summary>
-    /// 将精确时间字符串转换为Unix时间戳
-    /// </summary>
-    /// <param name="timeString">时间字符串 (YYYY-MM-DD-hh-mm-ss)</param>
-    /// <param name="timestamp">Unix时间戳（秒）</param>
-    /// <returns>是否转换成功</returns>
     public static bool TryParseExactTimeToUnixTimestamp(string timeString, out long timestamp)
     {
         timestamp = 0;
-        
+
         if (!TryParseExactTime(timeString, out var dateTime))
+            return false;
+
+        if (IsNonExistentDate1582October(dateTime))
             return false;
 
         timestamp = ToUnixTimestamp(dateTime);

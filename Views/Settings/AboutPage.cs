@@ -73,54 +73,12 @@ public class AboutPage : SettingsPageBase
             Spacing = 16
         };
 
-        // 添加顶部通用区域（带彩蛋检测）
         var iconBorder = CreateIconBorder();
         _iconBorder = iconBorder;
         var headerPanel = CreateHeaderPanel(iconBorder);
 
         mainPanel.Children.Add(headerPanel);
 
-        // 标题
-        mainPanel.Children.Add(new TextBlock
-        {
-            Text = "关于 AdvancedTimeIsland",
-            FontSize = 20,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
-        });
-
-        // 作者信息
-        var infoPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 8,
-            Margin = new Thickness(0, 8, 0, 0)
-        };
-
-        infoPanel.Children.Add(CreateInfoRow("作者", "inf2147483647"));
-        infoPanel.Children.Add(CreateInfoRow("版本", "1.0.0.0"));
-
-        // 介绍
-        infoPanel.Children.Add(new TextBlock
-        {
-            Text = "介绍",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White,
-            Margin = new Thickness(0, 16, 0, 8)
-        });
-
-        infoPanel.Children.Add(new TextBlock
-        {
-            Text = "一个好的插件，先从它的介绍开始",
-            FontSize = 13,
-            Foreground = Brushes.LightGray,
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        mainPanel.Children.Add(infoPanel);
-
-        // 添加标签导航栏
         _tabControl = CreateNavigationTabs();
         mainPanel.Children.Add(_tabControl);
 
@@ -423,7 +381,7 @@ public class AboutPage : SettingsPageBase
         var tabControl = new TabControl
         {
             Background = Brushes.Transparent,
-            Margin = new Thickness(0, 16, 0, 0)
+            Margin = new Thickness(0)
         };
 
         tabControl.SelectionChanged += (s, e) =>

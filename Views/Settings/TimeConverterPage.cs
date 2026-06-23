@@ -1175,7 +1175,7 @@ public class TimeConverterPage : UserControl
         DateTime zoneTime;
         try
         {
-            zoneTime = dt.AddHours(offset - 8 + dstOffset);
+            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(offset - 8 + dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1209,7 +1209,7 @@ public class TimeConverterPage : UserControl
         DateTime localTime;
         try
         {
-            localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1310,6 +1310,7 @@ public class TimeConverterPage : UserControl
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
         var offset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
+        var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
         DateTime dt;
         try
         {
@@ -1323,7 +1324,7 @@ public class TimeConverterPage : UserControl
         DateTime zoneTime;
         try
         {
-            zoneTime = dt.AddHours(offset);
+            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(offset + dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1355,7 +1356,7 @@ public class TimeConverterPage : UserControl
         DateTime dt;
         try
         {
-            dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp);
+            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1363,10 +1364,11 @@ public class TimeConverterPage : UserControl
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
+        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
         DateTime localTime;
         try
         {
-            localTime = dt.AddMinutes(offsetMinutes);
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + localDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1429,7 +1431,7 @@ public class TimeConverterPage : UserControl
         DateTime zoneTime;
         try
         {
-            zoneTime = dt.AddHours(offset - 8 + dstOffset);
+            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(offset - 8 + dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1463,7 +1465,7 @@ public class TimeConverterPage : UserControl
         DateTime localTime;
         try
         {
-            localTime = dt.AddMinutes(offsetMinutes + dstOffset);
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1492,7 +1494,7 @@ public class TimeConverterPage : UserControl
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddHours(8 - offset - dstOffset);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(8 - offset - dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1547,7 +1549,7 @@ public class TimeConverterPage : UserControl
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddHours(8 - offset - dstOffset);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(8 - offset - dstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1571,11 +1573,11 @@ public class TimeConverterPage : UserControl
             SetResultText(_zoneResultTextBlock, "请输入有效的经度");
             return;
         }
-        var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
+        var zoneDstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddHours(8 - offset - dstOffset);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(8 - offset - zoneDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1584,10 +1586,11 @@ public class TimeConverterPage : UserControl
         }
         var longitude = double.Parse(_localLongitudeTextBox!.Text ?? "0");
         var offsetMinutes = (longitude - 120) * 4;
+        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
         DateTime localTime;
         try
         {
-            localTime = beijingTime.AddMinutes(offsetMinutes);
+            localTime = DateValidationHelper.AdjustDateAfterAddition(beijingTime, TimeSpan.FromMinutes(offsetMinutes + localDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1618,10 +1621,11 @@ public class TimeConverterPage : UserControl
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
+        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddMinutes(-offsetMinutes);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1646,10 +1650,11 @@ public class TimeConverterPage : UserControl
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
+        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddMinutes(-offsetMinutes);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1668,10 +1673,11 @@ public class TimeConverterPage : UserControl
             return;
         }
         var offsetMinutes = (longitude - 120) * 4;
+        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = dt.AddMinutes(-offsetMinutes);
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1703,7 +1709,7 @@ public class TimeConverterPage : UserControl
         DateTime zoneTime;
         try
         {
-            zoneTime = dt.AddHours(totalOffset);
+            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(totalOffset));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1752,6 +1758,8 @@ public class TimeConverterPage : UserControl
             return false;
         if (day > DateTime.DaysInMonth(year, month))
             return false;
+        if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
+            return false;
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
             return false;
 
@@ -1798,6 +1806,8 @@ public class TimeConverterPage : UserControl
             return false;
         if (day > DateTime.DaysInMonth(year, month))
             return false;
+        if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
+            return false;
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
             return false;
 
@@ -1842,6 +1852,8 @@ public class TimeConverterPage : UserControl
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
             return false;
         if (day > DateTime.DaysInMonth(year, month))
+            return false;
+        if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
             return false;
         if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
             return false;
@@ -1978,6 +1990,9 @@ public class TimeConverterPage : UserControl
         // 验证转换结果年份在有效范围内(1-9999)
         if (solarDate.Value.Year < 1 || solarDate.Value.Year > 9999) return false;
 
+        // 验证转换结果不在1582年10月5-14日（历史上不存在的日期）
+        if (DateValidationHelper.IsInvalidGregorianTransitionDate(solarDate.Value)) return false;
+
         result = solarDate.Value;
         return true;
     }
@@ -1998,11 +2013,23 @@ public class TimeConverterPage : UserControl
     private bool TryParseSafeDateTime(int year, int month, int day, int hour, int minute, int second, out DateTime result)
     {
         result = DateTime.MinValue;
+
+        if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
+            return false;
+
+        if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
+            return false;
+
+        var daysInMonth = DateTime.DaysInMonth(year, month);
+        if (day > daysInMonth)
+            day = daysInMonth;
+
+        if (hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59)
+            return false;
+
         try
         {
-            // 调整日期到该月最后一天（如果无效）
-            var safeDay = ValidateAndFixDay(year, month, day);
-            result = new DateTime(year, month, safeDay, hour, minute, second);
+            result = new DateTime(year, month, day, hour, minute, second);
             return true;
         }
         catch
