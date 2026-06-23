@@ -65,7 +65,7 @@ public static class DateValidationHelper
 
         if (IsInvalidGregorianTransitionDate(result))
         {
-            return result.AddDays(10);
+            return new DateTime(result.Year, result.Month, 4, result.Hour, result.Minute, result.Second, result.Millisecond);
         }
 
         return result;
@@ -77,7 +77,7 @@ public static class DateValidationHelper
 
         if (IsInvalidGregorianTransitionDate(result))
         {
-            return result.AddDays(10);
+            return new DateTime(result.Year, result.Month, 4, result.Hour, result.Minute, result.Second, result.Millisecond);
         }
 
         return result;

@@ -204,6 +204,9 @@ public class TimeConverterPage : UserControl
         headerPanel.Children.Add(clearButton);
         mainPanel.Children.Add(headerPanel);
 
+        // 注意事项（放在导航栏下方，转换模块上方）
+        mainPanel.Children.Add(CreateNotesPanel());
+
         // 1. 北京时间转换模块
         mainPanel.Children.Add(CreateBeijingModule());
 
@@ -218,9 +221,6 @@ public class TimeConverterPage : UserControl
 
         // 5. 地方时转换模块
         mainPanel.Children.Add(CreateLocalModule());
-
-        // 注意事项
-        mainPanel.Children.Add(CreateNotesPanel());
 
         scrollViewer.Content = mainPanel;
         Content = scrollViewer;
@@ -939,7 +939,8 @@ public class TimeConverterPage : UserControl
         {
             "• 转为区时/地方时前，需先选好对应的时区/经度，然后再转换",
             "• 试试连续点顶部通用区域的图标",
-            "• 经度处填正数为东经，负数为西经，取值范围为 (-180, 180]"
+            "• 经度处填正数为东经，负数为西经，取值范围为 (-180, 180]",
+            "• 在1582年之前使用儒略历，导致日期误差累积，为了纠正之前的误差，格里高利历把1582.10.4下一天变为1584.10.15，看起来中间“消失”了10天"
         };
 
         foreach (var note in notes)
@@ -1204,12 +1205,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_beijingResultTextBlock, "请输入有效的经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var dstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime localTime;
         try
         {
-            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + dstOffset));
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(offsetSeconds + dstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1363,12 +1364,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime localTime;
         try
         {
-            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + localDstOffset));
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(offsetSeconds + localDstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1460,12 +1461,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_lunarResultTextBlock, "请输入有效的经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var dstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime localTime;
         try
         {
-            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(offsetMinutes + dstOffset));
+            localTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(offsetSeconds + dstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1585,12 +1586,12 @@ public class TimeConverterPage : UserControl
             return;
         }
         var longitude = double.Parse(_localLongitudeTextBox!.Text ?? "0");
-        var offsetMinutes = (longitude - 120) * 4;
-        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime localTime;
         try
         {
-            localTime = DateValidationHelper.AdjustDateAfterAddition(beijingTime, TimeSpan.FromMinutes(offsetMinutes + localDstOffset));
+            localTime = DateValidationHelper.AdjustDateAfterAddition(beijingTime, TimeSpan.FromSeconds(offsetSeconds + localDstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1620,12 +1621,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(-offsetSeconds - localDstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1649,12 +1650,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(-offsetSeconds - localDstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1672,12 +1673,12 @@ public class TimeConverterPage : UserControl
             SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
             return;
         }
-        var offsetMinutes = (longitude - 120) * 4;
-        var localDstOffset = (_localDstCheckBox?.IsChecked == true) ? 60 : 0;
+        var offsetSeconds = (longitude - 120) * 240;
+        var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime beijingTime;
         try
         {
-            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromMinutes(-offsetMinutes - localDstOffset));
+            beijingTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(-offsetSeconds - localDstOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1703,13 +1704,13 @@ public class TimeConverterPage : UserControl
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
         var zoneOffset = _timeZones.GetValueOrDefault(zoneName ?? "(UTC±00:00) 伦敦", 0);
-        var dstOffset = (_localDstCheckBox?.IsChecked == true) ? 1 : 0;
-        var localOffset = longitude / 15.0;
-        var totalOffset = zoneOffset - localOffset + dstOffset;
+        var offsetSeconds = (longitude - 120) * 240;
+        var dstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
+        var totalOffsetSeconds = (zoneOffset - 8) * 3600 + dstOffsetSeconds - offsetSeconds;
         DateTime zoneTime;
         try
         {
-            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromHours(totalOffset));
+            zoneTime = DateValidationHelper.AdjustDateAfterAddition(dt, TimeSpan.FromSeconds(totalOffsetSeconds));
         }
         catch (ArgumentOutOfRangeException)
         {
