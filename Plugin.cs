@@ -1,8 +1,9 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
+using ClassIsland.Shared.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Services.NotificationProviders;
@@ -11,6 +12,9 @@ using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
 using AdvancedTimeIsland.Automation.Conditions;
 using AdvancedTimeIsland.Automation.Rules;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
 
 namespace AdvancedTimeIsland;
 
@@ -23,9 +27,92 @@ public class Plugin : PluginBase
 
     public PluginSettings Settings { get; set; } = new();
 
+    private const string SettingsFileName = "settings.json";
+    private const string TempFileSuffix = ".tmp";
+
+    private static readonly object _saveLock = new();
+
     public Plugin()
     {
         Instance = this;
+    }
+
+    private string GetSettingsFilePath()
+    {
+        return Path.Combine(PluginConfigFolder, SettingsFileName);
+    }
+
+    private void LoadSettings()
+    {
+        try
+        {
+            var filePath = GetSettingsFilePath();
+            if (File.Exists(filePath))
+            {
+                var json = File.ReadAllText(filePath);
+                var loadedSettings = JsonSerializer.Deserialize<PluginSettings>(json, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                if (loadedSettings != null)
+                {
+                    Settings = loadedSettings;
+                }
+            }
+        }
+        catch
+        {
+            // 如果加载失败，使用默认设置
+        }
+    }
+
+    private void SaveSettings()
+    {
+        lock (_saveLock)
+        {
+            try
+            {
+                var filePath = GetSettingsFilePath();
+                var tempPath = filePath + TempFileSuffix;
+
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var json = JsonSerializer.Serialize(Settings, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(fs))
+                {
+                    writer.Write(json);
+                    writer.Flush();
+                    fs.Flush(true);
+                }
+
+                if (File.Exists(filePath))
+                {
+                    File.Replace(tempPath, filePath, null);
+                }
+                else
+                {
+                    File.Move(tempPath, filePath);
+                }
+            }
+            catch
+            {
+                // 如果保存失败，忽略
+            }
+        }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        SaveSettings();
     }
 
     /// <summary>
@@ -81,8 +168,15 @@ public class Plugin : PluginBase
         }
     }
 
+
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
+        // 加载已保存的设置
+        LoadSettings();
+
+        // 订阅设置变更事件，自动保存
+        Settings.PropertyChanged += OnSettingsPropertyChanged;
+
         services.Configure<PluginSettings>(context.Configuration.GetSection("AdvancedTimeIsland"));
 
         services.AddSingleton(Settings);
