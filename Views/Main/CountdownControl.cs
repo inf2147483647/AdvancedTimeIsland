@@ -136,6 +136,7 @@ public class CountdownControl : ComponentBase<CountdownSettings>
                     tbText4.Text = vm.Text4Display;
                     break;
                 case nameof(vm.IsAllCompleted):
+                case nameof(vm.IsEmpty):
                     UpdateDisplays();
                     break;
             }
@@ -150,7 +151,15 @@ public class CountdownControl : ComponentBase<CountdownSettings>
 
     private void UpdateDisplays()
     {
-        if (vm.IsAllCompleted)
+        if (vm.IsEmpty)
+        {
+            tbText1.Text = "";
+            tbText2.Text = "";
+            tbText3.Text = "当前无倒计时";
+            tbTime.Text = "";
+            tbText4.Text = "";
+        }
+        else if (vm.IsAllCompleted)
         {
             tbText1.Text = "";
             tbText2.Text = "";

@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.ComponentModel;
 using System.Linq;
 using System.Runtime.CompilerServices;
-using System.Timers;
+using System.Text.RegularExpressions;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
@@ -16,7 +16,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly CountdownSettings _settings;
-    private readonly System.Timers.Timer _updateTimer;
+    private DispatcherTimer? _updateTimer;
+    private DispatcherTimer? _highFrequencyTimer;
     private readonly Action<string, double> _updateText1Style;
     private readonly Action<string, double> _updateText2Style;
     private readonly Action<string, double> _updateText3Style;
@@ -24,6 +25,9 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private readonly Action<string, double> _updateText4Style;
     private bool _isDisposed;
     private bool _isFirstUpdate = true;
+    private bool _requiresHighFrequencyRefresh;
+    private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
+    private readonly TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67); // ~60fps
 
     private string _text1Display = string.Empty;
     private string _text2Display = string.Empty;
@@ -32,6 +36,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private string _text4Display = string.Empty;
     private CountdownItem? _currentItem;
     private bool _isAllCompleted;
+    private bool _isEmpty;
 
     public string Text1Display
     {
@@ -124,6 +129,19 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
+    public bool IsEmpty
+    {
+        get => _isEmpty;
+        private set
+        {
+            if (_isEmpty != value)
+            {
+                _isEmpty = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public CountdownViewModel(TimeBaseService timeBaseService, CountdownSettings settings,
         Action<string, double> updateText1Style = null,
         Action<string, double> updateText2Style = null,
@@ -145,20 +163,80 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         UpdateCountdown();
         _isFirstUpdate = false;
 
-        _updateTimer = new System.Timers.Timer(200);
-        _updateTimer.Elapsed += OnTimerElapsed;
-        _updateTimer.AutoReset = true;
-        _updateTimer.Enabled = true;
+        // 检测是否需要高频率刷新
+        _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
+
+        // 初始化计时器
+        InitializeTimers();
+    }
+
+    private void InitializeTimers()
+    {
+        // 低频率计时器（每秒5次）
+        _updateTimer = new DispatcherTimer
+        {
+            Interval = _normalInterval
+        };
+        _updateTimer.Tick += OnTimerElapsed;
+        _updateTimer.Start();
+
+        // 高频率计时器（帧级刷新，用于毫秒显示）
+        _highFrequencyTimer = new DispatcherTimer
+        {
+            Interval = _highFrequencyInterval
+        };
+        _highFrequencyTimer.Tick += OnHighFrequencyTimerElapsed;
+
+        // 如果需要高频率刷新，启动高频率计时器
+        if (_requiresHighFrequencyRefresh)
+        {
+            _updateTimer.Stop();
+            _highFrequencyTimer.Start();
+        }
+    }
+
+    /// <summary>
+    /// 检测格式化文本是否包含毫秒相关内容，需要高频率刷新
+    /// </summary>
+    private static bool RequiresHighFrequencyRefresh(string? timeFormat)
+    {
+        if (string.IsNullOrEmpty(timeFormat))
+            return false;
+
+        return timeFormat.Contains("%x") || 
+               timeFormat.Contains("%X");
+    }
+
+    /// <summary>
+    /// 手动触发刷新模式更新（在设置控件中调用）
+    /// </summary>
+    public void UpdateRefreshMode()
+    {
+        var newRequiresHighFrequency = RequiresHighFrequencyRefresh(_settings.TimeFormat);
+        if (_requiresHighFrequencyRefresh != newRequiresHighFrequency)
+        {
+            _requiresHighFrequencyRefresh = newRequiresHighFrequency;
+
+            if (_requiresHighFrequencyRefresh)
+            {
+                // 切换到高频率模式
+                _updateTimer?.Stop();
+                _highFrequencyTimer?.Start();
+            }
+            else
+            {
+                // 切换到低频率模式
+                _highFrequencyTimer?.Stop();
+                _updateTimer?.Start();
+            }
+        }
     }
 
     private void EnsureDefaultItems()
     {
-        if (_settings.CountdownItems == null || _settings.CountdownItems.Count == 0)
+        if (_settings.CountdownItems == null)
         {
-            _settings.CountdownItems = new List<CountdownItem>
-            {
-                CountdownItem.CreateDefault()
-            };
+            _settings.CountdownItems = new List<CountdownItem>();
         }
     }
 
@@ -170,10 +248,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             case nameof(CountdownSettings.Text2):
             case nameof(CountdownSettings.Text3):
             case nameof(CountdownSettings.Text4):
-            case nameof(CountdownSettings.TimeFormat):
             case nameof(CountdownSettings.CountdownItems):
             case nameof(CountdownSettings.TimeBaseType):
                 UpdateCountdown();
+                break;
+            case nameof(CountdownSettings.TimeFormat):
+                UpdateCountdown();
+                UpdateRefreshMode();
                 break;
             case nameof(CountdownSettings.Text1FontSize):
             case nameof(CountdownSettings.Text1FontColor):
@@ -198,7 +279,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
+    private void OnTimerElapsed(object? sender, EventArgs e)
+    {
+        _ = UpdateCountdownAsync();
+    }
+
+    private void OnHighFrequencyTimerElapsed(object? sender, EventArgs e)
     {
         _ = UpdateCountdownAsync();
     }
@@ -230,6 +316,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                 TimeDisplay = displayData.Time;
                 Text4Display = displayData.Text4;
                 IsAllCompleted = displayData.IsAllCompleted;
+                IsEmpty = displayData.IsEmpty;
                 CurrentItem = displayData.CurrentItem;
             });
         }
@@ -278,18 +365,19 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             {
                 Text1 = _settings.Text1,
                 Text2 = string.Empty,
-                Text3 = "倒计时已结束",
+                Text3 = "当前无倒计时",
                 Time = string.Empty,
                 Text4 = string.Empty,
-                IsAllCompleted = true,
+                IsAllCompleted = false,
+                IsEmpty = true,
                 CurrentItem = null
             };
         }
 
-        var unixNow = UnixTimeHelper.ToUnixTimestamp(now);
+        var unixNow = UnixTimeHelper.ToUnixTimestampDouble(now);
 
         var expiredItems = _settings.CountdownItems
-            .Where(item => !item.IsCompleted && item.TargetTimestamp <= unixNow)
+            .Where(item => !item.IsCompleted && item.TargetTimestamp <= (long)unixNow)
             .OrderBy(item => item.TargetTimestamp)
             .ToList();
 
@@ -298,7 +386,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             HandleItemCompleted(item);
         }
 
-        var activeItems = _settings.CountdownItems.Where(item => !item.IsCompleted && item.TargetTimestamp > unixNow).ToList();
+        var activeItems = _settings.CountdownItems.Where(item => !item.IsCompleted && item.TargetTimestamp > (long)unixNow).ToList();
 
         if (activeItems.Count == 0)
         {
@@ -310,6 +398,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                 Time = string.Empty,
                 Text4 = string.Empty,
                 IsAllCompleted = true,
+                IsEmpty = false,
                 CurrentItem = null
             };
         }
@@ -317,11 +406,11 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var sortedItems = activeItems.OrderBy(item => item.TargetTimestamp).ToList();
         var currentItem = sortedItems.First();
 
-        var timeLeft = currentItem.TargetTimestamp - unixNow;
+        var timeLeft = (double)currentItem.TargetTimestamp - unixNow;
         var timeLeftMs = timeLeft * 1000;
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, timeLeft, timeLeftMs);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, _settings.StartTime, currentItem.TargetTimestamp);
 
         return new CountdownDisplayData
         {
@@ -331,6 +420,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             Time = timeText,
             Text4 = _settings.Text4,
             IsAllCompleted = false,
+            IsEmpty = false,
             CurrentItem = currentItem
         };
     }
@@ -356,7 +446,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private string FormatTime(string format, long secondsLeft, double millisecondsLeft)
+    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, long startTime, long targetTime)
     {
         var totalSeconds = secondsLeft;
         var totalMilliseconds = millisecondsLeft;
@@ -372,20 +462,34 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
 
+        var totalDuration = targetTime - startTime;
+        var elapsedSeconds = targetTime - startTime - secondsLeft;
+
+        string remainingPercent = "0";
+        string elapsedPercent = "0";
+        string elapsedPercentDecimal = "0.00";
+
+        if (totalDuration > 0)
+        {
+            remainingPercent = ((int)(secondsLeft * 100.0 / totalDuration)).ToString();
+            elapsedPercent = ((int)(elapsedSeconds * 100.0 / totalDuration)).ToString();
+            elapsedPercentDecimal = (elapsedSeconds * 100.0 / totalDuration).ToString("F2");
+        }
+
         var result = format
             .Replace("%D", ((int)totalDays).ToString())
             .Replace("%H", ((int)totalHours).ToString())
             .Replace("%M", ((int)totalMinutes).ToString())
             .Replace("%S", totalSeconds.ToString())
             .Replace("%X", ((int)totalMilliseconds).ToString())
-            .Replace("%L", "0")
-            .Replace("%P", "100")
-            .Replace("%p", "100.00")
+            .Replace("%L", remainingPercent)
+            .Replace("%P", elapsedPercent)
+            .Replace("%p", elapsedPercentDecimal)
             .Replace("%d", days.ToString())
             .Replace("%h", hours.ToString())
-            .Replace("%m", minutes.ToString())
-            .Replace("%s", seconds.ToString())
-            .Replace("%x", milliseconds.ToString());
+            .Replace("%m", minutes.ToString("D2"))
+            .Replace("%s", seconds.ToString("D2"))
+            .Replace("%x", milliseconds.ToString("D3"));
 
         return result;
     }
@@ -404,7 +508,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
         _updateTimer?.Stop();
-        _updateTimer?.Dispose();
+        _highFrequencyTimer?.Stop();
     }
 
     private class CountdownDisplayData
@@ -415,6 +519,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         public string Time { get; set; } = string.Empty;
         public string Text4 { get; set; } = string.Empty;
         public bool IsAllCompleted { get; set; }
+        public bool IsEmpty { get; set; }
         public CountdownItem? CurrentItem { get; set; }
     }
 }

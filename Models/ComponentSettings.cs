@@ -31,6 +31,7 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text4FontColor = "#FFFFFF";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
     private List<CountdownItem> _countdownItems = new();
+    private long _startTime = (long)(DateTime.Now - new DateTime(1970, 1, 1)).TotalSeconds;
     private string _notificationMaskText = "倒计时到达";
     private int _notificationMaskDurationSeconds = 3;
     private string _notificationOverlayText = "目标时间已到达！";
@@ -252,6 +253,19 @@ public class CountdownSettings : INotifyPropertyChanged
             if (_countdownItems != value)
             {
                 _countdownItems = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public long StartTime
+    {
+        get => _startTime;
+        set
+        {
+            if (_startTime != value)
+            {
+                _startTime = value;
                 OnPropertyChanged();
             }
         }

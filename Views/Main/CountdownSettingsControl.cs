@@ -40,6 +40,11 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBox? _text4FontSizeTextBox;
     private ColorPicker? _text4FontColorPicker;
 
+    private DatePicker? _startDatePicker;
+    private ComboBox? _startHourComboBox;
+    private ComboBox? _startMinuteComboBox;
+    private ComboBox? _startSecondComboBox;
+
     public CountdownSettingsControl()
     {
         InitializeComponent();
@@ -116,6 +121,63 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         timeBasePanel.Children.Add(timeBaseRow);
         timeBaseGroup.Content = timeBasePanel;
         mainPanel.Children.Add(timeBaseGroup);
+
+        var startTimeGroup = new Expander { Header = new TextBlock { Text = "开始时间", Foreground = Brushes.White }, IsExpanded = true };
+        var startTimePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        var startDateRow = new Grid();
+        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var startDateLabel = new TextBlock { Text = "日期:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(startDateLabel, 0);
+        startDateRow.Children.Add(startDateLabel);
+
+        _startDatePicker = new DatePicker();
+        Grid.SetColumn(_startDatePicker, 1);
+        startDateRow.Children.Add(_startDatePicker);
+
+        startTimePanel.Children.Add(startDateRow);
+
+        var startTimeRow = new Grid();
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+
+        var startTimeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(startTimeLabel, 0);
+        startTimeRow.Children.Add(startTimeLabel);
+
+        _startHourComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 24; i++) _startHourComboBox.Items.Add(i.ToString("D2"));
+        Grid.SetColumn(_startHourComboBox, 1);
+        startTimeRow.Children.Add(_startHourComboBox);
+
+        var hourSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(hourSeparator, 2);
+        startTimeRow.Children.Add(hourSeparator);
+
+        _startMinuteComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) _startMinuteComboBox.Items.Add(i.ToString("D2"));
+        Grid.SetColumn(_startMinuteComboBox, 3);
+        startTimeRow.Children.Add(_startMinuteComboBox);
+
+        var minuteSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(minuteSeparator, 4);
+        startTimeRow.Children.Add(minuteSeparator);
+
+        _startSecondComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) _startSecondComboBox.Items.Add(i.ToString("D2"));
+        Grid.SetColumn(_startSecondComboBox, 5);
+        startTimeRow.Children.Add(_startSecondComboBox);
+
+        startTimePanel.Children.Add(startTimeRow);
+
+        startTimeGroup.Content = startTimePanel;
+        mainPanel.Children.Add(startTimeGroup);
 
         var fontGroup = new Expander { Header = new TextBlock { Text = "字体样式", Foreground = Brushes.White }, IsExpanded = false };
         var fontPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
@@ -312,6 +374,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
 
+        if (_startDatePicker != null && _startHourComboBox != null && _startMinuteComboBox != null && _startSecondComboBox != null)
+        {
+            var startTime = UnixTimeHelper.FromUnixTimestamp(Settings.StartTime);
+            _startDatePicker.SelectedDate = startTime.Date;
+            _startHourComboBox.SelectedIndex = startTime.Hour;
+            _startMinuteComboBox.SelectedIndex = startTime.Minute;
+            _startSecondComboBox.SelectedIndex = startTime.Second;
+        }
+
         UpdateCountdownList();
 
         AttachEventHandlers();
@@ -346,12 +417,118 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
         AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
         AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
+
+        AttachStartTimeHandlers();
+    }
+
+    private void AttachStartTimeHandlers()
+    {
+        void UpdateStartTime()
+        {
+            if (_startDatePicker?.SelectedDate.HasValue == true && 
+                _startHourComboBox?.SelectedIndex >= 0 && 
+                _startMinuteComboBox?.SelectedIndex >= 0 && 
+                _startSecondComboBox?.SelectedIndex >= 0)
+            {
+                var startTime = _startDatePicker.SelectedDate.Value.Date
+                    .Add(new TimeSpan(_startHourComboBox.SelectedIndex, 
+                        _startMinuteComboBox.SelectedIndex, 
+                        _startSecondComboBox.SelectedIndex));
+                Settings.StartTime = UnixTimeHelper.ToUnixTimestamp(startTime);
+            }
+        }
+
+        if (_startDatePicker != null)
+        {
+            _startDatePicker.SelectedDateChanged += (s, e) => UpdateStartTime();
+        }
+
+        if (_startHourComboBox != null)
+        {
+            _startHourComboBox.SelectionChanged += (s, e) => UpdateStartTime();
+        }
+
+        if (_startMinuteComboBox != null)
+        {
+            _startMinuteComboBox.SelectionChanged += (s, e) => UpdateStartTime();
+        }
+
+        if (_startSecondComboBox != null)
+        {
+            _startSecondComboBox.SelectionChanged += (s, e) => UpdateStartTime();
+        }
+    }
+
+    private bool ContainsSensitiveContent(string? text)
+    {
+        if (string.IsNullOrEmpty(text))
+            return false;
+
+        return text.Contains("喜欢");
+    }
+
+    private async void ShowSensitiveContentDialog(Window? parent = null)
+    {
+        var dialog = new Window
+        {
+            Title = "提示",
+            Width = 300,
+            Height = 150,
+            CanResize = false,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner
+        };
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 15,
+            Margin = new Avalonia.Thickness(20)
+        };
+
+        var message = new TextBlock
+        {
+            Text = "包含敏感内容，请重新输入",
+            FontSize = 14,
+            TextAlignment = TextAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        };
+        panel.Children.Add(message);
+
+        var okButton = new Button
+        {
+            Content = "确定",
+            Width = 80,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        okButton.Click += (s, e) => dialog.Close();
+        panel.Children.Add(okButton);
+
+        dialog.Content = panel;
+
+        var owner = parent ?? TopLevel.GetTopLevel(this) as Window;
+        if (owner != null)
+        {
+            await dialog.ShowDialog(owner);
+        }
+        else
+        {
+            dialog.Show();
+        }
     }
 
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => setter(textBox.Text);
+        textBox.LostFocus += (s, e) =>
+        {
+            if (ContainsSensitiveContent(textBox.Text))
+            {
+                textBox.Text = string.Empty;
+                ShowSensitiveContentDialog();
+                return;
+            }
+            setter(textBox.Text);
+        };
     }
 
     private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
@@ -572,11 +749,27 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = Brushes.White };
         var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
+        notifyTitleTextBox.LostFocus += (s, e) =>
+        {
+            if (ContainsSensitiveContent(notifyTitleTextBox.Text))
+            {
+                notifyTitleTextBox.Text = string.Empty;
+                ShowSensitiveContentDialog(dialog);
+            }
+        };
         contentPanel.Children.Add(notifyTitleLabel);
         contentPanel.Children.Add(notifyTitleTextBox);
 
         var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = Brushes.White };
         var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
+        notifyContentTextBox.LostFocus += (s, e) =>
+        {
+            if (ContainsSensitiveContent(notifyContentTextBox.Text))
+            {
+                notifyContentTextBox.Text = string.Empty;
+                ShowSensitiveContentDialog(dialog);
+            }
+        };
         contentPanel.Children.Add(notifyContentLabel);
         contentPanel.Children.Add(notifyContentTextBox);
 
@@ -596,6 +789,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         okButton.Click += (s, e) =>
         {
+            if (ContainsSensitiveContent(notifyTitleTextBox.Text) || ContainsSensitiveContent(notifyContentTextBox.Text))
+            {
+                if (ContainsSensitiveContent(notifyTitleTextBox.Text))
+                    notifyTitleTextBox.Text = string.Empty;
+                if (ContainsSensitiveContent(notifyContentTextBox.Text))
+                    notifyContentTextBox.Text = string.Empty;
+                ShowSensitiveContentDialog(dialog);
+                return;
+            }
+
             item.Name = nameTextBox.Text ?? "新倒计时";
 
             if (datePicker.SelectedDate.HasValue)
