@@ -146,6 +146,34 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         var listGroup = new Expander { Header = new TextBlock { Text = "倒计时列表", Foreground = Brushes.White }, IsExpanded = true };
         var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
+        var headerGrid = new Grid();
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+
+        var nameHeader = new TextBlock
+        {
+            Text = "倒计时目标时间",
+            Foreground = Brushes.LightGray,
+            FontSize = 11,
+            FontWeight = FontWeight.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(nameHeader, 0);
+        headerGrid.Children.Add(nameHeader);
+
+        var notifyHeader = new TextBlock
+        {
+            Text = "启用通知？",
+            Foreground = Brushes.LightGray,
+            FontSize = 11,
+            FontWeight = FontWeight.Bold,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        Grid.SetColumn(notifyHeader, 1);
+        headerGrid.Children.Add(notifyHeader);
+        listPanel.Children.Add(headerGrid);
+
         _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
         _countdownListBox.SelectionChanged += (s, e) =>
         {
@@ -391,7 +419,45 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             foreach (var item in Settings.CountdownItems)
             {
                 var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
-                _countdownListBox.Items.Add($"{item.Name} - {targetTime:yyyy-MM-dd HH:mm:ss}");
+
+                var container = new Grid();
+                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+                container.Tag = item;
+
+                var textBlock = new TextBlock
+                {
+                    Text = $"{item.Name} - {targetTime:yyyy-MM-dd HH:mm:ss}",
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Foreground = Brushes.White,
+                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
+                };
+                Grid.SetColumn(textBlock, 0);
+                container.Children.Add(textBlock);
+
+                var notifyPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
+                var notifySwitch = new ToggleSwitch
+                {
+                    IsChecked = item.EnableNotification,
+                    VerticalAlignment = VerticalAlignment.Center,
+                    Margin = new Avalonia.Thickness(0, 4, 0, 4)
+                };
+                var currentItem = item;
+                notifySwitch.IsCheckedChanged += (s, e) =>
+                {
+                    currentItem.EnableNotification = notifySwitch.IsChecked == true;
+                };
+                notifyPanel.Children.Add(notifySwitch);
+                Grid.SetColumn(notifyPanel, 1);
+                container.Children.Add(notifyPanel);
+
+                var listBoxItem = new ListBoxItem
+                {
+                    Content = container,
+                    Tag = item
+                };
+
+                _countdownListBox.Items.Add(listBoxItem);
             }
         }
     }
@@ -470,12 +536,12 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             WindowStartupLocation = WindowStartupLocation.CenterOwner
         };
 
-        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
         var nameLabel = new TextBlock { Text = "名称:", Foreground = Brushes.White };
         var nameTextBox = new TextBox { Text = item.Name };
-        panel.Children.Add(nameLabel);
-        panel.Children.Add(nameTextBox);
+        contentPanel.Children.Add(nameLabel);
+        contentPanel.Children.Add(nameTextBox);
 
         var targetLabel = new TextBlock { Text = "目标时间:", Foreground = Brushes.White };
         var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
@@ -497,32 +563,32 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         secondComboBox.SelectedIndex = targetTime.Second;
         timePanel.Children.Add(secondComboBox);
 
-        panel.Children.Add(targetLabel);
-        panel.Children.Add(datePicker);
-        panel.Children.Add(timePanel);
+        contentPanel.Children.Add(targetLabel);
+        contentPanel.Children.Add(datePicker);
+        contentPanel.Children.Add(timePanel);
 
         var notifyToggle = new ToggleSwitch { Content = new TextBlock { Text = "启用通知", Foreground = Brushes.White }, IsChecked = item.EnableNotification };
-        panel.Children.Add(notifyToggle);
+        contentPanel.Children.Add(notifyToggle);
 
         var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = Brushes.White };
         var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
-        panel.Children.Add(notifyTitleLabel);
-        panel.Children.Add(notifyTitleTextBox);
+        contentPanel.Children.Add(notifyTitleLabel);
+        contentPanel.Children.Add(notifyTitleTextBox);
 
         var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = Brushes.White };
         var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
-        panel.Children.Add(notifyContentLabel);
-        panel.Children.Add(notifyContentTextBox);
+        contentPanel.Children.Add(notifyContentLabel);
+        contentPanel.Children.Add(notifyContentTextBox);
 
-        var maskDurationLabel = new TextBlock { Text = "标题时长(秒):", Foreground = Brushes.White };
+        var maskDurationLabel = new TextBlock { Text = "通知标题时长(秒):", Foreground = Brushes.White };
         var maskDurationTextBox = new TextBox { Text = item.NotificationMaskDurationSeconds.ToString() };
-        panel.Children.Add(maskDurationLabel);
-        panel.Children.Add(maskDurationTextBox);
+        contentPanel.Children.Add(maskDurationLabel);
+        contentPanel.Children.Add(maskDurationTextBox);
 
-        var overlayDurationLabel = new TextBlock { Text = "正文时长(秒):", Foreground = Brushes.White };
+        var overlayDurationLabel = new TextBlock { Text = "通知内容时长(秒):", Foreground = Brushes.White };
         var overlayDurationTextBox = new TextBox { Text = item.NotificationOverlayDurationSeconds.ToString() };
-        panel.Children.Add(overlayDurationLabel);
-        panel.Children.Add(overlayDurationTextBox);
+        contentPanel.Children.Add(overlayDurationLabel);
+        contentPanel.Children.Add(overlayDurationTextBox);
 
         var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
         var okButton = new Button { Content = "确定", Width = 80 };
@@ -565,9 +631,27 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         buttonPanel.Children.Add(okButton);
         buttonPanel.Children.Add(cancelButton);
-        panel.Children.Add(buttonPanel);
 
-        dialog.Content = panel;
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = contentPanel,
+            Margin = new Avalonia.Thickness(12, 12, 12, 0)
+        };
+
+        var mainPanel = new Grid();
+        mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        mainPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        Grid.SetRow(scrollViewer, 0);
+        mainPanel.Children.Add(scrollViewer);
+
+        buttonPanel.Margin = new Avalonia.Thickness(12, 8, 12, 12);
+        Grid.SetRow(buttonPanel, 1);
+        mainPanel.Children.Add(buttonPanel);
+
+        dialog.Content = mainPanel;
 
         var ownerWindow = TopLevel.GetTopLevel(this) as Window;
         if (ownerWindow != null)
