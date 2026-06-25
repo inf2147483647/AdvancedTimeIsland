@@ -1,10 +1,11 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
+using AdvancedTimeIsland.Services.NotificationProviders;
 using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
@@ -91,8 +92,10 @@ public class Plugin : PluginBase
         LunarInstallerService.AutoInstallAsync();
 
         services.AddSingleton<TimeBaseService>();
+        services.AddNotificationProvider<CountdownNotificationProvider>();
 
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
+        services.AddComponent<CountdownControl, CountdownSettingsControl>();
 
         services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
 

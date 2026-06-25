@@ -1,0 +1,35 @@
+=== Fields ===
+不能对 Null 值表达式调用方法。
+所在位置 C:\Users\seewo\RiderProjects\AdvancedTimeIsland\reflect_check.ps1:5 字符: 15
++ ... reach($f in $type.GetFields([System.Reflection.BindingFlags]'Public,N ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+
+=== Properties ===
+不能对 Null 值表达式调用方法。
+所在位置 C:\Users\seewo\RiderProjects\AdvancedTimeIsland\reflect_check.ps1:11 字符: 15
++ ... reach($p in $type.GetProperties([System.Reflection.BindingFlags]'Publ ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+
+=== Methods ===
+不能对 Null 值表达式调用方法。
+所在位置 C:\Users\seewo\RiderProjects\AdvancedTimeIsland\reflect_check.ps1:17 字符: 15
++ ... reach($m in $type.GetMethods([System.Reflection.BindingFlags]'Public, ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 
+
+=== Constructors ===
+不能对 Null 值表达式调用方法。
+所在位置 C:\Users\seewo\RiderProjects\AdvancedTimeIsland\reflect_check.ps1:24 字符: 15
++ ... reach($c in $type.GetConstructors([System.Reflection.BindingFlags]'Pu ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : InvalidOperation: (:) []，RuntimeException
+    + FullyQualifiedErrorId : InvokeMethodOnNull
+ 

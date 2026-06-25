@@ -11,7 +11,7 @@ using ClassIsland.Core.Attributes;
 namespace AdvancedTimeIsland.Views.Main;
 
 [ComponentInfo(
-    "33445566-7788-9900-1122-334455667788",
+    "55667788-9900-1122-3344-556677889900",
     "区时（ATI）",
     "\uE121",
     "显示指定时区的区时"
