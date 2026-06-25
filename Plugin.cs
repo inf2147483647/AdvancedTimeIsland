@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
@@ -26,6 +26,7 @@ public class Plugin : PluginBase
     public static Plugin Instance { get; private set; } = null!;
 
     public PluginSettings Settings { get; set; } = new();
+    public DebugSettings DebugSettings { get; set; } = new();
 
     private const string SettingsFileName = "settings.json";
     private const string TempFileSuffix = ".tmp";
@@ -50,19 +51,40 @@ public class Plugin : PluginBase
             if (File.Exists(filePath))
             {
                 var json = File.ReadAllText(filePath);
-                var loadedSettings = JsonSerializer.Deserialize<PluginSettings>(json, new JsonSerializerOptions
+                var loadedContainer = JsonSerializer.Deserialize<SettingsContainer>(json, new JsonSerializerOptions
                 {
                     WriteIndented = true
                 });
-                if (loadedSettings != null)
+                if (loadedContainer != null)
                 {
-                    Settings = loadedSettings;
+                    if (loadedContainer.Settings != null)
+                    {
+                        Settings = loadedContainer.Settings;
+                        Settings.PropertyChanged -= OnSettingsPropertyChanged;
+                        Settings.PropertyChanged += OnSettingsPropertyChanged;
+                    }
+                    if (loadedContainer.DebugSettings != null)
+                    {
+                        DebugSettings = loadedContainer.DebugSettings;
+                        DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+                        DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+                    }
                 }
+            }
+            else
+            {
+                Settings.PropertyChanged -= OnSettingsPropertyChanged;
+                Settings.PropertyChanged += OnSettingsPropertyChanged;
+                DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+                DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
             }
         }
         catch
         {
-            // 如果加载失败，使用默认设置
+            Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            Settings.PropertyChanged += OnSettingsPropertyChanged;
+            DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+            DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
     }
 
@@ -81,7 +103,13 @@ public class Plugin : PluginBase
                     Directory.CreateDirectory(directory);
                 }
 
-                var json = JsonSerializer.Serialize(Settings, new JsonSerializerOptions
+                var container = new SettingsContainer
+                {
+                    Settings = Settings,
+                    DebugSettings = DebugSettings
+                };
+
+                var json = JsonSerializer.Serialize(container, new JsonSerializerOptions
                 {
                     WriteIndented = true
                 });
@@ -111,6 +139,11 @@ public class Plugin : PluginBase
     }
 
     private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        SaveSettings();
+    }
+
+    private void OnDebugSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
         SaveSettings();
     }
@@ -174,8 +207,18 @@ public class Plugin : PluginBase
         // 加载已保存的设置
         LoadSettings();
 
-        // 订阅设置变更事件，自动保存
-        Settings.PropertyChanged += OnSettingsPropertyChanged;
+        // 订阅设置变更事件，自动保存（LoadSettings 中已订阅，此处为双重保险）
+        if (Settings != null)
+        {
+            Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            Settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
+
+        if (DebugSettings != null)
+        {
+            DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+            DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+        }
 
         services.Configure<PluginSettings>(context.Configuration.GetSection("AdvancedTimeIsland"));
 
@@ -904,5 +947,6 @@ public class Plugin : PluginBase
         );
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
+        services.AddSettingsPage<Views.Settings.DebugPage>();
     }
 }
