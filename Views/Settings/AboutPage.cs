@@ -58,6 +58,7 @@ public class AboutPage : SettingsPageBase
     {
         _lunarInstaller = lunarInstaller;
         _pluginSettings = pluginSettings;
+        _easterEggActive = pluginSettings?.EnableEasterEgg ?? false;
         _easterEggDetector = new EasterEggDetector(11, 5);
         _easterEggDetector.OnActivated += OnEasterEggActivated;
 
@@ -133,7 +134,7 @@ public class AboutPage : SettingsPageBase
     /// <summary>
     /// 显示彩蛋触发提示窗口
     /// </summary>
-    private static void ShowEasterEggDialog()
+    private async void ShowEasterEggDialog()
     {
         var dialog = new Window
         {
@@ -141,7 +142,7 @@ public class AboutPage : SettingsPageBase
             Width = 280,
             Height = 140,
             CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterScreen,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
             Background = new SolidColorBrush(Color.Parse("#2D2D30")),
             Content = new StackPanel
             {
@@ -174,7 +175,7 @@ public class AboutPage : SettingsPageBase
             okButton.Click += (s, e) => dialog.Close();
         }
 
-        dialog.Show();
+        await dialog.ShowDialog((Window)VisualRoot!);
     }
 
     /// <summary>
@@ -184,6 +185,10 @@ public class AboutPage : SettingsPageBase
     {
         if (_easterEggActive) return;
         _easterEggActive = true;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.EnableEasterEgg = true;
+        }
 
         UpdateTabOrder(true);
         ShowEasterEggDialog();
@@ -249,7 +254,7 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(new TextBlock
         {
-            Text = "版本：1.0.0.0",
+            Text = "版本：1.0.0.7",
             FontSize = 14,
             Foreground = Brushes.White
         });
@@ -396,6 +401,11 @@ public class AboutPage : SettingsPageBase
         tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
         tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
         tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
+
+        if (_easterEggActive)
+        {
+            tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage() });
+        }
 
         if (tabControl.Items.Count > 0 && tabControl.Items[0] is TabItem firstTab && firstTab.Content == null && firstTab.Tag != null)
         {

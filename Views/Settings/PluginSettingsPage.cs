@@ -140,15 +140,16 @@ public class PluginSettingsPage : UserControl
         ));
 
         // 女装彩蛋（默认不可见）
-        _easterEggToggle = CreateToggleSwitch(false, OnEasterEggToggleChanged);
-        _easterEggToggle.IsVisible = false; // 默认不可见
+        var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
+        _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggleChanged);
+        _easterEggToggle.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
         _easterEggItem = CreateSettingItem(
             "女装",
             "开启后显示女装彩蛋页面",
             _easterEggToggle,
             null
         );
-        _easterEggItem.IsVisible = false; // 整个设置项默认不可见
+        _easterEggItem.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
         mainPanel.Children.Add(_easterEggItem);
 
         // 说明文字
@@ -459,6 +460,7 @@ public class PluginSettingsPage : UserControl
         if (sender is ToggleSwitch toggle)
         {
             var isEnabled = toggle.IsChecked == true;
+            _settings!.EnableEasterEgg = isEnabled;
             if (!isEnabled)
             {
                 HideEasterEggSetting();

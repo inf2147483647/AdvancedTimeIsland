@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -22,6 +22,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableCountdownNotification = true;
     private int _countdownAlertSeconds = 60;
     private LongitudeDisplayMode _longitudeDisplayMode = LongitudeDisplayMode.Decimal;
+    private bool _enableEasterEgg = false;
 
     /// <summary>
     /// 是否启用农历功能
@@ -147,6 +148,22 @@ public class PluginSettings : INotifyPropertyChanged
             if (_longitudeDisplayMode != value)
             {
                 _longitudeDisplayMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用女装彩蛋
+    /// </summary>
+    public bool EnableEasterEgg
+    {
+        get => _enableEasterEgg;
+        set
+        {
+            if (_enableEasterEgg != value)
+            {
+                _enableEasterEgg = value;
                 OnPropertyChanged();
             }
         }

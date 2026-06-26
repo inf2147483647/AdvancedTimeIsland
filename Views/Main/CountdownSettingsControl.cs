@@ -461,10 +461,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private bool ContainsSensitiveContent(string? text)
     {
-        if (string.IsNullOrEmpty(text))
-            return false;
-
-        return text.Contains("喜欢");
+        return SensitiveWordHelper.ContainsSensitiveContent(text);
     }
 
     private async void ShowSensitiveContentDialog(Window? parent = null)

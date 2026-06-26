@@ -4,18 +4,24 @@ using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Interactivity;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
+using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
 [SettingsPageInfo("AdvancedTimeIslandDebug", "AdvancedTimeIsland 调试", SettingsPageCategory.Debug)]
 public class DebugPage : SettingsPageBase
 {
+    private TextBlock? _sensitiveWordHint;
+    private DispatcherTimer? _hintTimer;
+
     public DebugPage()
     {
         InitializeComponent();
@@ -29,6 +35,16 @@ public class DebugPage : SettingsPageBase
             Margin = new Thickness(16),
             Spacing = 16
         };
+
+        var warningBar = new InfoBar
+        {
+            Severity = InfoBarSeverity.Error,
+            Message = "仅供调试，除非你能知道您在做什么，请不要使用以下按钮。",
+            IsOpen = true,
+            IsClosable = false,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        mainPanel.Children.Add(warningBar);
 
         var title = new TextBlock
         {
@@ -61,8 +77,17 @@ public class DebugPage : SettingsPageBase
         mainPanel.Children.Add(tab2Panel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         mainPanel.Children.Add(tab3Panel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        mainPanel.Children.Add(CreateSensitiveWordTestPanel());
 
-        Content = mainPanel;
+        var scrollViewer = new ScrollViewer
+        {
+            Content = mainPanel,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+
+        Content = scrollViewer;
     }
 
     private Grid CreateSimpleTestPanel(
@@ -99,6 +124,92 @@ public class DebugPage : SettingsPageBase
         grid.Children.Add(button);
 
         return grid;
+    }
+
+    private StackPanel CreateSensitiveWordTestPanel()
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8
+        };
+
+        var titleBlock = new TextBlock
+        {
+            Text = "敏感词检测",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold
+        };
+        panel.Children.Add(titleBlock);
+
+        var textBox = new TextBox
+        {
+            Watermark = "请输入要检测的文本",
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.Wrap,
+            Height = 80
+        };
+        textBox.LostFocus += (s, e) => OnSensitiveWordTextBoxLostFocus(textBox);
+        textBox.GotFocus += (s, e) => HideSensitiveWordHint();
+        panel.Children.Add(textBox);
+
+        _sensitiveWordHint = new TextBlock
+        {
+            FontSize = 12,
+            IsVisible = false
+        };
+        panel.Children.Add(_sensitiveWordHint);
+
+        return panel;
+    }
+
+    private bool ContainsSensitiveContent(string? text)
+    {
+        return SensitiveWordHelper.ContainsSensitiveContent(text);
+    }
+
+    private void OnSensitiveWordTextBoxLostFocus(TextBox textBox)
+    {
+        if (_sensitiveWordHint == null) return;
+
+        var containsSensitive = ContainsSensitiveContent(textBox.Text);
+        _sensitiveWordHint.Text = containsSensitive ? "检测到敏感内容" : "未检测到敏感内容";
+        _sensitiveWordHint.Foreground = containsSensitive ? Brushes.Red : Brushes.Green;
+        _sensitiveWordHint.IsVisible = true;
+
+        StartHintTimer();
+    }
+
+    private void HideSensitiveWordHint()
+    {
+        if (_sensitiveWordHint != null)
+        {
+            _sensitiveWordHint.IsVisible = false;
+        }
+        StopHintTimer();
+    }
+
+    private void StartHintTimer()
+    {
+        StopHintTimer();
+        _hintTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(5)
+        };
+        _hintTimer.Tick += (s, e) =>
+        {
+            HideSensitiveWordHint();
+        };
+        _hintTimer.Start();
+    }
+
+    private void StopHintTimer()
+    {
+        if (_hintTimer != null)
+        {
+            _hintTimer.Stop();
+            _hintTimer = null;
+        }
     }
 
     private void ButtonCrash_OnClick(object? sender, RoutedEventArgs e)
@@ -203,7 +314,7 @@ public class DebugPage : SettingsPageBase
         var dialog = new Window
         {
             Title = "提示",
-            Width = 500,
+            Width = 1000,
             SizeToContent = SizeToContent.Height,
             WindowStartupLocation = WindowStartupLocation.CenterOwner,
             CanResize = false
