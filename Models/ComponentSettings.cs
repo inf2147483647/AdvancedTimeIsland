@@ -15,7 +15,7 @@ public enum TimeBaseType
 public class CountdownSettings : INotifyPropertyChanged
 {
     private string _text1 = "距离";
-    private string _text2 = string.Empty;
+    private string _text2 = "倒计时名称";
     private string _text3 = "还有";
     private string _text4 = string.Empty;
     private string _timeFormat = "%d天%h小时%m分钟%s秒";
@@ -318,6 +318,21 @@ public class CountdownSettings : INotifyPropertyChanged
             if (_notificationOverlayDurationSeconds != value)
             {
                 _notificationOverlayDurationSeconds = Math.Max(1, Math.Min(60, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableTimeCorrection = true;
+
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set
+        {
+            if (_enableTimeCorrection != value)
+            {
+                _enableTimeCorrection = value;
                 OnPropertyChanged();
             }
         }

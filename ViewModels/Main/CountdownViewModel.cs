@@ -410,12 +410,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeLeftMs = timeLeft * 1000;
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, _settings.StartTime, currentItem.TargetTimestamp);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
         return new CountdownDisplayData
         {
             Text1 = _settings.Text1,
-            Text2 = _settings.Text2,
+            Text2 = currentItem.Name,
             Text3 = _settings.Text3,
             Time = timeText,
             Text4 = _settings.Text4,
@@ -446,7 +446,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, long startTime, long targetTime)
+    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, long startTime, long targetTime, bool enableTimeCorrection)
     {
         var totalSeconds = secondsLeft;
         var totalMilliseconds = millisecondsLeft;
@@ -461,6 +461,68 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var minutes = (int)(remainingSeconds / 60);
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
+
+        // 差一矫正逻辑：当时间格式不包含毫秒时，对最小显示单位加一
+        bool hasMillisecond = format.Contains("%x") || format.Contains("%X");
+        if (enableTimeCorrection && !hasMillisecond && secondsLeft > 0)
+        {
+            // 找到最小显示单位
+            bool hasSeconds = format.Contains("%s") || format.Contains("%S");
+            bool hasMinutes = format.Contains("%m") || format.Contains("%M");
+            bool hasHours = format.Contains("%h") || format.Contains("%H");
+            bool hasDays = format.Contains("%d") || format.Contains("%D");
+
+            if (hasSeconds)
+            {
+                // 秒是最小单位，对秒加一
+                seconds++;
+                if (seconds >= 60)
+                {
+                    seconds = 0;
+                    minutes++;
+                    if (minutes >= 60)
+                    {
+                        minutes = 0;
+                        hours++;
+                        if (hours >= 24)
+                        {
+                            hours = 0;
+                            days++;
+                        }
+                    }
+                }
+            }
+            else if (hasMinutes)
+            {
+                // 分钟是最小单位，对分钟加一
+                minutes++;
+                if (minutes >= 60)
+                {
+                    minutes = 0;
+                    hours++;
+                    if (hours >= 24)
+                    {
+                        hours = 0;
+                        days++;
+                    }
+                }
+            }
+            else if (hasHours)
+            {
+                // 小时是最小单位，对小时加一
+                hours++;
+                if (hours >= 24)
+                {
+                    hours = 0;
+                    days++;
+                }
+            }
+            else if (hasDays)
+            {
+                // 天是最小单位，对天加一
+                days++;
+            }
+        }
 
         var totalDuration = targetTime - startTime;
         var elapsedSeconds = targetTime - startTime - secondsLeft;

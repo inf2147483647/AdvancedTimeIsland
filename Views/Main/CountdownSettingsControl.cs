@@ -15,11 +15,11 @@ namespace AdvancedTimeIsland.Views.Main;
 public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 {
     private TextBox? _text1TextBox;
-    private TextBox? _text2TextBox;
     private TextBox? _text3TextBox;
     private TextBox? _text4TextBox;
     private TextBox? _timeFormatTextBox;
     private TextBlock? _timeFormatHint;
+    private ToggleSwitch? _timeCorrectionToggle;
     private ComboBox? _timeBaseComboBox;
     private ListBox? _countdownListBox;
     private Button? _addButton;
@@ -64,7 +64,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         textPanel.Children.Add(CreateTextRow("文案1", "距离", out _text1TextBox));
-        textPanel.Children.Add(CreateTextRow("文案2", "", out _text2TextBox));
+        textPanel.Children.Add(CreateText2ButtonRow());
         textPanel.Children.Add(CreateTextRow("文案3", "还有", out _text3TextBox));
         textPanel.Children.Add(CreateTextRow("文案4", "", out _text4TextBox));
 
@@ -96,6 +96,17 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             TextWrapping = TextWrapping.Wrap
         };
         formatPanel.Children.Add(_timeFormatHint);
+
+        _timeCorrectionToggle = new ToggleSwitch
+        {
+            Content = new TextBlock { Text = "差一矫正（当精度不足时最小单位加一）", Foreground = Brushes.White },
+            IsChecked = true
+        };
+        _timeCorrectionToggle.IsCheckedChanged += (s, e) =>
+        {
+            Settings.EnableTimeCorrection = _timeCorrectionToggle.IsChecked == true;
+        };
+        formatPanel.Children.Add(_timeCorrectionToggle);
 
         formatGroup.Content = formatPanel;
         mainPanel.Children.Add(formatGroup);
@@ -351,15 +362,54 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         return row;
     }
 
+    private Grid CreateText2ButtonRow()
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var lbl = new TextBlock { Text = "倒计时名称", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(lbl, 0);
+        row.Children.Add(lbl);
+
+        var button = new Button
+        {
+            Content = "前往编辑倒计时名称",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        button.Click += OnText2ButtonClick;
+        Grid.SetColumn(button, 1);
+        row.Children.Add(button);
+
+        return row;
+    }
+
+    private void OnText2ButtonClick(object? sender, EventArgs e)
+    {
+        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        {
+            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
+            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
+        }
+        else
+        {
+            if (_countdownListBox != null)
+            {
+                _countdownListBox.BringIntoView();
+            }
+            ShowHint();
+        }
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
 
         if (_text1TextBox != null) _text1TextBox.Text = Settings.Text1;
-        if (_text2TextBox != null) _text2TextBox.Text = Settings.Text2;
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
         if (_text4TextBox != null) _text4TextBox.Text = Settings.Text4;
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
+        if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
 
         if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
 
@@ -391,7 +441,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private void AttachEventHandlers()
     {
         AttachTextHandler(_text1TextBox, v => Settings.Text1 = v ?? "距离");
-        AttachTextHandler(_text2TextBox, v => Settings.Text2 = v ?? "");
         AttachTextHandler(_text3TextBox, v => Settings.Text3 = v ?? "还有");
         AttachTextHandler(_text4TextBox, v => Settings.Text4 = v ?? "");
         AttachTextHandler(_timeFormatTextBox, v => Settings.TimeFormat = v ?? "%d天%h小时%m分钟%s秒");
@@ -459,73 +508,14 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 
-    private bool ContainsSensitiveContent(string? text)
-    {
-        return SensitiveWordHelper.ContainsSensitiveContent(text);
-    }
+    
 
-    private async void ShowSensitiveContentDialog(Window? parent = null)
-    {
-        var dialog = new Window
-        {
-            Title = "提示",
-            Width = 300,
-            Height = 150,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
-        };
-
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 15,
-            Margin = new Avalonia.Thickness(20)
-        };
-
-        var message = new TextBlock
-        {
-            Text = "包含敏感内容，请重新输入",
-            FontSize = 14,
-            TextAlignment = TextAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        };
-        panel.Children.Add(message);
-
-        var okButton = new Button
-        {
-            Content = "确定",
-            Width = 80,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        okButton.Click += (s, e) => dialog.Close();
-        panel.Children.Add(okButton);
-
-        dialog.Content = panel;
-
-        var owner = parent ?? TopLevel.GetTopLevel(this) as Window;
-        if (owner != null)
-        {
-            await dialog.ShowDialog(owner);
-        }
-        else
-        {
-            dialog.Show();
-        }
-    }
+    
 
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) =>
-        {
-            if (ContainsSensitiveContent(textBox.Text))
-            {
-                textBox.Text = string.Empty;
-                ShowSensitiveContentDialog();
-                return;
-            }
-            setter(textBox.Text);
-        };
+        textBox.LostFocus += (s, e) => setter(textBox.Text);
     }
 
     private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
@@ -666,7 +656,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
         {
             var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item);
+            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
             HideHint();
         }
         else
@@ -700,11 +690,11 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 
-    private void ShowEditDialog(CountdownItem item)
+    private void ShowEditDialog(CountdownItem item, int order = 0)
     {
         var dialog = new Window
         {
-            Title = "编辑倒计时",
+            Title = order > 0 ? $"正在编写第{order}个倒计时" : "编辑倒计时",
             Width = 400,
             Height = 450,
             WindowStartupLocation = WindowStartupLocation.CenterOwner
@@ -746,27 +736,11 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = Brushes.White };
         var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
-        notifyTitleTextBox.LostFocus += (s, e) =>
-        {
-            if (ContainsSensitiveContent(notifyTitleTextBox.Text))
-            {
-                notifyTitleTextBox.Text = string.Empty;
-                ShowSensitiveContentDialog(dialog);
-            }
-        };
         contentPanel.Children.Add(notifyTitleLabel);
         contentPanel.Children.Add(notifyTitleTextBox);
 
         var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = Brushes.White };
         var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
-        notifyContentTextBox.LostFocus += (s, e) =>
-        {
-            if (ContainsSensitiveContent(notifyContentTextBox.Text))
-            {
-                notifyContentTextBox.Text = string.Empty;
-                ShowSensitiveContentDialog(dialog);
-            }
-        };
         contentPanel.Children.Add(notifyContentLabel);
         contentPanel.Children.Add(notifyContentTextBox);
 
@@ -786,16 +760,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         okButton.Click += (s, e) =>
         {
-            if (ContainsSensitiveContent(notifyTitleTextBox.Text) || ContainsSensitiveContent(notifyContentTextBox.Text))
-            {
-                if (ContainsSensitiveContent(notifyTitleTextBox.Text))
-                    notifyTitleTextBox.Text = string.Empty;
-                if (ContainsSensitiveContent(notifyContentTextBox.Text))
-                    notifyContentTextBox.Text = string.Empty;
-                ShowSensitiveContentDialog(dialog);
-                return;
-            }
-
             item.Name = nameTextBox.Text ?? "新倒计时";
 
             if (datePicker.SelectedDate.HasValue)
