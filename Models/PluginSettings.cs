@@ -17,7 +17,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableLunarCalendar = true;
     private bool _isLunarInstalled = false;
     private double _timeOffsetSeconds = 0;
-    private double _longitude = 116.4;
+    private double _longitude = 114.3;
     private string _timeZoneId = "China Standard Time";
     private bool _enableCountdownNotification = true;
     private int _countdownAlertSeconds = 60;
