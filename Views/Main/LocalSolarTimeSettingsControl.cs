@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -120,7 +121,13 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 
-        Content = sp;
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = sp
+        };
+        Content = scrollViewer;
     }
 
     protected override void OnInitialized()

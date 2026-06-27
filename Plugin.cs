@@ -1,4 +1,4 @@
-﻿using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
@@ -233,6 +233,7 @@ public class Plugin : PluginBase
 
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
+        services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
 
         services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
 

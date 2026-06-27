@@ -63,6 +63,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         var textGroup = new Expander { Header = new TextBlock { Text = "文案设置", Foreground = Brushes.White }, IsExpanded = true };
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
+        textPanel.Children.Add(new TextBlock { Text = "以下内容在主界面上显示的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", Foreground = Brushes.Yellow, FontSize = 11, FontWeight = FontWeight.Bold });
         textPanel.Children.Add(CreateTextRow("文案1", "距离", out _text1TextBox));
         textPanel.Children.Add(CreateText2ButtonRow());
         textPanel.Children.Add(CreateTextRow("文案3", "还有", out _text3TextBox));

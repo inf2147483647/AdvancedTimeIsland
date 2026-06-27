@@ -79,7 +79,13 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 
-        Content = sp;
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = sp
+        };
+        Content = scrollViewer;
     }
 
     protected override void OnInitialized()

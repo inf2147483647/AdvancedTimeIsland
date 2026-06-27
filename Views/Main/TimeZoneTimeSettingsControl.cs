@@ -1,6 +1,7 @@
 using System;
 using AdvancedTimeIsland.Models;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -69,7 +70,13 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 
-        Content = sp;
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = sp
+        };
+        Content = scrollViewer;
     }
 
     protected override void OnInitialized()
