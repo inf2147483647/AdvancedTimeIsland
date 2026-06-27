@@ -7,6 +7,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using AdvancedTimeIsland.Models;
+using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -29,8 +31,15 @@ public class EasterEggPage : UserControl
         return Brushes.DodgerBlue;
     }
 
-    public EasterEggPage()
+    private readonly PluginSettings? _pluginSettings;
+
+    public EasterEggPage() : this(null)
     {
+    }
+
+    public EasterEggPage(PluginSettings? pluginSettings = null)
+    {
+        _pluginSettings = pluginSettings;
         InitializeComponent();
     }
 
@@ -58,6 +67,41 @@ public class EasterEggPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Center
         });
 
+        if (_pluginSettings?.EasterEggDisclaimerAccepted != true)
+        {
+            var disclaimerBar = new InfoBar
+            {
+                Severity = InfoBarSeverity.Warning,
+                Title = "免责声明",
+                Message = "仅供娱乐，无不良引导。",
+                IsOpen = true,
+                IsClosable = true,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            disclaimerBar.Closed += (s, e) =>
+            {
+                _pluginSettings!.EasterEggDisclaimerAccepted = true;
+            };
+            mainPanel.Children.Add(disclaimerBar);
+        }
+
+        if (_pluginSettings?.EasterEggInfoAccepted != true)
+        {
+            var infoBar = new InfoBar
+            {
+                Severity = InfoBarSeverity.Informational,
+                Message = "关闭女装彩蛋的方式：进入插件设置，划到最底部，关闭“女装”",
+                IsOpen = true,
+                IsClosable = true,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            infoBar.Closed += (s, e) =>
+            {
+                _pluginSettings!.EasterEggInfoAccepted = true;
+            };
+            mainPanel.Children.Add(infoBar);
+        }
+
         // Markdown 内容
         var markdownContent = @"## 图片展示
 
@@ -69,13 +113,7 @@ public class EasterEggPage : UserControl
 
 ![图片4](Assets/Images/womenswear_IMG_6892.jpg)
 
-![图片5](Assets/Images/womenswear_IMG_6907.jpg)
-
----
-
-**免责声明**
-
-仅供娱乐，无不良引导；如有不适，请在插件设置关闭""女装""";
+![图片5](Assets/Images/womenswear_IMG_6907.jpg)";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 

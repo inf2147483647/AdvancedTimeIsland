@@ -409,7 +409,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeLeft = (double)currentItem.TargetTimestamp - unixNow;
         var timeLeftMs = timeLeft * 1000;
 
-        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
+        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
         return new CountdownDisplayData
@@ -538,6 +538,16 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             elapsedPercentDecimal = (elapsedSeconds * 100.0 / totalDuration).ToString("F2");
         }
 
+        var currentTime = GetCurrentTime();
+        var targetDate = UnixTimeHelper.FromUnixTimestamp(targetTime);
+        var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
+        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
+        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
+        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
+
+        var daysInMonth = DateTime.DaysInMonth(targetDate.Year, targetDate.Month);
+        var dayOfMonth = ((int)totalDays % daysInMonth) + 1;
+
         var result = format
             .Replace("%D", ((int)totalDays).ToString())
             .Replace("%H", ((int)totalHours).ToString())
@@ -547,7 +557,11 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             .Replace("%L", remainingPercent)
             .Replace("%P", elapsedPercent)
             .Replace("%p", elapsedPercentDecimal)
-            .Replace("%d", days.ToString())
+            .Replace("%yy", yy)
+            .Replace("%YY", YY)
+            .Replace("%mo", mo)
+            .Replace("%MO", MO)
+            .Replace("%d", dayOfMonth.ToString())
             .Replace("%h", hours.ToString())
             .Replace("%m", minutes.ToString("D2"))
             .Replace("%s", seconds.ToString("D2"))

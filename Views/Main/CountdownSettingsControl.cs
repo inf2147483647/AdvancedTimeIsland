@@ -91,7 +91,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         _timeFormatHint = new TextBlock
         {
-            Text = "格式化变量: %D总天数 %H总小时 %M总分钟 %S总秒 %X总毫秒\n%d天 %h小时 %m分钟 %s秒 %x毫秒\n%L剩余百分比 %P已过百分比 %p已过百分比(两位)",
+            Text = "格式化变量: %D总天数 %H总小时 %M总分钟 %S总秒 %X总毫秒\n%d天 %h小时 %m分钟 %s秒 %x毫秒\n%L剩余百分比 %P已过百分比 %p已过百分比(两位)\n%yy总年 %YY总年(两位) %mo总月 %MO总月(两位)",
             FontSize = 11,
             Foreground = Brushes.Gray,
             TextWrapping = TextWrapping.Wrap

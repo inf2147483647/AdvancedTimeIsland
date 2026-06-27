@@ -23,6 +23,9 @@ public class PluginSettings : INotifyPropertyChanged
     private int _countdownAlertSeconds = 60;
     private LongitudeDisplayMode _longitudeDisplayMode = LongitudeDisplayMode.Decimal;
     private bool _enableEasterEgg = false;
+    private bool _disclaimerAccepted = false;
+    private bool _easterEggDisclaimerAccepted = false;
+    private bool _easterEggInfoAccepted = false;
 
     /// <summary>
     /// 是否启用农历功能
@@ -164,6 +167,54 @@ public class PluginSettings : INotifyPropertyChanged
             if (_enableEasterEgg != value)
             {
                 _enableEasterEgg = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已接受免责声明
+    /// </summary>
+    public bool DisclaimerAccepted
+    {
+        get => _disclaimerAccepted;
+        set
+        {
+            if (_disclaimerAccepted != value)
+            {
+                _disclaimerAccepted = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已接受女装彩蛋免责声明
+    /// </summary>
+    public bool EasterEggDisclaimerAccepted
+    {
+        get => _easterEggDisclaimerAccepted;
+        set
+        {
+            if (_easterEggDisclaimerAccepted != value)
+            {
+                _easterEggDisclaimerAccepted = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已接受女装彩蛋关闭方式信息
+    /// </summary>
+    public bool EasterEggInfoAccepted
+    {
+        get => _easterEggInfoAccepted;
+        set
+        {
+            if (_easterEggInfoAccepted != value)
+            {
+                _easterEggInfoAccepted = value;
                 OnPropertyChanged();
             }
         }

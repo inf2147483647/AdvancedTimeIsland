@@ -10,6 +10,7 @@ using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -73,6 +74,24 @@ public class AboutPage : SettingsPageBase
             Margin = new Thickness(16),
             Spacing = 16
         };
+
+        if (_pluginSettings?.DisclaimerAccepted != true)
+        {
+            var disclaimerBar = new InfoBar
+            {
+                Severity = InfoBarSeverity.Warning,
+                Title = "免责声明",
+                Message = "插件内包含大量文本输入框，插件作者不对使用者在其中输入的内容做任何担保，如果使用者因输入不当内容导致造成不良影响，使用者需自行承担相关责任，插件作者概不负责。",
+                IsOpen = true,
+                IsClosable = true,
+                Margin = new Thickness(0, 0, 0, 8)
+            };
+            disclaimerBar.Closed += (s, e) =>
+            {
+                _pluginSettings!.DisclaimerAccepted = true;
+            };
+            mainPanel.Children.Add(disclaimerBar);
+        }
 
         var iconBorder = CreateIconBorder();
         _iconBorder = iconBorder;
@@ -222,7 +241,7 @@ public class AboutPage : SettingsPageBase
             _tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
             var pluginSettingsTab = new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" };
             _tabControl.Items.Add(pluginSettingsTab);
-            _tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage() });
+            _tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage(_pluginSettings) });
         }
         else
         {
@@ -254,7 +273,7 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(new TextBlock
         {
-            Text = "版本：1.0.0.8",
+            Text = "版本：1.0.0.9",
             FontSize = 14,
             Foreground = Brushes.White
         });
@@ -404,7 +423,7 @@ public class AboutPage : SettingsPageBase
 
         if (_easterEggActive)
         {
-            tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage() });
+            tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage(_pluginSettings) });
         }
 
         if (tabControl.Items.Count > 0 && tabControl.Items[0] is TabItem firstTab && firstTab.Content == null && firstTab.Tag != null)

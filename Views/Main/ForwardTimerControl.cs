@@ -133,6 +133,16 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
                 case nameof(vm.Text4Display):
                     tbText4.Text = vm.Text4Display;
                     break;
+                case nameof(vm.IsNotStarted):
+                    if (vm.IsNotStarted)
+                    {
+                        tbText1.Text = "";
+                        tbName.Text = "";
+                        tbText3.Text = "正向计时器未开始";
+                        tbTime.Text = "";
+                        tbText4.Text = "";
+                    }
+                    break;
             }
         };
 

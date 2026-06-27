@@ -299,7 +299,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
         var elapsedMs = elapsedSeconds * 1000;
 
-        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
+        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(elapsedSeconds), elapsedMs);
 
         Text1Display = _settings.Text1;
@@ -325,16 +325,43 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
 
+        var totalDuration = totalSeconds;
+
+        string remainingPercent = "0";
+        string elapsedPercent = "0";
+        string elapsedPercentDecimal = "0.00";
+
+        if (totalDuration > 0)
+        {
+            elapsedPercent = "100";
+            elapsedPercentDecimal = "100.00";
+            remainingPercent = "0";
+        }
+
+        var currentTime = GetCurrentTime();
+        var startDate = UnixTimeHelper.FromUnixTimestamp(_settings.StartTime);
+        var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
+        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
+        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
+        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
+
+        var daysInMonth = DateTime.DaysInMonth(startDate.Year, startDate.Month);
+        var dayOfMonth = ((int)totalDays % daysInMonth) + 1;
+
         var result = format
             .Replace("%D", ((int)totalDays).ToString())
             .Replace("%H", ((int)totalHours).ToString())
             .Replace("%M", ((int)totalMinutes).ToString())
             .Replace("%S", totalSeconds.ToString())
             .Replace("%X", ((int)totalMilliseconds).ToString())
-            .Replace("%L", "0")
-            .Replace("%P", "0")
-            .Replace("%p", "0.00")
-            .Replace("%d", days.ToString())
+            .Replace("%L", remainingPercent)
+            .Replace("%P", elapsedPercent)
+            .Replace("%p", elapsedPercentDecimal)
+            .Replace("%yy", yy)
+            .Replace("%YY", YY)
+            .Replace("%mo", mo)
+            .Replace("%MO", MO)
+            .Replace("%d", dayOfMonth.ToString())
             .Replace("%h", hours.ToString())
             .Replace("%m", minutes.ToString("D2"))
             .Replace("%s", seconds.ToString("D2"))

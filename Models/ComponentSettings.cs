@@ -18,7 +18,7 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text2 = "倒计时名称";
     private string _text3 = "还有";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%d天%h小时%m分钟%s秒";
+    private string _timeFormat = "%D天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _text2FontSize = 14;
     private double _text3FontSize = 14;
@@ -31,7 +31,7 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text4FontColor = "#FFFFFF";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
     private List<CountdownItem> _countdownItems = new();
-    private long _startTime = (long)(DateTime.Now - new DateTime(1970, 1, 1)).TotalSeconds;
+    private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
     private string _notificationMaskText = "倒计时到达";
     private int _notificationMaskDurationSeconds = 3;
     private string _notificationOverlayText = "目标时间已到达！";
@@ -352,7 +352,7 @@ public class ForwardTimerSettings : INotifyPropertyChanged
     private string _name = "新正向计时器";
     private string _text3 = "已过";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%d天%h小时%m分钟%s秒";
+    private string _timeFormat = "%D天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
@@ -364,7 +364,7 @@ public class ForwardTimerSettings : INotifyPropertyChanged
     private string _timeFontColor = "#FFFFFF";
     private string _text4FontColor = "#FFFFFF";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
-    private long _startTime = (long)(DateTime.Now - new DateTime(1970, 1, 1)).TotalSeconds;
+    private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
     public string Text1
     {
@@ -741,6 +741,241 @@ public class AdvancedDateSettings : INotifyPropertyChanged
             if (Math.Abs(_dateFontSize - value) > 0.001)
             {
                 _dateFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class LunarCountdownSettings : INotifyPropertyChanged
+{
+    private string _text1 = string.Empty;
+    private string _text3 = "还有";
+    private string _text4 = string.Empty;
+    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private double _text1FontSize = 14;
+    private double _nameFontSize = 14;
+    private double _text3FontSize = 14;
+    private double _timeFontSize = 14;
+    private double _text4FontSize = 14;
+    private string _text1FontColor = "#FFFFFF";
+    private string _nameFontColor = "#FFFFFF";
+    private string _text3FontColor = "#FFFFFF";
+    private string _timeFontColor = "#FFFFFF";
+    private string _text4FontColor = "#FFFFFF";
+    private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
+    private List<LunarCountdownItem> _countdownItems = new();
+
+    public string Text1
+    {
+        get => _text1;
+        set
+        {
+            if (_text1 != value)
+            {
+                _text1 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text3
+    {
+        get => _text3;
+        set
+        {
+            if (_text3 != value)
+            {
+                _text3 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text4
+    {
+        get => _text4;
+        set
+        {
+            if (_text4 != value)
+            {
+                _text4 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string TimeFormat
+    {
+        get => _timeFormat;
+        set
+        {
+            if (_timeFormat != value)
+            {
+                _timeFormat = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text1FontSize
+    {
+        get => _text1FontSize;
+        set
+        {
+            if (Math.Abs(_text1FontSize - value) > 0.001)
+            {
+                _text1FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double NameFontSize
+    {
+        get => _nameFontSize;
+        set
+        {
+            if (Math.Abs(_nameFontSize - value) > 0.001)
+            {
+                _nameFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text3FontSize
+    {
+        get => _text3FontSize;
+        set
+        {
+            if (Math.Abs(_text3FontSize - value) > 0.001)
+            {
+                _text3FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double TimeFontSize
+    {
+        get => _timeFontSize;
+        set
+        {
+            if (Math.Abs(_timeFontSize - value) > 0.001)
+            {
+                _timeFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text4FontSize
+    {
+        get => _text4FontSize;
+        set
+        {
+            if (Math.Abs(_text4FontSize - value) > 0.001)
+            {
+                _text4FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text1FontColor
+    {
+        get => _text1FontColor;
+        set
+        {
+            if (_text1FontColor != value)
+            {
+                _text1FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string NameFontColor
+    {
+        get => _nameFontColor;
+        set
+        {
+            if (_nameFontColor != value)
+            {
+                _nameFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text3FontColor
+    {
+        get => _text3FontColor;
+        set
+        {
+            if (_text3FontColor != value)
+            {
+                _text3FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string TimeFontColor
+    {
+        get => _timeFontColor;
+        set
+        {
+            if (_timeFontColor != value)
+            {
+                _timeFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text4FontColor
+    {
+        get => _text4FontColor;
+        set
+        {
+            if (_text4FontColor != value)
+            {
+                _text4FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public TimeBaseType TimeBaseType
+    {
+        get => _timeBaseType;
+        set
+        {
+            if (_timeBaseType != value)
+            {
+                _timeBaseType = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public List<LunarCountdownItem> CountdownItems
+    {
+        get => _countdownItems;
+        set
+        {
+            if (_countdownItems != value)
+            {
+                _countdownItems = value;
                 OnPropertyChanged();
             }
         }

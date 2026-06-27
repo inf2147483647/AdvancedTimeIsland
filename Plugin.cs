@@ -234,6 +234,7 @@ public class Plugin : PluginBase
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
         services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
+        services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
 
         services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
 

@@ -1945,21 +1945,23 @@ public class TimeConverterPage : UserControl
         var dizhiIndex = Array.IndexOf(_dizhi, dizhi);
         if (tianganIndex < 0 || dizhiIndex < 0) return false;
 
-        var baseYear = 4; // 甲子年 = 4 AD
+        var baseYear = 4;
         var yearOffset = 0;
         while ((baseYear + yearOffset - 4) % 10 != tianganIndex ||
                (baseYear + yearOffset - 4) % 12 != dizhiIndex)
         {
             yearOffset++;
-            if (yearOffset > 60) return false; // 60年一甲子
+            if (yearOffset > 60) return false;
         }
 
-        var lunarYear = startYear + yearOffset;
+        var baseLunarYear = baseYear + yearOffset;
+        var lunarYear = baseLunarYear;
+
         while (lunarYear < startYear)
         {
             lunarYear += 60;
         }
-        while (lunarYear > endYear)
+        if (lunarYear > endYear)
         {
             lunarYear -= 60;
         }
