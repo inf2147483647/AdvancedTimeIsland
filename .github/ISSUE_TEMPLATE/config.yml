@@ -1,0 +1,14 @@
+# 为 AdvancedTimeIsland 仓库配置 issue forms
+# https://docs.github.com/zh/communities/using-templates-to-configure-issue-tracking-for-your-repository
+
+blank_issues_enabled: true
+contact_links:
+  - name: 项目主页
+    url: https://github.com/inf2147483647/AdvancedTimeIsland
+    about: 请访问项目主页获取更多信息
+  - name: 文档/Wiki
+    url: https://github.com/inf2147483647/AdvancedTimeIsland/wiki
+    about: 查看项目文档和使用指南
+  - name: 讨论区
+    url: https://github.com/inf2147483647/AdvancedTimeIsland/discussions
+    about: 如有一般性问题，可在讨论区发起讨论

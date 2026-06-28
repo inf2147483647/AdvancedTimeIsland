@@ -359,6 +359,38 @@ public class AboutPage : SettingsPageBase
         authorPanel.Children.Add(authorText);
         authorPanel.Children.Add(projectButton);
 
+        // 反馈问题按钮
+        var feedbackButton = new Button
+        {
+            Content = "反馈问题",
+            FontSize = 12,
+            Padding = new Thickness(8, 2),
+            Background = Brushes.Transparent,
+            Foreground = GetAccentBrush(),
+            BorderBrush = GetAccentBrush(),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Margin = new Thickness(8, 0, 0, 0)
+        };
+
+        feedbackButton.Click += (s, e) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+                // 忽略打开链接错误
+            }
+        };
+
+        authorPanel.Children.Add(feedbackButton);
+
         infoPanel.Children.Add(nameText);
         infoPanel.Children.Add(authorPanel);
 
