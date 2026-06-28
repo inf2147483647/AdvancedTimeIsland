@@ -329,9 +329,11 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     {
         return _settings.TimeBaseType switch
         {
-            TimeBaseType.SystemTime => DateTime.Now,
-            TimeBaseType.PluginOffset => _timeBaseService.GetCurrentTime(),
-            _ => Plugin.GetCurrentTime()
+            TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
+            TimeBaseType.PluginOffsetSystemTime => _timeBaseService.GetPluginOffsetSystemTime(),
+            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
+            TimeBaseType.RawSystemTime => DateTime.Now,
+            _ => _timeBaseService.GetCurrentTime()
         };
     }
 
@@ -339,9 +341,11 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     {
         return _settings.TimeBaseType switch
         {
-            TimeBaseType.SystemTime => await System.Threading.Tasks.Task.FromResult(DateTime.Now),
-            TimeBaseType.PluginOffset => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            _ => await System.Threading.Tasks.Task.FromResult(Plugin.GetCurrentTime())
+            TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
+            TimeBaseType.PluginOffsetSystemTime => await _timeBaseService.GetPluginOffsetSystemTimeAsync().ConfigureAwait(false),
+            TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
+            TimeBaseType.RawSystemTime => await System.Threading.Tasks.Task.FromResult(DateTime.Now).ConfigureAwait(false),
+            _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
         };
     }
 

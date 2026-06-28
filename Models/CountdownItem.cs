@@ -146,7 +146,7 @@ public class CountdownItem : INotifyPropertyChanged
         {
             Id = Guid.NewGuid(),
             Name = "新倒计时",
-            TargetTimestamp = (long)(DateTime.Now.AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds,
+            TargetTimestamp = (long)(Plugin.GetCurrentTime().AddHours(1) - new DateTime(1970, 1, 1)).TotalSeconds,
             EnableNotification = true,
             NotificationTitle = "倒计时到达",
             NotificationContent = "目标时间已到达！",

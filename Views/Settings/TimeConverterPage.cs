@@ -92,7 +92,11 @@ public class TimeConverterPage : UserControl
     private ComboBox? _localMinuteComboBox;
     private ComboBox? _localSecondComboBox;
     private TextBox? _localLongitudeTextBox;
-    private TextBox? _localLongitudeDmsTextBox;
+    private TextBox? _localLongitudeDmsDegreesTextBox;
+    private TextBox? _localLongitudeDmsMinutesTextBox;
+    private TextBox? _localLongitudeDmsSecondsTextBox;
+    private ComboBox? _localLongitudeDmsDirectionComboBox;
+    private Panel? _localLongitudeDmsPanel;
     private TextBlock? _localResultTextBlock;
 
     // 提示文本定时器（用于自动清除提示）
@@ -576,12 +580,32 @@ public class TimeConverterPage : UserControl
         _localLongitudeTextBox.Text = "116.4";
         _localLongitudeTextBox.LostFocus += OnLongitudeTextBoxLostFocus;
         
-        _localLongitudeDmsTextBox = new TextBox { Width = 150, Watermark = "如：116°24'0\"E", IsVisible = isDms };
-        _localLongitudeDmsTextBox.Text = "116°24'0\"E";
-        _localLongitudeDmsTextBox.LostFocus += OnLongitudeDmsTextBoxLostFocus;
+        _localLongitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsVisible = isDms };
+
+        _localLongitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
+        _localLongitudeDmsDegreesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsDegreesTextBox);
+        _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
+
+        _localLongitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
+        _localLongitudeDmsMinutesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsMinutesTextBox);
+        _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
+
+        _localLongitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
+        _localLongitudeDmsSecondsTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsSecondsTextBox);
+        _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
+
+        _localLongitudeDmsDirectionComboBox = new ComboBox { Width = 90 };
+        _localLongitudeDmsDirectionComboBox.Items.Add("东经");
+        _localLongitudeDmsDirectionComboBox.Items.Add("西经");
+        _localLongitudeDmsDirectionComboBox.SelectedIndex = 0;
+        _localLongitudeDmsDirectionComboBox.SelectionChanged += OnLongitudeDmsValueChanged;
+        _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsDirectionComboBox);
         
         lonPanel.Children.Add(_localLongitudeTextBox);
-        lonPanel.Children.Add(_localLongitudeDmsTextBox);
+        lonPanel.Children.Add(_localLongitudeDmsPanel);
         content.Children.Add(lonPanel);
 
         // 夏令时选择
@@ -1062,7 +1086,7 @@ public class TimeConverterPage : UserControl
 
     private void OnBeijingCurrentTimeClick(object? sender, RoutedEventArgs e)
     {
-        var now = DateTime.Now;
+        var now = Plugin.GetCurrentTime();
         _beijingYearTextBox!.Text = now.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{now.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{now.Day}日";
@@ -1881,9 +1905,11 @@ public class TimeConverterPage : UserControl
         
         if (_settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
         {
-            var text = _localLongitudeDmsTextBox?.Text ?? "";
-            if (string.IsNullOrWhiteSpace(text)) return false;
-            return LongitudeConverter.TryParseDms(text, out result);
+            if (!int.TryParse(_localLongitudeDmsDegreesTextBox?.Text, out int d)) d = 0;
+            if (!int.TryParse(_localLongitudeDmsMinutesTextBox?.Text, out int m)) m = 0;
+            if (!double.TryParse(_localLongitudeDmsSecondsTextBox?.Text, out double s)) s = 0;
+            var isEast = _localLongitudeDmsDirectionComboBox?.SelectedIndex == 0;
+            return LongitudeConverter.TryParseDms(d, m, s, isEast, out result);
         }
         else
         {
@@ -1893,25 +1919,15 @@ public class TimeConverterPage : UserControl
         }
     }
 
-    private void OnLongitudeDmsTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    private void OnLongitudeDmsValueChanged(object? sender, EventArgs e)
     {
-        if (sender is TextBox textBox)
+        if (!int.TryParse(_localLongitudeDmsDegreesTextBox?.Text, out int d)) d = 0;
+        if (!int.TryParse(_localLongitudeDmsMinutesTextBox?.Text, out int m)) m = 0;
+        if (!double.TryParse(_localLongitudeDmsSecondsTextBox?.Text, out double s)) s = 0;
+        var isEast = _localLongitudeDmsDirectionComboBox?.SelectedIndex == 0;
+        if (LongitudeConverter.TryParseDms(d, m, s, isEast, out var lon))
         {
-            var text = textBox.Text?.Trim() ?? "";
-            if (string.IsNullOrEmpty(text))
-            {
-                textBox.Text = "116°24'0\"E";
-                return;
-            }
-
-            if (LongitudeConverter.TryParseDms(text, out var longitude))
-            {
-                textBox.Text = LongitudeConverter.ToDmsString(longitude);
-            }
-            else
-            {
-                textBox.Text = "116°24'0\"E";
-            }
+            _localLongitudeTextBox!.Text = LongitudeConverter.ToDecimalString(lon);
         }
     }
 
@@ -2053,7 +2069,7 @@ public class TimeConverterPage : UserControl
 
     private void UpdateLongitudeDisplay()
     {
-        if (_settings == null || _localLongitudeTextBox == null || _localLongitudeDmsTextBox == null)
+        if (_settings == null || _localLongitudeTextBox == null || _localLongitudeDmsPanel == null)
             return;
 
         var currentLongitude = 116.4;
@@ -2061,19 +2077,19 @@ public class TimeConverterPage : UserControl
         {
             if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out var lon))
                 currentLongitude = lon;
-            else if (LongitudeConverter.TryParseDms(_localLongitudeDmsTextBox.Text ?? "", out lon))
+            else if (TryParseLongitude(out lon))
                 currentLongitude = lon;
         }
         else
         {
-            if (LongitudeConverter.TryParseDms(_localLongitudeDmsTextBox.Text ?? "", out var lon))
+            if (TryParseLongitude(out var lon))
                 currentLongitude = lon;
             else if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out lon))
                 currentLongitude = lon;
         }
 
         _localLongitudeTextBox.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal;
-        _localLongitudeDmsTextBox.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        _localLongitudeDmsPanel.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
 
         if (_settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
         {
@@ -2081,7 +2097,11 @@ public class TimeConverterPage : UserControl
         }
         else
         {
-            _localLongitudeDmsTextBox.Text = LongitudeConverter.ToDmsString(currentLongitude);
+            LongitudeConverter.DecomposeDms(currentLongitude, out int d, out int m, out double s, out bool isEast);
+            _localLongitudeDmsDegreesTextBox!.Text = d.ToString();
+            _localLongitudeDmsMinutesTextBox!.Text = m.ToString();
+            _localLongitudeDmsSecondsTextBox!.Text = s.ToString("F2");
+            _localLongitudeDmsDirectionComboBox!.SelectedIndex = isEast ? 0 : 1;
         }
     }
 }

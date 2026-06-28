@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using Avalonia;
@@ -35,9 +36,30 @@ public class PluginSettingsPage : UserControl
         return luminance > 0.6 ? Brushes.Black : Brushes.White;
     }
 
+    private static IBrush GetSyncingTextBrush()
+    {
+        // 正在同步时使用白色（深色主题）或黑色（浅色主题）
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
+            return luminance > 0.6 ? Brushes.Black : Brushes.White;
+        }
+        return Brushes.White;
+    }
+
     private readonly PluginSettings? _settings;
     private ToggleSwitch? _easterEggToggle;
     private Border? _easterEggItem;
+    private TextBox? _longitudeTextBox;
+    private TextBox? _dmsDegreesTextBox;
+    private TextBox? _dmsMinutesTextBox;
+    private TextBox? _dmsSecondsTextBox;
+    private ComboBox? _dmsDirectionComboBox;
+    private TextBlock? _ntpTimeDisplayText;
+    private TextBlock? _syncStatusText;
+    private Button? _syncNowButton;
+    private System.Timers.Timer? _ntpTimeDisplayTimer;
+    private System.Timers.Timer? _syncStatusHideTimer;
 
     public PluginSettingsPage() : this(null, null)
     {
@@ -91,27 +113,11 @@ public class PluginSettingsPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         });
 
-        // 启用农历功能
-        mainPanel.Children.Add(CreateSettingItem(
-            "启用农历功能",
-            "开启后将显示农历日期",
-            CreateToggleSwitch(_settings?.EnableLunarCalendar ?? true, OnLunarCalendarToggleChanged),
-            null
-        ));
-
-        // 启用区时/地方时
-        mainPanel.Children.Add(CreateSettingItem(
-            "启用区时 / 地方时",
-            "开启后将支持区时和地方时转换",
-            CreateToggleSwitch(true, OnZoneLocalTimeToggleChanged),
-            null
-        ));
-
         // 地方时经度设置
         mainPanel.Children.Add(CreateSettingItem(
             "地方时经度",
             "设置地方时计算使用的经度（范围：-180 到 180）",
-            CreateLongitudeTextBox(),
+            CreateLongitudePanel(),
             null
         ));
 
@@ -136,6 +142,22 @@ public class PluginSettingsPage : UserControl
             "插件时间偏移",
             "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
             CreateTimeOffsetTextBox(),
+            null
+        ));
+
+        // 时间服务器设置
+        mainPanel.Children.Add(CreateSettingItem(
+            "时间服务器",
+            "选择用于同步时间的NTP服务器",
+            CreateNtpServerComboBox(),
+            null
+        ));
+
+        // 同步时间周期设置
+        mainPanel.Children.Add(CreateSettingItem(
+            "同步时间周期",
+            "NTP时间同步周期，单位为分钟",
+            CreateNtpSyncIntervalTextBox(),
             null
         ));
 
@@ -282,18 +304,85 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 创建经度输入框
+    /// 创建经度输入面板（小数/度分秒切换）
     /// </summary>
-    private TextBox CreateLongitudeTextBox()
+    private Control CreateLongitudePanel()
     {
-        var textBox = new TextBox
+        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
+
+        _longitudeTextBox = new TextBox
         {
             Width = 100,
             Text = _settings?.Longitude.ToString("F4") ?? "116.4",
-            HorizontalAlignment = HorizontalAlignment.Right
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsVisible = _settings?.LongitudeDisplayMode != LongitudeDisplayMode.Dms
         };
-        textBox.LostFocus += OnLongitudeLostFocus;
-        return textBox;
+        _longitudeTextBox.LostFocus += OnLongitudeLostFocus;
+        panel.Children.Add(_longitudeTextBox);
+
+        var dmsPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            IsVisible = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms
+        };
+
+        _dmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesTextBox.LostFocus += OnDmsValueChanged;
+        dmsPanel.Children.Add(_dmsDegreesTextBox);
+        dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesTextBox.LostFocus += OnDmsValueChanged;
+        dmsPanel.Children.Add(_dmsMinutesTextBox);
+        dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsTextBox.LostFocus += OnDmsValueChanged;
+        dmsPanel.Children.Add(_dmsSecondsTextBox);
+        dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsDirectionComboBox = new ComboBox { Width = 90 };
+        _dmsDirectionComboBox.Items.Add("东经");
+        _dmsDirectionComboBox.Items.Add("西经");
+        _dmsDirectionComboBox.SelectedIndex = 0;
+        _dmsDirectionComboBox.SelectionChanged += OnDmsValueChanged;
+        dmsPanel.Children.Add(_dmsDirectionComboBox);
+
+        panel.Children.Add(dmsPanel);
+
+        UpdateDmsFromLongitude();
+
+        return panel;
+    }
+
+    private void UpdateDmsFromLongitude()
+    {
+        if (_settings == null || _dmsDegreesTextBox == null) return;
+        LongitudeConverter.DecomposeDms(_settings.Longitude, out int d, out int m, out double s, out bool isEast);
+        _dmsDegreesTextBox.Text = d.ToString();
+        _dmsMinutesTextBox.Text = m.ToString();
+        _dmsSecondsTextBox.Text = s.ToString("F2");
+        _dmsDirectionComboBox!.SelectedIndex = isEast ? 0 : 1;
+    }
+
+    private void OnDmsValueChanged(object? sender, EventArgs e)
+    {
+        if (_settings == null || _dmsDegreesTextBox == null) return;
+        if (!int.TryParse(_dmsDegreesTextBox.Text, out int d)) d = 0;
+        if (!int.TryParse(_dmsMinutesTextBox?.Text, out int m)) m = 0;
+        if (!double.TryParse(_dmsSecondsTextBox?.Text, out double s)) s = 0;
+        var isEast = _dmsDirectionComboBox?.SelectedIndex == 0;
+        if (LongitudeConverter.TryParseDms(d, m, s, isEast, out double lon))
+        {
+            _settings.Longitude = lon;
+            _longitudeTextBox!.Text = LongitudeConverter.ToDecimalString(lon);
+        }
+        else
+        {
+            UpdateDmsFromLongitude();
+        }
     }
 
     /// <summary>
@@ -321,6 +410,230 @@ public class PluginSettingsPage : UserControl
 
         comboBox.SelectionChanged += OnLongitudeModeSelectionChanged;
         return comboBox;
+    }
+
+    /// <summary>
+    /// 创建时间服务器下拉框（包含同步时间显示）
+    /// </summary>
+    private Control CreateNtpServerComboBox()
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+
+        // 同步时间显示文本（放在左侧）
+        _ntpTimeDisplayText = new TextBlock
+        {
+            FontSize = 24, // 字号改为原来的2倍
+            VerticalAlignment = VerticalAlignment.Center,
+            Text = "正在获取时间..."
+        };
+        panel.Children.Add(_ntpTimeDisplayText);
+
+        var comboBox = new ComboBox
+        {
+            Width = 200,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        comboBox.Items.Add("ntp.aliyun.com");
+        comboBox.Items.Add("1ntp.aliyun.com");
+        comboBox.Items.Add("cn.ntp.org.cn");
+        comboBox.Items.Add("pool.ntp.org");
+        comboBox.Items.Add("time.windows.com");
+
+        if (_settings != null)
+        {
+            comboBox.SelectedItem = _settings.NtpServer;
+        }
+        else
+        {
+            comboBox.SelectedIndex = 0;
+        }
+
+        comboBox.SelectionChanged += OnNtpServerSelectionChanged;
+        panel.Children.Add(comboBox);
+
+        // 启动定时器，每0.1秒刷新时间显示
+        StartNtpTimeDisplayTimer();
+
+        return panel;
+    }
+
+    private void StartNtpTimeDisplayTimer()
+    {
+        _ntpTimeDisplayTimer?.Dispose();
+        _ntpTimeDisplayTimer = new System.Timers.Timer(100); // 0.1秒
+        _ntpTimeDisplayTimer.Elapsed += (s, e) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_ntpTimeDisplayText != null)
+                {
+                    // 使用原始服务器时间（不经过插件偏移）
+                    var ntpTime = TimeBaseService.Instance?.GetRawServerTime() ?? DateTime.Now;
+                    var weekDay = GetChineseWeekDay(ntpTime);
+                    _ntpTimeDisplayText.Text = $"{ntpTime:yyyy-MM-dd-HH-mm-ss} {weekDay}";
+                }
+            });
+        };
+        _ntpTimeDisplayTimer.Start();
+    }
+
+    private static string GetChineseWeekDay(DateTime date)
+    {
+        return date.DayOfWeek switch
+        {
+            DayOfWeek.Sunday => "周日",
+            DayOfWeek.Monday => "周一",
+            DayOfWeek.Tuesday => "周二",
+            DayOfWeek.Wednesday => "周三",
+            DayOfWeek.Thursday => "周四",
+            DayOfWeek.Friday => "周五",
+            DayOfWeek.Saturday => "周六",
+            _ => ""
+        };
+    }
+
+    /// <summary>
+    /// 创建同步时间周期输入框（包含立即同步按钮和状态提示）
+    /// </summary>
+    private Control CreateNtpSyncIntervalTextBox()
+    {
+        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
+
+        // 输入框和按钮的行
+        var inputRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+
+        var textBox = new TextBox
+        {
+            Width = 350,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Text = _settings?.NtpSyncIntervalMinutes.ToString() ?? "5"
+        };
+        textBox.LostFocus += OnNtpSyncIntervalLostFocus;
+        inputRow.Children.Add(textBox);
+
+        // 立即同步按钮
+        _syncNowButton = new Button
+        {
+            Content = "立即同步时间",
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        _syncNowButton.Click += OnSyncNowButtonClick;
+        inputRow.Children.Add(_syncNowButton);
+
+        panel.Children.Add(inputRow);
+
+        // 状态提示文本（在按钮正下方）
+        _syncStatusText = new TextBlock
+        {
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            IsVisible = false
+        };
+        panel.Children.Add(_syncStatusText);
+
+        var hint = new TextBlock
+        {
+            Text = "请输入不小于1的整数，单位为分钟",
+            FontSize = 11,
+            Foreground = Brushes.Gray,
+            TextWrapping = TextWrapping.Wrap
+        };
+        panel.Children.Add(hint);
+
+        // 订阅TimeBaseService的同步事件
+        if (TimeBaseService.Instance != null)
+        {
+            TimeBaseService.Instance.SyncStatusChanged += OnSyncStatusChanged;
+        }
+
+        return panel;
+    }
+
+    private async void OnSyncNowButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (TimeBaseService.Instance != null)
+        {
+            await TimeBaseService.Instance.SyncTimeNowAsync();
+        }
+    }
+
+    private void OnSyncStatusChanged(object? sender, SyncStatusEventArgs e)
+    {
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        {
+            UpdateSyncStatusText(e.Status, e.SyncTime);
+        });
+    }
+
+    private void UpdateSyncStatusText(SyncStatus status, DateTime? syncTime)
+    {
+        if (_syncStatusText == null) return;
+
+        _syncStatusText.IsVisible = true;
+
+        // 停止之前的隐藏定时器
+        _syncStatusHideTimer?.Dispose();
+
+        switch (status)
+        {
+            case SyncStatus.Syncing:
+                _syncStatusText.Text = "正在同步时间...";
+                _syncStatusText.Foreground = GetSyncingTextBrush();
+                // 不设置隐藏定时器，等待同步完成
+                break;
+
+            case SyncStatus.Success:
+                if (syncTime.HasValue)
+                {
+                    _syncStatusText.Text = $"成功在[{syncTime:yyyy-MM-dd-HH-mm-ss}]同步时间";
+                }
+                else
+                {
+                    _syncStatusText.Text = "同步时间成功";
+                }
+                _syncStatusText.Foreground = GetSuccessForegroundBrush();
+                // 5秒后隐藏
+                StartSyncStatusHideTimer();
+                break;
+
+            case SyncStatus.Failed:
+                _syncStatusText.Text = "同步时间失败！";
+                _syncStatusText.Foreground = Brushes.Red;
+                // 5秒后隐藏
+                StartSyncStatusHideTimer();
+                break;
+        }
+    }
+
+    private SolidColorBrush GetSuccessForegroundBrush()
+    {
+        // 浅色主题用深绿色，深色主题用浅绿色
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
+            return luminance > 0.6 ? new SolidColorBrush(Color.FromRgb(0, 128, 0)) : new SolidColorBrush(Color.FromRgb(144, 238, 144));
+        }
+        // 默认使用浅绿色
+        return new SolidColorBrush(Color.FromRgb(144, 238, 144));
+    }
+
+    private void StartSyncStatusHideTimer()
+    {
+        _syncStatusHideTimer?.Dispose();
+        _syncStatusHideTimer = new System.Timers.Timer(5000); // 5秒
+        _syncStatusHideTimer.Elapsed += (s, e) =>
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_syncStatusText != null)
+                {
+                    _syncStatusText.IsVisible = false;
+                }
+            });
+            _syncStatusHideTimer?.Dispose();
+        };
+        _syncStatusHideTimer.Start();
     }
 
     /// <summary>
@@ -391,19 +704,6 @@ public class PluginSettingsPage : UserControl
 
     #region 事件处理
 
-    private void OnLunarCalendarToggleChanged(object? sender, RoutedEventArgs e)
-    {
-        if (_settings != null && sender is ToggleSwitch toggle)
-        {
-            _settings.EnableLunarCalendar = toggle.IsChecked == true;
-        }
-    }
-
-    private void OnZoneLocalTimeToggleChanged(object? sender, RoutedEventArgs e)
-    {
-        // 区时/地方时功能开关
-    }
-
     private void OnTimeOffsetLostFocus(object? sender, RoutedEventArgs e)
     {
         if (_settings != null && sender is TextBox textBox)
@@ -422,6 +722,36 @@ public class PluginSettingsPage : UserControl
         }
     }
 
+    private void OnNtpServerSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_settings != null && sender is ComboBox comboBox && comboBox.SelectedItem is string server)
+        {
+            _settings.NtpServer = server;
+        }
+    }
+
+    private void OnNtpSyncIntervalLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_settings != null && sender is TextBox textBox)
+        {
+            int value;
+            if (!int.TryParse(textBox.Text, out value))
+            {
+                value = 5;
+            }
+            else
+            {
+                value = (int)Math.Round((double)value);
+                if (value < 1)
+                {
+                    value = 1;
+                }
+            }
+            _settings.NtpSyncIntervalMinutes = value;
+            textBox.Text = value.ToString();
+        }
+    }
+
     private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (_settings != null && sender is TextBox textBox)
@@ -431,6 +761,7 @@ public class PluginSettingsPage : UserControl
                 longitude = Math.Max(-180, Math.Min(180, longitude));
                 _settings.Longitude = longitude;
                 textBox.Text = longitude.ToString("F4");
+                UpdateDmsFromLongitude();
             }
         }
     }
@@ -439,9 +770,22 @@ public class PluginSettingsPage : UserControl
     {
         if (_settings != null && sender is ComboBox comboBox)
         {
-            _settings.LongitudeDisplayMode = comboBox.SelectedIndex == 0 
-                ? LongitudeDisplayMode.Decimal 
-                : LongitudeDisplayMode.Dms;
+            var isDms = comboBox.SelectedIndex == 1;
+            _settings.LongitudeDisplayMode = isDms
+                ? LongitudeDisplayMode.Dms
+                : LongitudeDisplayMode.Decimal;
+            if (_longitudeTextBox != null)
+            {
+                _longitudeTextBox.IsVisible = !isDms;
+            }
+            if (_dmsDegreesTextBox != null && _dmsDegreesTextBox.Parent is Control dmsPanel)
+            {
+                dmsPanel.IsVisible = isDms;
+                if (isDms)
+                {
+                    UpdateDmsFromLongitude();
+                }
+            }
         }
     }
 

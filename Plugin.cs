@@ -149,10 +149,14 @@ public class Plugin : PluginBase
     }
 
     /// <summary>
-    /// 获取当前时间（应用插件全局偏移）
+    /// 获取当前时间（应用插件全局偏移，基于NTP服务器时间）
     /// </summary>
     public static DateTime GetCurrentTime()
     {
+        if (TimeBaseService.Instance != null)
+        {
+            return TimeBaseService.Instance.GetCurrentTime();
+        }
         var offset = Instance?.Settings.TimeOffsetSeconds ?? 0;
         return DateTime.Now.AddSeconds(offset);
     }

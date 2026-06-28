@@ -79,9 +79,10 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         timeBasePanel.Children.Add(new TextBlock { Text = "时间来源:", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
         _timeBaseComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
-        _timeBaseComboBox.Items.Add("插件全局时间（推荐）");
-        _timeBaseComboBox.Items.Add("插件偏移时间");
-        _timeBaseComboBox.Items.Add("系统时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
+        _timeBaseComboBox.Items.Add("原始服务器时间");
+        _timeBaseComboBox.Items.Add("原始系统时间");
         timeBasePanel.Children.Add(_timeBaseComboBox);
 
         timeBaseGroup.Content = timeBasePanel;

@@ -67,6 +67,18 @@ public static class LongitudeConverter
         return true;
     }
 
+    public static bool TryParseDms(int degrees, int minutes, double seconds, bool isEast, out double result)
+    {
+        result = 0;
+        if (!ValidateDms(degrees, minutes, seconds))
+            return false;
+
+        var sign = isEast ? 1 : -1;
+        result = sign * (degrees + minutes / 60.0 + seconds / 3600.0);
+        result = Math.Max(-180, Math.Min(180, result));
+        return true;
+    }
+
     public static string ToDecimalString(double longitude)
     {
         longitude = Math.Max(-180, Math.Min(180, longitude));
@@ -89,6 +101,33 @@ public static class LongitudeConverter
         var seconds = remaining * 3600;
         
         return $"{degrees}°{minutes}'{seconds:F2}\"{sign}";
+    }
+
+    public static void DecomposeDms(double longitude, out int degrees, out int minutes, out double seconds, out bool isEast)
+    {
+        longitude = Math.Max(-180, Math.Min(180, longitude));
+        
+        isEast = longitude >= 0;
+        var absLongitude = Math.Abs(longitude);
+        
+        degrees = (int)Math.Floor(absLongitude);
+        var remaining = absLongitude - degrees;
+        
+        minutes = (int)Math.Floor(remaining * 60);
+        remaining -= minutes / 60.0;
+        
+        seconds = Math.Round(remaining * 3600, 2);
+        
+        if (seconds >= 60)
+        {
+            seconds = 0;
+            minutes++;
+        }
+        if (minutes >= 60)
+        {
+            minutes = 0;
+            degrees++;
+        }
     }
 
     public static bool ValidateDms(int degrees, int minutes, double seconds)

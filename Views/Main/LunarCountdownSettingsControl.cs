@@ -97,9 +97,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         timeBaseRow.Children.Add(timeBaseLabel);
 
         _timeBaseComboBox = new ComboBox();
-        _timeBaseComboBox.Items.Add("跟随插件全局设置");
-        _timeBaseComboBox.Items.Add("插件偏移后时间");
-        _timeBaseComboBox.Items.Add("系统时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
+        _timeBaseComboBox.Items.Add("原始服务器时间");
+        _timeBaseComboBox.Items.Add("原始系统时间");
         Grid.SetColumn(_timeBaseComboBox, 1);
         timeBaseRow.Children.Add(_timeBaseComboBox);
 
@@ -420,7 +421,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         {
             foreach (var item in Settings.CountdownItems)
             {
-                var targetSolar = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : DateTime.Now;
+                var targetSolar = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
                 var lunarDesc = GetLunarDateDescription(item);
 
                 var container = new Grid();
@@ -730,7 +731,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         var solarDateLabel = new TextBlock { Text = "公历日期:", Foreground = Brushes.White };
         solarPanel.Children.Add(solarDateLabel);
 
-        var currentSolarDate = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : DateTime.Now;
+        var currentSolarDate = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
         var solarDatePicker = new DatePicker { SelectedDate = currentSolarDate.Date };
 
         var solarTimeRow = new Grid();

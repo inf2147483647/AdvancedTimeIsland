@@ -1,4 +1,7 @@
 using System;
+using System.ComponentModel;
+using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -14,24 +17,60 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<LocalSolarExactTimeRuleSettings>
 {
     private TextBox _longitudeBox = null!;
+    private TextBox _dmsDegreesBox = null!;
+    private TextBox _dmsMinutesBox = null!;
+    private TextBox _dmsSecondsBox = null!;
+    private ComboBox _dmsDirectionBox = null!;
+    private Panel _dmsPanel = null!;
     private DatePicker _startDatePicker = null!;
     private TimePicker _startTimePicker = null!;
     private DatePicker _endDatePicker = null!;
     private TimePicker _endTimePicker = null!;
+    private readonly PluginSettings? _pluginSettings;
 
-    public LocalSolarExactTimeRuleSettingsControl()
+    public LocalSolarExactTimeRuleSettingsControl() : this(null)
     {
+    }
+
+    public LocalSolarExactTimeRuleSettingsControl(PluginSettings? pluginSettings = null)
+    {
+        _pluginSettings = pluginSettings;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
+        }
         InitializeComponent();
+    }
+
+    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.LongitudeDisplayMode))
+        {
+            UpdateLongitudeDisplay();
+        }
+    }
+
+    private void UpdateLongitudeDisplay()
+    {
+        if (_pluginSettings == null) return;
+        var isDms = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        _longitudeBox.IsVisible = !isDms;
+        _dmsPanel.IsVisible = isDms;
+        if (isDms)
+        {
+            UpdateDmsFromLongitude();
+        }
     }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        // 设置经度初始值
         if (Settings != null)
         {
             _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
         }
+        UpdateLongitudeDisplay();
     }
 
     private void InitializeComponent()
@@ -73,25 +112,90 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
             VerticalAlignment = VerticalAlignment.Center
         });
 
+        var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+
         _longitudeBox = new TextBox
         {
             Width = 120,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)"
+            Watermark = "经度 (-180~180)",
+            IsVisible = !isDms
         };
 
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
+
+        _dmsPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            IsVisible = isDms
+        };
+
+        _dmsDegreesBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
+        _dmsPanel.Children.Add(_dmsDegreesBox);
+        _dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsMinutesBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
+        _dmsPanel.Children.Add(_dmsMinutesBox);
+        _dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsSecondsBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
+        _dmsPanel.Children.Add(_dmsSecondsBox);
+        _dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
+
+        _dmsDirectionBox = new ComboBox { Width = 90 };
+        _dmsDirectionBox.Items.Add("东经");
+        _dmsDirectionBox.Items.Add("西经");
+        _dmsDirectionBox.SelectedIndex = 0;
+        _dmsDirectionBox.SelectionChanged += (s, e) => UpdateLongitudeFromDms();
+        _dmsPanel.Children.Add(_dmsDirectionBox);
+
+        var container = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4
+        };
+        container.Children.Add(_longitudeBox);
+        container.Children.Add(_dmsPanel);
 
         var scrollViewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _longitudeBox
+            Content = container
         };
 
         groupPanel.Children.Add(scrollViewer);
 
         return groupPanel;
+    }
+
+    private void UpdateDmsFromLongitude()
+    {
+        if (Settings == null) return;
+        LongitudeConverter.DecomposeDms(Settings.Longitude, out int d, out int m, out double s, out bool isEast);
+        _dmsDegreesBox.Text = d.ToString();
+        _dmsMinutesBox.Text = m.ToString();
+        _dmsSecondsBox.Text = s.ToString("F2");
+        _dmsDirectionBox.SelectedIndex = isEast ? 0 : 1;
+    }
+
+    private void UpdateLongitudeFromDms()
+    {
+        if (Settings == null) return;
+        if (!int.TryParse(_dmsDegreesBox.Text, out int d)) d = 0;
+        if (!int.TryParse(_dmsMinutesBox.Text, out int m)) m = 0;
+        if (!double.TryParse(_dmsSecondsBox.Text, out double s)) s = 0;
+        var isEast = _dmsDirectionBox.SelectedIndex == 0;
+        if (LongitudeConverter.TryParseDms(d, m, s, isEast, out double lon))
+        {
+            Settings.Longitude = lon;
+            _longitudeBox.Text = LongitudeConverter.ToDecimalString(lon);
+        }
     }
 
     private StackPanel CreateDateTimePickerGroup(string label, bool isStart)
@@ -179,6 +283,7 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
         if (double.TryParse(_longitudeBox.Text, out double lon))
         {
             Settings.Longitude = Math.Clamp(lon, -180.0, 180.0);
+            UpdateDmsFromLongitude();
         }
     }
 

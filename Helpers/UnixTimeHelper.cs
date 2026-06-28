@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 
 namespace AdvancedTimeIsland.Helpers;
 
@@ -167,9 +167,19 @@ public static class UnixTimeHelper
         return ToUnixTimestamp(DateTime.Now);
     }
 
+    public static long GetCurrentUnixTimestamp(DateTime time)
+    {
+        return ToUnixTimestamp(time);
+    }
+
     public static double GetCurrentUnixTimestampDouble()
     {
         return ToUnixTimestampDouble(DateTime.Now);
+    }
+
+    public static double GetCurrentUnixTimestampDouble(DateTime time)
+    {
+        return ToUnixTimestampDouble(time);
     }
 
     public static bool TryParseExactTime(string timeString, out DateTime result)

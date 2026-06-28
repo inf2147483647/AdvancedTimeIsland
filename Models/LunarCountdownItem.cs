@@ -249,7 +249,7 @@ public class LunarCountdownItem : INotifyPropertyChanged
 
     public static LunarCountdownItem CreateDefault()
     {
-        var now = DateTime.Now;
+        var now = Plugin.GetCurrentTime();
         var lunarYear = LunarCalendarHelper.GetLunarYear(now);
         var lunarMonth = LunarCalendarHelper.GetLunarMonth(now);
         var lunarDay = LunarCalendarHelper.GetLunarDay(now);

@@ -7,9 +7,10 @@ namespace AdvancedTimeIsland.Models;
 
 public enum TimeBaseType
 {
-    PluginGlobal,
-    PluginOffset,
-    SystemTime
+    PluginOffsetServerTime,  // 插件偏移后的服务器时间（默认）
+    PluginOffsetSystemTime,  // 插件偏移后的系统时间
+    RawServerTime,           // 原始服务器时间
+    RawSystemTime            // 原始系统时间
 }
 
 public class CountdownSettings : INotifyPropertyChanged
@@ -29,7 +30,7 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "#FFFFFF";
     private string _timeFontColor = "#FFFFFF";
     private string _text4FontColor = "#FFFFFF";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
+    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<CountdownItem> _countdownItems = new();
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
     private string _notificationMaskText = "倒计时到达";
@@ -363,7 +364,7 @@ public class ForwardTimerSettings : INotifyPropertyChanged
     private string _text3FontColor = "#FFFFFF";
     private string _timeFontColor = "#FFFFFF";
     private string _text4FontColor = "#FFFFFF";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
+    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
     public string Text1
@@ -770,7 +771,7 @@ public class LunarCountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "#FFFFFF";
     private string _timeFontColor = "#FFFFFF";
     private string _text4FontColor = "#FFFFFF";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginGlobal;
+    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<LunarCountdownItem> _countdownItems = new();
 
     public string Text1

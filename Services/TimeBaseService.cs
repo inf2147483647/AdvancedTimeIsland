@@ -1,38 +1,304 @@
 using System;
+using System.Net;
+using System.Net.Sockets;
+using System.Threading;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Models;
 
 namespace AdvancedTimeIsland.Services;
 
 /// <summary>
+/// 同步状态
+/// </summary>
+public enum SyncStatus
+{
+    Syncing,
+    Success,
+    Failed
+}
+
+/// <summary>
+/// 同步状态事件参数
+/// </summary>
+public class SyncStatusEventArgs : EventArgs
+{
+    public SyncStatus Status { get; set; }
+    public DateTime? SyncTime { get; set; }
+}
+
+/// <summary>
 /// 时间基准管理服务
-/// 基于系统时间并应用插件独立的时间偏移
+/// 基于NTP服务器时间并应用插件独立的时间偏移
 /// </summary>
 public class TimeBaseService
 {
+    public static TimeBaseService? Instance { get; private set; }
+
+    /// <summary>
+    /// 同步状态变化事件
+    /// </summary>
+    public event EventHandler<SyncStatusEventArgs>? SyncStatusChanged;
+
     private readonly PluginSettings _settings;
+    private DateTime _lastNtpSyncTime = DateTime.MinValue;
+    private TimeSpan _timeOffset = TimeSpan.Zero;
+    private System.Timers.Timer? _syncTimer;
+    private readonly object _lockObj = new object();
+
+    // 系统时间跳跃检测
+    private DateTime _lastSystemTimeForCheck = DateTime.MinValue;
+    private System.Timers.Timer? _timeJumpCheckTimer;
+
+    // 连续失败追踪
+    private int _consecutiveFailures = 0;
+    private const int MaxConsecutiveFailuresBeforeFallback = 24 * 60; // 约24小时（按5分钟一次计算需要288次）
+    private bool _hasValidSync = false;
+    private DateTime _lastSuccessfulSyncTime = DateTime.MinValue;
+
+    // 检测时间跳跃的阈值（秒）
+    private const int TimeJumpThresholdSeconds = 2;
 
     public TimeBaseService(PluginSettings settings)
     {
         _settings = settings;
+        Instance = this;
+        _settings.PropertyChanged += OnSettingsChanged;
+
+        // 启动时间跳跃检测
+        StartTimeJumpCheckTimer();
+
+        // 启动定时同步
+        StartSyncTimer();
+
+        // 应用启动时立即尝试同步一次时间
+        _ = SyncTimeAsync(isStartup: true);
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.NtpSyncIntervalMinutes) ||
+            e.PropertyName == nameof(PluginSettings.NtpServer))
+        {
+            StartSyncTimer();
+            _ = SyncTimeAsync(isStartup: false);
+        }
     }
 
     /// <summary>
-    /// 获取当前时间（系统时间 + 插件时间偏移）
+    /// 启动时间跳跃检测定时器
+    /// </summary>
+    private void StartTimeJumpCheckTimer()
+    {
+        _timeJumpCheckTimer?.Dispose();
+        // 每秒检测一次系统时间是否发生跳跃
+        _timeJumpCheckTimer = new System.Timers.Timer(1000);
+        _timeJumpCheckTimer.Elapsed += OnTimeJumpCheck;
+        _timeJumpCheckTimer.Start();
+    }
+
+    private void OnTimeJumpCheck(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        var currentSystemTime = DateTime.Now;
+
+        lock (_lockObj)
+        {
+            if (_lastSystemTimeForCheck != DateTime.MinValue)
+            {
+                // 计算预期的时间差（正常情况下应该是1秒）
+                var expectedDiff = 1.0;
+                var actualDiff = (currentSystemTime - _lastSystemTimeForCheck).TotalSeconds;
+
+                // 检测时间跳跃：如果实际时间差与预期差值超过阈值
+                if (Math.Abs(actualDiff - expectedDiff) > TimeJumpThresholdSeconds)
+                {
+                    // 检测到系统时间被修改，立即尝试同步
+                    System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 检测到系统时间跳跃: {actualDiff}秒，触发立即同步");
+                    _ = SyncTimeAsync(isTimeJumpRecovery: true);
+                }
+            }
+
+            _lastSystemTimeForCheck = currentSystemTime;
+        }
+    }
+
+    private void StartSyncTimer()
+    {
+        lock (_lockObj)
+        {
+            _syncTimer?.Dispose();
+            var interval = Math.Max(1, _settings.NtpSyncIntervalMinutes) * 60 * 1000;
+            _syncTimer = new System.Timers.Timer(interval);
+            _syncTimer.Elapsed += async (s, e) => await SyncTimeAsync(isStartup: false);
+            _syncTimer.Start();
+        }
+    }
+
+    private async Task SyncTimeAsync(bool isStartup = false, bool isTimeJumpRecovery = false)
+    {
+        try
+        {
+            // 触发正在同步状态
+            OnSyncStatusChanged(SyncStatus.Syncing, null);
+
+            var ntpTime = await GetNtpTimeAsync(_settings.NtpServer);
+
+            lock (_lockObj)
+            {
+                _lastNtpSyncTime = DateTime.Now;
+                _timeOffset = ntpTime - DateTime.Now;
+                _hasValidSync = true;
+                _consecutiveFailures = 0;
+                _lastSuccessfulSyncTime = ntpTime;
+            }
+
+            // 触发成功状态
+            OnSyncStatusChanged(SyncStatus.Success, ntpTime);
+        }
+        catch (Exception ex)
+        {
+            lock (_lockObj)
+            {
+                _consecutiveFailures++;
+            }
+
+            // 触发失败状态
+            OnSyncStatusChanged(SyncStatus.Failed, null);
+
+            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 同步失败 #{_consecutiveFailures}: {ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 手动立即同步时间
+    /// </summary>
+    public async Task SyncTimeNowAsync()
+    {
+        await SyncTimeAsync(isStartup: false);
+    }
+
+    private void OnSyncStatusChanged(SyncStatus status, DateTime? syncTime)
+    {
+        SyncStatusChanged?.Invoke(this, new SyncStatusEventArgs { Status = status, SyncTime = syncTime });
+    }
+
+    private async Task<DateTime> GetNtpTimeAsync(string server)
+    {
+        const int ntpPort = 123;
+        const int timeout = 5000;
+
+        using var udpClient = new UdpClient();
+        udpClient.Client.ReceiveTimeout = timeout;
+
+        var ntpData = new byte[48];
+        ntpData[0] = 0x1B;
+
+        await udpClient.SendAsync(ntpData, ntpData.Length, server, ntpPort);
+        var result = await udpClient.ReceiveAsync();
+
+        var data = result.Buffer;
+        ulong intPart = (ulong)data[40] << 24 | (ulong)data[41] << 16 | (ulong)data[42] << 8 | data[43];
+        ulong fractPart = (ulong)data[44] << 24 | (ulong)data[45] << 16 | (ulong)data[46] << 8 | data[47];
+
+        var milliseconds = (intPart * 1000) + ((fractPart * 1000) / 0x100000000L);
+        var ntpTime = new DateTime(1900, 1, 1).AddMilliseconds(milliseconds);
+
+        return ntpTime.ToLocalTime();
+    }
+
+    /// <summary>
+    /// 获取当前时间（NTP时间 + 插件时间偏移）
     /// </summary>
     /// <returns>当前时间</returns>
     public DateTime GetCurrentTime()
     {
         try
         {
-            var baseTime = DateTime.Now;
-            var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
-            return baseTime.Add(offset);
+            bool useFallback;
+            DateTime baseTime;
+
+            lock (_lockObj)
+            {
+                // 检查是否应该降级到系统时间
+                // 条件：从未成功同步过 OR 连续失败次数超过阈值
+                useFallback = !_hasValidSync || _consecutiveFailures >= MaxConsecutiveFailuresBeforeFallback;
+
+                if (_lastNtpSyncTime != DateTime.MinValue)
+                {
+                    baseTime = DateTime.Now.Add(_timeOffset);
+                }
+                else
+                {
+                    baseTime = DateTime.Now;
+                }
+            }
+
+            if (useFallback)
+            {
+                // 降级到系统时间（加插件偏移）
+                var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
+                return DateTime.Now.Add(offset);
+            }
+
+            var pluginOffset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
+            return baseTime.Add(pluginOffset);
         }
         catch
         {
             return DateTime.Now;
         }
+    }
+
+    /// <summary>
+    /// 获取原始服务器时间（不加插件偏移）
+    /// </summary>
+    /// <returns>原始服务器时间</returns>
+    public DateTime GetRawServerTime()
+    {
+        try
+        {
+            bool useFallback = false;
+
+            lock (_lockObj)
+            {
+                if (!_hasValidSync || _consecutiveFailures >= MaxConsecutiveFailuresBeforeFallback)
+                {
+                    useFallback = true;
+                }
+            }
+
+            if (useFallback)
+            {
+                return DateTime.Now;
+            }
+
+            DateTime baseTime;
+            lock (_lockObj)
+            {
+                if (_lastNtpSyncTime != DateTime.MinValue)
+                {
+                    baseTime = DateTime.Now.Add(_timeOffset);
+                }
+                else
+                {
+                    baseTime = DateTime.Now;
+                }
+            }
+            return baseTime;
+        }
+        catch
+        {
+            return DateTime.Now;
+        }
+    }
+
+    /// <summary>
+    /// 获取系统时间 + 插件偏移（不使用NTP）
+    /// </summary>
+    /// <returns>系统时间 + 插件偏移</returns>
+    public DateTime GetPluginOffsetSystemTime()
+    {
+        var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
+        return DateTime.Now.Add(offset);
     }
 
     /// <summary>
@@ -42,6 +308,24 @@ public class TimeBaseService
     public async Task<DateTime> GetCurrentTimeAsync()
     {
         return await Task.Run(() => GetCurrentTime()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 异步获取原始服务器时间
+    /// </summary>
+    /// <returns>原始服务器时间</returns>
+    public async Task<DateTime> GetRawServerTimeAsync()
+    {
+        return await Task.Run(() => GetRawServerTime()).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 异步获取系统时间 + 插件偏移
+    /// </summary>
+    /// <returns>系统时间 + 插件偏移</returns>
+    public async Task<DateTime> GetPluginOffsetSystemTimeAsync()
+    {
+        return await Task.Run(() => GetPluginOffsetSystemTime()).ConfigureAwait(false);
     }
 
     /// <summary>
@@ -81,4 +365,32 @@ public class TimeBaseService
         var time = await GetCurrentTimeAsync().ConfigureAwait(false);
         return Helpers.UnixTimeHelper.ToUnixTimestamp(time);
     }
+
+    /// <summary>
+    /// 获取同步状态信息
+    /// </summary>
+    public SyncInfo GetSyncInfo()
+    {
+        lock (_lockObj)
+        {
+            return new SyncInfo
+            {
+                HasValidSync = _hasValidSync,
+                ConsecutiveFailures = _consecutiveFailures,
+                LastSuccessfulSyncTime = _lastSuccessfulSyncTime,
+                IsUsingFallback = !_hasValidSync || _consecutiveFailures >= MaxConsecutiveFailuresBeforeFallback
+            };
+        }
+    }
+}
+
+/// <summary>
+/// 同步状态信息
+/// </summary>
+public class SyncInfo
+{
+    public bool HasValidSync { get; set; }
+    public int ConsecutiveFailures { get; set; }
+    public DateTime LastSuccessfulSyncTime { get; set; }
+    public bool IsUsingFallback { get; set; }
 }

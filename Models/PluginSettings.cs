@@ -1,4 +1,4 @@
-﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -14,10 +14,9 @@ public enum LongitudeDisplayMode
 /// </summary>
 public class PluginSettings : INotifyPropertyChanged
 {
-    private bool _enableLunarCalendar = true;
     private bool _isLunarInstalled = false;
     private double _timeOffsetSeconds = 0;
-    private double _longitude = 114.3;
+    private double _longitude = 114.2628;
     private string _timeZoneId = "China Standard Time";
     private bool _enableCountdownNotification = true;
     private int _countdownAlertSeconds = 60;
@@ -26,20 +25,17 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _disclaimerAccepted = false;
     private bool _easterEggDisclaimerAccepted = false;
     private bool _easterEggInfoAccepted = false;
+    private string _ntpServer = "ntp.aliyun.com";
+    private int _ntpSyncIntervalMinutes = 5;
 
     /// <summary>
-    /// 是否启用农历功能
+    /// 是否启用农历功能（始终启用）
     /// </summary>
     public bool EnableLunarCalendar
     {
-        get => _enableLunarCalendar;
+        get => true;
         set
         {
-            if (_enableLunarCalendar != value)
-            {
-                _enableLunarCalendar = value;
-                OnPropertyChanged();
-            }
         }
     }
 
@@ -215,6 +211,38 @@ public class PluginSettings : INotifyPropertyChanged
             if (_easterEggInfoAccepted != value)
             {
                 _easterEggInfoAccepted = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// NTP时间服务器地址
+    /// </summary>
+    public string NtpServer
+    {
+        get => _ntpServer;
+        set
+        {
+            if (_ntpServer != value)
+            {
+                _ntpServer = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// NTP同步周期（分钟）
+    /// </summary>
+    public int NtpSyncIntervalMinutes
+    {
+        get => _ntpSyncIntervalMinutes;
+        set
+        {
+            if (_ntpSyncIntervalMinutes != value)
+            {
+                _ntpSyncIntervalMinutes = value;
                 OnPropertyChanged();
             }
         }

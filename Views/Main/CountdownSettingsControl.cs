@@ -124,9 +124,10 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         timeBaseRow.Children.Add(timeBaseLabel);
 
         _timeBaseComboBox = new ComboBox();
-        _timeBaseComboBox.Items.Add("跟随插件全局设置");
-        _timeBaseComboBox.Items.Add("插件偏移后时间");
-        _timeBaseComboBox.Items.Add("系统时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
+        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
+        _timeBaseComboBox.Items.Add("原始服务器时间");
+        _timeBaseComboBox.Items.Add("原始系统时间");
         Grid.SetColumn(_timeBaseComboBox, 1);
         timeBaseRow.Children.Add(_timeBaseComboBox);
 
