@@ -280,7 +280,7 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(new TextBlock
         {
-            Text = "介绍：一个好的插件，先从它的介绍开始",
+            Text = "介绍：AdvancedTimeIsland 是 ClassIsland 的高级时间类型插件，提供倒计时、正向计时、高级日期、农历倒计时、地方时和时区时间等多种组件。支持 NTP 服务器时间同步，时间系统独立于本地系统。内置丰富的自动化规则，涵盖精确时间和年/月/日/时/分/秒时间范围触发，以及地方时和时区规则。集成农历服务和地理时间功能，支持多种时间基准选择，全面提升时间管理体验。更多功能开发中，敬请期待。",
             FontSize = 14,
             Foreground = Brushes.LightGray,
             TextWrapping = TextWrapping.Wrap
