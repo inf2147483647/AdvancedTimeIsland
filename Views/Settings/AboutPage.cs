@@ -238,6 +238,7 @@ public class AboutPage : SettingsPageBase
         {
             _tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
             _tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
+            _tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
             _tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
             var pluginSettingsTab = new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" };
             _tabControl.Items.Add(pluginSettingsTab);
@@ -247,6 +248,7 @@ public class AboutPage : SettingsPageBase
         {
             _tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
             _tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
+            _tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
             _tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
             _tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
         }
@@ -450,6 +452,7 @@ public class AboutPage : SettingsPageBase
 
         tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
         tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
+        tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
         tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
         tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
 
@@ -477,6 +480,9 @@ public class AboutPage : SettingsPageBase
             {
                 case "TimeConverter":
                     tabItem.Content = new TimeConverterPage(_pluginSettings);
+                    break;
+                case "TimeCalculator":
+                    tabItem.Content = new TimeCalculatorPage(_pluginSettings);
                     break;
                 case "PluginSettings":
                     var pluginSettings = new PluginSettingsPage(_pluginSettings, _lunarInstaller);
