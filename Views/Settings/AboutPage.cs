@@ -275,7 +275,7 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(new TextBlock
         {
-            Text = "版本：1.0.0.9",
+            Text = "版本：1.0.0.10",
             FontSize = 14,
             Foreground = Brushes.White
         });
