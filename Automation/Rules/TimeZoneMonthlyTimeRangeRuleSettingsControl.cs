@@ -60,7 +60,12 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateTimeZoneInputGroup()
@@ -125,7 +130,7 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 180,
+            Width = 260,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -216,3 +221,6 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         if (parts.Length >= 4 && int.TryParse(parts[3], out int s)) second = s;
     }
 }
+
+
+

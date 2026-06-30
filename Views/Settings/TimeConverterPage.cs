@@ -54,9 +54,7 @@ public class TimeConverterPage : UserControl
     private TextBox? _beijingYearTextBox;
     private ComboBox? _beijingMonthComboBox;
     private ComboBox? _beijingDayComboBox;
-    private ComboBox? _beijingHourComboBox;
-    private ComboBox? _beijingMinuteComboBox;
-    private ComboBox? _beijingSecondComboBox;
+    private TimePicker? _beijingTimePicker;
     private TextBlock? _beijingResultTextBlock;
 
     // 时间戳转换模块控件
@@ -69,18 +67,14 @@ public class TimeConverterPage : UserControl
     private ComboBox? _lunarDizhiComboBox;
     private ComboBox? _lunarMonthComboBox;
     private ComboBox? _lunarDayComboBox;
-    private ComboBox? _lunarHourComboBox;
-    private ComboBox? _lunarMinuteComboBox;
-    private ComboBox? _lunarSecondComboBox;
+    private TimePicker? _lunarTimePicker;
     private TextBlock? _lunarResultTextBlock;
 
     // 区时转换模块控件
     private TextBox? _zoneYearTextBox;
     private ComboBox? _zoneMonthComboBox;
     private ComboBox? _zoneDayComboBox;
-    private ComboBox? _zoneHourComboBox;
-    private ComboBox? _zoneMinuteComboBox;
-    private ComboBox? _zoneSecondComboBox;
+    private TimePicker? _zoneTimePicker;
     private ComboBox? _zoneComboBox;
     private TextBlock? _zoneResultTextBlock;
 
@@ -88,9 +82,7 @@ public class TimeConverterPage : UserControl
     private TextBox? _localYearTextBox;
     private ComboBox? _localMonthComboBox;
     private ComboBox? _localDayComboBox;
-    private ComboBox? _localHourComboBox;
-    private ComboBox? _localMinuteComboBox;
-    private ComboBox? _localSecondComboBox;
+    private TimePicker? _localTimePicker;
     private TextBox? _localLongitudeTextBox;
     private TextBox? _localLongitudeDmsDegreesTextBox;
     private TextBox? _localLongitudeDmsMinutesTextBox;
@@ -243,7 +235,7 @@ public class TimeConverterPage : UserControl
         content.Children.Add(datePanel);
 
         // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _beijingHourComboBox, out _beijingMinuteComboBox, out _beijingSecondComboBox);
+        var timePanel = CreateTimePickerRow("时间:", out _beijingTimePicker);
         content.Children.Add(timePanel);
 
         // 选取当前时间按钮
@@ -442,7 +434,7 @@ public class TimeConverterPage : UserControl
         content.Children.Add(dayPanel);
 
         // 时间
-        var lunarTimePanel = CreateTimePickerRow("时间:", out _lunarHourComboBox, out _lunarMinuteComboBox, out _lunarSecondComboBox);
+        var lunarTimePanel = CreateTimePickerRow("时间:", out _lunarTimePicker);
         content.Children.Add(lunarTimePanel);
 
         // 转换按钮组
@@ -480,7 +472,7 @@ public class TimeConverterPage : UserControl
         content.Children.Add(datePanel);
 
         // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _zoneHourComboBox, out _zoneMinuteComboBox, out _zoneSecondComboBox);
+        var timePanel = CreateTimePickerRow("时间:", out _zoneTimePicker);
         content.Children.Add(timePanel);
 
         // 时区选择
@@ -561,7 +553,7 @@ public class TimeConverterPage : UserControl
         content.Children.Add(datePanel);
 
         // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _localHourComboBox, out _localMinuteComboBox, out _localSecondComboBox);
+        var timePanel = CreateTimePickerRow("时间:", out _localTimePicker);
         content.Children.Add(timePanel);
 
         // 经度输入
@@ -799,7 +791,7 @@ public class TimeConverterPage : UserControl
         return panel;
     }
 
-    private StackPanel CreateTimePickerRow(string label, out ComboBox hourComboBox, out ComboBox minuteComboBox, out ComboBox secondComboBox)
+    private StackPanel CreateTimePickerRow(string label, out TimePicker timePicker)
     {
         var panel = new StackPanel
         {
@@ -816,65 +808,15 @@ public class TimeConverterPage : UserControl
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePanel = new StackPanel
+        timePicker = new TimePicker
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6
+            Width = 280,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        hourComboBox = new ComboBox
-        {
-            Width = 80,
-            CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
-        };
-        for (int i = 0; i < 24; i++)
-        {
-            hourComboBox.Items.Add(i.ToString("D2"));
-        }
-        timePanel.Children.Add(hourComboBox);
-
-        timePanel.Children.Add(new TextBlock
-        {
-            Text = ":",
-            FontSize = 16,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        minuteComboBox = new ComboBox
-        {
-            Width = 80,
-            CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
-        };
-        for (int i = 0; i < 60; i++)
-        {
-            minuteComboBox.Items.Add(i.ToString("D2"));
-        }
-        timePanel.Children.Add(minuteComboBox);
-
-        timePanel.Children.Add(new TextBlock
-        {
-            Text = ":",
-            FontSize = 16,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        secondComboBox = new ComboBox
-        {
-            Width = 80,
-            CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
-        };
-        for (int i = 0; i < 60; i++)
-        {
-            secondComboBox.Items.Add(i.ToString("D2"));
-        }
-        timePanel.Children.Add(secondComboBox);
-
-        panel.Children.Add(timePanel);
+        panel.Children.Add(timePicker);
 
         return panel;
     }
@@ -991,9 +933,7 @@ public class TimeConverterPage : UserControl
         if (_beijingYearTextBox != null) _beijingYearTextBox.Text = "";
         if (_beijingMonthComboBox != null) _beijingMonthComboBox.SelectedIndex = -1;
         if (_beijingDayComboBox != null) _beijingDayComboBox.SelectedIndex = -1;
-        if (_beijingHourComboBox != null) _beijingHourComboBox.SelectedIndex = -1;
-        if (_beijingMinuteComboBox != null) _beijingMinuteComboBox.SelectedIndex = -1;
-        if (_beijingSecondComboBox != null) _beijingSecondComboBox.SelectedIndex = -1;
+        if (_beijingTimePicker != null) _beijingTimePicker.SelectedTime = null;
         if (_beijingResultTextBlock != null) _beijingResultTextBlock.Text = "";
 
         if (_unixInputTextBox != null) _unixInputTextBox.Text = "";
@@ -1003,26 +943,20 @@ public class TimeConverterPage : UserControl
         if (_lunarDizhiComboBox != null) _lunarDizhiComboBox.SelectedIndex = -1;
         if (_lunarMonthComboBox != null) _lunarMonthComboBox.SelectedIndex = -1;
         if (_lunarDayComboBox != null) _lunarDayComboBox.SelectedIndex = -1;
-        if (_lunarHourComboBox != null) _lunarHourComboBox.SelectedIndex = -1;
-        if (_lunarMinuteComboBox != null) _lunarMinuteComboBox.SelectedIndex = -1;
-        if (_lunarSecondComboBox != null) _lunarSecondComboBox.SelectedIndex = -1;
+        if (_lunarTimePicker != null) _lunarTimePicker.SelectedTime = null;
         if (_lunarResultTextBlock != null) _lunarResultTextBlock.Text = "";
 
         if (_zoneYearTextBox != null) _zoneYearTextBox.Text = "";
         if (_zoneMonthComboBox != null) _zoneMonthComboBox.SelectedIndex = -1;
         if (_zoneDayComboBox != null) _zoneDayComboBox.SelectedIndex = -1;
-        if (_zoneHourComboBox != null) _zoneHourComboBox.SelectedIndex = -1;
-        if (_zoneMinuteComboBox != null) _zoneMinuteComboBox.SelectedIndex = -1;
-        if (_zoneSecondComboBox != null) _zoneSecondComboBox.SelectedIndex = -1;
+        if (_zoneTimePicker != null) _zoneTimePicker.SelectedTime = null;
         if (_zoneComboBox != null) _zoneComboBox.SelectedIndex = -1;
         if (_zoneResultTextBlock != null) _zoneResultTextBlock.Text = "";
 
         if (_localYearTextBox != null) _localYearTextBox.Text = "";
         if (_localMonthComboBox != null) _localMonthComboBox.SelectedIndex = -1;
         if (_localDayComboBox != null) _localDayComboBox.SelectedIndex = -1;
-        if (_localHourComboBox != null) _localHourComboBox.SelectedIndex = -1;
-        if (_localMinuteComboBox != null) _localMinuteComboBox.SelectedIndex = -1;
-        if (_localSecondComboBox != null) _localSecondComboBox.SelectedIndex = -1;
+        if (_localTimePicker != null) _localTimePicker.SelectedTime = null;
         if (_localLongitudeTextBox != null) _localLongitudeTextBox.Text = "";
         if (_localResultTextBlock != null) _localResultTextBlock.Text = "";
     }
@@ -1090,9 +1024,7 @@ public class TimeConverterPage : UserControl
         _beijingYearTextBox!.Text = now.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{now.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{now.Day}日";
-        _beijingHourComboBox!.SelectedItem = now.Hour.ToString("D2");
-        _beijingMinuteComboBox!.SelectedItem = now.Minute.ToString("D2");
-        _beijingSecondComboBox!.SelectedItem = now.Second.ToString("D2");
+        _beijingTimePicker!.SelectedTime = new TimeSpan(now.Hour, now.Minute, now.Second);
     }
 
     private void OnBeijingToUnix(object? sender, RoutedEventArgs e)
@@ -1174,12 +1106,7 @@ public class TimeConverterPage : UserControl
         }
 
         // 设置时间
-        if (_lunarHourComboBox != null)
-            _lunarHourComboBox.SelectedItem = dt.Hour.ToString("D2");
-        if (_lunarMinuteComboBox != null)
-            _lunarMinuteComboBox.SelectedItem = dt.Minute.ToString("D2");
-        if (_lunarSecondComboBox != null)
-            _lunarSecondComboBox.SelectedItem = dt.Second.ToString("D2");
+        _lunarTimePicker!.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
     private void OnBeijingToZone(object? sender, RoutedEventArgs e)
@@ -1212,9 +1139,7 @@ public class TimeConverterPage : UserControl
         _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
-        _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
-        _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
-        _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
+        _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
     }
 
     private void OnBeijingToLocal(object? sender, RoutedEventArgs e)
@@ -1246,9 +1171,7 @@ public class TimeConverterPage : UserControl
         _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
-        _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
-        _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
-        _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
+        _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
     }
 
     private void OnUnixCopyClick(object? sender, RoutedEventArgs e)
@@ -1294,9 +1217,7 @@ public class TimeConverterPage : UserControl
         _beijingYearTextBox!.Text = dt.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
-        _beijingHourComboBox!.SelectedItem = dt.Hour.ToString("D2");
-        _beijingMinuteComboBox!.SelectedItem = dt.Minute.ToString("D2");
-        _beijingSecondComboBox!.SelectedItem = dt.Second.ToString("D2");
+        _beijingTimePicker!.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
     private void OnUnixToLunar(object? sender, RoutedEventArgs e)
@@ -1361,9 +1282,7 @@ public class TimeConverterPage : UserControl
         _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
-        _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
-        _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
-        _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
+        _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
     }
 
     private void OnUnixToLocal(object? sender, RoutedEventArgs e)
@@ -1405,9 +1324,7 @@ public class TimeConverterPage : UserControl
         _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
-        _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
-        _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
-        _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
+        _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
     }
 
     private void OnLunarToBeijing(object? sender, RoutedEventArgs e)
@@ -1422,9 +1339,7 @@ public class TimeConverterPage : UserControl
         _beijingYearTextBox!.Text = dt.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
-        _beijingHourComboBox!.SelectedItem = dt.Hour.ToString("D2");
-        _beijingMinuteComboBox!.SelectedItem = dt.Minute.ToString("D2");
-        _beijingSecondComboBox!.SelectedItem = dt.Second.ToString("D2");
+        _beijingTimePicker!.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
     private void OnLunarToUnix(object? sender, RoutedEventArgs e)
@@ -1468,9 +1383,7 @@ public class TimeConverterPage : UserControl
         _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
-        _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
-        _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
-        _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
+        _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
     }
 
     private void OnLunarToLocal(object? sender, RoutedEventArgs e)
@@ -1502,9 +1415,7 @@ public class TimeConverterPage : UserControl
         _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
-        _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
-        _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
-        _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
+        _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
     }
 
     private void OnZoneToBeijing(object? sender, RoutedEventArgs e)
@@ -1536,9 +1447,7 @@ public class TimeConverterPage : UserControl
         _beijingYearTextBox!.Text = beijingTime.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
-        _beijingHourComboBox!.SelectedItem = beijingTime.Hour.ToString("D2");
-        _beijingMinuteComboBox!.SelectedItem = beijingTime.Minute.ToString("D2");
-        _beijingSecondComboBox!.SelectedItem = beijingTime.Second.ToString("D2");
+        _beijingTimePicker!.SelectedTime = new TimeSpan(beijingTime.Hour, beijingTime.Minute, beijingTime.Second);
     }
 
     private void OnZoneToUnix(object? sender, RoutedEventArgs e)
@@ -1633,9 +1542,7 @@ public class TimeConverterPage : UserControl
         _localYearTextBox!.Text = localTime.Year.ToString();
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
-        _localHourComboBox!.SelectedItem = localTime.Hour.ToString("D2");
-        _localMinuteComboBox!.SelectedItem = localTime.Minute.ToString("D2");
-        _localSecondComboBox!.SelectedItem = localTime.Second.ToString("D2");
+        _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
     }
 
     private void OnLocalToBeijing(object? sender, RoutedEventArgs e)
@@ -1662,9 +1569,7 @@ public class TimeConverterPage : UserControl
         _beijingYearTextBox!.Text = beijingTime.Year.ToString();
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
-        _beijingHourComboBox!.SelectedItem = beijingTime.Hour.ToString("D2");
-        _beijingMinuteComboBox!.SelectedItem = beijingTime.Minute.ToString("D2");
-        _beijingSecondComboBox!.SelectedItem = beijingTime.Second.ToString("D2");
+        _beijingTimePicker!.SelectedTime = new TimeSpan(beijingTime.Hour, beijingTime.Minute, beijingTime.Second);
     }
 
     private void OnLocalToUnix(object? sender, RoutedEventArgs e)
@@ -1746,9 +1651,7 @@ public class TimeConverterPage : UserControl
         _zoneYearTextBox!.Text = zoneTime.Year.ToString();
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
-        _zoneHourComboBox!.SelectedItem = zoneTime.Hour.ToString("D2");
-        _zoneMinuteComboBox!.SelectedItem = zoneTime.Minute.ToString("D2");
-        _zoneSecondComboBox!.SelectedItem = zoneTime.Second.ToString("D2");
+        _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
     }
 
     #endregion
@@ -1761,7 +1664,8 @@ public class TimeConverterPage : UserControl
 
         if (string.IsNullOrWhiteSpace(_beijingYearTextBox?.Text) ||
             _beijingMonthComboBox?.SelectedItem == null ||
-            _beijingDayComboBox?.SelectedItem == null)
+            _beijingDayComboBox?.SelectedItem == null ||
+            _beijingTimePicker?.SelectedTime == null)
             return false;
 
         if (!int.TryParse(_beijingYearTextBox.Text, out var year))
@@ -1771,12 +1675,10 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(_beijingDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
             return false;
 
-        if (!int.TryParse(_beijingHourComboBox?.SelectedItem?.ToString(), out var hour))
-            return false;
-        if (!int.TryParse(_beijingMinuteComboBox?.SelectedItem?.ToString(), out var minute))
-            return false;
-        if (!int.TryParse(_beijingSecondComboBox?.SelectedItem?.ToString(), out var second))
-            return false;
+        var time = _beijingTimePicker.SelectedTime.Value;
+        var hour = time.Hours;
+        var minute = time.Minutes;
+        var second = time.Seconds;
 
         // 校验日期是否合法，并自动修正为合法日期
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
@@ -1806,7 +1708,8 @@ public class TimeConverterPage : UserControl
 
         if (string.IsNullOrWhiteSpace(_zoneYearTextBox?.Text) ||
             _zoneMonthComboBox?.SelectedItem == null ||
-            _zoneDayComboBox?.SelectedItem == null)
+            _zoneDayComboBox?.SelectedItem == null ||
+            _zoneTimePicker?.SelectedTime == null)
             return false;
 
         if (!int.TryParse(_zoneYearTextBox.Text, out var year))
@@ -1816,12 +1719,10 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(_zoneDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
             return false;
 
-        if (!int.TryParse(_zoneHourComboBox?.SelectedItem?.ToString(), out var hour))
-            return false;
-        if (!int.TryParse(_zoneMinuteComboBox?.SelectedItem?.ToString(), out var minute))
-            return false;
-        if (!int.TryParse(_zoneSecondComboBox?.SelectedItem?.ToString(), out var second))
-            return false;
+        var time = _zoneTimePicker.SelectedTime.Value;
+        var hour = time.Hours;
+        var minute = time.Minutes;
+        var second = time.Seconds;
 
         var zoneName = _zoneComboBox?.SelectedItem?.ToString() ?? "(UTC±00:00) 伦敦";
 
@@ -1854,7 +1755,8 @@ public class TimeConverterPage : UserControl
 
         if (string.IsNullOrWhiteSpace(_localYearTextBox?.Text) ||
             _localMonthComboBox?.SelectedItem == null ||
-            _localDayComboBox?.SelectedItem == null)
+            _localDayComboBox?.SelectedItem == null ||
+            _localTimePicker?.SelectedTime == null)
             return false;
 
         if (!int.TryParse(_localYearTextBox.Text, out var year))
@@ -1864,12 +1766,10 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(_localDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
             return false;
 
-        if (!int.TryParse(_localHourComboBox?.SelectedItem?.ToString(), out var hour))
-            return false;
-        if (!int.TryParse(_localMinuteComboBox?.SelectedItem?.ToString(), out var minute))
-            return false;
-        if (!int.TryParse(_localSecondComboBox?.SelectedItem?.ToString(), out var second))
-            return false;
+        var time = _localTimePicker.SelectedTime.Value;
+        var hour = time.Hours;
+        var minute = time.Minutes;
+        var second = time.Seconds;
 
         if (!TryParseLongitude(out longitude))
             return false;
@@ -1996,12 +1896,11 @@ public class TimeConverterPage : UserControl
         if (!int.TryParse(dayText.Replace("日", ""), out var lunarDay)) return false;
 
         // 解析时间
-        if (!int.TryParse(_lunarHourComboBox?.SelectedItem?.ToString(), out var hour))
-            return false;
-        if (!int.TryParse(_lunarMinuteComboBox?.SelectedItem?.ToString(), out var minute))
-            return false;
-        if (!int.TryParse(_lunarSecondComboBox?.SelectedItem?.ToString(), out var second))
-            return false;
+        if (_lunarTimePicker?.SelectedTime == null) return false;
+        var time = _lunarTimePicker.SelectedTime.Value;
+        var hour = time.Hours;
+        var minute = time.Minutes;
+        var second = time.Seconds;
 
         var solarDate = LunarCalendarHelper.LunarToSolar(lunarYear, lunarMonth, isLeapMonth, lunarDay, hour, minute, second);
         if (solarDate == null) return false;
@@ -2105,3 +2004,6 @@ public class TimeConverterPage : UserControl
         }
     }
 }
+
+
+

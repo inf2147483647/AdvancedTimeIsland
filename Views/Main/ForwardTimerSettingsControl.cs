@@ -20,9 +20,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private TextBlock? _timeFormatHint;
     private ComboBox? _timeBaseComboBox;
     private DatePicker? _startDatePicker;
-    private ComboBox? _startHourComboBox;
-    private ComboBox? _startMinuteComboBox;
-    private ComboBox? _startSecondComboBox;
+    private TimePicker? _startTimePicker;
     private TextBox? _text1FontSizeTextBox;
     private ColorPicker? _text1FontColorPicker;
     private TextBox? _nameFontSizeTextBox;
@@ -107,38 +105,20 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         var startTimeRow = new Grid();
         startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
 
         var startTimeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(startTimeLabel, 0);
         startTimeRow.Children.Add(startTimeLabel);
 
-        _startHourComboBox = new ComboBox { Width = 80 };
-        for (int i = 0; i < 24; i++) _startHourComboBox.Items.Add(i.ToString("D2"));
-        Grid.SetColumn(_startHourComboBox, 1);
-        startTimeRow.Children.Add(_startHourComboBox);
-
-        var hourSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(hourSeparator, 2);
-        startTimeRow.Children.Add(hourSeparator);
-
-        _startMinuteComboBox = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) _startMinuteComboBox.Items.Add(i.ToString("D2"));
-        Grid.SetColumn(_startMinuteComboBox, 3);
-        startTimeRow.Children.Add(_startMinuteComboBox);
-
-        var minuteSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(minuteSeparator, 4);
-        startTimeRow.Children.Add(minuteSeparator);
-
-        _startSecondComboBox = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) _startSecondComboBox.Items.Add(i.ToString("D2"));
-        Grid.SetColumn(_startSecondComboBox, 5);
-        startTimeRow.Children.Add(_startSecondComboBox);
+        _startTimePicker = new TimePicker
+        {
+            Width = 260,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true
+        };
+        Grid.SetColumn(_startTimePicker, 1);
+        startTimeRow.Children.Add(_startTimePicker);
 
         startTimePanel.Children.Add(startTimeRow);
 
@@ -244,9 +224,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         var startTime = DateTimeOffset.FromUnixTimeSeconds(Settings.StartTime).LocalDateTime;
         if (_startDatePicker != null) _startDatePicker.SelectedDate = startTime.Date;
-        if (_startHourComboBox != null) _startHourComboBox.SelectedIndex = startTime.Hour;
-        if (_startMinuteComboBox != null) _startMinuteComboBox.SelectedIndex = startTime.Minute;
-        if (_startSecondComboBox != null) _startSecondComboBox.SelectedIndex = startTime.Second;
+        if (_startTimePicker != null) _startTimePicker.SelectedTime = new TimeSpan(startTime.Hour, startTime.Minute, startTime.Second);
 
         if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
         if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
@@ -297,14 +275,10 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         void UpdateStartTime()
         {
             if (_startDatePicker?.SelectedDate.HasValue == true && 
-                _startHourComboBox?.SelectedIndex >= 0 && 
-                _startMinuteComboBox?.SelectedIndex >= 0 && 
-                _startSecondComboBox?.SelectedIndex >= 0)
+                _startTimePicker?.SelectedTime.HasValue == true)
             {
                 var startTime = _startDatePicker.SelectedDate.Value.Date
-                    .Add(new TimeSpan(_startHourComboBox.SelectedIndex, 
-                        _startMinuteComboBox.SelectedIndex, 
-                        _startSecondComboBox.SelectedIndex));
+                    .Add(_startTimePicker.SelectedTime.Value);
                 Settings.StartTime = ((DateTimeOffset)startTime).ToUnixTimeSeconds();
             }
         }
@@ -312,14 +286,8 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         if (_startDatePicker != null)
             _startDatePicker.SelectedDateChanged += (s, e) => UpdateStartTime();
 
-        if (_startHourComboBox != null)
-            _startHourComboBox.SelectionChanged += (s, e) => UpdateStartTime();
-
-        if (_startMinuteComboBox != null)
-            _startMinuteComboBox.SelectionChanged += (s, e) => UpdateStartTime();
-
-        if (_startSecondComboBox != null)
-            _startSecondComboBox.SelectionChanged += (s, e) => UpdateStartTime();
+        if (_startTimePicker != null)
+            _startTimePicker.SelectedTimeChanged += (s, e) => UpdateStartTime();
     }
 
     private void AttachFontHandlers(TextBox? fontSizeTextBox, ColorPicker? colorPicker, Action<double, string> handler)
@@ -360,3 +328,5 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         }
     }
 }
+
+

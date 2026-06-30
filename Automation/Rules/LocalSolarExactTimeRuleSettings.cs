@@ -10,3 +10,6 @@ public class LocalSolarExactTimeRuleSettings : ExactTimeRangeRuleSettings
     /// </summary>
     public double Longitude { get; set; } = 120.0;
 }
+
+
+

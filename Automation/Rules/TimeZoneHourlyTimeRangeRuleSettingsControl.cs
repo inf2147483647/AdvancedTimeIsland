@@ -60,7 +60,12 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         // 结束时间
         mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateTimeZoneInputGroup()
@@ -241,3 +246,6 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         if (parts.Length >= 2 && int.TryParse(parts[1], out int s)) second = s;
     }
 }
+
+
+

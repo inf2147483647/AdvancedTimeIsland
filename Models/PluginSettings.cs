@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -27,6 +27,8 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _easterEggInfoAccepted = false;
     private string _ntpServer = "ntp.aliyun.com";
     private int _ntpSyncIntervalMinutes = 5;
+    private DateTime? _lastSyncTime;
+    private string? _lastSyncStatus;
 
     /// <summary>
     /// 是否启用农历功能（始终启用）
@@ -248,6 +250,38 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// 上次同步时间
+    /// </summary>
+    public DateTime? LastSyncTime
+    {
+        get => _lastSyncTime;
+        set
+        {
+            if (_lastSyncTime != value)
+            {
+                _lastSyncTime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 上次同步状态（Success/Failed）
+    /// </summary>
+    public string? LastSyncStatus
+    {
+        get => _lastSyncStatus;
+        set
+        {
+            if (_lastSyncStatus != value)
+            {
+                _lastSyncStatus = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -255,3 +289,6 @@ public class PluginSettings : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+
+

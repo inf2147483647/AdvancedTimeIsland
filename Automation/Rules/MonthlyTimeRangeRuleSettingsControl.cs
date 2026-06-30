@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -23,6 +24,12 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
     public MonthlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void InitializeComponent()
@@ -39,7 +46,12 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         mainPanel.Children.Add(CreateDateTimePickerGroup("开始时间:", true));
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateDateTimePickerGroup(string label, bool isStart)
@@ -70,7 +82,7 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 300,
+            Width = 380,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -86,17 +98,6 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
             _endDatePicker = datePicker;
             _endTimePicker = timePicker;
         }
-
-        // 解析初始值
-        var initialValue = isStart ? Settings?.StartTime ?? "" : Settings?.EndTime ?? "";
-        ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
-
-        // 设置初始日期
-        if (day > 0)
-        {
-            datePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, day));
-        }
-        timePicker.SelectedTime = new TimeSpan(hour, minute, second);
 
         // 监听变化
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
@@ -124,16 +125,35 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         return groupPanel;
     }
 
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        var startInitialValue = Settings.StartTime;
+        ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
+        if (startDay > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, startDay));
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+        var endInitialValue = Settings.EndTime;
+        ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
+        if (endDay > 0)
+        {
+            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, endDay));
+        }
+        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+    }
+
     private void UpdateSettingsValue()
     {
         if (Settings == null) return;
 
-        // 开始时间
         var startDate = _startDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
 
-        // 结束时间
         var endDate = _endDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
         var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.EndTime = $"{endDate.Day:D2}-{endTime.Hours:D2}-{endTime.Minutes:D2}-{endTime.Seconds:D2}";
@@ -153,3 +173,6 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         if (parts.Length >= 4 && int.TryParse(parts[3], out int s)) second = s;
     }
 }
+
+
+

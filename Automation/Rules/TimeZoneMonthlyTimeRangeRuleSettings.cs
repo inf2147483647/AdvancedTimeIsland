@@ -10,3 +10,6 @@ public class TimeZoneMonthlyTimeRangeRuleSettings : MonthlyTimeRangeRuleSettings
     /// </summary>
     public string TimeZoneId { get; set; } = "China Standard Time";
 }
+
+
+

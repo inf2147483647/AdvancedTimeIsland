@@ -2,16 +2,14 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
-/// <summary>
-/// 精确时间规则设置控件
-/// 使用 DatePicker 和 TimePicker 替代下拉框
-/// </summary>
 public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRuleSettings>
 {
     private DatePicker _datePicker = null!;
@@ -20,6 +18,12 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
     public ExactTimeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void InitializeComponent()
@@ -33,9 +37,14 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        mainPanel.Children.Add(CreateDateTimePickerGroup("精确时间:"));
+        mainPanel.Children.Add(CreateDateTimePickerGroup("时间点:"));
 
-        Content = mainPanel;
+        Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateDateTimePickerGroup(string label)
@@ -54,37 +63,23 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        // 日期选择器
         _datePicker = new DatePicker
         {
             Width = 400,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        // 时间选择器
         _timePicker = new TimePicker
         {
-            Width = 300,
+            Width = 380,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        // 解析初始值
-        var initialValue = Settings?.TargetTime ?? "";
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
-        {
-            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
-        }
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
-
-        // 监听变化
         _datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         _timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        // 水平排列的日期时间选择器
         var pickerRow = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -93,7 +88,6 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
         pickerRow.Children.Add(_datePicker);
         pickerRow.Children.Add(_timePicker);
 
-        // 用ScrollViewer包裹，实现水平滚动
         var scrollViewer = new ScrollViewer
         {
             HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -104,6 +98,20 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
         groupPanel.Children.Add(scrollViewer);
 
         return groupPanel;
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        var initialValue = Settings.TargetTime;
+        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
+
+        if (year > 0 && month > 0 && day > 0)
+        {
+            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
+        }
+        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateSettingsValue()

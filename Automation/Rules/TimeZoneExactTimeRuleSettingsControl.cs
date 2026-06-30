@@ -61,7 +61,12 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateTimeZoneInputGroup()
@@ -217,3 +222,6 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         if (parts.Length >= 6 && int.TryParse(parts[5], out int s)) second = s;
     }
 }
+
+
+

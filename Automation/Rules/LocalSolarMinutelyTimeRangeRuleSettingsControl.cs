@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -38,6 +39,12 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
         }
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -63,12 +70,35 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        if (Settings != null)
-        {
-            _longitudeBox.Text = Settings.Longitude.ToString("F4");
-            UpdateDmsFromLongitude();
-        }
         UpdateLongitudeDisplay();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        _longitudeBox.Text = Settings.Longitude.ToString("F4");
+        UpdateDmsFromLongitude();
+
+        var startInitialValue = Settings.StartSecond;
+        if (int.TryParse(startInitialValue, out int startSecond))
+        {
+            _startSecondBox.Text = startSecond.ToString("D2");
+        }
+        else
+        {
+            _startSecondBox.Text = "00";
+        }
+
+        var endInitialValue = Settings.EndSecond;
+        if (int.TryParse(endInitialValue, out int endSecond))
+        {
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        else
+        {
+            _endSecondBox.Text = "00";
+        }
     }
 
     private void InitializeComponent()
@@ -91,7 +121,12 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
         // 结束时间
         mainPanel.Children.Add(CreateInputGroup("结束秒数:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateLongitudeInputGroup()
@@ -204,12 +239,6 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
             _endSecondBox = secondBox;
         }
 
-        var initialValue = isStart ? Settings?.StartSecond ?? "" : Settings?.EndSecond ?? "";
-        if (int.TryParse(initialValue, out int second))
-        {
-            secondBox.Text = second.ToString("D2");
-        }
-
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
@@ -300,3 +329,6 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
         return 0;
     }
 }
+
+
+

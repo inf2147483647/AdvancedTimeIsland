@@ -16,3 +16,6 @@ public class MinutelyTimeRangeRuleSettings
     /// </summary>
     public string EndSecond { get; set; } = string.Empty;
 }
+
+
+

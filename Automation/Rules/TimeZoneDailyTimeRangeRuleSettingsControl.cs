@@ -58,7 +58,12 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         // 结束时间
         mainPanel.Children.Add(CreateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateTimeZoneInputGroup()
@@ -114,7 +119,7 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 180,
+            Width = 260,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -186,3 +191,6 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         if (parts.Length >= 3 && int.TryParse(parts[2], out int s)) second = s;
     }
 }
+
+
+

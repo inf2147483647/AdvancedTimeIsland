@@ -59,7 +59,6 @@ public class PluginSettingsPage : UserControl
     private TextBlock? _syncStatusText;
     private Button? _syncNowButton;
     private System.Timers.Timer? _ntpTimeDisplayTimer;
-    private System.Timers.Timer? _syncStatusHideTimer;
 
     public PluginSettingsPage() : this(null, null)
     {
@@ -430,7 +429,7 @@ public class PluginSettingsPage : UserControl
 
         var comboBox = new ComboBox
         {
-            Width = 200,
+            Width = 280,
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
@@ -528,7 +527,7 @@ public class PluginSettingsPage : UserControl
         {
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            IsVisible = false
+            IsVisible = true
         };
         panel.Children.Add(_syncStatusText);
 
@@ -546,6 +545,9 @@ public class PluginSettingsPage : UserControl
         {
             TimeBaseService.Instance.SyncStatusChanged += OnSyncStatusChanged;
         }
+
+        // 显示上次同步状态
+        ShowLastSyncStatus();
 
         return panel;
     }
@@ -572,15 +574,11 @@ public class PluginSettingsPage : UserControl
 
         _syncStatusText.IsVisible = true;
 
-        // 停止之前的隐藏定时器
-        _syncStatusHideTimer?.Dispose();
-
         switch (status)
         {
             case SyncStatus.Syncing:
                 _syncStatusText.Text = "正在同步时间...";
                 _syncStatusText.Foreground = GetSyncingTextBrush();
-                // 不设置隐藏定时器，等待同步完成
                 break;
 
             case SyncStatus.Success:
@@ -593,16 +591,36 @@ public class PluginSettingsPage : UserControl
                     _syncStatusText.Text = "同步时间成功";
                 }
                 _syncStatusText.Foreground = GetSuccessForegroundBrush();
-                // 5秒后隐藏
-                StartSyncStatusHideTimer();
                 break;
 
             case SyncStatus.Failed:
                 _syncStatusText.Text = "同步时间失败！";
                 _syncStatusText.Foreground = Brushes.Red;
-                // 5秒后隐藏
-                StartSyncStatusHideTimer();
                 break;
+        }
+    }
+
+    private void ShowLastSyncStatus()
+    {
+        if (_syncStatusText == null || _settings == null) return;
+
+        if (_settings.LastSyncTime.HasValue && !string.IsNullOrEmpty(_settings.LastSyncStatus))
+        {
+            if (_settings.LastSyncStatus == "Success")
+            {
+                _syncStatusText.Text = $"成功在[{_settings.LastSyncTime:yyyy-MM-dd-HH-mm-ss}]同步时间";
+                _syncStatusText.Foreground = GetSuccessForegroundBrush();
+            }
+            else if (_settings.LastSyncStatus == "Failed")
+            {
+                _syncStatusText.Text = $"在[{_settings.LastSyncTime:yyyy-MM-dd-HH-mm-ss}]同步时间失败";
+                _syncStatusText.Foreground = Brushes.Red;
+            }
+        }
+        else
+        {
+            _syncStatusText.Text = "尚未同步时间";
+            _syncStatusText.Foreground = Brushes.Gray;
         }
     }
 
@@ -616,24 +634,6 @@ public class PluginSettingsPage : UserControl
         }
         // 默认使用浅绿色
         return new SolidColorBrush(Color.FromRgb(144, 238, 144));
-    }
-
-    private void StartSyncStatusHideTimer()
-    {
-        _syncStatusHideTimer?.Dispose();
-        _syncStatusHideTimer = new System.Timers.Timer(5000); // 5秒
-        _syncStatusHideTimer.Elapsed += (s, e) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (_syncStatusText != null)
-                {
-                    _syncStatusText.IsVisible = false;
-                }
-            });
-            _syncStatusHideTimer?.Dispose();
-        };
-        _syncStatusHideTimer.Start();
     }
 
     /// <summary>
@@ -815,3 +815,6 @@ public class PluginSettingsPage : UserControl
 
     #endregion
 }
+
+
+

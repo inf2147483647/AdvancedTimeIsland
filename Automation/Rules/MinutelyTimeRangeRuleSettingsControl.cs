@@ -32,7 +32,12 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         mainPanel.Children.Add(CreateInputGroup("开始秒数:", true));
         mainPanel.Children.Add(CreateInputGroup("结束秒数:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateInputGroup(string label, bool isStart)
@@ -130,3 +135,6 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         return 0;
     }
 }
+
+
+

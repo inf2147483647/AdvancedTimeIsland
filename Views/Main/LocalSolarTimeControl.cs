@@ -82,3 +82,6 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         (vm as IDisposable)?.Dispose();
     }
 }
+
+
+

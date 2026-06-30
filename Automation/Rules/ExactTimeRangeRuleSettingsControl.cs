@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -22,6 +23,12 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
     public ExactTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void InitializeComponent()
@@ -41,7 +48,12 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateDateTimePickerGroup(string label, bool isStart)
@@ -87,16 +99,6 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
             _endTimePicker = timePicker;
         }
 
-        // 解析初始值
-        var initialValue = isStart ? Settings?.StartTime ?? "" : Settings?.EndTime ?? "";
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
-        {
-            datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
-        }
-        timePicker.SelectedTime = new TimeSpan(hour, minute, second);
-
         // 监听变化
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
@@ -123,16 +125,35 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         return groupPanel;
     }
 
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        var startInitialValue = Settings.StartTime;
+        ParseDateTimeString(startInitialValue, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+        if (startYear > 0 && startMonth > 0 && startDay > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(startYear, startMonth, startDay));
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+        var endInitialValue = Settings.EndTime;
+        ParseDateTimeString(endInitialValue, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+        if (endYear > 0 && endMonth > 0 && endDay > 0)
+        {
+            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(endYear, endMonth, endDay));
+        }
+        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+    }
+
     private void UpdateSettingsValue()
     {
         if (Settings == null) return;
 
-        // 开始时间
         var startDate = _startDatePicker.SelectedDate?.DateTime ?? DateTime.Today;
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{startDate.Year:D4}-{startDate.Month:D2}-{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
 
-        // 结束时间
         var endDate = _endDatePicker.SelectedDate?.DateTime ?? DateTime.Today;
         var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.EndTime = $"{endDate.Year:D4}-{endDate.Month:D2}-{endDate.Day:D2}-{endTime.Hours:D2}-{endTime.Minutes:D2}-{endTime.Seconds:D2}";
@@ -154,3 +175,6 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         if (parts.Length >= 6 && int.TryParse(parts[5], out int s)) second = s;
     }
 }
+
+
+

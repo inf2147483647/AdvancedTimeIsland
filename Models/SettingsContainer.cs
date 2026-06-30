@@ -8,3 +8,6 @@ public class SettingsContainer
     public PluginSettings? Settings { get; set; }
     public DebugSettings? DebugSettings { get; set; }
 }
+
+
+

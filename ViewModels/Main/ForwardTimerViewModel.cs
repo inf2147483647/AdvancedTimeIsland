@@ -391,3 +391,5 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         _highFrequencyTimer?.Stop();
     }
 }
+
+

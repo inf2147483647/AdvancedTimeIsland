@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -40,6 +41,12 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
         }
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -65,12 +72,31 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        if (Settings != null)
-        {
-            _longitudeBox.Text = Settings.Longitude.ToString("F4");
-            UpdateDmsFromLongitude();
-        }
         UpdateLongitudeDisplay();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        _longitudeBox.Text = Settings.Longitude.ToString("F4");
+        UpdateDmsFromLongitude();
+
+        var startInitialValue = Settings.StartTime;
+        ParseDateTimeString(startInitialValue, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+        if (startYear > 0 && startMonth > 0 && startDay > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(startYear, startMonth, startDay));
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+        var endInitialValue = Settings.EndTime;
+        ParseDateTimeString(endInitialValue, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+        if (endYear > 0 && endMonth > 0 && endDay > 0)
+        {
+            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(endYear, endMonth, endDay));
+        }
+        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
     }
 
     private void InitializeComponent()
@@ -93,7 +119,12 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateLongitudeInputGroup()
@@ -241,16 +272,6 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
             _endTimePicker = timePicker;
         }
 
-        // 解析初始值
-        var initialValue = isStart ? Settings?.StartTime ?? "" : Settings?.EndTime ?? "";
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
-        {
-            datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
-        }
-        timePicker.SelectedTime = new TimeSpan(hour, minute, second);
-
         // 监听变化
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
@@ -318,3 +339,6 @@ public class LocalSolarExactTimeRuleSettingsControl : RuleSettingsControlBase<Lo
         if (parts.Length >= 6 && int.TryParse(parts[5], out int s)) second = s;
     }
 }
+
+
+

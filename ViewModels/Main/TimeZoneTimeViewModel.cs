@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -164,3 +164,6 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
         _updateTimer?.Dispose();
     }
 }
+
+
+

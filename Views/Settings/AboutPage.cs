@@ -117,29 +117,61 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private Border CreateIconBorder()
     {
-        var accentBrush = GetAccentBrush();
         var iconBorder = new Border
         {
             Width = 64,
             Height = 64,
-            Background = accentBrush,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0),
-            Child = new TextBlock
-            {
-                Text = "[图标]",
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                VerticalAlignment = VerticalAlignment.Center,
-                Foreground = GetAccentTextBrush(accentBrush)
-            }
+            Margin = new Thickness(0, 0, 16, 0)
         };
 
-        // 添加点击事件用于彩蛋检测
+        var image = new Avalonia.Controls.Image
+        {
+            Stretch = Stretch.UniformToFill,
+            Width = 64,
+            Height = 64
+        };
+
+        LoadIconImage(image);
+        iconBorder.Child = image;
+
         iconBorder.PointerPressed += OnIconClicked;
 
         return iconBorder;
+    }
+
+    private void LoadIconImage(Avalonia.Controls.Image imageControl)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var fullPath = System.IO.Path.Combine(baseDir, "Assets", "icon", "icon.png");
+            
+            if (System.IO.File.Exists(fullPath))
+            {
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
+                imageControl.Source = bitmap;
+            }
+            else
+            {
+                var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var pluginDir = System.IO.Path.GetDirectoryName(assemblyLocation);
+                if (!string.IsNullOrEmpty(pluginDir))
+                {
+                    fullPath = System.IO.Path.Combine(pluginDir, "Assets", "icon", "icon.png");
+                    if (System.IO.File.Exists(fullPath))
+                    {
+                        var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
+                        imageControl.Source = bitmap;
+                    }
+                }
+            }
+        }
+        catch
+        {
+            imageControl.Source = null;
+        }
     }
 
     /// <summary>
@@ -275,7 +307,7 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(new TextBlock
         {
-            Text = "版本：1.0.0.10",
+            Text = "版本：1.0.1.0",
             FontSize = 14,
             Foreground = Brushes.White
         });

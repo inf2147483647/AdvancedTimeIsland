@@ -16,3 +16,6 @@ public class MonthlyTimeRangeRuleSettings
     /// </summary>
     public string EndTime { get; set; } = string.Empty;
 }
+
+
+

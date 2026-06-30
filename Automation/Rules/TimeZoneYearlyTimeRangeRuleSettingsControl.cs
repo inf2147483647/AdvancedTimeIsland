@@ -60,7 +60,12 @@ public class TimeZoneYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateTimeZoneInputGroup()
@@ -124,7 +129,7 @@ public class TimeZoneYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 180,
+            Width = 260,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -216,3 +221,6 @@ public class TimeZoneYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         if (parts.Length >= 5 && int.TryParse(parts[4], out int s)) second = s;
     }
 }
+
+
+

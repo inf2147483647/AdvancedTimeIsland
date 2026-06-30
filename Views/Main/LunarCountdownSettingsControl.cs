@@ -687,41 +687,21 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         var timeRow = new Grid();
         timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
 
-        var hourLabel = new TextBlock { Text = "时:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(hourLabel, 0);
-        timeRow.Children.Add(hourLabel);
+        var timeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(timeLabel, 0);
+        timeRow.Children.Add(timeLabel);
 
-        var hourCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 24; i++) hourCombo.Items.Add(i.ToString("D2"));
-        hourCombo.SelectedIndex = item.Hour;
-        Grid.SetColumn(hourCombo, 1);
-        timeRow.Children.Add(hourCombo);
-
-        var minuteLabel = new TextBlock { Text = "分:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(minuteLabel, 2);
-        timeRow.Children.Add(minuteLabel);
-
-        var minuteCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) minuteCombo.Items.Add(i.ToString("D2"));
-        minuteCombo.SelectedIndex = item.Minute;
-        Grid.SetColumn(minuteCombo, 3);
-        timeRow.Children.Add(minuteCombo);
-
-        var secondLabel = new TextBlock { Text = "秒:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(secondLabel, 4);
-        timeRow.Children.Add(secondLabel);
-
-        var secondCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) secondCombo.Items.Add(i.ToString("D2"));
-        secondCombo.SelectedIndex = item.Second;
-        Grid.SetColumn(secondCombo, 5);
-        timeRow.Children.Add(secondCombo);
+        var lunarTimePicker = new TimePicker
+        {
+            Width = 260,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            SelectedTime = new TimeSpan(item.Hour, item.Minute, item.Second)
+        };
+        Grid.SetColumn(lunarTimePicker, 1);
+        timeRow.Children.Add(lunarTimePicker);
 
         lunarPanel.Children.Add(timeRow);
 
@@ -736,41 +716,21 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         var solarTimeRow = new Grid();
         solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
 
-        var shLabel = new TextBlock { Text = "时:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(shLabel, 0);
-        solarTimeRow.Children.Add(shLabel);
+        var solarTimeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(solarTimeLabel, 0);
+        solarTimeRow.Children.Add(solarTimeLabel);
 
-        var shCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 24; i++) shCombo.Items.Add(i.ToString("D2"));
-        shCombo.SelectedIndex = currentSolarDate.Hour;
-        Grid.SetColumn(shCombo, 1);
-        solarTimeRow.Children.Add(shCombo);
-
-        var smLabel = new TextBlock { Text = "分:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(smLabel, 2);
-        solarTimeRow.Children.Add(smLabel);
-
-        var smCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) smCombo.Items.Add(i.ToString("D2"));
-        smCombo.SelectedIndex = currentSolarDate.Minute;
-        Grid.SetColumn(smCombo, 3);
-        solarTimeRow.Children.Add(smCombo);
-
-        var ssLabel = new TextBlock { Text = "秒:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(ssLabel, 4);
-        solarTimeRow.Children.Add(ssLabel);
-
-        var ssCombo = new ComboBox { Width = 80 };
-        for (int i = 0; i < 60; i++) ssCombo.Items.Add(i.ToString("D2"));
-        ssCombo.SelectedIndex = currentSolarDate.Second;
-        Grid.SetColumn(ssCombo, 5);
-        solarTimeRow.Children.Add(ssCombo);
+        var solarTimePicker = new TimePicker
+        {
+            Width = 260,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            SelectedTime = new TimeSpan(currentSolarDate.Hour, currentSolarDate.Minute, currentSolarDate.Second)
+        };
+        Grid.SetColumn(solarTimePicker, 1);
+        solarTimeRow.Children.Add(solarTimePicker);
 
         solarPanel.Children.Add(solarDatePicker);
         solarPanel.Children.Add(solarTimeRow);
@@ -780,10 +740,11 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         {
             if (solarDatePicker.SelectedDate.HasValue)
             {
-                var solarDate = solarDatePicker.SelectedDate.Value.Date
-                    .AddHours(shCombo.SelectedIndex >= 0 ? shCombo.SelectedIndex : 0)
-                    .AddMinutes(smCombo.SelectedIndex >= 0 ? smCombo.SelectedIndex : 0)
-                    .AddSeconds(ssCombo.SelectedIndex >= 0 ? ssCombo.SelectedIndex : 0);
+                var solarDate = solarDatePicker.SelectedDate.Value.Date;
+                if (solarTimePicker.SelectedTime.HasValue)
+                {
+                    solarDate = solarDate.Add(solarTimePicker.SelectedTime.Value);
+                }
 
                 if (!LunarCalendarHelper.IsDateSupported(solarDate))
                 {
@@ -810,9 +771,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 monthCombo.SelectedIndex = lunarMonth - 1;
                 leapToggle.IsChecked = isLeap;
                 dayCombo.SelectedIndex = lunarDay - 1;
-                hourCombo.SelectedIndex = solarDate.Hour;
-                minuteCombo.SelectedIndex = solarDate.Minute;
-                secondCombo.SelectedIndex = solarDate.Second;
+                lunarTimePicker.SelectedTime = new TimeSpan(solarDate.Hour, solarDate.Minute, solarDate.Second);
 
                 if (lunarYear >= 1901 && lunarYear <= 1923)
                     yearRangeCombo.SelectedItem = "1901-1923";
@@ -869,17 +828,15 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             var lunarMonthVal = monthCombo.SelectedIndex + 1;
             var isLeapVal = leapToggle.IsChecked == true;
             var lunarDayVal = dayCombo.SelectedIndex + 1;
-            var hourVal = hourCombo.SelectedIndex >= 0 ? hourCombo.SelectedIndex : 0;
-            var minuteVal = minuteCombo.SelectedIndex >= 0 ? minuteCombo.SelectedIndex : 0;
-            var secondVal = secondCombo.SelectedIndex >= 0 ? secondCombo.SelectedIndex : 0;
+            var hourVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Hours : 0;
+            var minuteVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Minutes : 0;
+            var secondVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Seconds : 0;
 
             var solarResult = LunarCalendarHelper.LunarToSolar(lunarYearVal, lunarMonthVal, isLeapVal, lunarDayVal, hourVal, minuteVal, secondVal);
             if (solarResult.HasValue)
             {
                 solarDatePicker.SelectedDate = solarResult.Value.Date;
-                shCombo.SelectedIndex = solarResult.Value.Hour;
-                smCombo.SelectedIndex = solarResult.Value.Minute;
-                ssCombo.SelectedIndex = solarResult.Value.Second;
+                solarTimePicker.SelectedTime = new TimeSpan(solarResult.Value.Hour, solarResult.Value.Minute, solarResult.Value.Second);
             }
         };
         solarPanel.Children.Add(syncButton2);
@@ -942,9 +899,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             item.LunarMonth = monthCombo.SelectedIndex + 1;
             item.IsLeapMonth = leapToggle.IsChecked == true;
             item.LunarDay = dayCombo.SelectedIndex + 1;
-            item.Hour = hourCombo.SelectedIndex >= 0 ? hourCombo.SelectedIndex : 0;
-            item.Minute = minuteCombo.SelectedIndex >= 0 ? minuteCombo.SelectedIndex : 0;
-            item.Second = secondCombo.SelectedIndex >= 0 ? secondCombo.SelectedIndex : 0;
+            item.Hour = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Hours : 0;
+            item.Minute = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Minutes : 0;
+            item.Second = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Seconds : 0;
             item.EnableNotification = notifyToggle.IsChecked == true;
             item.IsCompleted = false;
 
@@ -989,3 +946,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         }
     }
 }
+
+
+

@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -40,6 +41,12 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
         }
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
     }
 
     private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
@@ -65,12 +72,31 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
     protected override void OnInitialized()
     {
         base.OnInitialized();
-        if (Settings != null)
-        {
-            _longitudeBox.Text = Settings.Longitude.ToString("F4");
-            UpdateDmsFromLongitude();
-        }
         UpdateLongitudeDisplay();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        _longitudeBox.Text = Settings.Longitude.ToString("F4");
+        UpdateDmsFromLongitude();
+
+        var startInitialValue = Settings.StartTime;
+        ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
+        if (startDay > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, startDay));
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+        var endInitialValue = Settings.EndTime;
+        ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
+        if (endDay > 0)
+        {
+            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, endDay));
+        }
+        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
     }
 
     private void InitializeComponent()
@@ -93,7 +119,12 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateLongitudeInputGroup()
@@ -202,7 +233,7 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 180,
+            Width = 260,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -218,16 +249,6 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
             _endDatePicker = datePicker;
             _endTimePicker = timePicker;
         }
-
-        // 解析初始值
-        var initialValue = isStart ? Settings?.StartTime ?? "" : Settings?.EndTime ?? "";
-        ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
-
-        if (day > 0)
-        {
-            datePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, day));
-        }
-        timePicker.SelectedTime = new TimeSpan(hour, minute, second);
 
         // 监听变化
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
@@ -318,3 +339,6 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
         if (parts.Length >= 4 && int.TryParse(parts[3], out int s)) second = s;
     }
 }
+
+
+

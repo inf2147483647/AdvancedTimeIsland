@@ -159,3 +159,5 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         (vm as IDisposable)?.Dispose();
     }
 }
+
+

@@ -10,3 +10,6 @@ public class LocalSolarYearlyTimeRangeRuleSettings : YearlyTimeRangeRuleSettings
     /// </summary>
     public double Longitude { get; set; } = 120.0;
 }
+
+
+

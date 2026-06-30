@@ -15,3 +15,6 @@ public class ExactTimeRangeRuleSettings
     /// </summary>
     public string EndTime { get; set; } = string.Empty;
 }
+
+
+

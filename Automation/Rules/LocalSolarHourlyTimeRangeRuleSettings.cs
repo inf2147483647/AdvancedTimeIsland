@@ -10,3 +10,6 @@ public class LocalSolarHourlyTimeRangeRuleSettings : HourlyTimeRangeRuleSettings
     /// </summary>
     public double Longitude { get; set; } = 120.0;
 }
+
+
+

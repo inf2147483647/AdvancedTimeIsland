@@ -713,25 +713,17 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
         var datePicker = new DatePicker { SelectedDate = targetTime.Date };
 
-        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, Margin = new Avalonia.Thickness(0, 4, 0, 0) };
-        var hourComboBox = new ComboBox { Width = 80, CornerRadius = new CornerRadius(4) };
-        for (int i = 0; i < 24; i++) hourComboBox.Items.Add(i.ToString("D2"));
-        hourComboBox.SelectedIndex = targetTime.Hour;
-        timePanel.Children.Add(hourComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
-        var minuteComboBox = new ComboBox { Width = 80, CornerRadius = new CornerRadius(4) };
-        for (int i = 0; i < 60; i++) minuteComboBox.Items.Add(i.ToString("D2"));
-        minuteComboBox.SelectedIndex = targetTime.Minute;
-        timePanel.Children.Add(minuteComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
-        var secondComboBox = new ComboBox { Width = 80, CornerRadius = new CornerRadius(4) };
-        for (int i = 0; i < 60; i++) secondComboBox.Items.Add(i.ToString("D2"));
-        secondComboBox.SelectedIndex = targetTime.Second;
-        timePanel.Children.Add(secondComboBox);
+        var timePicker = new TimePicker
+        {
+            Width = 260,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            SelectedTime = new TimeSpan(targetTime.Hour, targetTime.Minute, targetTime.Second)
+        };
 
         contentPanel.Children.Add(targetLabel);
         contentPanel.Children.Add(datePicker);
-        contentPanel.Children.Add(timePanel);
+        contentPanel.Children.Add(timePicker);
 
         var notifyToggle = new ToggleSwitch { Content = new TextBlock { Text = "启用通知", Foreground = Brushes.White }, IsChecked = item.EnableNotification };
         contentPanel.Children.Add(notifyToggle);
@@ -766,11 +758,9 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
             if (datePicker.SelectedDate.HasValue)
             {
-                var hour = hourComboBox.SelectedIndex >= 0 ? hourComboBox.SelectedIndex : 0;
-                var minute = minuteComboBox.SelectedIndex >= 0 ? minuteComboBox.SelectedIndex : 0;
-                var second = secondComboBox.SelectedIndex >= 0 ? secondComboBox.SelectedIndex : 0;
+                var time = timePicker.SelectedTime ?? TimeSpan.Zero;
                 var target = datePicker.SelectedDate.Value.Date
-                    .Add(new TimeSpan(hour, minute, second));
+                    .Add(time);
                 item.TargetTimestamp = UnixTimeHelper.ToUnixTimestamp(target);
             }
 
@@ -830,3 +820,5 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 }
+
+

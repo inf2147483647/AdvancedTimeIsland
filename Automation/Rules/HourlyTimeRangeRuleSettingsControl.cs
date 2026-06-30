@@ -34,7 +34,12 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         mainPanel.Children.Add(CreateInputGroup("开始时间:", true));
         mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
-        Content = mainPanel;
+                Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
     }
 
     private StackPanel CreateInputGroup(string label, bool isStart)
@@ -173,3 +178,6 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         if (parts.Length >= 2 && int.TryParse(parts[1], out int s)) second = s;
     }
 }
+
+
+

@@ -379,3 +379,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
     }
 }
+
+
+

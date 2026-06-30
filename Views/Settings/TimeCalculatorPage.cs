@@ -159,7 +159,7 @@ public class TimeCalculatorPage : UserControl
             ColumnDefinitions = new ColumnDefinitions("180,*")
         };
 
-        _subDirectionComboBox = new ComboBox { Width = 180, HorizontalAlignment = HorizontalAlignment.Left };
+        _subDirectionComboBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
         _subDirectionComboBox.Items.Add("往后");
         _subDirectionComboBox.Items.Add("往前");
         _subDirectionComboBox.SelectedIndex = 0;
@@ -642,7 +642,7 @@ public class TimeCalculatorPage : UserControl
             var dialog = new Window
             {
                 Title = "错误",
-                Width = 300,
+                Width = 380,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
                 CanResize = false
@@ -687,3 +687,6 @@ public class TimeCalculatorPage : UserControl
         }
     }
 }
+
+
+

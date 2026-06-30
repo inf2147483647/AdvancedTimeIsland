@@ -7,3 +7,6 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class TimeZoneExactTimeRangeRuleSettings : ExactTimeRangeRuleSettings
 {
 }
+
+
+

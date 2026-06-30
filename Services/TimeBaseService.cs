@@ -133,14 +133,13 @@ public class TimeBaseService
         }
     }
 
-    private async Task SyncTimeAsync(bool isStartup = false, bool isTimeJumpRecovery = false)
+    private async Task SyncTimeAsync(bool isStartup = false, bool isTimeJumpRecovery = false, CancellationToken cancellationToken = default)
     {
         try
         {
-            // 触发正在同步状态
             OnSyncStatusChanged(SyncStatus.Syncing, null);
 
-            var ntpTime = await GetNtpTimeAsync(_settings.NtpServer);
+            var ntpTime = await GetNtpTimeAsync(_settings.NtpServer, cancellationToken);
 
             lock (_lockObj)
             {
@@ -151,8 +150,12 @@ public class TimeBaseService
                 _lastSuccessfulSyncTime = ntpTime;
             }
 
-            // 触发成功状态
             OnSyncStatusChanged(SyncStatus.Success, ntpTime);
+        }
+        catch (OperationCanceledException)
+        {
+            OnSyncStatusChanged(SyncStatus.Failed, null);
+            System.Diagnostics.Debug.WriteLine("[TimeBaseService] 同步被取消");
         }
         catch (Exception ex)
         {
@@ -161,7 +164,6 @@ public class TimeBaseService
                 _consecutiveFailures++;
             }
 
-            // 触发失败状态
             OnSyncStatusChanged(SyncStatus.Failed, null);
 
             System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 同步失败 #{_consecutiveFailures}: {ex.Message}");
@@ -171,17 +173,42 @@ public class TimeBaseService
     /// <summary>
     /// 手动立即同步时间
     /// </summary>
-    public async Task SyncTimeNowAsync()
+    /// <param name="timeout">超时时间，默认10秒</param>
+    /// <param name="cancellationToken">取消令牌</param>
+    public async Task SyncTimeNowAsync(TimeSpan? timeout = null, CancellationToken cancellationToken = default)
     {
-        await SyncTimeAsync(isStartup: false);
+        var effectiveTimeout = timeout ?? TimeSpan.FromSeconds(10);
+        
+        using var cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        cts.CancelAfter(effectiveTimeout);
+        
+        try
+        {
+            await SyncTimeAsync(isStartup: false, cancellationToken: cts.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 同步超时 ({effectiveTimeout.TotalSeconds}秒)");
+        }
     }
 
     private void OnSyncStatusChanged(SyncStatus status, DateTime? syncTime)
     {
         SyncStatusChanged?.Invoke(this, new SyncStatusEventArgs { Status = status, SyncTime = syncTime });
+
+        if (status == SyncStatus.Success && syncTime.HasValue)
+        {
+            _settings.LastSyncTime = syncTime.Value;
+            _settings.LastSyncStatus = "Success";
+        }
+        else if (status == SyncStatus.Failed)
+        {
+            _settings.LastSyncTime = DateTime.Now;
+            _settings.LastSyncStatus = "Failed";
+        }
     }
 
-    private async Task<DateTime> GetNtpTimeAsync(string server)
+    private async Task<DateTime> GetNtpTimeAsync(string server, CancellationToken cancellationToken = default)
     {
         const int ntpPort = 123;
         const int timeout = 5000;
@@ -193,7 +220,16 @@ public class TimeBaseService
         ntpData[0] = 0x1B;
 
         await udpClient.SendAsync(ntpData, ntpData.Length, server, ntpPort);
-        var result = await udpClient.ReceiveAsync();
+        
+        var receiveTask = udpClient.ReceiveAsync();
+        var completedTask = await Task.WhenAny(receiveTask, Task.Delay(timeout, cancellationToken));
+        
+        if (completedTask != receiveTask)
+        {
+            throw new OperationCanceledException("NTP接收超时");
+        }
+        
+        var result = receiveTask.Result;
 
         var data = result.Buffer;
         ulong intPart = (ulong)data[40] << 24 | (ulong)data[41] << 16 | (ulong)data[42] << 8 | data[43];
@@ -394,3 +430,6 @@ public class SyncInfo
     public DateTime LastSuccessfulSyncTime { get; set; }
     public bool IsUsingFallback { get; set; }
 }
+
+
+

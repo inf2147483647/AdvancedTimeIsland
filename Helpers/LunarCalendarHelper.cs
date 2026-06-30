@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 
 namespace AdvancedTimeIsland.Helpers;
@@ -120,6 +121,194 @@ public static class LunarCalendarHelper
     public static string GetDizhi(int lunarYear)
     {
         return _dizhi[(lunarYear - 4) % 12];
+    }
+
+    /// <summary>
+    /// 获取天干索引（0-9）
+    /// </summary>
+    public static int GetTianganIndex(string tiangan)
+    {
+        for (int i = 0; i < _tiangan.Length; i++)
+        {
+            if (_tiangan[i] == tiangan)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// 获取地支索引（0-11）
+    /// </summary>
+    public static int GetDizhiIndex(string dizhi)
+    {
+        for (int i = 0; i < _dizhi.Length; i++)
+        {
+            if (_dizhi[i] == dizhi)
+                return i;
+        }
+        return -1;
+    }
+
+    /// <summary>
+    /// 由天干地支计算农历年份（返回第一个匹配的年份，范围1901-2100）
+    /// </summary>
+    public static int GetLunarYearFromTianganDizhi(string tiangan, string dizhi)
+    {
+        int tgIndex = GetTianganIndex(tiangan);
+        int dzIndex = GetDizhiIndex(dizhi);
+        
+        if (tgIndex < 0 || dzIndex < 0)
+            return 0;
+
+        int baseYear = 4 + tgIndex;
+        while ((baseYear - 4) % 12 != dzIndex)
+        {
+            baseYear += 10;
+        }
+
+        int result = baseYear;
+        while (result < 1901)
+            result += 60;
+        while (result > 2100)
+            result -= 60;
+
+        return result;
+    }
+
+    /// <summary>
+    /// 获取所有固定年份范围列表
+    /// </summary>
+    public static string[] GetAllYearRanges()
+    {
+        return new[] { "1901-1923", "1924-1983", "1984-2043", "2044-2101" };
+    }
+
+    /// <summary>
+    /// 根据年份范围和天干地支计算农历年份
+    /// </summary>
+    public static int GetLunarYearFromRangeAndTianganDizhi(string yearRange, string tiangan, string dizhi)
+    {
+        int tgIndex = GetTianganIndex(tiangan);
+        int dzIndex = GetDizhiIndex(dizhi);
+        
+        if (tgIndex < 0 || dzIndex < 0)
+            return 0;
+
+        if (!ParseYearRange(yearRange, out int startYear, out int endYear))
+            return 0;
+
+        var baseYear = 4;
+        var yearOffset = 0;
+        while ((baseYear + yearOffset - 4) % 10 != tgIndex ||
+               (baseYear + yearOffset - 4) % 12 != dzIndex)
+        {
+            yearOffset++;
+            if (yearOffset > 60) return 0;
+        }
+
+        var baseLunarYearVal = baseYear + yearOffset;
+        var lunarYearVal = baseLunarYearVal;
+
+        while (lunarYearVal < startYear)
+        {
+            lunarYearVal += 60;
+        }
+        if (lunarYearVal > endYear)
+        {
+            lunarYearVal -= 60;
+        }
+
+        return lunarYearVal;
+    }
+
+    /// <summary>
+    /// 由天干地支获取所有匹配的农历年份（范围1901-2100）
+    /// </summary>
+    public static int[] GetAllLunarYearsFromTianganDizhi(string tiangan, string dizhi)
+    {
+        int tgIndex = GetTianganIndex(tiangan);
+        int dzIndex = GetDizhiIndex(dizhi);
+        
+        if (tgIndex < 0 || dzIndex < 0)
+            return Array.Empty<int>();
+
+        var years = new List<int>();
+        
+        for (int year = 1901; year <= 2100; year++)
+        {
+            if ((year - 4) % 10 == tgIndex && (year - 4) % 12 == dzIndex)
+            {
+                years.Add(year);
+            }
+        }
+
+        return years.ToArray();
+    }
+
+    /// <summary>
+    /// 由天干地支获取年份范围列表（每个范围代表一个完整周期或部分周期）
+    /// 返回格式如："1901-1923", "1924-1983", "1984-2043", "2044-2101"
+    /// </summary>
+    public static string[] GetYearRangesFromTianganDizhi(string tiangan, string dizhi)
+    {
+        var years = GetAllLunarYearsFromTianganDizhi(tiangan, dizhi);
+        if (years.Length == 0)
+            return Array.Empty<string>();
+
+        var ranges = new List<string>();
+        
+        for (int i = 0; i < years.Length; i++)
+        {
+            int startYear = years[i];
+            int endYear;
+            
+            if (i < years.Length - 1)
+            {
+                endYear = years[i + 1] - 1;
+            }
+            else
+            {
+                endYear = 2101;
+            }
+            
+            ranges.Add($"{startYear}-{endYear}");
+        }
+
+        return ranges.ToArray();
+    }
+
+    /// <summary>
+    /// 解析年份范围字符串，返回开始和结束年份
+    /// </summary>
+    public static bool ParseYearRange(string range, out int startYear, out int endYear)
+    {
+        startYear = 0;
+        endYear = 0;
+        
+        if (string.IsNullOrWhiteSpace(range))
+            return false;
+
+        var parts = range.Split('-');
+        if (parts.Length != 2)
+            return false;
+
+        return int.TryParse(parts[0], out startYear) && int.TryParse(parts[1], out endYear);
+    }
+
+    /// <summary>
+    /// 获取所有天干列表
+    /// </summary>
+    public static string[] GetAllTiangan()
+    {
+        return _tiangan;
+    }
+
+    /// <summary>
+    /// 获取所有地支列表
+    /// </summary>
+    public static string[] GetAllDizhi()
+    {
+        return _dizhi;
     }
 
     /// <summary>
@@ -259,3 +448,6 @@ public static class LunarCalendarHelper
         return "";
     }
 }
+
+
+

@@ -67,3 +67,6 @@ public class DebugSettings : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+
+
