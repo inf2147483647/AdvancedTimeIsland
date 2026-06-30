@@ -1,14 +1,11 @@
-# 为 AdvancedTimeIsland 仓库配置 issue forms
-# https://docs.github.com/zh/communities/using-templates-to-configure-issue-tracking-for-your-repository
-
 blank_issues_enabled: true
 
-issue_template:
+issue_templates:
   - name: Bug 反馈
-    description: 在使用 AdvancedTimeIsland 的过程中遇到了 Bug。
+    about: 在使用 AdvancedTimeIsland 的过程中遇到了 Bug。
     file: .github/ISSUE_TEMPLATE/BugReport.yml
   - name: 功能请求
-    description: 提出一项新的功能。
+    about: 提出一项新的功能。
     file: .github/ISSUE_TEMPLATE/FeatureRequest.yml
 
 contact_links:
