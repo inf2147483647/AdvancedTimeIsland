@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -29,6 +29,8 @@ public class PluginSettings : INotifyPropertyChanged
     private int _ntpSyncIntervalMinutes = 5;
     private DateTime? _lastSyncTime;
     private string? _lastSyncStatus;
+    private string? _lastSyncSource;
+    private bool _enableExperimentalFeatures = false;
 
     /// <summary>
     /// 是否启用农历功能（始终启用）
@@ -277,6 +279,38 @@ public class PluginSettings : INotifyPropertyChanged
             if (_lastSyncStatus != value)
             {
                 _lastSyncStatus = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 上次同步来源（NTP服务器地址或ClassIsland）
+    /// </summary>
+    public string? LastSyncSource
+    {
+        get => _lastSyncSource;
+        set
+        {
+            if (_lastSyncSource != value)
+            {
+                _lastSyncSource = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用实验性功能
+    /// </summary>
+    public bool EnableExperimentalFeatures
+    {
+        get => _enableExperimentalFeatures;
+        set
+        {
+            if (_enableExperimentalFeatures != value)
+            {
+                _enableExperimentalFeatures = value;
                 OnPropertyChanged();
             }
         }

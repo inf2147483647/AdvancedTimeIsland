@@ -8,14 +8,445 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
+
+internal static class PlatformHelper
+{
+    private static bool? _is32Bit;
+
+    public static bool Is32BitProcess
+    {
+        get
+        {
+            if (_is32Bit.HasValue)
+                return _is32Bit.Value;
+            _is32Bit = IntPtr.Size == 4;
+            return _is32Bit.Value;
+        }
+    }
+}
 
 /// <summary>
 /// 插件设置页面
 /// </summary>
 public class PluginSettingsPage : UserControl
 {
+    private static readonly string[] EchoHoleTexts =
+    {
+        "现在很多人喜欢穿汉服。有些汉服的确好看。",
+        "千年的回望，换来今生的一点愁，你落在我的眉间，让我从此笑容难舒。",
+        "向来心是看客心，奈何人是戏中人。",
+        "浮生若梦，何者是实，何者是空，何去何从",
+        "鲜衣怒马，金冠彩霞，惟愿执子之手，与妾厮守年华。",
+        "簇带：妆扮之意。这首能看出宋代元宵风俗还有当时人们穿着的情况。",
+        "春有百花秋有雪，夏有凉风冬有雪。",
+        "入了醉红妆这么久才发现它在阳光下是有细闪的！好想穿汉服出去拍照啊！",
+        "谁解相思味，谁盼良人归，谁捧胭脂泪，谁描柳月眉，谁将曲中情怨，谁思红袖轮回，谁一腔相思错付，都是断肠人。",
+        "看到有妹妹穿汉服出街，我也想了，小女孩太可爱了长的也漂亮",
+        "待我容颜倾城，许我一世绝恋可好。晚安。",
+        "几度萧索，素眉浅画芳华一叠，风若借醉翻几页。尽言醉洒凄凉，谁笺梦书西厢?君莫妒，亦趁景轻书玉兔。",
+        "明明刚从花枝底下过，一回头已是山长水远，千树寂寞。",
+        "希望出来时樱花还在，可以穿汉服出去溜达",
+        "学校攒了好几套春款，提前大半年就准备的生日套装，全部泡汤了[泪][泪][泪]我真的好想好想穿汉服啊",
+        "执子之手，共你一世风霜，吻子之眸，赠你一世深情。",
+        "此生与君共，万世千生。比翼双飞，不思归。——十四夜《醉玲珑》",
+        "念念不忘，必有回响。只可惜我早已不是当初的如画眉眼，你也不是曾经的白衣少年。",
+        "红尘一游谁能无伤，千古真理不让，却是泪染墙三千行。",
+        "原本计划穿汉服赏花的，但生理期不想穿太繁琐，我就地球人搭和风lo出门了。害挺应景",
+        "戏子入画，一生天涯。戏子落妆，曲终人散。",
+        "春风一度十里岸，离人九步三回头。",
+        "今天天气好，宅在家可以穿汉服（至于啥时候能逛街……还是不造……）",
+        "暮霞如烟，浮云千幻，石竹清音枫铃杳；闲人庄生诗酒仙，借酒一杯任逍遥。郢都布衣，孤风诗月，去留无意梅梅鸟；栀子花开土花翠，秋塘寒玉雨荷老。",
+        "我总是躲在梦与时节的深处，听花与黑夜唱尽梦魇，唱尽繁华，唱断一切记忆的去路。",
+        "我做你砚中墨，你挽袖落笔，洇在那纸上的是我眉眼描画。",
+        "你说，惊鸿一瞥，烟烟雨下。后来，素衣白纱，负了蒹葭。",
+        "现在花钱大多是想买自己喜欢的东西，比如汉服，比如一些自己喜欢的动画的周边，日常吃喝住行其实也不是有什么特别的要求。",
+        "我来寻你，途过千千山，万万水，灯火如明。",
+        "真的好怀念和姐妹一起穿汉服的日子啊！",
+        "月非昔时月，春非昔时春，唯有此身昔时身。",
+        "翩若惊鸿，婉若游龙，荣曜秋菊，华茂春松。仿佛兮若轻云之蔽月，飘飘兮若流风之回雪。远而望之，皎若太阳升朝霞；迫而察之，灼若芙蕖出渌波。",
+        "曾以为，不为尘世繁华而迷醉，不为萧瑟凄凉而伤悲。如若憔悴，定是朱砂流泪。我于红尘深处，回眸三百余回，始终嗅不到胭脂香味。",
+        "生活要有仪式感，唯一一次穿汉服出门买早点，感觉真好",
+        "自是浮生无可说，人间第一耽离别。——王国维",
+        "浮世万千，吾爱有日.月与卿。日为朝，月为暮，卿为朝朝暮暮。",
+        "当百味尝遍，自然看透；人生的旅途中，总有那么一段时间，需要你自己走，自己扛。",
+        "初见之时，已然心动，小生不才，定力不佳，此生不悔，愿伴卿旁，陪你赏雨，陪你看雪，为你提笔，为你写诗。",
+        "原来遗忘并不是不幸，而是真正的幸运。像他如此，遗忘了从前的一切，该有多好。",
+        "我还是喜欢你，像风走了八千里，不问归期。",
+        "天亮了，照亮了泪光；泪干了，枕边的仿徨。天凉了，凉尽了天荒；地老了，人间的沧桑。",
+        "我真的很想念和姐妹们一起穿汉服的日子！",
+        "霜花剑上雕镂一缕孤韧，踏遍千山涤荡妖魁魔魂。少年一事能狂敢骂天地不仁，才不管机缘还是祸根。",
+        "添香并立观书画,步月随影踏苍苔。",
+        "桃之夭夭，灼灼其华，南有嘉木，不可休思。",
+        "三千繁华东流水，一梦长安终成灰。",
+        "世人皆唱桃之夭夭,见你才知灼灼其华。",
+        "蒹葭苍苍，白露为霜，所谓伊人，在水一方。",
+        "我行尽江南见过百花，无一胜你。",
+        "疏影横斜水清浅,暗香浮动月黄昏。",
+        "愿我如星君如夜,夜夜流光相皎洁。",
+        "巧笑倩兮，美目盼兮。",
+        "向海风许愿,在山海相见。",
+        "温山软水万千,不及你眉眼半分。",
+        "我见青山多妩媚，料青山，见我应如是。",
+        "锦瑟无端五十弦，一弦一柱思华年。",
+        "最是人间留不住,朱颜辞镜花辞树。",
+        "若非群玉山头见,会向瑶台月下逢。",
+        "幸得识卿桃花面,从此纤陌多暖春。",
+        "鲜衣怒马少年时，一日看尽长安花。",
+        "云想衣裳花想容,春风拂槛露华浓。",
+        "青山不及你眉长 水清不似你目澈。",
+        "我与春风皆过客,你携秋水揽星河。",
+        "古有霓裳羽衣舞,今有汉服配佳人。",
+        "绘尽天下繁华,却不及你一身素衣。",
+        "何年何月何时节,今夕今朝今人间。",
+        "相呴相济 玉汝于成 勿念 心安。",
+        "蝶来风有致,人去月无聊。",
+        "一枕清风梦绿萝,人生随处是南柯。",
+        "愿我如星君如月，夜夜流光相皎洁。",
+        "三里清风三里路，步步风里步步你。",
+        "山有木兮木有枝，心悦君兮君不知。",
+        "一粒尘可填海，一叶草斩尽日月星辰。",
+        "愿所得皆所期，所失亦无碍。",
+        "我历山河而来 你的眉目仍惊鸿如初。",
+        "手握日月摘星辰，世间无我这般人。",
+        "初闻不知曲中意，再闻已是曲中人。",
+        "我是檐上三寸雪,你是人间惊鸿客。",
+        "愿朱颜不改常依旧，花中消遣，酒内忘忧。",
+        "穿着一身白色的睡袍，松松垮垮地，微卷的黑发极为慵懒地垂下。他伸出一只手，有些烦躁地支撑着半边头颅，头发被抓得微乱，俊美无铸的脸上，带着淡淡的不悦。",
+        "此后；岁月催人老，流光逝如梭。一年春事梦无多，平也难和，仄也难和。",
+        "长安月冷，章台歌舞新；谁惜流年脉脉与殷殷。簪花弄影，持酒送流景；折尽春风无情碧。",
+        "灯火星星，人声杳杳，歌不尽乱世烽火。",
+        "入我相思门，知我相思苦，长相思兮长相忆，短相思兮无穷极。",
+        "良人怎奈变凉人，旧城之下念旧人。",
+        "老来多健忘，唯不忘相思。",
+        "等闲变却故人心，却道故心人易变。",
+        "但见伊人风华绝代舞三千，不见长安繁华醉心间。",
+        "头上倭堕髻，耳中明月珠。缃绮为下裙，紫绮为上襦。",
+        "嗟叹红颜泪、英雄殁，人世苦多。山河永寂、怎堪欢颜。",
+        "十年隔山岳，世事两茫茫。",
+        "十几年相思加两斤黄酒，才把这句喜欢说出口。",
+        "陌上花开蝴蝶飞，江山犹是昔人非。",
+        "人生若只如初见何事秋风悲画扇。",
+        "如花美眷，似水流年，回得了从前，回不了当初。",
+        "一花一世界，一叶一如来；禅定无烦恼，心如莲花开。",
+        "当时少年按剑扬眉唱浩气不败，无方忧来揽衣对月独徘徊。",
+        "多少红颜悴，多少相思碎，唯留血染墨香哭乱冢。",
+        "云想衣裳花想容，春风拂槛露华浓。若非群玉山头见，会向瑶台月下逢。",
+        "薰风惊了小莲，韶光一转离合不足萦怀，与君经年。",
+        "你说百世守候为君温柔，后来轮回忘我黄粱一梦。",
+        "若我白发苍苍，容颜迟暮，你会不会，依旧如此，牵我双手，倾世温柔。",
+        "夭夭桃花，灼一世芳华。凉凉夜色，影一世迷离。浅浅清溪，映一世烟火。涛涛碧波，塑一世婆娑。翩翩飞叶，展一世尘缘。",
+        "皎皎白驹，在彼空谷。生刍一束，其人如玉。毋金玉尔音，而有遐心。",
+        "浮生未歇心不老，此心无垢为君倾。",
+        "君埋泉下泥锁骨，我寄人间雪满头。",
+        "执着如泪，是滴入心中的破碎，破碎而飞散。",
+        "回眸一笑百魅生，六宫粉黛无颜色。",
+        "你如三千柳絮，风一阵拨动我的心，幻真幻假，一切都愿如你，与别不过逢场作戏，与你真情实意。",
+        "彼时不知相逢，等闲忘却初衷",
+        "此生愿陪你鲜衣怒马琴剑天涯。",
+        "风一更，一曲琵琶亡国恨；雨一更，一夜雨落诉衷肠。酒一盏，一介书生泪千行；灯一盏，一生纸上尽荒唐。",
+        "彼岸花开开彼岸，断肠草愁愁断肠。奈何桥前可奈何，三生石前定三生。",
+        "拂袖唤漫天流萤，掌心微光谁眼中倒映；回眸不舍离去，此情为你在心上停栖；这一世，愿与你共存天地！",
+        "千秋月未落，扛战旗望长河。",
+        "何来人间一惊鸿，只是世间一俗人",
+        "错过了长安古意，失约了洛阳花期，我在姑苏马蹄莲里，瞥见你兰舟涉水而去。",
+        "我候过雪落千重，燕字成行，却等不到你。我候过春秋几度，青丝染霜，却等不到你。我候过艳阳清月，辰宿列张，却等不到你。我候过江南春水，塞北曙光，却等不到你。",
+        "绿色的竹凳，几杯旧酒，只等死者归来。",
+        "书似青山常乱叠，灯如红豆最相思。",
+        "数不尽繁华千种，望不穿情所归依。千丝万缕，百转柔肠，万里江山尘飞扬，笑语霓裳尽奢华。",
+        "躲在万劫不复的街头，微笑参透覆水难收。",
+        "我恨生前未积缘，古佛青灯度流年。",
+        "最关情，折尽梅花，难寄相思。",
+        "独立千回独上岛，只为与爱人共回首。",
+        "汉服结婚，是我们向前寻找自己的文化根源，以及对它的喜爱和珍惜。",
+        "婚礼上，汉服烘托了我们的细腻和品位。",
+        "在汉服的衬托下，我们的婚礼更加庄重隆重。",
+        "汉服结婚是我们传统文化的一部分，我们要传承与发扬。",
+        "汉服的美丽，是无法被言语所描绘的，我们只有身着汉服，亲身感受它的魅力。",
+        "婚礼上，穿着汉服迎接亲朋好友的祝福和感受。",
+        "汉服让婚礼更具有历史感和文化气息，也更符合我们的传统观念。",
+        "穿汉服，不仅是对于传统文化的致敬，也是对于美好时刻的珍视和回忆。",
+        "造化钟神秀，阴阳割昏晓，我们在汉服中发誓爱你一生一世。",
+        "在这个美好的时刻，我们以汉服为底色，向世界展示我们的中国文化。",
+        "汉服是对于古代文化的一种追忆，一种窥见先人智慧的方式，也是一种情感的表达。",
+        "红纱梦里，白衣初嫁，携手步入美好的人生。",
+        "我穿着莲花的汉服相迎，心上人笑容满面，我们的爱情定格在这特殊的时刻。",
+        "汉服的经典与流行相融合，使我们的婚礼更加时尚和前卫。",
+        "思念相望，对婚姻的期盼，汉服见证我们对未来的热爱和信仰。",
+        "我们穿着汉服，向过去展望未来，为这个美丽的时刻骄傲。",
+        "汉服是传统文化的代表，它是我们婚礼上的亮点。",
+        "我们相互扶持着，以汉服作为我们婚礼的象征。",
+        "真正的汉服婚礼，需要细节的打磨和精心的准备。",
+        "满堂花烛下，穿汉服的新郎新娘宣誓永恒的爱情。",
+        "在汉服的场景下，两位新人望着对方的眼中只有彼此。",
+        "风吹空留一衣香，我们穿着荷花的汉服，在阳光下度过这美好的时光。",
+        "穿上一袭汉服，我们的婚礼仿佛置身于一段历史。",
+        "在汉服的映衬下，我们的婚礼更显庄重，更彰显永恒和平康的美好愿望。",
+        "传统的汉服更是我们婚礼上不可或缺的一部分。",
+        "汉服是中华传统文化的重要组成部分，在这个日子里，我们为我们的文化表达敬意。",
+        "传统文化的熏陶，浪漫的婚礼仪式，我们将一同度过人生跨越时空的美好时刻。",
+        "在汉服的加持下，我们的婚礼更加的吉祥如意。",
+        "踢一场长袖舞，写下千古恋，我们在汉服婚礼上喜结良缘。",
+        "面对汉服新娘，新郎怎么能不心动呢？",
+        "婚礼是和家人朋友一起，穿着汉服欢度的美好时光。",
+        "汉服是一种情感的纽带，让我们沉浸在其中，一起宣誓永恒和平康的美好明天。",
+        "在这个特别的日子里，我们身着汉服，向永恒的爱情和美好的未来敬礼。",
+        "婚礼上新郎新娘身着华丽的汉服，展现出古典传统的美。",
+        "用汉服来显现我们婚礼里的中华文化元素。",
+        "汉服婚礼，是对中华文化的热爱和对传统文化的传承。",
+        "我们穿着汉服，走向明天的幸福。",
+        "汉服风格独特，深深地吸引着我们，好想将你拥抱在怀里，和你一起走向明天。",
+        "在汉服婚礼上，我们不仅体验到了传统文化，也表达了对爱情的真挚。",
+        "婚礼之余，我们换上喜庆的汉服，共同享受电影中的古风氛围。",
+        "我们穿着喜庆的汉服，跃跃欲试地往前走。",
+        "在这里，我和我的爱人将戴上我们的婚戒，走向我们的未来。",
+        "今生相爱，走过千山万水，都是为了此刻的汉服婚礼，永恒记忆刻骨铭心。",
+        "汉服婚礼，是对传统文化的敬意和对爱情的誓言。",
+        "汉服婚礼，是我们传承中华文化的有力证明。",
+        "点缀在红绿相间的婚礼上，汉服的色彩和图案更显得充满活力和创意。",
+        "着我相思的汉服，我跟你共枕到天明。",
+        "穿汉服的新娘，美丽得如同仙女下凡。",
+        "四海为家，绵延不断，我们的汉服婚礼，一步一步向前走向未来的幸福。",
+        "婚礼上，我们彼此穿上古代的汉服，庆祝着我们自己的审美和文化。",
+        "在汉服中，我们寻找到了传统的美丽和文化的继承。",
+        "穿着汉服，我们对历史和文化的敬重更加的体现出来。",
+        "珍视汉服，守护传统文化，我们将在此时此刻，共谱人生的浪漫篇章。",
+        "五福临门，六辈同堂，我们穿着喜庆的汉服，共同庆祝这个特殊的日子。",
+        "汉服结婚，更加展现出我们对中国传统文化的传承和发扬。",
+        "汉服，展现着中华传统文化之美，在婚礼中更显得庄重大气。",
+        "红衣怒马，誓将一生与你度，穿上汉服，我们在此刻定下了一生的幸福。",
+        "观海听涛，佩剑行天，身着汉服，我们一起诠释中华传统文化。",
+        "我们的汉服婚礼，不仅让我们感受到传统文化的魅力，也是对于未来的美好憧憬。",
+        "汉服之美，配上你的美丽，我们的婚礼将会变得更加美好。",
+        "时光一逝，汉服依旧。在这个重要的时刻，我们穿上汉服，携手步入婚礼。",
+        "在汉服的衬托下，我们的婚礼充满了中国传统文化的底蕴。",
+        "汉服让我们的婚礼更具有历史感和文化魅力。",
+        "婚礼结束之后，我们还能穿上汉服重温这美好的回忆。",
+        "汉服的美丽，象征着我们对彼此的深爱和承诺。",
+        "新娘穿戴汉服，充满了端庄优雅的气质。",
+        "我们用汉服的华美，来庆祝我们的爱情和婚姻。",
+        "新人穿汉服，我们对传统文化的热爱从未改变。",
+        "云淡风轻，步入红楼，我们在汉服相伴到老。",
+        "枝头红杏春风，我们用汉服来庆祝我们的婚姻，让爱情从此更加坚实。",
+        "汉服之美，一种传统的美学，代表着我们对于历史文化的热爱和传承。",
+        "汉服是中华民族文化的瑰宝，我们穿上汉服，向文化传承的大旗表达敬意。",
+        "汉服婚礼，是对中华传统文化的美好传承。",
+        "汉服不仅仅是一种装扮，它是我们传承的文化传统和精神财富。",
+        "古老的汉服，让我们重拾传统美德和文化自信。",
+        "我们身着华丽的汉服，让我们的爱情更加绚丽多彩。",
+        "中国传统汉服，是中华民族文化底蕴的结晶。",
+        "汉服是一种仪式感，代表着我们对于婚姻的庄重承诺和祝福。",
+        "汉服的美丽，犹如人生的风景，让我们欣赏到每一个紧张、感人和美好的瞬间。",
+        "我穿着一袭红色的汉服，等待着我的心上人闯入我生命的门口。",
+        "用汉服来披上我们的爱情，让美丽和华丽共舞。",
+        "漫步于古城之中，穿上了汉服，我们仿佛回到了古代的朝代之中。",
+        "用汉服来装扮我们的婚姻，让爱更加浓烈。",
+        "樱花开了好想去鼋头渚穿汉服看樱花啊",
+        "花前，彼此许下诺言，拈一瓣娇艳，香留尘间。尘间，月下共枕无眠，饮一杯佳酿，醉卧花前。",
+        "穿汉服来上班，同事们纷纷表示：你应该去宣教部。我：不不不不，事多钱少，算了算了。",
+        "弃一代江山，敛半世猖狂，求一个对手只为一战！",
+        "美女妖且闲，采桑岐路间。柔条纷冉冉，落叶何翩翩，攘袖见素手，皎腕约金环。",
+        "桃花潭水深千尺，不及汪伦赠我情。",
+        "我等绮陌无可后退，我等擅下最后一颗眼泪，我等君在的南北之彼，从未无缘光顾我在的渔岸之前。",
+        "雪落枝，枝无叶，花似烟，奈何伊人已去，独执觞卧醉，雾里看花。",
+        "缘深则聚，缘浅则散，拥有可以拥有的，忘记需要忘记的，才能换来岁月静好，现世安稳。",
+        "九马画山数命运，一生伴君不羡仙。",
+        "时光静好，与君语；细水流年，与君同；繁华落尽，与君老。",
+        "世人醉，醉生梦死一世情，世人痴，痴心不悔三生爱。",
+        "又是一年三月春，希望一切早点过去，让我能穿着喜欢的汉服二刷扬州！",
+        "不恋尘世浮华，不写红尘纷扰，不叹世道苍凉，不惹情思哀怨，闲看花开，静待花落，冷暖自知，干净如始。",
+        "终于知道为什么古时候大家闺秀要慢慢的起身坐下行走了",
+        "身黑色锦袍，容貌俊美，但因为他脸上神色淡漠，给他的俊美平添了三分拒人千里的冷硬。虽然不失美感，但也令人难以亲近。",
+        "现在的天气，真是特别适合穿汉服啊！决定了，明天穿汉服上班",
+        "人不醉之心醉，心不碎之人碎。一朵红颜知己，万般这样求你。醉碎碎醉难分，反正不醉就碎。",
+        "人生一场虚空大梦，韶华白首，不过转瞬。",
+        "女人想拥有不一样的命运，首先，自已要成为传奇！",
+        "剪闲云一溪月，一程山水一年华；一世浮生一刹那，一树一烟霞。",
+        "天气一回暖穿汉服的妖怪就变得随处可见了",
+        "你的长袍还没被割破，你的青丝还未落霜，你的酒杯并没有空，你还不能走。",
+        "青丝蘸白雪，来路生云烟",
+        "人生若只如初见，何事秋风悲画扇！",
+        "用尽你毕生执念，仍逃不过结局成殇。从此，再多蹉跎，皆不成岁月。",
+        "蓦回首，已风住尘香花色尽飘零，清声扬，且陌上歌行。",
+        "我若在你心上，情敌三千又如何。",
+        "岁月如一指流沙，缓缓的在指尖流淌。我静坐在流年里。捻一抹心香，执一盏清茗，携一抹阳光，笑看红尘过往。",
+        "看过的汉服照片里，夏达穿汉服是最有感觉的。看过的古风漫画里，《长歌行》是最有感觉的。",
+        "汉服走秀，重回古代华美时代，领略别样风貌。",
+        "端庄典雅的汉服走秀，展现出中华文化千年深厚底蕴。",
+        "这场汉服走秀，将古代匠心巧思与现代时尚完美融合。",
+        "细节决定成败，在这场汉服走秀中，每个细节都足以让你惊叹。",
+        "暗香疏影，如诗如画，汉服走秀为你呈现出别样的优雅韵味。",
+        "不同于任何一场时装秀，这场汉服走秀展现出一份优美的艺术气息。",
+        "汉服走秀所呈现的古韵悠长，让我们更深刻地感悟到中华优秀传统文化的博大精深。",
+        "依旧古朴端庄的汉服，这场走秀为它注入了新的时尚元素，别样精彩。",
+        "在这场汉服走秀中，古典与时尚完美结合，体现了中华文化不断吸收新鲜事物的精神。",
+        "演绎出深沉文化底蕴的汉服走秀，不仅让人留下深刻的印象，更是向世界宣传中华文化的瑰宝。",
+        "细节上的巧思，让这场汉服走秀更显高贵典雅，令人陶醉。",
+        "汉服走秀，展示出古代华美之风格，同时也带给我们一种从容优雅的生活情趣。",
+        "一一展示出汉服的华美及精妙细节，这场走秀不愧是中华文化传承的缩影。",
+        "汉服走秀带给我们的不仅仅是美的享受，更激发了大家对传统文化的珍视与保护意识。",
+        "此时此刻，汉服走秀为我们带来一份安静优雅的时光，让人沉浸在深邃的古韵之中。",
+        "这场汉服走秀，呈现出一种优雅洒脱的气质，彰显出中华文化的独特魅力。",
+        "美学与艺术在这场汉服走秀中完美融合，令人陶然流连。",
+        "动与静，光与影，交错的画面中呈现出的是一种绝美的视觉享受。",
+        "汉服走秀的每一秒都令人赞叹，令人痴迷，令人迷醉。",
+        "中华文化的底蕴在这场汉服走秀中得到了恰到好处的诠释，也启示了我们对文化传承的认识与深思。",
+        "汉服走秀，传统文化妙不可言。",
+        "走在舞台上的婀娜身姿，显示出汉族优美的曲线感。",
+        "汉服造型多样，展现了中国古代的绚烂文化。",
+        "着汉服行走，一种雅致与自信的呈现。",
+        "汉服的华丽服饰，代表着繁华与庄重的古代审美。",
+        "汉服走秀，是将传统文化传承到现代的新颖体现。",
+        "汉服展现了中国民族的历史文化，是一种文化自信的体现。",
+        "穿上汉服，走进一种古典的时间里。",
+        "每一款汉服都是华丽奢华的百年穿越。",
+        "汉服走秀，意味着传统文化的复兴和潮流的融合。",
+        "衣袂翩跹，令人陶醉的美妙舞蹈展现在汉服走秀之中。",
+        "民族文化的传承，在汉服走秀中得以全新的演绎。",
+        "汉服走秀，将古代文化提升到时尚的高度。",
+        "着一身汉服，沉浸于古代恢弘的历史长河之中。",
+        "汉服走秀是中华文化的代表，其独特的魅力令人倾心。",
+        "汉服是一种非常具备展示魅力的服饰。",
+        "风衣飘飘，玉佩摇摆，汉服走秀是尽展才情之场。",
+        "承载着历史的汉服，走进了今天的时尚圈。",
+        "传统文化与时尚的完美结合，汉服走出了属于自己的时尚之路。",
+        "汉服走秀，不止是展示华美的服装，更是演绎一种气质和品位。",
+        "汉服走秀，传承汉族文化，展现优美的衣着风范。",
+        "不同款式的汉服，展现出古代中国不同时期的风貌。",
+        "感受汉服之美，沉浸在纯净无污染的古代氛围中。",
+        "精心设计的汉服，融合了现代元素，展现出更多的时尚感。",
+        "汉服的绸缎柔软，手感细腻，穿起来让人感觉仿佛置身古代宫殿。",
+        "汉服不止是一种服装，更是一种文化、一种态度。",
+        "汉服走秀，展现出现代人对于传统文化的热爱与尊重。",
+        "汉服的流线型设计，展现出曲线美的完美表现。",
+        "汉服的复古风格，让人不禁想起了那个充满传奇色彩的时代。",
+        "汉服走秀，透露出一种刚柔并济的美感。",
+        "汉服的每一细节，都体现出古代文化的深度与美感。",
+        "汉服的彩色拼接，让人瞬间驰骋在斗转星移的古代宝地中。",
+        "汉服的优雅气质，清新脱俗，完美地展现女性柔美婉约的一面。",
+        "汉服的丰富样式，展现出古代社会的精品文化。",
+        "汉服的古朴色调，散发出浓郁的历史气息，令人感受到时光的流转。",
+        "汉服走秀，唤起人们对于传统文化的记忆，让我们懂得历史，珍爱未来。",
+        "汉服的精细制作，凸显出中国古代的工艺水平。",
+        "汉服走秀，唤起人们对于古代中国的向往，让我们明白中国文化的博大精深。",
+        "汉服的设计中融入了丰富的象征意义，寄托着人们美好的愿望。",
+        "汉服走秀，展现了传统文化和现代审美之间的和谐融合。",
+        "玉树琼枝，流苏招展，汉服之美，妙不可言。",
+        "汉服裙裾拖地，优雅脱俗，如水墨画般唯美。",
+        "汉服颜色绚烂，荟萃千年文化，是中华传统文化的缩影。",
+        "元宝袖襟飞扬，花香萦绕，那是汉服赋予的气息与灵魂。",
+        "徜徉在汉服之中，如临仙境，美好的诗意在眼前展现。",
+        "汉服殊途同归，再次点燃人们心中对美好生活的追求。",
+        "皓月千里，凝聚的是万千个女子对汉服之美的向往。",
+        "汉服优雅动人，承载了历史的沉淀与灵魂的升华。",
+        "龙鳞右衽，雁翎花翎，芬芳馥郁的汉服，沁人心脾。",
+        "因为有汉服的存在，世间多了一份逍遥、一份优雅。",
+        "汉服上的层层纹路，演绎出千丝万缕的意蕴，诠释了汉族智慧与创意。",
+        "汉服文化深刻地影响了中国乃至世界的时尚潮流，成为了一段靓丽的风景线。",
+        "汉服体现了人类对于美好生活的不懈追求，也是每一个女子对爱情的期许。",
+        "汉服的褶皱，描绘出流年的沧桑与飘渺，让人们尽情地感慨岁月。",
+        "绽放在汉服之中的灵动与雅致，成为了文化跨界之美的代表。",
+        "汉服文化是中华文明的重要组成部分，其中蕴含的美好品质代代相传。",
+        "蕾丝飘裙，长袖粉衣，汉服之美是潜意识中的一种向往，一份心灵的寄托。",
+        "汉服把古典、含蓄、轻盈、飘逸之美体现的淋漓尽致。",
+        "“中缝垂带，人道正直”，汉服深衣在其衣裳背部的正中间，有一条贯穿首尾的缝合的线，叫做“中缝”，站直时中缝垂直于地面，古人谓之为：正直。",
+        "汉之古朴，唐之飘逸，宋之淡雅，明之端庄，这一段段流转在衣物之上的美丽，是对天地的敬重，亦是对生活的感悟。",
+        "头上梳着堕马髻，耳朵上戴着宝珠做的耳环；浅黄色有花纹的丝绸做成下裙，紫色的绫子做成上身短袄。",
+        "穿汉服去欢乐谷是个奇怪的体验hhhhh，因为每一个项目都要把头上的花花拿下来，有时候扣安全带还会因为裙子太长而看不到但是那样感觉更有意思，喜欢的衣服、快乐的地方=难忘的回忆啊",
+        "山之高，月初小，月之小，何皎皎，我有所思在远道，一日不见兮，我心悄悄。",
+        "汉服是“云想衣裳花想容，春风拂槛露华浓”的美艳繁华；是“织为云外秋雁行，染作江南春水色”的动人绝色；又或是“越罗衫袂迎春风，玉刻麒麟腰带红”的华贵雅致。",
+        "汉服是世界上历史最悠久的民族服饰之是汉民族传承四千多年的传统民族服装，以儒教圣经《诗经》、《尚书》、《周礼》、《礼记》、《易经》、《春秋》、大唐《开元礼》和其他经史子集为基础继承下来的礼仪文化，体现了汉族千年不变的民族特色，并通过周礼和中华法系影响了整个汉文化圈",
+        "的确，在这个追求平等自由的年代，我们可以选择合适自身的服饰。我们可以不穿着汉服，也可以不喜欢它形制的复杂，但我们至少得了解汉服，我们是否应当好好地了解我们自己的民族服饰？如果因为疏于对汉服的了解而不断地闹出笑话，那我们非但不能建立自身对于我们华夏民族文化的自信，还会给其他国家的人留下不好的印象。",
+        "又是一年的三月。我希望一切早日过去，这样我才能穿上我最喜欢的汉服！",
+        "繁花似锦觅安宁，淡云流水度此生。",
+        "行者见罗敷，下担捋髭须。少年见罗敷，脱帽著帩头。",
+        "汉服3000多年来逐步发展到现在已经演化出了多种款式，如今的现代汉服除去从画像，陶俑上习得的款式，还有了很多设计感很强的汉元素服饰，因此汉服算不上古装，它是一直存在不断改进的民族服饰，它也紧跟着每个时代的潮流。",
+        "关于汉服，想必大家能想到的定是身姿婀娜的女孩子穿着它在阳光下浅笑吟诵的美好画面，想着就让人感到身心愉悦呢有没有？",
+        "愿有岁月可回首，且以深情共白头",
+        "路过山水万程，祝自己与温柔重逢。",
+        "西塞山前白鹭飞，桃花流水鳜鱼肥。",
+        "让人们感受民族的传统文化",
+        "我们穿的不仅仅是汉服，而是一种文化延续，一种未来的生活形态。",
+        "着我汉家衣裳，兴我礼仪之邦。",
+        "汉服从未消亡，且也不是古时一直不变的款式，因此不可将汉服定义为古装。虽然说如今喜欢汉服的小伙伴们是越来越多了，可仅仅在十几年前，汉服基本上不为大众所知。或许大家会感到奇怪，汉服不是传承了千百年的服饰吗，为什么会在十几年前如此不受关注？",
+        "终于知道现在的女孩子为什么那么喜欢穿汉服了，小时候那个爱披床单的女孩子已经长大了。",
+        "汉服把古典、含蓄、轻盈、飘逸之美体现得淋漓尽致。",
+        "好想穿汉服出门玩哦，但我的姐妹一个赛一个冷漠",
+        "一身淡绿长裙，腰不盈一握，美得如此无瑕，美得如此不食人间烟火一袭大红丝裙领口开得很低，露出丰满的胸部，面似芙蓉，眉如柳，比桃花还要媚的眼睛十分勾人心弦，肌肤如雪，一头黑发挽成高高的美人髻，满头的珠在阳光下耀出刺眼的光。",
+        "我愿重回汉唐，再奏角徵宫商。着我汉家衣裳，兴我礼仪之邦。我愿重回汉唐，再谱盛世华章。何惧道阻且长，看我华夏儿郎。",
+        "汉服美人，静谧如仙，天上仙子，地上女神。",
+        "我正在读三年级，即将毕业。我一直很喜欢汉服和传统艺术。我也想找一个大师学习汉服，使这个世界可以保留许多美丽的东西。",
+        "倚楼听风雨，观剑舞红尘。",
+        "你是我的花瓣，我是你的汉服，我们一起绽放。",
+        "着汉服，步步生花。",
+        "身银白色锦袍，随风一吹，阳光下银白色有些清艳。",
+        "汉服美如画，古韵盎然。穿上汉服，重温历史，感受中华文化的博大精深。一袭华美的汉服，让我们更加自信和优雅。让我们珍爱传统文化，传承中华美德。",
+        "在这个快节奏、浮躁的社会里，穿上汉服给人带来了一份安静与从容。",
+        "希望通过我的小小努力能够让更多人认识并喜爱中国传统文化。",
+        "何惧道阻且长，看我华夏儿郎",
+        "穿上汉服，姐妹们可以在古风的氛围中感受到别样的美好，让人不由自主地沉醉其中。",
+        "衣袂飘飘，汉服仙子。",
+        "穿上汉服让我感受到了历史与现代的交融，也更加珍视我们民族优秀传统文化。",
+        "这句话通过描绘听雨观剑的场景和氛围，展现出文艺、温柔、仙气的感觉。",
+        "婀娜多姿，汉服佳人。",
+        "有章服之美，谓之华；有礼仪之大，故称夏。",
+        "一袭霓裳，舞尽天下，只为博得你的倾城一笑。",
+        "因为在当下社交媒体上，流量越来越成为制胜法宝。",
+        "汉服下的我们，温柔如水，仙气十足。",
+        "汉服华裳，恍若梦中。",
+        "花开花落，汉服仙女。",
+        "可以从汉服的历史介绍、款式特点、穿着方式等多方面展开，让读者更深入地了解汉服这一文化现象，同时也可以关联到其他传统文化元素，扩大知识面，提高文化素养。",
+        "轻柔如羽，温柔如花，披挂芳华，清新如梦，穿上汉服，瞬间变身仙子，梦幻般的穿衣体验，让人心旷神怡，绽放着与众不同的美丽，穿上汉服，就像穿上一袭仙衣，温柔如水，演绎出仙子的优雅，披挂芳华，清新如梦，让每个姐妹都变成仙女，拥有一份美丽的气质，梦幻般的穿衣体验，让人心旷神怡，让每个姐妹都拥有一份美丽的气质，把汉服的温柔穿梭在穿梭在每个姐妹的身上，绽放出一份独特的美丽，让每个姐妹都变成仙女，拥有一份美丽的气质。",
+        "中国各个朝代的服装都很绚丽，我最喜欢汉服，它的图案款式，诉说着朝代的兴衰。",
+        "汉服不仅是一种服装，更是一种文化。让我们一起穿上汉服，感受古人的智慧和美学，祝所有的小朋友六一快乐！",
+        "岂曰无衣？与子同袍。着我汉家衣裳，兴我礼仪之邦！",
+        "我本将心向明月，奈何明月照沟渠",
+        "一衣清静，心处淡然；一步恬静，怡情养神。古韵悠扬，淡雅婀娜，一丝凉意，一抹温柔。穿梭于古今，宛如一杯红酒，洋溢着美妙的气息。姐妹汉服，是温柔超仙的花朵，绽放在历史的河流上，给人以无尽的遐想和令人难忘的回忆。",
+        "汉服是中国传统文化的重要组成部分，我很喜欢它的设计和细节。",
+        "着我汉家衣裳，兴我礼仪之邦。陌上长歌，与子同衿。",
+        "我想和你穿着汉服去洛阳看花开，一路走到尽头。",
+        "晨曦微霞，汉服清风，姐妹相伴，共享仙境。",
+        "汉服的设计灵感来自于中国传统文化，富有历史感和文化底蕴，非常适合姐妹们展现自己的气质和魅力。",
+        "华夏复兴，衣冠先行，始于衣冠，达于博远。",
+        "在汉服文化中，女性的仪态和姿态非常重要，这句话也传递了一种飘逸、自在、潇洒的心态，非常符合汉服文化的审美追求。",
+        "穿上汉服，我们不仅仅是穿衣打扮，更是在弘扬传统文化。愿所有的小朋友都能感受到这份美好，六一快乐！",
+        "拂袖裳，轻盈步，汉服飘逸，气质高雅，超凡脱俗。",
+        "我想和你穿着汉服去洛阳城里逛一圈，然后买一杯豆花油回去。",
+        "一起穿上汉服，回到那个古老而美丽的时代。",
+        "在古色古香的汉服中，与你相伴真好。",
+        "汉服之美，不仅在于它华丽的外表，更在于它传承的淳厚、端庄之气。汉服蕴藏着古老的文化和历史，每一件都是一份厚重的馈赠。姐妹们，让我们一起把汉服穿出真实的自己，把内心淳厚的诗意传达出去，我们拥有温柔的节奏，超仙的气质！",
+        "最喜欢的中国服装有数千万。我买不起的中国衣服不能买。我一直在存钱，而且价格一直在上涨。",
+        "我愿意重回汉唐，再谱盛世华章。",
+        "一袭华美的霓裳，在这个时节，在这个地点，在这个城市，穿着一件白衣，在这里，在这座城，在这片土地，只属于你。",
+        "个人很喜欢女生穿汉服的样子，很好看。",
+        "我愿意重回汉唐，再奏角徵宫商。",
+        "汉服穿上身，文化在心中。六一儿童节，让我们穿上汉服，一起传承中华优秀传统文化！",
+        "一直以来有个梦想，希望在每个传统节日里，所有的汉族儿女都能穿上属于我们民族的衣服——汉服。衣裾飘渺，不再有遗憾。",
+        "生为汉人，死为汉魂",
+        "一身汉服，一把折扇；一杯香茗，一曲古筝。",
+        "古风汉服，华彩中华。",
+        "我想穿上一件红色锦衣，用白玉簪束发，腰佩一条白绫。",
+        "华夏复兴衣冠先行始于衣冠达于博远",
+        "且将新火试新茶，诗酒趁年华",
+        "简短明了，符合特定文化氛围的汉服朋友圈文案是非常受欢迎的。",
+        "姐妹同穿汉服，团圆喜庆，宛如仙境。",
+        "一袭华美的衣衫，在身前随意的敞开。日汉服穿越千年，一袭红裳，惊艳世人间。",
+        "因为汉服是中国传统文化的重要组成部分，近年来越来越受到人们的关注和喜爱，通过在朋友圈发布一些简短的文案，可以更好地表达对汉服的热爱和推广传统文化。",
+        "事实上，如果能借用经典汉诗、词句作为背景，更能受到群众喜欢。",
+        "要把它们打扮的像妹妹般璀璨夺目，温柔细腻又拥有仙女般的美丽。把服装搭配的恰到好处，穿出时尚的活力与优雅的质感，让你们的姐妹汉服灿烂而柔美，让你们的每一次出行都更加迷人！",
+        "着我汉服之裳，兴我礼仪之邦。这千年之美，倾城绝代风华无限。",
+        "妆容精致，头戴发髻，穿着绸缎，如仙女般美丽。",
+        "一曲清音，一身汉服，一段故事，一场相逢。",
+        "一袭华美的衣衫，在身前飘扬，随着那轻纱的摇曳，仿佛是风动了起来。",
+        "汉服佳人，清雅脱俗，仙境之约，姐妹同游。",
+        "今天尝试了一下穿汉服，感觉非常有气质和韵味。",
+        "今天是六一儿童节，穿上汉服，跟小伙伴一起玩耍吧！让我们一起探索中华文化的博大精深。",
+        "飘逸如仙，汉服姐妹。",
+        "不求与君同相守，只愿伴君天涯路"
+    };
+
     private static SolidColorBrush GetAccentBrush()
     {
         if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
@@ -59,6 +490,15 @@ public class PluginSettingsPage : UserControl
     private TextBlock? _syncStatusText;
     private Button? _syncNowButton;
     private System.Timers.Timer? _ntpTimeDisplayTimer;
+    private Button? _echoHoleButton;
+    private TextBlock? _echoHoleDisplayText;
+    private CancellationTokenSource? _echoHoleCts;
+    private int _lastEchoIndex = -1;
+    private System.Timers.Timer? _cursorBlinkTimer;
+    private List<int>? _remainingIndices;
+    private bool _isTyping;
+    private ToggleSwitch? _experimentalToggle;
+    private Border? _experimentalItem;
 
     public PluginSettingsPage() : this(null, null)
     {
@@ -144,21 +584,49 @@ public class PluginSettingsPage : UserControl
             null
         ));
 
-        // 时间服务器设置
-        mainPanel.Children.Add(CreateSettingItem(
-            "时间服务器",
-            "选择用于同步时间的NTP服务器",
-            CreateNtpServerComboBox(),
-            null
-        ));
+        // 时间同步相关设置（仅64位显示）
+        if (!PlatformHelper.Is32BitProcess)
+        {
+            // 时间服务器设置
+            mainPanel.Children.Add(CreateSettingItem(
+                "时间服务器",
+                "选择用于同步时间的NTP服务器",
+                CreateNtpServerComboBox(),
+                null
+            ));
 
-        // 同步时间周期设置
-        mainPanel.Children.Add(CreateSettingItem(
-            "同步时间周期",
-            "NTP时间同步周期，单位为分钟",
-            CreateNtpSyncIntervalTextBox(),
-            null
-        ));
+            // 同步时间周期设置
+            mainPanel.Children.Add(CreateSettingItem(
+                "同步时间周期",
+                "NTP时间同步周期，单位为分钟",
+                CreateNtpSyncIntervalTextBox(),
+                null
+            ));
+        }
+        else
+        {
+            // 32位系统显示警告InfoBar
+            var warningBar = new InfoBar
+            {
+                Severity = InfoBarSeverity.Warning,
+                Message = "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。",
+                IsOpen = true,
+                IsClosable = false,
+                Margin = new Thickness(0, 0, 0, 12)
+            };
+            mainPanel.Children.Add(warningBar);
+        }
+
+        // 实验性功能开关
+        var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
+        _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggleChanged);
+        _experimentalItem = CreateSettingItemWithLabel(
+            "启用实验性功能",
+            "启用后可以使用实验性功能，这里有一些相对小众、不那么稳定、以及可能与插件主要目的不相关的功能",
+            _experimentalToggle,
+            "实验性"
+        );
+        mainPanel.Children.Add(_experimentalItem);
 
         // 女装彩蛋（默认不可见）
         var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
@@ -173,15 +641,25 @@ public class PluginSettingsPage : UserControl
         _easterEggItem.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
         mainPanel.Children.Add(_easterEggItem);
 
-        // 说明文字
-        mainPanel.Children.Add(new TextBlock
+        // 回声洞（实验性功能）
+        _echoHoleButton = new Button
         {
-            Text = "注意: 修改设置后可能需要重启插件才能生效。",
-            FontSize = 12,
-            Foreground = Brushes.Orange,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Margin = new Avalonia.Thickness(0, 16, 0, 0)
-        });
+            Content = "回声洞",
+            Margin = new Thickness(0, 8, 0, 0),
+            IsVisible = isExperimentalEnabled
+        };
+        _echoHoleButton.Click += OnEchoHoleButtonClick;
+        mainPanel.Children.Add(_echoHoleButton);
+
+        _echoHoleDisplayText = new TextBlock
+        {
+            FontSize = 13,
+            Foreground = Brushes.LightGray,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0),
+            IsVisible = false
+        };
+        mainPanel.Children.Add(_echoHoleDisplayText);
 
         var scrollViewer = new ScrollViewer
         {
@@ -240,6 +718,81 @@ public class PluginSettingsPage : UserControl
         content.Children.Add(titlePanel);
 
         // 描述
+        if (!string.IsNullOrEmpty(description))
+        {
+            content.Children.Add(new TextBlock
+            {
+                Text = description,
+                FontSize = 12,
+                Foreground = Brushes.LightGray,
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap
+            });
+        }
+
+        itemPanel.Child = content;
+        return itemPanel;
+    }
+
+    private Border CreateSettingItemWithLabel(string title, string description, Control valueControl, string labelText)
+    {
+        var itemPanel = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 12),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true
+        };
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4
+        };
+
+        var titlePanel = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto")
+        };
+
+        var titleText = new TextBlock
+        {
+            Text = title,
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(titleText, 0);
+        titlePanel.Children.Add(titleText);
+
+        var label = new Border
+        {
+            Background = new SolidColorBrush(Color.Parse("#D4A574")),
+            Padding = new Thickness(6, 2, 6, 2),
+            CornerRadius = new CornerRadius(4),
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 8, 0)
+        };
+        label.Child = new TextBlock
+        {
+            Text = labelText,
+            FontSize = 10,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brushes.Black
+        };
+        Grid.SetColumn(label, 1);
+        titlePanel.Children.Add(label);
+
+        if (valueControl != null)
+        {
+            valueControl.VerticalAlignment = VerticalAlignment.Center;
+            Grid.SetColumn(valueControl, 2);
+            titlePanel.Children.Add(valueControl);
+        }
+
+        content.Children.Add(titlePanel);
+
         if (!string.IsNullOrEmpty(description))
         {
             content.Children.Add(new TextBlock
@@ -554,9 +1107,35 @@ public class PluginSettingsPage : UserControl
 
     private async void OnSyncNowButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (TimeBaseService.Instance != null)
+        if (_syncNowButton == null) return;
+        
+        _syncNowButton.IsEnabled = false;
+        
+        try
         {
+            if (TimeBaseService.Instance == null)
+            {
+                if (_syncStatusText != null)
+                {
+                    _syncStatusText.Text = "同步服务未初始化，请重启插件";
+                    _syncStatusText.Foreground = Brushes.Red;
+                }
+                return;
+            }
+            
             await TimeBaseService.Instance.SyncTimeNowAsync();
+        }
+        catch (Exception ex)
+        {
+            if (_syncStatusText != null)
+            {
+                _syncStatusText.Text = $"同步失败: {ex.Message}";
+                _syncStatusText.Foreground = Brushes.Red;
+            }
+        }
+        finally
+        {
+            _syncNowButton.IsEnabled = true;
         }
     }
 
@@ -564,11 +1143,11 @@ public class PluginSettingsPage : UserControl
     {
         Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
-            UpdateSyncStatusText(e.Status, e.SyncTime);
+            UpdateSyncStatusText(e.Status, e.SyncTime, e.SyncSource);
         });
     }
 
-    private void UpdateSyncStatusText(SyncStatus status, DateTime? syncTime)
+    private void UpdateSyncStatusText(SyncStatus status, DateTime? syncTime, string? syncSource = null)
     {
         if (_syncStatusText == null) return;
 
@@ -584,7 +1163,22 @@ public class PluginSettingsPage : UserControl
             case SyncStatus.Success:
                 if (syncTime.HasValue)
                 {
-                    _syncStatusText.Text = $"成功在[{syncTime:yyyy-MM-dd-HH-mm-ss}]同步时间";
+                    var timeStr = syncTime.Value.ToString("yyyy年M月d日 HH:mm:ss");
+                    if (!string.IsNullOrEmpty(syncSource))
+                    {
+                        if (syncSource == "ClassIsland")
+                        {
+                            _syncStatusText.Text = $"成功从ClassIsland同步时间：{timeStr}";
+                        }
+                        else
+                        {
+                            _syncStatusText.Text = $"成功从{syncSource}同步时间：{timeStr}";
+                        }
+                    }
+                    else
+                    {
+                        _syncStatusText.Text = $"同步时间成功：{timeStr}";
+                    }
                 }
                 else
                 {
@@ -608,12 +1202,27 @@ public class PluginSettingsPage : UserControl
         {
             if (_settings.LastSyncStatus == "Success")
             {
-                _syncStatusText.Text = $"成功在[{_settings.LastSyncTime:yyyy-MM-dd-HH-mm-ss}]同步时间";
+                var timeStr = _settings.LastSyncTime.Value.ToString("yyyy年M月d日 HH:mm:ss");
+                if (!string.IsNullOrEmpty(_settings.LastSyncSource))
+                {
+                    if (_settings.LastSyncSource == "ClassIsland")
+                    {
+                        _syncStatusText.Text = $"成功从ClassIsland同步时间：{timeStr}";
+                    }
+                    else
+                    {
+                        _syncStatusText.Text = $"成功从{_settings.LastSyncSource}同步时间：{timeStr}";
+                    }
+                }
+                else
+                {
+                    _syncStatusText.Text = $"同步时间成功：{timeStr}";
+                }
                 _syncStatusText.Foreground = GetSuccessForegroundBrush();
             }
             else if (_settings.LastSyncStatus == "Failed")
             {
-                _syncStatusText.Text = $"在[{_settings.LastSyncTime:yyyy-MM-dd-HH-mm-ss}]同步时间失败";
+                _syncStatusText.Text = "同步时间失败！";
                 _syncStatusText.Foreground = Brushes.Red;
             }
         }
@@ -799,22 +1408,134 @@ public class PluginSettingsPage : UserControl
 
     public event EventHandler<bool>? EasterEggToggled;
 
-    private void OnEasterEggToggleChanged(object? sender, RoutedEventArgs e)
+    private void OnExperimentalToggleChanged(object? sender, RoutedEventArgs e)
     {
         if (sender is ToggleSwitch toggle)
         {
             var isEnabled = toggle.IsChecked == true;
-            _settings!.EnableEasterEgg = isEnabled;
+            _settings!.EnableExperimentalFeatures = isEnabled;
+            if (_echoHoleButton != null)
+            {
+                _echoHoleButton.IsVisible = isEnabled;
+            }
             if (!isEnabled)
             {
-                HideEasterEggSetting();
+                _echoHoleCts?.Cancel();
+                _cursorBlinkTimer?.Stop();
+                _cursorBlinkTimer?.Dispose();
+                if (_echoHoleDisplayText != null)
+                {
+                    _echoHoleDisplayText.IsVisible = false;
+                    _echoHoleDisplayText.Text = "";
+                }
+                if (_echoHoleButton != null)
+                {
+                    _echoHoleButton.IsEnabled = true;
+                }
             }
-            EasterEggToggled?.Invoke(this, isEnabled);
         }
     }
 
-    #endregion
-}
+    private void OnEasterEggToggleChanged(object? sender, RoutedEventArgs e)
+        {
+            if (sender is ToggleSwitch toggle)
+            {
+                var isEnabled = toggle.IsChecked == true;
+                _settings!.EnableEasterEgg = isEnabled;
+                if (!isEnabled)
+                {
+                    HideEasterEggSetting();
+                }
+                EasterEggToggled?.Invoke(this, isEnabled);
+            }
+        }
+
+        private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)
+        {
+            if (_echoHoleButton == null || _echoHoleDisplayText == null) return;
+
+            _echoHoleButton.IsEnabled = false;
+
+            _echoHoleCts?.Cancel();
+            _echoHoleCts = new CancellationTokenSource();
+
+            _cursorBlinkTimer?.Stop();
+            _cursorBlinkTimer?.Dispose();
+
+            var random = new Random();
+            
+            if (_remainingIndices == null || _remainingIndices.Count == 0)
+            {
+                _remainingIndices = Enumerable.Range(0, EchoHoleTexts.Length).ToList();
+                
+                for (int i = _remainingIndices.Count - 1; i > 0; i--)
+                {
+                    int j = random.Next(i + 1);
+                    (_remainingIndices[i], _remainingIndices[j]) = (_remainingIndices[j], _remainingIndices[i]);
+                }
+            }
+
+            int newIndex = _remainingIndices[0];
+            _remainingIndices.RemoveAt(0);
+            _lastEchoIndex = newIndex;
+
+            var text = EchoHoleTexts[newIndex];
+
+            _echoHoleDisplayText.IsVisible = true;
+            _echoHoleDisplayText.Text = "";
+
+            _isTyping = true;
+            var charDelay = TimeSpan.FromSeconds(1.0 / 20);
+
+            try
+            {
+                for (int i = 0; i < text.Length; i++)
+                {
+                    if (_echoHoleCts.Token.IsCancellationRequested)
+                        break;
+
+                    _echoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
+                    await Task.Delay(charDelay, _echoHoleCts.Token);
+                }
+
+                _echoHoleDisplayText.Text = text + "_";
+            }
+            catch (OperationCanceledException)
+            {
+                // ignore
+            }
+
+            _isTyping = false;
+
+            _cursorBlinkTimer = new System.Timers.Timer(500);
+            _cursorBlinkTimer.Elapsed += OnCursorBlink;
+            _cursorBlinkTimer.Start();
+
+            _echoHoleButton.IsEnabled = true;
+        }
+
+        private void OnCursorBlink(object? sender, System.Timers.ElapsedEventArgs e)
+        {
+            if (_echoHoleDisplayText == null || _isTyping) return;
+
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                if (_echoHoleDisplayText == null || _isTyping) return;
+                
+                var currentText = _echoHoleDisplayText.Text ?? "";
+                if (currentText.EndsWith("_"))
+                {
+                    _echoHoleDisplayText.Text = currentText.Substring(0, currentText.Length - 1);
+                }
+                else
+                {
+                    _echoHoleDisplayText.Text = currentText + "_";
+                }
+            });
+        }
+
+        #endregion
+    }
 
 
 

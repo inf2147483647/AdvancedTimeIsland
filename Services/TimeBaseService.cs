@@ -4,6 +4,8 @@ using System.Net.Sockets;
 using System.Threading;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Shared;
+using ClassIsland.Core.Abstractions.Services;
 
 namespace AdvancedTimeIsland.Services;
 
@@ -24,6 +26,7 @@ public class SyncStatusEventArgs : EventArgs
 {
     public SyncStatus Status { get; set; }
     public DateTime? SyncTime { get; set; }
+    public string? SyncSource { get; set; }
 }
 
 /// <summary>
@@ -58,20 +61,53 @@ public class TimeBaseService
     // 检测时间跳跃的阈值（秒）
     private const int TimeJumpThresholdSeconds = 2;
 
+    private static bool? _is32BitProcess;
+
+    private static bool Is32BitProcess
+    {
+        get
+        {
+            if (_is32BitProcess.HasValue)
+                return _is32BitProcess.Value;
+            _is32BitProcess = IntPtr.Size == 4;
+            return _is32BitProcess.Value;
+        }
+    }
+
+    private static IExactTimeService? ExactTimeService => GlobalConstants.HostInterfaces.ExactTimeService;
+
     public TimeBaseService(PluginSettings settings)
     {
         _settings = settings;
         Instance = this;
         _settings.PropertyChanged += OnSettingsChanged;
 
-        // 启动时间跳跃检测
-        StartTimeJumpCheckTimer();
+        try
+        {
+            StartTimeJumpCheckTimer();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 启动时间跳跃检测定时器失败: {ex.Message}");
+        }
 
-        // 启动定时同步
-        StartSyncTimer();
+        try
+        {
+            StartSyncTimer();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 启动定时同步定时器失败: {ex.Message}");
+        }
 
-        // 应用启动时立即尝试同步一次时间
-        _ = SyncTimeAsync(isStartup: true);
+        try
+        {
+            _ = SyncTimeAsync(isStartup: true);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 启动时同步时间失败: {ex.Message}");
+        }
     }
 
     private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -139,18 +175,40 @@ public class TimeBaseService
         {
             OnSyncStatusChanged(SyncStatus.Syncing, null);
 
-            var ntpTime = await GetNtpTimeAsync(_settings.NtpServer, cancellationToken);
+            DateTime syncTime;
+            string syncSource;
+
+            if (Is32BitProcess)
+            {
+                syncTime = await SyncFromClassIslandAsync(cancellationToken);
+                syncSource = "ClassIsland";
+            }
+            else
+            {
+                try
+                {
+                    syncTime = await GetNtpTimeAsync(_settings.NtpServer, cancellationToken);
+                    syncSource = _settings.NtpServer;
+                }
+                catch (Exception ntpEx)
+                {
+                    System.Diagnostics.Debug.WriteLine($"[TimeBaseService] NTP同步失败，尝试从ClassIsland同步: {ntpEx.Message}");
+                    syncTime = await SyncFromClassIslandAsync(cancellationToken);
+                    syncSource = "ClassIsland";
+                }
+            }
 
             lock (_lockObj)
             {
-                _lastNtpSyncTime = DateTime.Now;
-                _timeOffset = ntpTime - DateTime.Now;
+                var classIslandTime = GetClassIslandTime();
+                _lastNtpSyncTime = classIslandTime;
+                _timeOffset = syncTime - classIslandTime;
                 _hasValidSync = true;
                 _consecutiveFailures = 0;
-                _lastSuccessfulSyncTime = ntpTime;
+                _lastSuccessfulSyncTime = syncTime;
             }
 
-            OnSyncStatusChanged(SyncStatus.Success, ntpTime);
+            OnSyncStatusChanged(SyncStatus.Success, syncTime, syncSource);
         }
         catch (OperationCanceledException)
         {
@@ -164,10 +222,64 @@ public class TimeBaseService
                 _consecutiveFailures++;
             }
 
+            try
+            {
+                await SyncFromClassIslandAsync(cancellationToken);
+                OnSyncStatusChanged(SyncStatus.Success, GetClassIslandTime(), "ClassIsland");
+                return;
+            }
+            catch (Exception fallbackEx)
+            {
+                System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 回退到ClassIsland同步也失败: {fallbackEx.Message}");
+            }
+
             OnSyncStatusChanged(SyncStatus.Failed, null);
 
             System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 同步失败 #{_consecutiveFailures}: {ex.Message}");
         }
+    }
+
+    private async Task<DateTime> SyncFromClassIslandAsync(CancellationToken cancellationToken)
+    {
+        var exactTimeService = ExactTimeService;
+        if (exactTimeService == null)
+        {
+            throw new Exception("ClassIsland时间服务不可用");
+        }
+
+        await Task.Run(() =>
+        {
+            exactTimeService.Sync();
+        }, cancellationToken);
+
+        var syncTime = exactTimeService.GetCurrentLocalDateTime();
+        
+        lock (_lockObj)
+        {
+            _timeOffset = syncTime - syncTime;
+            _hasValidSync = true;
+            _consecutiveFailures = 0;
+            _lastSuccessfulSyncTime = syncTime;
+        }
+
+        return syncTime;
+    }
+
+    private DateTime GetClassIslandTime()
+    {
+        var exactTimeService = ExactTimeService;
+        if (exactTimeService != null)
+        {
+            try
+            {
+                return exactTimeService.GetCurrentLocalDateTime();
+            }
+            catch
+            {
+                // ignore
+            }
+        }
+        return DateTime.Now;
     }
 
     /// <summary>
@@ -192,19 +304,21 @@ public class TimeBaseService
         }
     }
 
-    private void OnSyncStatusChanged(SyncStatus status, DateTime? syncTime)
+    private void OnSyncStatusChanged(SyncStatus status, DateTime? syncTime, string? syncSource = null)
     {
-        SyncStatusChanged?.Invoke(this, new SyncStatusEventArgs { Status = status, SyncTime = syncTime });
+        SyncStatusChanged?.Invoke(this, new SyncStatusEventArgs { Status = status, SyncTime = syncTime, SyncSource = syncSource });
 
         if (status == SyncStatus.Success && syncTime.HasValue)
         {
             _settings.LastSyncTime = syncTime.Value;
             _settings.LastSyncStatus = "Success";
+            _settings.LastSyncSource = syncSource;
         }
         else if (status == SyncStatus.Failed)
         {
-            _settings.LastSyncTime = DateTime.Now;
+            _settings.LastSyncTime = GetClassIslandTime();
             _settings.LastSyncStatus = "Failed";
+            _settings.LastSyncSource = null;
         }
     }
 
@@ -213,13 +327,17 @@ public class TimeBaseService
         const int ntpPort = 123;
         const int timeout = 5000;
 
-        using var udpClient = new UdpClient();
+        using var udpClient = new UdpClient(AddressFamily.InterNetwork);
         udpClient.Client.ReceiveTimeout = timeout;
 
         var ntpData = new byte[48];
         ntpData[0] = 0x1B;
 
-        await udpClient.SendAsync(ntpData, ntpData.Length, server, ntpPort);
+        var addresses = await Dns.GetHostAddressesAsync(server);
+        var ipv4Addr = addresses.FirstOrDefault(a => a.AddressFamily == AddressFamily.InterNetwork) 
+            ?? throw new Exception($"无法解析 {server} 的IPv4地址");
+        
+        await udpClient.SendAsync(ntpData, ntpData.Length, new IPEndPoint(ipv4Addr, ntpPort));
         
         var receiveTask = udpClient.ReceiveAsync();
         var completedTask = await Task.WhenAny(receiveTask, Task.Delay(timeout, cancellationToken));
@@ -252,27 +370,26 @@ public class TimeBaseService
             bool useFallback;
             DateTime baseTime;
 
+            var classIslandTime = GetClassIslandTime();
+
             lock (_lockObj)
             {
-                // 检查是否应该降级到系统时间
-                // 条件：从未成功同步过 OR 连续失败次数超过阈值
                 useFallback = !_hasValidSync || _consecutiveFailures >= MaxConsecutiveFailuresBeforeFallback;
 
                 if (_lastNtpSyncTime != DateTime.MinValue)
                 {
-                    baseTime = DateTime.Now.Add(_timeOffset);
+                    baseTime = classIslandTime.Add(_timeOffset);
                 }
                 else
                 {
-                    baseTime = DateTime.Now;
+                    baseTime = classIslandTime;
                 }
             }
 
             if (useFallback)
             {
-                // 降级到系统时间（加插件偏移）
                 var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
-                return DateTime.Now.Add(offset);
+                return classIslandTime.Add(offset);
             }
 
             var pluginOffset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
@@ -280,7 +397,7 @@ public class TimeBaseService
         }
         catch
         {
-            return DateTime.Now;
+            return GetClassIslandTime();
         }
     }
 
@@ -294,6 +411,8 @@ public class TimeBaseService
         {
             bool useFallback = false;
 
+            var classIslandTime = GetClassIslandTime();
+
             lock (_lockObj)
             {
                 if (!_hasValidSync || _consecutiveFailures >= MaxConsecutiveFailuresBeforeFallback)
@@ -304,7 +423,7 @@ public class TimeBaseService
 
             if (useFallback)
             {
-                return DateTime.Now;
+                return classIslandTime;
             }
 
             DateTime baseTime;
@@ -312,18 +431,18 @@ public class TimeBaseService
             {
                 if (_lastNtpSyncTime != DateTime.MinValue)
                 {
-                    baseTime = DateTime.Now.Add(_timeOffset);
+                    baseTime = classIslandTime.Add(_timeOffset);
                 }
                 else
                 {
-                    baseTime = DateTime.Now;
+                    baseTime = classIslandTime;
                 }
             }
             return baseTime;
         }
         catch
         {
-            return DateTime.Now;
+            return GetClassIslandTime();
         }
     }
 
@@ -334,7 +453,7 @@ public class TimeBaseService
     public DateTime GetPluginOffsetSystemTime()
     {
         var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
-        return DateTime.Now.Add(offset);
+        return GetClassIslandTime().Add(offset);
     }
 
     /// <summary>
