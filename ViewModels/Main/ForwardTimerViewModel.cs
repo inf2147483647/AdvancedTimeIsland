@@ -342,15 +342,49 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
             remainingPercent = "0";
         }
 
-        var currentTime = GetCurrentTime();
-        var startDate = UnixTimeHelper.FromUnixTimestamp(_settings.StartTime);
         var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
         var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
         var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
         var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
 
-        var daysInMonth = DateTime.DaysInMonth(startDate.Year, startDate.Month);
-        var dayOfMonth = ((int)totalDays % daysInMonth) + 1;
+        bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
+        bool hasYear = format.Contains("%yy") || format.Contains("%YY");
+
+        int displayMonths;
+        if (hasYear)
+        {
+            var totalMonthsValue = (int)(totalSeconds / (30.4375 * 86400.0));
+            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
+            displayMonths = totalMonthsValue - yearsFromTotal * 12;
+        }
+        else
+        {
+            displayMonths = (int)(totalSeconds / (30.4375 * 86400.0));
+        }
+
+        int displayDays;
+        if (hasMonth && hasYear)
+        {
+            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
+            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
+            displayDays = totalDaysValue - yearsFromTotal * 365 - displayMonths * 30;
+        }
+        else if (hasMonth)
+        {
+            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
+            var monthsFromTotal = (int)(totalSeconds / (30.4375 * 86400.0));
+            displayDays = totalDaysValue - monthsFromTotal * 30;
+        }
+        else if (hasYear)
+        {
+            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
+            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
+            displayDays = totalDaysValue - yearsFromTotal * 365;
+        }
+        else
+        {
+            displayDays = days;
+        }
 
         var result = format
             .Replace("%D", ((int)totalDays).ToString())
@@ -363,9 +397,9 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
             .Replace("%p", elapsedPercentDecimal)
             .Replace("%yy", yy)
             .Replace("%YY", YY)
-            .Replace("%mo", mo)
-            .Replace("%MO", MO)
-            .Replace("%d", dayOfMonth.ToString())
+            .Replace("%mo", displayMonths.ToString())
+            .Replace("%MO", displayMonths.ToString())
+            .Replace("%d", displayDays.ToString())
             .Replace("%h", hours.ToString())
             .Replace("%m", minutes.ToString("D2"))
             .Replace("%s", seconds.ToString("D2"))

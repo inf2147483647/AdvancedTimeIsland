@@ -1,4 +1,5 @@
 using System;
+using System.Reflection;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -185,48 +186,24 @@ public class AboutPage : SettingsPageBase
     /// <summary>
     /// 显示彩蛋触发提示窗口
     /// </summary>
-    private async void ShowEasterEggDialog()
+    private void ShowEasterEggDialog()
     {
-        var dialog = new Window
+        var dialog = new ContentDialog()
         {
             Title = "提示",
-            Width = 280,
-            Height = 140,
-            CanResize = false,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner,
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
-            Content = new StackPanel
+            Content = new TextBlock
             {
-                Margin = new Thickness(20),
-                Spacing = 16,
-                Children =
-                {
-                    new TextBlock
-                    {
-                        Text = "触发彩蛋成功~",
-                        FontSize = 16,
-                        Foreground = Brushes.White,
-                        HorizontalAlignment = HorizontalAlignment.Center
-                    },
-                    new Button
-                    {
-                        Content = "确定",
-                        Width = 80,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        Background = GetAccentBrush(),
-                        Foreground = GetAccentTextBrush(GetAccentBrush()),
-                        CornerRadius = new CornerRadius(4)
-                    }
-                }
-            }
+                Text = "触发彩蛋成功~",
+                FontSize = 16,
+                Foreground = Brushes.White,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                TextWrapping = TextWrapping.Wrap
+            },
+            PrimaryButtonText = "确定",
+            DefaultButton = ContentDialogButton.Primary
         };
 
-        if (dialog.Content is StackPanel panel && panel.Children[1] is Button okButton)
-        {
-            okButton.Click += (s, e) => dialog.Close();
-        }
-
-        await dialog.ShowDialog((Window)VisualRoot!);
+        dialog.ShowAsync(TopLevel.GetTopLevel(this));
     }
 
     /// <summary>
@@ -254,6 +231,32 @@ public class AboutPage : SettingsPageBase
         {
             _easterEggActive = false;
             UpdateTabOrder(false);
+        }
+    }
+
+    /// <summary>
+    /// 只显示右上角"需要重启"按钮，不弹出原生对话框
+    /// </summary>
+    private void ShowRestartButton()
+    {
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(this);
+            if (topLevel == null) return;
+
+            var viewModel = topLevel.GetType().GetProperty("ViewModel", BindingFlags.Public | BindingFlags.Instance);
+            if (viewModel == null) return;
+
+            var vm = viewModel.GetValue(topLevel);
+            if (vm == null) return;
+
+            var isRequestedRestartProp = vm.GetType().GetProperty("IsRequestedRestart", BindingFlags.Public | BindingFlags.Instance);
+            if (isRequestedRestartProp == null) return;
+
+            isRequestedRestartProp.SetValue(vm, true);
+        }
+        catch
+        {
         }
     }
 
@@ -518,6 +521,7 @@ public class AboutPage : SettingsPageBase
                     break;
                 case "PluginSettings":
                     var pluginSettings = new PluginSettingsPage(_pluginSettings, _lunarInstaller);
+                    pluginSettings.RequestRestartAction = ShowRestartButton;
                     if (_easterEggActive)
                     {
                         pluginSettings.ShowEasterEggSetting();

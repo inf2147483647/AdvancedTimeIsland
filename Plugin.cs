@@ -1399,6 +1399,10 @@ public class Plugin : PluginBase
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
+        if (Settings.EnableExperimentalFeatures)
+        {
+            services.AddSettingsPage<Views.Settings.HanfuPage>();
+        }
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();
         services.AddAction<Automation.Actions.SyncPluginTimeAction>();

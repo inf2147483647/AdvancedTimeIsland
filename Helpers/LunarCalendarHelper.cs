@@ -1,22 +1,29 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
+using Lunar;
 
 namespace AdvancedTimeIsland.Helpers;
 
+/// <summary>
+/// 农历日历辅助类，基于 lunar-csharp 库实现。
+/// 支持范围：0001-9999年（由 lunar-csharp 提供）。
+/// 原 ChineseLunisolarCalendar 仅支持 1901-2101，现已替换。
+/// </summary>
 public static class LunarCalendarHelper
 {
-    private static readonly ChineseLunisolarCalendar _calendar = new();
+    // ===== ChineseLunisolarCalendar 已弃用，改用 lunar-csharp =====
+    // private static readonly ChineseLunisolarCalendar _calendar = new();
 
-    // 农历支持范围
-    private static readonly DateTime _minLunarDate = new(1901, 2, 19);
-    private static readonly DateTime _maxLunarDate = new(2101, 1, 28, 23, 59, 59);
+    // 农历支持范围 - 扩展到 0001-9999 年（lunar-csharp 支持）
+    private static readonly DateTime _minLunarDate = new(1, 1, 1);
+    private static readonly DateTime _maxLunarDate = new(9999, 12, 31, 23, 59, 59);
 
     /// <summary>
     /// 判断日期是否在农历支持范围内
     /// </summary>
     public static bool IsDateSupported(DateTime date)
     {
+        // lunar-csharp 支持 0001-9999 年
         return date >= _minLunarDate && date <= _maxLunarDate;
     }
 
@@ -32,33 +39,13 @@ public static class LunarCalendarHelper
         {
             if (!IsDateSupported(date))
             {
-                return "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)";
-            }
-            var lunarYear = _calendar.GetYear(date);
-            var lunarMonth = _calendar.GetMonth(date);
-            var lunarDay = _calendar.GetDayOfMonth(date);
-
-            // 判断是否是闰月
-            var leapMonth = _calendar.GetLeapMonth(lunarYear);
-            var isLeapMonth = false;
-            var actualMonth = lunarMonth;
-
-            if (leapMonth > 0 && lunarMonth == leapMonth)
-            {
-                isLeapMonth = true;
-                actualMonth = lunarMonth - 1;
-            }
-            else if (leapMonth > 0 && lunarMonth > leapMonth)
-            {
-                actualMonth = lunarMonth - 1;
+                return "农历不支持此日期范围(0001-9999)";
             }
 
-            var tg = _tiangan[(lunarYear - 4) % 10];
-            var dz = _dizhi[(lunarYear - 4) % 12];
-            var monthStr = isLeapMonth ? $"闰{actualMonth}月" : $"{actualMonth}月";
-            var dayStr = GetLunarDayString(lunarDay);
+            var solar = Solar.FromDate(date);
+            var lunar = solar.Lunar;
 
-            return $"{tg}{dz}年 {monthStr} {dayStr}";
+            return $"{lunar.YearGan}{lunar.YearZhi}年 {lunar.MonthInChinese} {lunar.DayInChinese}";
         }
         catch
         {
@@ -73,23 +60,11 @@ public static class LunarCalendarHelper
     {
         try
         {
-            // 如果有闰月，需要调整月份值
-            var leapMonth = _calendar.GetLeapMonth(lunarYear);
-            var month = lunarMonth;
-
-            if (leapMonth > 0)
-            {
-                if (isLeapMonth && lunarMonth == leapMonth - 1)
-                {
-                    month = leapMonth;
-                }
-                else if (lunarMonth >= leapMonth)
-                {
-                    month = lunarMonth + 1;
-                }
-            }
-
-            return _calendar.ToDateTime(lunarYear, month, lunarDay, hour, minute, second, 0);
+            // lunar-csharp 中闰月用负数表示
+            var month = isLeapMonth ? -lunarMonth : lunarMonth;
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, month, lunarDay, hour, minute, second);
+            var solar = lunar.Solar;
+            return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
         }
         catch
         {
@@ -102,9 +77,17 @@ public static class LunarCalendarHelper
     /// </summary>
     public static string GetLunarYearName(int lunarYear)
     {
-        var tg = _tiangan[(lunarYear - 4) % 10];
-        var dz = _dizhi[(lunarYear - 4) % 12];
-        return $"{tg}{dz}";
+        try
+        {
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, 1, 1);
+            return lunar.YearGan + lunar.YearZhi;
+        }
+        catch
+        {
+            var tg = _tiangan[(lunarYear - 4) % 10];
+            var dz = _dizhi[(lunarYear - 4) % 12];
+            return $"{tg}{dz}";
+        }
     }
 
     /// <summary>
@@ -112,7 +95,15 @@ public static class LunarCalendarHelper
     /// </summary>
     public static string GetTiangan(int lunarYear)
     {
-        return _tiangan[(lunarYear - 4) % 10];
+        try
+        {
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, 1, 1);
+            return lunar.YearGan;
+        }
+        catch
+        {
+            return _tiangan[(lunarYear - 4) % 10];
+        }
     }
 
     /// <summary>
@@ -120,7 +111,15 @@ public static class LunarCalendarHelper
     /// </summary>
     public static string GetDizhi(int lunarYear)
     {
-        return _dizhi[(lunarYear - 4) % 12];
+        try
+        {
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, 1, 1);
+            return lunar.YearZhi;
+        }
+        catch
+        {
+            return _dizhi[(lunarYear - 4) % 12];
+        }
     }
 
     /// <summary>
@@ -150,13 +149,13 @@ public static class LunarCalendarHelper
     }
 
     /// <summary>
-    /// 由天干地支计算农历年份（返回第一个匹配的年份，范围1901-2100）
+    /// 由天干地支计算农历年份（返回第一个匹配的年份，范围1-9999）
     /// </summary>
     public static int GetLunarYearFromTianganDizhi(string tiangan, string dizhi)
     {
         int tgIndex = GetTianganIndex(tiangan);
         int dzIndex = GetDizhiIndex(dizhi);
-        
+
         if (tgIndex < 0 || dzIndex < 0)
             return 0;
 
@@ -167,20 +166,20 @@ public static class LunarCalendarHelper
         }
 
         int result = baseYear;
-        while (result < 1901)
+        while (result < 1)
             result += 60;
-        while (result > 2100)
+        while (result > 9999)
             result -= 60;
 
         return result;
     }
 
     /// <summary>
-    /// 获取所有固定年份范围列表
+    /// 获取所有固定年份范围列表（扩展到0001-9999）
     /// </summary>
     public static string[] GetAllYearRanges()
     {
-        return new[] { "1901-1923", "1924-1983", "1984-2043", "2044-2101" };
+        return new[] { "0001-0060", "0061-0999", "1000-1599", "1600-1999", "2000-2399", "2400-2999", "3000-3999", "4000-4999", "5000-5999", "6000-6999", "7000-7999", "8000-8999", "9000-9999" };
     }
 
     /// <summary>
@@ -190,7 +189,7 @@ public static class LunarCalendarHelper
     {
         int tgIndex = GetTianganIndex(tiangan);
         int dzIndex = GetDizhiIndex(dizhi);
-        
+
         if (tgIndex < 0 || dzIndex < 0)
             return 0;
 
@@ -222,19 +221,19 @@ public static class LunarCalendarHelper
     }
 
     /// <summary>
-    /// 由天干地支获取所有匹配的农历年份（范围1901-2100）
+    /// 由天干地支获取所有匹配的农历年份（范围0001-9999）
     /// </summary>
     public static int[] GetAllLunarYearsFromTianganDizhi(string tiangan, string dizhi)
     {
         int tgIndex = GetTianganIndex(tiangan);
         int dzIndex = GetDizhiIndex(dizhi);
-        
+
         if (tgIndex < 0 || dzIndex < 0)
             return Array.Empty<int>();
 
         var years = new List<int>();
-        
-        for (int year = 1901; year <= 2100; year++)
+
+        for (int year = 1; year <= 9999; year++)
         {
             if ((year - 4) % 10 == tgIndex && (year - 4) % 12 == dzIndex)
             {
@@ -246,8 +245,7 @@ public static class LunarCalendarHelper
     }
 
     /// <summary>
-    /// 由天干地支获取年份范围列表（每个范围代表一个完整周期或部分周期）
-    /// 返回格式如："1901-1923", "1924-1983", "1984-2043", "2044-2101"
+    /// 由天干地支获取年份范围列表
     /// </summary>
     public static string[] GetYearRangesFromTianganDizhi(string tiangan, string dizhi)
     {
@@ -256,22 +254,22 @@ public static class LunarCalendarHelper
             return Array.Empty<string>();
 
         var ranges = new List<string>();
-        
+
         for (int i = 0; i < years.Length; i++)
         {
             int startYear = years[i];
             int endYear;
-            
+
             if (i < years.Length - 1)
             {
                 endYear = years[i + 1] - 1;
             }
             else
             {
-                endYear = 2101;
+                endYear = 9999;
             }
-            
-            ranges.Add($"{startYear}-{endYear}");
+
+            ranges.Add($"{startYear:D4}-{endYear:D4}");
         }
 
         return ranges.ToArray();
@@ -284,7 +282,7 @@ public static class LunarCalendarHelper
     {
         startYear = 0;
         endYear = 0;
-        
+
         if (string.IsNullOrWhiteSpace(range))
             return false;
 
@@ -316,8 +314,21 @@ public static class LunarCalendarHelper
     /// </summary>
     public static int GetLeapMonth(int lunarYear)
     {
-        var leapMonth = _calendar.GetLeapMonth(lunarYear);
-        return leapMonth > 0 ? leapMonth - 1 : 0;
+        try
+        {
+            // 遍历1-12月，检查哪个月是闰月（负数）
+            for (int m = 1; m <= 12; m++)
+            {
+                var lunar = Lunar.Lunar.FromYmdHms(lunarYear, m, 1);
+                if (lunar.Month < 0)
+                    return Math.Abs(lunar.Month);
+            }
+            return 0;
+        }
+        catch
+        {
+            return 0;
+        }
     }
 
     /// <summary>
@@ -328,7 +339,9 @@ public static class LunarCalendarHelper
         if (!IsDateSupported(date)) return 0;
         try
         {
-            return _calendar.GetYear(date);
+            var solar = Solar.FromDate(date);
+            var lunar = solar.Lunar;
+            return lunar.Year;
         }
         catch
         {
@@ -344,14 +357,9 @@ public static class LunarCalendarHelper
         if (!IsDateSupported(date)) return 0;
         try
         {
-            var lunarMonth = _calendar.GetMonth(date);
-            var leapMonth = _calendar.GetLeapMonth(_calendar.GetYear(date));
-
-            if (leapMonth > 0 && lunarMonth >= leapMonth)
-            {
-                return lunarMonth - 1;
-            }
-            return lunarMonth;
+            var solar = Solar.FromDate(date);
+            var lunar = solar.Lunar;
+            return Math.Abs(lunar.Month);
         }
         catch
         {
@@ -367,7 +375,9 @@ public static class LunarCalendarHelper
         if (!IsDateSupported(date)) return 0;
         try
         {
-            return _calendar.GetDayOfMonth(date);
+            var solar = Solar.FromDate(date);
+            var lunar = solar.Lunar;
+            return lunar.Day;
         }
         catch
         {
@@ -383,10 +393,9 @@ public static class LunarCalendarHelper
         if (!IsDateSupported(date)) return false;
         try
         {
-            var lunarYear = _calendar.GetYear(date);
-            var lunarMonth = _calendar.GetMonth(date);
-            var leapMonth = _calendar.GetLeapMonth(lunarYear);
-            return leapMonth > 0 && lunarMonth == leapMonth;
+            var solar = Solar.FromDate(date);
+            var lunar = solar.Lunar;
+            return lunar.Month < 0;
         }
         catch
         {
@@ -401,15 +410,16 @@ public static class LunarCalendarHelper
     {
         try
         {
-            var leapMonth = _calendar.GetLeapMonth(lunarYear);
-            var month = lunarMonth;
-
-            if (leapMonth > 0 && lunarMonth >= leapMonth)
+            // 尝试创建30日，如果成功则该月有30天，否则29天
+            try
             {
-                month = lunarMonth + 1;
+                Lunar.Lunar.FromYmdHms(lunarYear, lunarMonth, 30);
+                return 30;
             }
-
-            return _calendar.GetDaysInMonth(lunarYear, month);
+            catch
+            {
+                return 29;
+            }
         }
         catch
         {
@@ -448,6 +458,3 @@ public static class LunarCalendarHelper
         return "";
     }
 }
-
-
-

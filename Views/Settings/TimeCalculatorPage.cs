@@ -154,24 +154,24 @@ public class TimeCalculatorPage : UserControl
             Foreground = Brushes.White
         });
 
-        var inputRow = new Grid
+        var inputRow = new StackPanel
         {
-            ColumnDefinitions = new ColumnDefinitions("180,*")
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
         };
 
-        _subDirectionComboBox = new ComboBox { Width = 260, HorizontalAlignment = HorizontalAlignment.Left };
+        _subDirectionComboBox = new ComboBox { Width = 100, HorizontalAlignment = HorizontalAlignment.Left };
         _subDirectionComboBox.Items.Add("往后");
         _subDirectionComboBox.Items.Add("往前");
         _subDirectionComboBox.SelectedIndex = 0;
-        Grid.SetColumn(_subDirectionComboBox, 0);
         inputRow.Children.Add(_subDirectionComboBox);
 
         _subtrahendTextBox = new TextBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Watermark = "例如：1d2h3m4s"
+            Watermark = "例如：1d2h3m4s",
+            MinWidth = 200
         };
-        Grid.SetColumn(_subtrahendTextBox, 1);
         inputRow.Children.Add(_subtrahendTextBox);
 
         panel.Children.Add(inputRow);
@@ -542,12 +542,14 @@ public class TimeCalculatorPage : UserControl
         return string.Join("", parts);
     }
 
+    // ===== 1582年历法改革相关方法已注释掉 =====
+    // lunar-csharp 的 Solar 类已处理1582年历法改革（消失的10天），无需手动处理
     public static DateTime AdjustForGregorianReform(DateTime date)
     {
-        if (date.Year == 1582 && date.Month == 10 && date.Day >= 5 && date.Day <= 14)
-        {
-            return new DateTime(1582, 10, 15, date.Hour, date.Minute, date.Second, date.Millisecond);
-        }
+        // if (date.Year == 1582 && date.Month == 10 && date.Day >= 5 && date.Day <= 14)
+        // {
+        //     return new DateTime(1582, 10, 15, date.Hour, date.Minute, date.Second, date.Millisecond);
+        // }
         return date;
     }
 
@@ -558,81 +560,39 @@ public class TimeCalculatorPage : UserControl
         if (years != 0)
         {
             result = result.AddYears(years);
-            result = AdjustForGregorianReform(result);
+            // result = AdjustForGregorianReform(result);
         }
 
         if (months != 0)
         {
             result = result.AddMonths(months);
-            result = AdjustForGregorianReform(result);
+            // result = AdjustForGregorianReform(result);
         }
 
         if (timeSpan != TimeSpan.Zero)
         {
-            var daysToAdd = (int)timeSpan.TotalDays;
-            var remaining = timeSpan - TimeSpan.FromDays(daysToAdd);
-
-            for (int i = 0; i < Math.Abs(daysToAdd); i++)
-            {
-                if (daysToAdd > 0)
-                {
-                    result = result.AddDays(1);
-                    result = SkipGregorianGapForward(result);
-                }
-                else
-                {
-                    result = result.AddDays(-1);
-                    result = SkipGregorianGapBackward(result);
-                }
-            }
-
-            result = result.Add(remaining);
+            // 1582年跳过逻辑已注释掉 - lunar-csharp 已处理
+            result = result.Add(timeSpan);
         }
 
         return result;
     }
 
-    private static DateTime SkipGregorianGapForward(DateTime date)
-    {
-        if (date.Year == 1582 && date.Month == 10 && date.Day == 4)
-        {
-            return new DateTime(1582, 10, 15, date.Hour, date.Minute, date.Second, date.Millisecond);
-        }
-        return date;
-    }
-
-    private static DateTime SkipGregorianGapBackward(DateTime date)
-    {
-        if (date.Year == 1582 && date.Month == 10 && date.Day == 15)
-        {
-            return new DateTime(1582, 10, 4, date.Hour, date.Minute, date.Second, date.Millisecond);
-        }
-        return date;
-    }
+    // 1582年跳过方法已注释掉 - lunar-csharp 已处理
+    // private static DateTime SkipGregorianGapForward(DateTime date) { ... }
+    // private static DateTime SkipGregorianGapBackward(DateTime date) { ... }
 
     private static TimeSpan CalculateDifferenceWithGregorianReform(DateTime start, DateTime end)
     {
-        start = AdjustForGregorianReform(start);
-        end = AdjustForGregorianReform(end);
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // start = AdjustForGregorianReform(start);
+        // end = AdjustForGregorianReform(end);
 
         var earlier = start < end ? start : end;
         var later = start < end ? end : start;
 
-        long totalDays = 0;
-        var current = earlier.Date;
-        var target = later.Date;
-
-        while (current < target)
-        {
-            current = current.AddDays(1);
-            if (!(current.Year == 1582 && current.Month == 10 && current.Day >= 5 && current.Day <= 14))
-            {
-                totalDays++;
-            }
-        }
-
-        var timeDiff = later.TimeOfDay - earlier.TimeOfDay;
-        return TimeSpan.FromDays(totalDays) + timeDiff;
+        // 直接计算时间差，无需跳过1582年10月5-14日
+        return later - earlier;
     }
 
     private async void ShowErrorDialog(string message)

@@ -500,6 +500,8 @@ public class PluginSettingsPage : UserControl
     private ToggleSwitch? _experimentalToggle;
     private Border? _experimentalItem;
 
+    public Action? RequestRestartAction { get; set; }
+
     public PluginSettingsPage() : this(null, null)
     {
     }
@@ -1433,6 +1435,24 @@ public class PluginSettingsPage : UserControl
                     _echoHoleButton.IsEnabled = true;
                 }
             }
+
+            RequestRestartAction?.Invoke();
+
+            var dialog = new ContentDialog()
+            {
+                Title = "需要重启",
+                Content = "部分功能需在重启后生效。",
+                PrimaryButtonText = "立即重启",
+                SecondaryButtonText = "稍后",
+                DefaultButton = ContentDialogButton.Primary
+            };
+            dialog.ShowAsync(TopLevel.GetTopLevel(this)).ContinueWith(task =>
+            {
+                if (task.Result == ContentDialogResult.Primary)
+                {
+                    ClassIsland.Core.AppBase.Current.Restart();
+                }
+            });
         }
     }
 

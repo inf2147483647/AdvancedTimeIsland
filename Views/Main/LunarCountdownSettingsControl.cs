@@ -563,12 +563,12 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
     private void ShowEditDialog(LunarCountdownItem item, int order = 0)
     {
-        var dialog = new Window
+        var dialog = new ContentDialog()
         {
             Title = order > 0 ? $"正在编辑第{order}个农历倒计时" : "编辑农历倒计时",
-            Width = 550,
-            Height = 500,
-            WindowStartupLocation = WindowStartupLocation.CenterOwner
+            PrimaryButtonText = "确定",
+            SecondaryButtonText = "取消",
+            DefaultButton = ContentDialogButton.Primary
         };
 
         var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
@@ -850,11 +850,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarGroup.Content = solarPanel;
         contentPanel.Children.Add(solarGroup);
 
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-        var okButton = new Button { Content = "确定", Width = 80 };
-        var cancelButton = new Button { Content = "取消", Width = 80 };
-
-        okButton.Click += (s, e) =>
+        dialog.PrimaryButtonClick += (s, e) =>
         {
             item.Name = nameTextBox.Text ?? "新农历倒计时";
 
@@ -906,13 +902,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             item.IsCompleted = false;
 
             UpdateCountdownList();
-            dialog.Close();
         };
-
-        cancelButton.Click += (s, e) => dialog.Close();
-
-        buttonPanel.Children.Add(okButton);
-        buttonPanel.Children.Add(cancelButton);
 
         var scrollViewer = new ScrollViewer
         {
@@ -924,26 +914,13 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         var mainPanel = new Grid();
         mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        mainPanel.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
 
         Grid.SetRow(scrollViewer, 0);
         mainPanel.Children.Add(scrollViewer);
 
-        buttonPanel.Margin = new Avalonia.Thickness(12, 8, 12, 12);
-        Grid.SetRow(buttonPanel, 1);
-        mainPanel.Children.Add(buttonPanel);
-
         dialog.Content = mainPanel;
 
-        var ownerWindow = TopLevel.GetTopLevel(this) as Window;
-        if (ownerWindow != null)
-        {
-            dialog.ShowDialog(ownerWindow);
-        }
-        else
-        {
-            dialog.Show();
-        }
+        dialog.ShowAsync(TopLevel.GetTopLevel(this));
     }
 }
 

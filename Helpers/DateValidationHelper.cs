@@ -4,14 +4,18 @@ namespace AdvancedTimeIsland.Helpers;
 
 public static class DateValidationHelper
 {
-    private static readonly DateTime GregorianTransitionStart = new(1582, 10, 5);
-    private static readonly DateTime GregorianTransitionEnd = new(1582, 10, 14);
+    // ===== 1582年历法改革相关代码已注释掉 =====
+    // lunar-csharp 的 Solar 类已处理1582年历法改革（消失的10天），无需手动处理
+    // private static readonly DateTime GregorianTransitionStart = new(1582, 10, 5);
+    // private static readonly DateTime GregorianTransitionEnd = new(1582, 10, 14);
 
     public static bool IsInvalidGregorianTransitionDate(int year, int month, int day)
     {
-        if (year != 1582) return false;
-        if (month != 10) return false;
-        return day >= 5 && day <= 14;
+        // lunar-csharp 已处理1582年历法改革，此方法保留但始终返回false
+        // if (year != 1582) return false;
+        // if (month != 10) return false;
+        // return day >= 5 && day <= 14;
+        return false;
     }
 
     public static bool IsInvalidGregorianTransitionDate(DateTime dateTime)
@@ -21,13 +25,11 @@ public static class DateValidationHelper
 
     public static DateTime FixInvalidDate(int year, int month, int day, int hour, int minute, int second)
     {
-        if (!IsInvalidGregorianTransitionDate(year, month, day))
-        {
-            return new DateTime(year, month, day, hour, minute, second);
-        }
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // if (!IsInvalidGregorianTransitionDate(year, month, day)) { ... }
+        // var fixedDay = day + 10;
 
-        var fixedDay = day + 10;
-        return new DateTime(year, month, fixedDay, hour, minute, second);
+        return new DateTime(year, month, day, hour, minute, second);
     }
 
     public static bool TryParseSafeDateTime(int year, int month, int day, int hour, int minute, int second, out DateTime result)
@@ -37,8 +39,8 @@ public static class DateValidationHelper
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
             return false;
 
-        if (IsInvalidGregorianTransitionDate(year, month, day))
-            return false;
+        // 1582年检查已注释掉 - lunar-csharp 已处理
+        // if (IsInvalidGregorianTransitionDate(year, month, day)) return false;
 
         var daysInMonth = DateTime.DaysInMonth(year, month);
         if (day > daysInMonth)
@@ -53,20 +55,19 @@ public static class DateValidationHelper
 
     public static DateTime AdjustDateForGregorianTransition(DateTime dateTime)
     {
-        if (!IsInvalidGregorianTransitionDate(dateTime))
-            return dateTime;
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // if (!IsInvalidGregorianTransitionDate(dateTime)) return dateTime;
+        // return dateTime.AddDays(10);
 
-        return dateTime.AddDays(10);
+        return dateTime;
     }
 
     public static DateTime AdjustDateAfterAddition(DateTime originalDate, double daysToAdd)
     {
         var result = originalDate.AddDays(daysToAdd);
 
-        if (IsInvalidGregorianTransitionDate(result))
-        {
-            return new DateTime(result.Year, result.Month, 4, result.Hour, result.Minute, result.Second, result.Millisecond);
-        }
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // if (IsInvalidGregorianTransitionDate(result)) { ... }
 
         return result;
     }
@@ -75,10 +76,8 @@ public static class DateValidationHelper
     {
         var result = originalDate.Add(timeSpan);
 
-        if (IsInvalidGregorianTransitionDate(result))
-        {
-            return new DateTime(result.Year, result.Month, 4, result.Hour, result.Minute, result.Second, result.Millisecond);
-        }
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // if (IsInvalidGregorianTransitionDate(result)) { ... }
 
         return result;
     }
@@ -89,12 +88,10 @@ public static class DateValidationHelper
         adjustedMonth = month;
         adjustedDay = day;
 
-        if (!IsInvalidGregorianTransitionDate(year, month, day))
-            return true;
+        // 1582年修正已注释掉 - lunar-csharp 已处理
+        // if (!IsInvalidGregorianTransitionDate(year, month, day)) return true;
+        // adjustedDay += 10;
 
-        adjustedDay += 10;
         return true;
     }
 }
-
-
