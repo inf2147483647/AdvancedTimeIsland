@@ -593,21 +593,26 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         var yearRangePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
         yearRangePanel.Children.Add(new TextBlock { Text = "年份范围:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
         var yearRangeCombo = new ComboBox { Width = 180 };
-        yearRangeCombo.Items.Add("1901-1923");
-        yearRangeCombo.Items.Add("1924-1983");
-        yearRangeCombo.Items.Add("1984-2043");
-        yearRangeCombo.Items.Add("2044-2101");
+        foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+        {
+            yearRangeCombo.Items.Add(range);
+        }
 
-        if (item.LunarYear >= 1901 && item.LunarYear <= 1923)
-            yearRangeCombo.SelectedItem = "1901-1923";
-        else if (item.LunarYear >= 1924 && item.LunarYear <= 1983)
-            yearRangeCombo.SelectedItem = "1924-1983";
-        else if (item.LunarYear >= 1984 && item.LunarYear <= 2043)
+        bool foundRange = false;
+        foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+        {
+            if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+            {
+                if (item.LunarYear >= startYear && item.LunarYear <= endYear)
+                {
+                    yearRangeCombo.SelectedItem = range;
+                    foundRange = true;
+                    break;
+                }
+            }
+        }
+        if (!foundRange)
             yearRangeCombo.SelectedItem = "1984-2043";
-        else if (item.LunarYear >= 2044 && item.LunarYear <= 2101)
-            yearRangeCombo.SelectedItem = "2044-2101";
-        else
-            yearRangeCombo.SelectedIndex = 2;
 
         yearRangePanel.Children.Add(yearRangeCombo);
         lunarPanel.Children.Add(yearRangePanel);
@@ -773,14 +778,17 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 dayCombo.SelectedIndex = lunarDay - 1;
                 lunarTimePicker.SelectedTime = new TimeSpan(solarDate.Hour, solarDate.Minute, solarDate.Second);
 
-                if (lunarYear >= 1901 && lunarYear <= 1923)
-                    yearRangeCombo.SelectedItem = "1901-1923";
-                else if (lunarYear >= 1924 && lunarYear <= 1983)
-                    yearRangeCombo.SelectedItem = "1924-1983";
-                else if (lunarYear >= 1984 && lunarYear <= 2043)
-                    yearRangeCombo.SelectedItem = "1984-2043";
-                else if (lunarYear >= 2044 && lunarYear <= 2101)
-                    yearRangeCombo.SelectedItem = "2044-2101";
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                {
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    {
+                        if (lunarYear >= startYear && lunarYear <= endYear)
+                        {
+                            yearRangeCombo.SelectedItem = range;
+                            break;
+                        }
+                    }
+                }
             }
         };
         solarPanel.Children.Add(syncButton);

@@ -125,6 +125,154 @@ public static class LunarHelper
 
     #endregion
 
+    #region 日期算术（完全基于lunar-csharp Solar，自动处理1582年消失的10天和儒略历）
+
+    /// <summary>
+    /// 添加小时数（完全基于Solar arithmetic）
+    /// </summary>
+    public static DateTime SolarAddHours(DateTime dateTime, double hours)
+    {
+        var solar = Solar.FromDate(dateTime);
+        var julianDay = solar.JulianDay + hours / 24.0;
+        solar = Solar.FromJulianDay(julianDay);
+
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 添加天数（完全基于Solar arithmetic）
+    /// </summary>
+    public static DateTime SolarAddDays(DateTime dateTime, double days)
+    {
+        var solar = Solar.FromDate(dateTime);
+        var julianDay = solar.JulianDay + days;
+        solar = Solar.FromJulianDay(julianDay);
+
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 添加时间跨度（完全基于Solar arithmetic）
+    /// </summary>
+    public static DateTime SolarAddTimeSpan(DateTime dateTime, TimeSpan timeSpan)
+    {
+        var solar = Solar.FromDate(dateTime);
+        var julianDay = solar.JulianDay + timeSpan.TotalSeconds / 86400.0;
+        solar = Solar.FromJulianDay(julianDay);
+
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 添加月份（完全基于Solar arithmetic）
+    /// </summary>
+    public static DateTime SolarAddMonths(DateTime dateTime, int months)
+    {
+        var solar = Solar.FromDate(dateTime);
+        var targetMonth = solar.Month + months;
+        var targetYear = solar.Year;
+
+        while (targetMonth > 12)
+        {
+            targetMonth -= 12;
+            targetYear++;
+        }
+        while (targetMonth < 1)
+        {
+            targetMonth += 12;
+            targetYear--;
+        }
+
+        var daysInTargetMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(targetYear, targetMonth);
+        var targetDay = Math.Min(solar.Day, daysInTargetMonth);
+
+        if (targetYear == 1582 && targetMonth == 10 && targetDay >= 5 && targetDay <= 14)
+        {
+            targetDay = 15;
+        }
+
+        solar = Solar.FromYmdHms(targetYear, targetMonth, targetDay, solar.Hour, solar.Minute, solar.Second);
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 添加年份（完全基于Solar arithmetic）
+    /// </summary>
+    public static DateTime SolarAddYears(DateTime dateTime, int years)
+    {
+        var solar = Solar.FromDate(dateTime);
+        var targetYear = solar.Year + years;
+        var targetMonth = solar.Month;
+        var targetDay = solar.Day;
+
+        var daysInTargetMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(targetYear, targetMonth);
+        targetDay = Math.Min(targetDay, daysInTargetMonth);
+
+        if (targetYear == 1582 && targetMonth == 10 && targetDay >= 5 && targetDay <= 14)
+        {
+            targetDay = 15;
+        }
+
+        solar = Solar.FromYmdHms(targetYear, targetMonth, targetDay, solar.Hour, solar.Minute, solar.Second);
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 获取某月的天数（使用Solar算法，正确处理儒略历和公历）
+    /// </summary>
+    public static int GetDaysInMonth(int year, int month)
+    {
+        return Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+    }
+
+    /// <summary>
+    /// 判断是否为闰年（使用Solar算法，正确处理儒略历和公历）
+    /// </summary>
+    public static bool IsLeapYear(int year)
+    {
+        return Lunar.Util.SolarUtil.GetDaysOfMonth(year, 2) == 29;
+    }
+
+    /// <summary>
+    /// 创建安全的DateTime（对于1582年之前的日期，使用Solar创建）
+    /// </summary>
+    public static DateTime CreateSafeDateTime(int year, int month, int day, int hour = 0, int minute = 0, int second = 0)
+    {
+        if (year >= 1583)
+        {
+            return new DateTime(year, month, day, hour, minute, second);
+        }
+
+        var solar = Solar.FromYmdHms(year, month, day, hour, minute, second);
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// 比较两个日期的大小
+    /// </summary>
+    public static int Compare(DateTime date1, DateTime date2)
+    {
+        var solar1 = Solar.FromDate(date1);
+        var solar2 = Solar.FromDate(date2);
+        var jd1 = solar1.JulianDay;
+        var jd2 = solar2.JulianDay;
+        if (jd1 < jd2) return -1;
+        if (jd1 > jd2) return 1;
+        return 0;
+    }
+
+    /// <summary>
+    /// 计算两个日期之间的天数差
+    /// </summary>
+    public static double DaysBetween(DateTime date1, DateTime date2)
+    {
+        var solar1 = Solar.FromDate(date1);
+        var solar2 = Solar.FromDate(date2);
+        return solar2.JulianDay - solar1.JulianDay;
+    }
+
+    #endregion
+
     #region 儒略日转换
 
     /// <summary>

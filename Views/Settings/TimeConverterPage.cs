@@ -347,11 +347,11 @@ public class TimeConverterPage : UserControl
         });
 
         _lunarYearRangeComboBox = new ComboBox { Width = 180 };
-        _lunarYearRangeComboBox.Items.Add("1901-1923");
-        _lunarYearRangeComboBox.Items.Add("1924-1983");
-        _lunarYearRangeComboBox.Items.Add("1984-2043");
-        _lunarYearRangeComboBox.Items.Add("2044-2101");
-        _lunarYearRangeComboBox.SelectedIndex = 2; // 默认1984-2043
+        foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+        {
+            _lunarYearRangeComboBox.Items.Add(range);
+        }
+        _lunarYearRangeComboBox.SelectedItem = "1984-2043"; // 默认1984-2043
         yearRangePanel.Children.Add(_lunarYearRangeComboBox);
 
         content.Children.Add(yearRangePanel);
@@ -752,17 +752,16 @@ public class TimeConverterPage : UserControl
             Spacing = 6
         };
 
-        // 年份输入框
-        yearTextBox = new TextBox
+        var ytb = new TextBox
         {
             Width = 80,
             CornerRadius = new CornerRadius(4),
             Watermark = "年"
         };
-        yearTextBox.LostFocus += OnYearTextBoxLostFocus;
-        datePanel.Children.Add(yearTextBox);
+        yearTextBox = ytb;
+        ytb.LostFocus += OnYearTextBoxLostFocus;
 
-        monthComboBox = new ComboBox
+        var mcb = new ComboBox
         {
             Width = 80,
             CornerRadius = new CornerRadius(4),
@@ -770,11 +769,11 @@ public class TimeConverterPage : UserControl
         };
         for (int i = 1; i <= 12; i++)
         {
-            monthComboBox.Items.Add($"{i}月");
+            mcb.Items.Add($"{i}月");
         }
-        datePanel.Children.Add(monthComboBox);
+        monthComboBox = mcb;
 
-        dayComboBox = new ComboBox
+        var dcb = new ComboBox
         {
             Width = 80,
             CornerRadius = new CornerRadius(4),
@@ -782,9 +781,16 @@ public class TimeConverterPage : UserControl
         };
         for (int i = 1; i <= 31; i++)
         {
-            dayComboBox.Items.Add($"{i}日");
+            dcb.Items.Add($"{i}日");
         }
-        datePanel.Children.Add(dayComboBox);
+        dayComboBox = dcb;
+
+        ytb.LostFocus += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+        mcb.SelectionChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+
+        datePanel.Children.Add(ytb);
+        datePanel.Children.Add(mcb);
+        datePanel.Children.Add(dcb);
 
         panel.Children.Add(datePanel);
 
@@ -1034,8 +1040,22 @@ public class TimeConverterPage : UserControl
             SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
             return;
         }
-        var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
-        _unixInputTextBox!.Text = timestamp.ToString();
+
+        if (UnixTimeHelper.IsNonExistentDate1582October(dt))
+        {
+            SetResultText(_beijingResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            return;
+        }
+
+        try
+        {
+            var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
+            _unixInputTextBox!.Text = timestamp.ToString();
+        }
+        catch (ArgumentException ex)
+        {
+            SetResultText(_beijingResultTextBlock, ex.Message);
+        }
     }
 
     private void OnBeijingToLunar(object? sender, RoutedEventArgs e)
@@ -1075,14 +1095,17 @@ public class TimeConverterPage : UserControl
         // 设置年份范围
         if (_lunarYearRangeComboBox != null)
         {
-            if (lunarYear >= 1901 && lunarYear <= 1923)
-                _lunarYearRangeComboBox.SelectedItem = "1901-1923";
-            else if (lunarYear >= 1924 && lunarYear <= 1983)
-                _lunarYearRangeComboBox.SelectedItem = "1924-1983";
-            else if (lunarYear >= 1984 && lunarYear <= 2043)
-                _lunarYearRangeComboBox.SelectedItem = "1984-2043";
-            else if (lunarYear >= 2044 && lunarYear <= 2101)
-                _lunarYearRangeComboBox.SelectedItem = "2044-2101";
+            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            {
+                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                {
+                    if (lunarYear >= startYear && lunarYear <= endYear)
+                    {
+                        _lunarYearRangeComboBox.SelectedItem = range;
+                        break;
+                    }
+                }
+            }
         }
 
         // 设置天干地支
@@ -1349,8 +1372,22 @@ public class TimeConverterPage : UserControl
             SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
             return;
         }
-        var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
-        _unixInputTextBox!.Text = timestamp.ToString();
+
+        if (UnixTimeHelper.IsNonExistentDate1582October(dt))
+        {
+            SetResultText(_lunarResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            return;
+        }
+
+        try
+        {
+            var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
+            _unixInputTextBox!.Text = timestamp.ToString();
+        }
+        catch (ArgumentException ex)
+        {
+            SetResultText(_lunarResultTextBlock, ex.Message);
+        }
     }
 
     private void OnLunarToZone(object? sender, RoutedEventArgs e)
@@ -1461,15 +1498,28 @@ public class TimeConverterPage : UserControl
         DateTime utcTime;
         try
         {
-            utcTime = DateTime.SpecifyKind(dt.AddHours(-offset - dstOffset), DateTimeKind.Utc);
+            utcTime = DateTime.SpecifyKind(LunarHelper.SolarAddHours(dt, -offset - dstOffset), DateTimeKind.Utc);
         }
         catch (ArgumentOutOfRangeException)
         {
             SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
             return;
         }
-        var timestamp = UnixTimeHelper.ToUnixTimestamp(utcTime);
-        _unixInputTextBox!.Text = timestamp.ToString();
+        if (UnixTimeHelper.IsNonExistentDate1582October(utcTime))
+        {
+            SetResultText(_zoneResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            return;
+        }
+
+        try
+        {
+            var timestamp = UnixTimeHelper.ToUnixTimestamp(utcTime);
+            _unixInputTextBox!.Text = timestamp.ToString();
+        }
+        catch (ArgumentException ex)
+        {
+            SetResultText(_zoneResultTextBlock, ex.Message);
+        }
     }
 
     private void OnZoneToLunar(object? sender, RoutedEventArgs e)
@@ -1591,8 +1641,21 @@ public class TimeConverterPage : UserControl
             SetResultText(_localResultTextBlock, "转换结果超出表示范围");
             return;
         }
-        var timestamp = UnixTimeHelper.ToUnixTimestamp(beijingTime);
-        _unixInputTextBox!.Text = timestamp.ToString();
+        if (UnixTimeHelper.IsNonExistentDate1582October(beijingTime))
+        {
+            SetResultText(_localResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            return;
+        }
+
+        try
+        {
+            var timestamp = UnixTimeHelper.ToUnixTimestamp(beijingTime);
+            _unixInputTextBox!.Text = timestamp.ToString();
+        }
+        catch (ArgumentException ex)
+        {
+            SetResultText(_localResultTextBlock, ex.Message);
+        }
     }
 
     private void OnLocalToLunar(object? sender, RoutedEventArgs e)
@@ -1683,7 +1746,7 @@ public class TimeConverterPage : UserControl
         // 校验日期是否合法，并自动修正为合法日期
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
             return false;
-        if (day > DateTime.DaysInMonth(year, month))
+        if (day > Lunar.Util.SolarUtil.GetDaysOfMonth(year, month))
             return false;
         if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
             return false;
@@ -1692,7 +1755,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            result = new DateTime(year, month, day, hour, minute, second);
+            if (year >= 1583)
+            {
+                result = new DateTime(year, month, day, hour, minute, second);
+            }
+            else
+            {
+                var solar = Lunar.Solar.FromYmdHms(year, month, day, hour, minute, second);
+                result = new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+            }
             return true;
         }
         catch (ArgumentOutOfRangeException)
@@ -1730,7 +1801,7 @@ public class TimeConverterPage : UserControl
 
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
             return false;
-        if (day > DateTime.DaysInMonth(year, month))
+        if (day > Lunar.Util.SolarUtil.GetDaysOfMonth(year, month))
             return false;
         if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
             return false;
@@ -1739,7 +1810,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            result = new DateTime(year, month, day, hour, minute, second);
+            if (year >= 1583)
+            {
+                result = new DateTime(year, month, day, hour, minute, second);
+            }
+            else
+            {
+                var solar = Lunar.Solar.FromYmdHms(year, month, day, hour, minute, second);
+                result = new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+            }
             return true;
         }
         catch (ArgumentOutOfRangeException)
@@ -1776,7 +1855,7 @@ public class TimeConverterPage : UserControl
 
         if (year < 1 || year > 9999 || month < 1 || month > 12 || day < 1)
             return false;
-        if (day > DateTime.DaysInMonth(year, month))
+        if (day > Lunar.Util.SolarUtil.GetDaysOfMonth(year, month))
             return false;
         if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
             return false;
@@ -1785,7 +1864,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            result = new DateTime(year, month, day, hour, minute, second);
+            if (year >= 1583)
+            {
+                result = new DateTime(year, month, day, hour, minute, second);
+            }
+            else
+            {
+                var solar = Lunar.Solar.FromYmdHms(year, month, day, hour, minute, second);
+                result = new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+            }
             return true;
         }
         catch (ArgumentOutOfRangeException)
@@ -1920,8 +2007,7 @@ public class TimeConverterPage : UserControl
     /// </summary>
     private int ValidateAndFixDay(int year, int month, int day)
     {
-        // 获取该月的最后一天
-        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var daysInMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
         return Math.Min(day, daysInMonth);
     }
 
@@ -1938,7 +2024,7 @@ public class TimeConverterPage : UserControl
         if (DateValidationHelper.IsInvalidGregorianTransitionDate(year, month, day))
             return false;
 
-        var daysInMonth = DateTime.DaysInMonth(year, month);
+        var daysInMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
         if (day > daysInMonth)
             day = daysInMonth;
 
@@ -1957,6 +2043,53 @@ public class TimeConverterPage : UserControl
     }
 
     #endregion
+
+    private void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    {
+        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+            return;
+        if (monthComboBox.SelectedItem == null)
+            return;
+        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
+            return;
+
+        var selectedDayText = dayComboBox.SelectedItem?.ToString();
+        int? selectedDay = null;
+        if (selectedDayText != null && int.TryParse(selectedDayText.Replace("日", ""), out var d))
+            selectedDay = d;
+
+        dayComboBox.Items.Clear();
+
+        if (year == 1582 && month == 10)
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+            for (int i = 15; i <= 31; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+        else
+        {
+            var daysInMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+            for (int i = 1; i <= daysInMonth; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+
+        if (selectedDay.HasValue)
+        {
+            var safeDay = ValidateAndFixDay(year, month, selectedDay.Value);
+            dayComboBox.SelectedItem = $"{safeDay}日";
+        }
+        else
+        {
+            dayComboBox.SelectedIndex = -1;
+        }
+    }
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

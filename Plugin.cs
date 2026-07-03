@@ -310,12 +310,12 @@ public class Plugin : PluginBase
                 var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
                 var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisYear > endTimeThisYear)
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
-                    if (now >= startTimeThisYear)
-                        endTimeThisYear = endTimeThisYear.AddYears(1);
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
                     else
-                        startTimeThisYear = startTimeThisYear.AddYears(-1);
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
                 }
 
                 return now >= startTimeThisYear && now <= endTimeThisYear;
@@ -356,12 +356,12 @@ public class Plugin : PluginBase
                 var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
                 var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisMonth > endTimeThisMonth)
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {
-                    if (now >= startTimeThisMonth)
-                        endTimeThisMonth = endTimeThisMonth.AddMonths(1);
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
                     else
-                        startTimeThisMonth = startTimeThisMonth.AddMonths(-1);
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
                 }
 
                 return now >= startTimeThisMonth && now <= endTimeThisMonth;
@@ -400,12 +400,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;
@@ -442,12 +442,12 @@ public class Plugin : PluginBase
                 var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
                 var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
 
-                if (startTimeThisHour > endTimeThisHour)
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {
-                    if (now >= startTimeThisHour)
-                        endTimeThisHour = endTimeThisHour.AddHours(1);
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
                     else
-                        startTimeThisHour = startTimeThisHour.AddHours(-1);
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
                 }
 
                 return now >= startTimeThisHour && now <= endTimeThisHour;
@@ -547,12 +547,12 @@ public class Plugin : PluginBase
                 var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
                 var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisYear > endTimeThisYear)
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
-                    if (now >= startTimeThisYear)
-                        endTimeThisYear = endTimeThisYear.AddYears(1);
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
                     else
-                        startTimeThisYear = startTimeThisYear.AddYears(-1);
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
                 }
 
                 return now >= startTimeThisYear && now <= endTimeThisYear;
@@ -593,12 +593,12 @@ public class Plugin : PluginBase
                 var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
                 var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisMonth > endTimeThisMonth)
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {
-                    if (now >= startTimeThisMonth)
-                        endTimeThisMonth = endTimeThisMonth.AddMonths(1);
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
                     else
-                        startTimeThisMonth = startTimeThisMonth.AddMonths(-1);
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
                 }
 
                 return now >= startTimeThisMonth && now <= endTimeThisMonth;
@@ -637,12 +637,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;
@@ -679,12 +679,12 @@ public class Plugin : PluginBase
                 var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
                 var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
 
-                if (startTimeThisHour > endTimeThisHour)
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {
-                    if (now >= startTimeThisHour)
-                        endTimeThisHour = endTimeThisHour.AddHours(1);
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
                     else
-                        startTimeThisHour = startTimeThisHour.AddHours(-1);
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
                 }
 
                 return now >= startTimeThisHour && now <= endTimeThisHour;
@@ -771,12 +771,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;
@@ -843,12 +843,12 @@ public class Plugin : PluginBase
                 var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
                 var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisYear > endTimeThisYear)
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
-                    if (now >= startTimeThisYear)
-                        endTimeThisYear = endTimeThisYear.AddYears(1);
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
                     else
-                        startTimeThisYear = startTimeThisYear.AddYears(-1);
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
                 }
 
                 return now >= startTimeThisYear && now <= endTimeThisYear;
@@ -889,12 +889,12 @@ public class Plugin : PluginBase
                 var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
                 var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
 
-                if (startTimeThisMonth > endTimeThisMonth)
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {
-                    if (now >= startTimeThisMonth)
-                        endTimeThisMonth = endTimeThisMonth.AddMonths(1);
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
                     else
-                        startTimeThisMonth = startTimeThisMonth.AddMonths(-1);
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
                 }
 
                 return now >= startTimeThisMonth && now <= endTimeThisMonth;
@@ -933,12 +933,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;
@@ -975,12 +975,12 @@ public class Plugin : PluginBase
                 var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
                 var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
 
-                if (startTimeThisHour > endTimeThisHour)
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {
-                    if (now >= startTimeThisHour)
-                        endTimeThisHour = endTimeThisHour.AddHours(1);
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
                     else
-                        startTimeThisHour = startTimeThisHour.AddHours(-1);
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
                 }
 
                 return now >= startTimeThisHour && now <= endTimeThisHour;
@@ -1034,12 +1034,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;
@@ -1095,12 +1095,12 @@ public class Plugin : PluginBase
                 var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
                 var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
 
-                if (startTimeToday > endTimeToday)
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
-                    if (now >= startTimeToday)
-                        endTimeToday = endTimeToday.AddDays(1);
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
                     else
-                        startTimeToday = startTimeToday.AddDays(-1);
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
                 }
 
                 return now >= startTimeToday && now <= endTimeToday;

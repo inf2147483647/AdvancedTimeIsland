@@ -175,11 +175,25 @@ public static class LunarCalendarHelper
     }
 
     /// <summary>
-    /// 获取所有固定年份范围列表（扩展到0001-9999）
+    /// 获取所有固定年份范围列表（基于甲子年，扩展到0001-9999）
+    /// 甲子年：4, 64, 124, 184, ..., 9964（每60年一个周期）
+    /// 范围格式：1-3, 4-63, 64-123, ..., 9904-9963, 9964-9999
     /// </summary>
     public static string[] GetAllYearRanges()
     {
-        return new[] { "0001-0060", "0061-0999", "1000-1599", "1600-1999", "2000-2399", "2400-2999", "3000-3999", "4000-4999", "5000-5999", "6000-6999", "7000-7999", "8000-8999", "9000-9999" };
+        var ranges = new List<string>();
+        
+        ranges.Add("0001-0003");
+        
+        for (int jiaziYear = 4; jiaziYear <= 9964; jiaziYear += 60)
+        {
+            int endYear = jiaziYear + 59;
+            if (endYear > 9999)
+                endYear = 9999;
+            ranges.Add($"{jiaziYear:D4}-{endYear:D4}");
+        }
+        
+        return ranges.ToArray();
     }
 
     /// <summary>

@@ -160,14 +160,17 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             _startTianganComboBox.SelectedItem = tg;
             _startDizhiComboBox.SelectedItem = dz;
             
-            if (Settings.StartLunarYear >= 1901 && Settings.StartLunarYear <= 1923)
-                _startYearRangeComboBox.SelectedItem = "1901-1923";
-            else if (Settings.StartLunarYear >= 1924 && Settings.StartLunarYear <= 1983)
-                _startYearRangeComboBox.SelectedItem = "1924-1983";
-            else if (Settings.StartLunarYear >= 1984 && Settings.StartLunarYear <= 2043)
-                _startYearRangeComboBox.SelectedItem = "1984-2043";
-            else if (Settings.StartLunarYear >= 2044 && Settings.StartLunarYear <= 2101)
-                _startYearRangeComboBox.SelectedItem = "2044-2101";
+            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            {
+                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                {
+                    if (Settings.StartLunarYear >= startYear && Settings.StartLunarYear <= endYear)
+                    {
+                        _startYearRangeComboBox.SelectedItem = range;
+                        break;
+                    }
+                }
+            }
         }
         else
         {
@@ -421,14 +424,17 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             _endTianganComboBox.SelectedItem = tg;
             _endDizhiComboBox.SelectedItem = dz;
             
-            if (Settings.EndLunarYear >= 1901 && Settings.EndLunarYear <= 1923)
-                _endYearRangeComboBox.SelectedItem = "1901-1923";
-            else if (Settings.EndLunarYear >= 1924 && Settings.EndLunarYear <= 1983)
-                _endYearRangeComboBox.SelectedItem = "1924-1983";
-            else if (Settings.EndLunarYear >= 1984 && Settings.EndLunarYear <= 2043)
-                _endYearRangeComboBox.SelectedItem = "1984-2043";
-            else if (Settings.EndLunarYear >= 2044 && Settings.EndLunarYear <= 2101)
-                _endYearRangeComboBox.SelectedItem = "2044-2101";
+            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            {
+                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                {
+                    if (Settings.EndLunarYear >= startYear && Settings.EndLunarYear <= endYear)
+                    {
+                        _endYearRangeComboBox.SelectedItem = range;
+                        break;
+                    }
+                }
+            }
         }
         else
         {

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.Text.RegularExpressions;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using Avalonia;
@@ -17,10 +18,10 @@ public class TimeCalculatorPage : UserControl
 {
     private readonly PluginSettings? _pluginSettings;
 
-    private DatePicker? _minuendDatePicker;
-    private ComboBox? _minuendHourComboBox;
-    private ComboBox? _minuendMinuteComboBox;
-    private ComboBox? _minuendSecondComboBox;
+    private TextBox? _minuendYearTextBox;
+    private ComboBox? _minuendMonthComboBox;
+    private ComboBox? _minuendDayComboBox;
+    private TimePicker? _minuendTimePicker;
     private Button? _minuendNowButton;
 
     private ComboBox? _subDirectionComboBox;
@@ -28,10 +29,10 @@ public class TimeCalculatorPage : UserControl
     private TextBlock? _subtrahendHint;
     private Button? _calculateButton;
 
-    private DatePicker? _resultDatePicker;
-    private ComboBox? _resultHourComboBox;
-    private ComboBox? _resultMinuteComboBox;
-    private ComboBox? _resultSecondComboBox;
+    private TextBox? _resultYearTextBox;
+    private ComboBox? _resultMonthComboBox;
+    private ComboBox? _resultDayComboBox;
+    private TimePicker? _resultTimePicker;
     private Button? _diffButton;
 
     private Button? _clearButton;
@@ -103,22 +104,11 @@ public class TimeCalculatorPage : UserControl
             Foreground = Brushes.White
         });
 
-        var dateTimeRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
+        var datePanel = CreateDatePickerRow("日期输入:", out _minuendYearTextBox, out _minuendMonthComboBox, out _minuendDayComboBox);
+        panel.Children.Add(datePanel);
 
-        _minuendDatePicker = new DatePicker { HorizontalAlignment = HorizontalAlignment.Left };
-        dateTimeRow.Children.Add(_minuendDatePicker);
-
-        var timePanel = CreateTimeComboBoxes(
-            out _minuendHourComboBox,
-            out _minuendMinuteComboBox,
-            out _minuendSecondComboBox);
-        dateTimeRow.Children.Add(timePanel);
-
-        panel.Children.Add(dateTimeRow);
+        var timePanel = CreateTimePickerRow("时间:", out _minuendTimePicker);
+        panel.Children.Add(timePanel);
 
         _minuendNowButton = new Button
         {
@@ -219,22 +209,11 @@ public class TimeCalculatorPage : UserControl
             Foreground = Brushes.White
         });
 
-        var dateTimeRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
+        var datePanel = CreateDatePickerRow("日期输出:", out _resultYearTextBox, out _resultMonthComboBox, out _resultDayComboBox);
+        panel.Children.Add(datePanel);
 
-        _resultDatePicker = new DatePicker { HorizontalAlignment = HorizontalAlignment.Left };
-        dateTimeRow.Children.Add(_resultDatePicker);
-
-        var timePanel = CreateTimeComboBoxes(
-            out _resultHourComboBox,
-            out _resultMinuteComboBox,
-            out _resultSecondComboBox);
-        dateTimeRow.Children.Add(timePanel);
-
-        panel.Children.Add(dateTimeRow);
+        var timePanel = CreateTimePickerRow("时间:", out _resultTimePicker);
+        panel.Children.Add(timePanel);
 
         _diffButton = new Button
         {
@@ -254,98 +233,75 @@ public class TimeCalculatorPage : UserControl
         };
     }
 
-    private Control CreateTimeComboBoxes(out ComboBox? hour, out ComboBox? minute, out ComboBox? second)
-    {
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-
-        hour = new ComboBox { Width = 60 };
-        for (int i = 0; i < 24; i++) hour.Items.Add(i.ToString("D2"));
-        hour.SelectedIndex = 0;
-        panel.Children.Add(hour);
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = ":",
-            FontSize = 16,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        minute = new ComboBox { Width = 60 };
-        for (int i = 0; i < 60; i++) minute.Items.Add(i.ToString("D2"));
-        minute.SelectedIndex = 0;
-        panel.Children.Add(minute);
-
-        panel.Children.Add(new TextBlock
-        {
-            Text = ":",
-            FontSize = 16,
-            Foreground = Brushes.White,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-
-        second = new ComboBox { Width = 60 };
-        for (int i = 0; i < 60; i++) second.Items.Add(i.ToString("D2"));
-        second.SelectedIndex = 0;
-        panel.Children.Add(second);
-
-        return panel;
-    }
-
     private void OnClearButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (_minuendDatePicker != null) _minuendDatePicker.SelectedDate = null;
-        if (_minuendHourComboBox != null) _minuendHourComboBox.SelectedIndex = 0;
-        if (_minuendMinuteComboBox != null) _minuendMinuteComboBox.SelectedIndex = 0;
-        if (_minuendSecondComboBox != null) _minuendSecondComboBox.SelectedIndex = 0;
+        if (_minuendYearTextBox != null) _minuendYearTextBox.Text = "";
+        if (_minuendMonthComboBox != null) _minuendMonthComboBox.SelectedIndex = -1;
+        if (_minuendDayComboBox != null) _minuendDayComboBox.SelectedIndex = -1;
+        if (_minuendTimePicker != null) _minuendTimePicker.SelectedTime = null;
 
         if (_subDirectionComboBox != null) _subDirectionComboBox.SelectedIndex = 0;
         if (_subtrahendTextBox != null) _subtrahendTextBox.Text = "";
 
-        if (_resultDatePicker != null) _resultDatePicker.SelectedDate = null;
-        if (_resultHourComboBox != null) _resultHourComboBox.SelectedIndex = 0;
-        if (_resultMinuteComboBox != null) _resultMinuteComboBox.SelectedIndex = 0;
-        if (_resultSecondComboBox != null) _resultSecondComboBox.SelectedIndex = 0;
+        if (_resultYearTextBox != null) _resultYearTextBox.Text = "";
+        if (_resultMonthComboBox != null) _resultMonthComboBox.SelectedIndex = -1;
+        if (_resultDayComboBox != null) _resultDayComboBox.SelectedIndex = -1;
+        if (_resultTimePicker != null) _resultTimePicker.SelectedTime = null;
     }
 
     private void OnMinuendNowButtonClick(object? sender, RoutedEventArgs e)
     {
         var now = TimeBaseService.Instance?.GetRawServerTime() ?? DateTime.Now;
-        SetDateTimeToControls(now, _minuendDatePicker, _minuendHourComboBox, _minuendMinuteComboBox, _minuendSecondComboBox);
+        SetDateTimeToControls(now, _minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker);
     }
 
-    private static void SetDateTimeToControls(DateTime dt, DatePicker? datePicker, ComboBox? hourCb, ComboBox? minuteCb, ComboBox? secondCb)
+    private static void SetDateTimeToControls(DateTime dt, TextBox? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker)
     {
-        dt = AdjustForGregorianReform(dt);
-
-        if (datePicker != null) datePicker.SelectedDate = dt.Date;
-        if (hourCb != null) hourCb.SelectedIndex = dt.Hour;
-        if (minuteCb != null) minuteCb.SelectedIndex = dt.Minute;
-        if (secondCb != null) secondCb.SelectedIndex = dt.Second;
+        if (yearTextBox != null) yearTextBox.Text = dt.Year.ToString();
+        if (monthComboBox != null) monthComboBox.SelectedItem = $"{dt.Month}月";
+        if (dayComboBox != null) dayComboBox.SelectedItem = $"{dt.Day}日";
+        if (timePicker != null) timePicker.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
-    private static DateTime GetDateTimeFromControls(DatePicker? datePicker, ComboBox? hourCb, ComboBox? minuteCb, ComboBox? secondCb)
+    private static bool TryGetDateTimeFromControls(TextBox? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result)
     {
-        var date = datePicker?.SelectedDate?.Date ?? DateTime.Today;
-        var hour = hourCb?.SelectedIndex ?? 0;
-        var minute = minuteCb?.SelectedIndex ?? 0;
-        var second = secondCb?.SelectedIndex ?? 0;
+        result = DateTime.MinValue;
 
-        var dt = date.Add(new TimeSpan(hour, minute, second));
-        return AdjustForGregorianReform(dt);
+        if (string.IsNullOrWhiteSpace(yearTextBox?.Text) ||
+            monthComboBox?.SelectedItem == null ||
+            dayComboBox?.SelectedItem == null ||
+            timePicker?.SelectedTime == null)
+            return false;
+
+        if (!int.TryParse(yearTextBox.Text, out var year))
+            return false;
+        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
+            return false;
+        if (!int.TryParse(dayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
+            return false;
+
+        var time = timePicker.SelectedTime.Value;
+
+        try
+        {
+            result = LunarHelper.CreateSafeDateTime(year, month, day, time.Hours, time.Minutes, time.Seconds);
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private void OnCalculateButtonClick(object? sender, RoutedEventArgs e)
     {
         try
         {
-            var minuend = GetDateTimeFromControls(
-                _minuendDatePicker, _minuendHourComboBox, _minuendMinuteComboBox, _minuendSecondComboBox);
+            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
+            {
+                ShowErrorDialog("请输入有效的日期和时间");
+                return;
+            }
 
             var isForward = _subDirectionComboBox?.SelectedIndex == 0;
             var formatStr = _subtrahendTextBox?.Text ?? "";
@@ -362,7 +318,7 @@ public class TimeCalculatorPage : UserControl
                 result = AddTimeWithGregorianReform(minuend, -parsed.Years, -parsed.Months, -parsed.TimeSpan);
             }
 
-            SetDateTimeToControls(result, _resultDatePicker, _resultHourComboBox, _resultMinuteComboBox, _resultSecondComboBox);
+            SetDateTimeToControls(result, _resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker);
         }
         catch (Exception ex)
         {
@@ -374,14 +330,19 @@ public class TimeCalculatorPage : UserControl
     {
         try
         {
-            var minuend = GetDateTimeFromControls(
-                _minuendDatePicker, _minuendHourComboBox, _minuendMinuteComboBox, _minuendSecondComboBox);
+            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
+            {
+                ShowErrorDialog("请输入有效的被减数日期和时间");
+                return;
+            }
 
-            var result = GetDateTimeFromControls(
-                _resultDatePicker, _resultHourComboBox, _resultMinuteComboBox, _resultSecondComboBox);
+            if (!TryGetDateTimeFromControls(_resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker, out var result))
+            {
+                ShowErrorDialog("请输入有效的结果日期和时间");
+                return;
+            }
 
-            var isForward = result >= minuend;
-            var diff = CalculateDifferenceWithGregorianReform(minuend, result);
+            var isForward = LunarHelper.Compare(result, minuend) >= 0;
 
             var formatStr = FormatTimeDiffLowercase(minuend, result);
 
@@ -488,47 +449,65 @@ public class TimeCalculatorPage : UserControl
 
     private static string FormatTimeDiffLowercase(DateTime start, DateTime end)
     {
-        var earlier = start < end ? start : end;
-        var later = start < end ? end : start;
+        var isForward = LunarHelper.Compare(end, start) >= 0;
+        var earlier = isForward ? start : end;
+        var later = isForward ? end : start;
 
-        var years = later.Year - earlier.Year;
-        var months = later.Month - earlier.Month;
-        var days = later.Day - earlier.Day;
-
-        if (days < 0)
+        var totalSeconds = LunarHelper.DaysBetween(earlier, later) * 86400;
+        
+        var earlierTime = earlier.Hour * 3600 + earlier.Minute * 60 + earlier.Second;
+        var laterTime = later.Hour * 3600 + later.Minute * 60 + later.Second;
+        var timeSeconds = laterTime - earlierTime;
+        
+        if (timeSeconds < 0)
         {
-            months--;
-            var prevMonth = later.AddMonths(-1);
-            days += DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
+            timeSeconds += 86400;
+            totalSeconds -= 86400;
         }
+        
+        var totalDays = (int)Math.Floor(totalSeconds / 86400);
+        var remainingSeconds = (int)(totalSeconds % 86400);
+        
+        var hours = remainingSeconds / 3600;
+        var minutes = (remainingSeconds % 3600) / 60;
+        var seconds = remainingSeconds % 60;
 
-        if (months < 0)
-        {
-            years--;
-            months += 12;
-        }
+        var years = 0;
+        var months = 0;
+        var days = totalDays;
 
-        var timeDiff = later.TimeOfDay - earlier.TimeOfDay;
-        if (timeDiff < TimeSpan.Zero)
+        var tempDate = earlier;
+        while (days >= 365)
         {
-            timeDiff += TimeSpan.FromDays(1);
-            days--;
-            if (days < 0)
+            var nextYear = LunarHelper.SolarAddYears(tempDate, 1);
+            var daysInYear = (int)Math.Round(LunarHelper.DaysBetween(tempDate, nextYear));
+            if (days >= daysInYear)
             {
-                months--;
-                var prevMonth = later.AddMonths(-1);
-                days += DateTime.DaysInMonth(prevMonth.Year, prevMonth.Month);
+                days -= daysInYear;
+                years++;
+                tempDate = nextYear;
             }
-            if (months < 0)
+            else
             {
-                years--;
-                months += 12;
+                break;
             }
         }
 
-        var hours = timeDiff.Hours;
-        var minutes = timeDiff.Minutes;
-        var seconds = timeDiff.Seconds;
+        while (days >= 28)
+        {
+            var nextMonth = LunarHelper.SolarAddMonths(tempDate, 1);
+            var daysInMonth = (int)Math.Round(LunarHelper.DaysBetween(tempDate, nextMonth));
+            if (days >= daysInMonth)
+            {
+                days -= daysInMonth;
+                months++;
+                tempDate = nextMonth;
+            }
+            else
+            {
+                break;
+            }
+        }
 
         var parts = new List<string>();
 
@@ -559,20 +538,17 @@ public class TimeCalculatorPage : UserControl
 
         if (years != 0)
         {
-            result = result.AddYears(years);
-            // result = AdjustForGregorianReform(result);
+            result = LunarHelper.SolarAddYears(result, years);
         }
 
         if (months != 0)
         {
-            result = result.AddMonths(months);
-            // result = AdjustForGregorianReform(result);
+            result = LunarHelper.SolarAddMonths(result, months);
         }
 
         if (timeSpan != TimeSpan.Zero)
         {
-            // 1582年跳过逻辑已注释掉 - lunar-csharp 已处理
-            result = result.Add(timeSpan);
+            result = LunarHelper.SolarAddTimeSpan(result, timeSpan);
         }
 
         return result;
@@ -644,6 +620,170 @@ public class TimeCalculatorPage : UserControl
         }
         catch
         {
+        }
+    }
+
+    private StackPanel CreateDatePickerRow(string label, out TextBox yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var datePanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6
+        };
+
+        var ytb = new TextBox
+        {
+            Width = 80,
+            CornerRadius = new CornerRadius(4),
+            Watermark = "年"
+        };
+        yearTextBox = ytb;
+        ytb.LostFocus += OnYearTextBoxLostFocus;
+
+        var mcb = new ComboBox
+        {
+            Width = 80,
+            CornerRadius = new CornerRadius(4),
+            SelectedIndex = -1
+        };
+        for (int i = 1; i <= 12; i++)
+        {
+            mcb.Items.Add($"{i}月");
+        }
+        monthComboBox = mcb;
+
+        var dcb = new ComboBox
+        {
+            Width = 80,
+            CornerRadius = new CornerRadius(4),
+            SelectedIndex = -1
+        };
+        for (int i = 1; i <= 31; i++)
+        {
+            dcb.Items.Add($"{i}日");
+        }
+        dayComboBox = dcb;
+
+        ytb.LostFocus += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+        mcb.SelectionChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+
+        datePanel.Children.Add(ytb);
+        datePanel.Children.Add(mcb);
+        datePanel.Children.Add(dcb);
+
+        panel.Children.Add(datePanel);
+
+        return panel;
+    }
+
+    private StackPanel CreateTimePickerRow(string label, out TimePicker timePicker)
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = Brushes.White,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        timePicker = new TimePicker
+        {
+            Width = 280,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        panel.Children.Add(timePicker);
+
+        return panel;
+    }
+
+    private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (sender is TextBox textBox)
+        {
+            if (int.TryParse(textBox.Text, out var year))
+            {
+                if (year < 1) year = 1;
+                if (year > 9999) year = 9999;
+                textBox.Text = year.ToString();
+            }
+        }
+    }
+
+    private void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    {
+        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+            return;
+        if (monthComboBox.SelectedItem == null)
+            return;
+        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
+            return;
+
+        var selectedDayText = dayComboBox.SelectedItem?.ToString();
+        int? selectedDay = null;
+        if (selectedDayText != null && int.TryParse(selectedDayText.Replace("日", ""), out var d))
+            selectedDay = d;
+
+        dayComboBox.Items.Clear();
+
+        if (year == 1582 && month == 10)
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+            for (int i = 15; i <= 31; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+        else
+        {
+            var daysInMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+            for (int i = 1; i <= daysInMonth; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+
+        if (selectedDay.HasValue)
+        {
+            var daysInMonth = Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+            var safeDay = Math.Min(selectedDay.Value, daysInMonth);
+            if (year == 1582 && month == 10)
+            {
+                if (safeDay >= 5 && safeDay <= 14)
+                    safeDay = 4;
+            }
+            dayComboBox.SelectedItem = $"{safeDay}日";
+        }
+        else
+        {
+            dayComboBox.SelectedIndex = -1;
         }
     }
 }

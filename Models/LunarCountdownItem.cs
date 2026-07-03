@@ -254,7 +254,7 @@ public class LunarCountdownItem : INotifyPropertyChanged
         var lunarMonth = LunarCalendarHelper.GetLunarMonth(now);
         var lunarDay = LunarCalendarHelper.GetLunarDay(now);
 
-        var targetDate = now.AddMonths(1);
+        var targetDate = LunarHelper.SolarAddMonths(now, 1);
         var targetLunarYear = LunarCalendarHelper.GetLunarYear(targetDate);
         var targetLunarMonth = LunarCalendarHelper.GetLunarMonth(targetDate);
         var targetLunarDay = LunarCalendarHelper.GetLunarDay(targetDate);

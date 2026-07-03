@@ -273,14 +273,17 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
             _tianganComboBox.SelectedItem = tg;
             _dizhiComboBox.SelectedItem = dz;
 
-            if (Settings.LunarYear >= 1901 && Settings.LunarYear <= 1923)
-                _yearRangeComboBox.SelectedItem = "1901-1923";
-            else if (Settings.LunarYear >= 1924 && Settings.LunarYear <= 1983)
-                _yearRangeComboBox.SelectedItem = "1924-1983";
-            else if (Settings.LunarYear >= 1984 && Settings.LunarYear <= 2043)
-                _yearRangeComboBox.SelectedItem = "1984-2043";
-            else if (Settings.LunarYear >= 2044 && Settings.LunarYear <= 2101)
-                _yearRangeComboBox.SelectedItem = "2044-2101";
+            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            {
+                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                {
+                    if (Settings.LunarYear >= startYear && Settings.LunarYear <= endYear)
+                    {
+                        _yearRangeComboBox.SelectedItem = range;
+                        break;
+                    }
+                }
+            }
         }
         else
         {

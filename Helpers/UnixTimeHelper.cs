@@ -1,33 +1,17 @@
 using System;
+using Lunar;
 
 namespace AdvancedTimeIsland.Helpers;
 
 public static class UnixTimeHelper
 {
     private static readonly DateTime UnixEpoch = new(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-
-    // ===== 以下1582年偏移相关代码已注释掉 =====
-    // lunar-csharp 的 Solar 类已处理1582年历法改革（消失的10天），无需手动偏移
-    // private static readonly DateTime JulianCalendarLastDay = new(1582, 10, 4, 23, 59, 59, DateTimeKind.Utc);
-    // private static readonly DateTime GregorianCalendarFirstDay = new(1582, 10, 15, 0, 0, 0, DateTimeKind.Utc);
-    // private const double JulianGregorianOffsetDays = 10.0;
-    // private static readonly TimeSpan JulianGregorianOffset = TimeSpan.FromDays(JulianGregorianOffsetDays);
+    private const double JulianDayUnixEpoch = 2440587.5;
 
     public static bool IsNonExistentDate1582October(DateTime dateTime)
     {
-        // lunar-csharp 已处理1582年历法改革，此方法保留但始终返回false
-        // var local = dateTime.ToLocalTime();
-        // return local.Year == 1582 && local.Month == 10 && local.Day >= 5 && local.Day <= 14;
-        return false;
+        return dateTime.Year == 1582 && dateTime.Month == 10 && dateTime.Day >= 5 && dateTime.Day <= 14;
     }
-
-    // ===== 以下儒略历相关方法已注释掉，lunar-csharp 的 Solar 类已内置处理 =====
-    // private static bool IsJulianLeapYear(int year) { return year > 0 && year % 4 == 0; }
-    // private static bool IsGregorianLeapYear(int year) { ... }
-    // private static int GetJulianDaysInFebruary(int year) { ... }
-    // private static int GetJulianDaysInMonth(int year, int month) { ... }
-    // public static bool IsValidJulianDate(int year, int month, int day) { ... }
-    // private static DateTime AdjustDateForJulianGregorianDiff(DateTime dateTime) { ... }
 
     public static long ToUnixTimestamp(DateTime dateTime)
     {
@@ -40,20 +24,19 @@ public static class UnixTimeHelper
             ? DateTime.SpecifyKind(dateTime, DateTimeKind.Local).ToUniversalTime()
             : dateTime.ToUniversalTime();
 
-        // 1582年偏移代码已注释掉 - lunar-csharp 的 Solar 类已处理历法改革
-        // if (utcDateTime.Year == 1582 && utcDateTime.Month == 10 && utcDateTime.Day <= 4) { ... }
-        // if (utcDateTime.Year < 1582) { ... }
-
-        return (utcDateTime - UnixEpoch).TotalSeconds;
+        return ToUnixTimestampUtcDouble(utcDateTime);
     }
 
     public static double ToUnixTimestampUtcDouble(DateTime utcDateTime)
     {
-        // 1582年偏移代码已注释掉 - lunar-csharp 的 Solar 类已处理历法改革
-        // if (utcDateTime.Year == 1582 && utcDateTime.Month == 10 && utcDateTime.Day <= 4) { ... }
-        // if (utcDateTime.Year < 1582) { ... }
+        if (IsNonExistentDate1582October(utcDateTime))
+        {
+            throw new ArgumentException("1582年10月5日至14日在历史上不存在，无法转换为时间戳");
+        }
 
-        return (utcDateTime - UnixEpoch).TotalSeconds;
+        var solar = Solar.FromDate(utcDateTime);
+        var julianDay = solar.JulianDay;
+        return (julianDay - JulianDayUnixEpoch) * 86400;
     }
 
     public static DateTime FromUnixTimestamp(long timestamp)
@@ -68,14 +51,9 @@ public static class UnixTimeHelper
 
     public static DateTime FromUnixTimestampUtc(long timestamp)
     {
-        var utcTime = UnixEpoch.AddSeconds(timestamp);
-
-        // 1582年偏移代码已注释掉 - lunar-csharp 的 Solar 类已处理历法改革
-        // var localTime = utcTime.ToLocalTime();
-        // if (IsNonExistentDate1582October(localTime)) { ... }
-        // if (utcTime.Year < 1582) { ... }
-
-        return utcTime;
+        var julianDay = timestamp / 86400.0 + JulianDayUnixEpoch;
+        var solar = Solar.FromJulianDay(julianDay);
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second, DateTimeKind.Utc);
     }
 
     public static long GetCurrentUnixTimestamp()
@@ -131,8 +109,8 @@ public static class UnixTimeHelper
         if (!TryParseExactTime(timeString, out var dateTime))
             return false;
 
-        // 1582年检查已注释掉 - lunar-csharp 已处理
-        // if (IsNonExistentDate1582October(dateTime)) return false;
+        if (IsNonExistentDate1582October(dateTime))
+            return false;
 
         timestamp = ToUnixTimestamp(dateTime);
         return true;
