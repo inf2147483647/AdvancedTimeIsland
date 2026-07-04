@@ -41,7 +41,9 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBox? _text4FontSizeTextBox;
     private ColorPicker? _text4FontColorPicker;
 
-    private DatePicker? _startDatePicker;
+    private TextBox? _startYearTextBox;
+    private ComboBox? _startMonthComboBox;
+    private ComboBox? _startDayComboBox;
     private ComboBox? _startHourComboBox;
     private ComboBox? _startMinuteComboBox;
     private ComboBox? _startSecondComboBox;
@@ -141,15 +143,30 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         var startDateRow = new Grid();
         startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
+        startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
         var startDateLabel = new TextBlock { Text = "日期:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
         Grid.SetColumn(startDateLabel, 0);
         startDateRow.Children.Add(startDateLabel);
 
-        _startDatePicker = new DatePicker();
-        Grid.SetColumn(_startDatePicker, 1);
-        startDateRow.Children.Add(_startDatePicker);
+        _startYearTextBox = new TextBox { Width = 80, Watermark = "年" };
+        Grid.SetColumn(_startYearTextBox, 1);
+        startDateRow.Children.Add(_startYearTextBox);
+
+        _startMonthComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 12; i++) _startMonthComboBox.Items.Add($"{i}月");
+        Grid.SetColumn(_startMonthComboBox, 2);
+        startDateRow.Children.Add(_startMonthComboBox);
+
+        _startDayComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 31; i++) _startDayComboBox.Items.Add($"{i}日");
+        Grid.SetColumn(_startDayComboBox, 3);
+        startDateRow.Children.Add(_startDayComboBox);
+
+        _startYearTextBox.LostFocus += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
+        _startMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
 
         startTimePanel.Children.Add(startDateRow);
 
@@ -427,10 +444,12 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
 
-        if (_startDatePicker != null && _startHourComboBox != null && _startMinuteComboBox != null && _startSecondComboBox != null)
+        if (_startYearTextBox != null && _startMonthComboBox != null && _startDayComboBox != null && _startHourComboBox != null && _startMinuteComboBox != null && _startSecondComboBox != null)
         {
             var startTime = UnixTimeHelper.FromUnixTimestamp(Settings.StartTime);
-            _startDatePicker.SelectedDate = startTime.Date;
+            _startYearTextBox.Text = startTime.Year.ToString();
+            _startMonthComboBox.SelectedIndex = startTime.Month - 1;
+            _startDayComboBox.SelectedItem = $"{startTime.Day}日";
             _startHourComboBox.SelectedIndex = startTime.Hour;
             _startMinuteComboBox.SelectedIndex = startTime.Minute;
             _startSecondComboBox.SelectedIndex = startTime.Second;
@@ -477,22 +496,38 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     {
         void UpdateStartTime()
         {
-            if (_startDatePicker?.SelectedDate.HasValue == true && 
-                _startHourComboBox?.SelectedIndex >= 0 && 
-                _startMinuteComboBox?.SelectedIndex >= 0 && 
+            if (int.TryParse(_startYearTextBox?.Text?.Trim(), out var year) &&
+                _startMonthComboBox?.SelectedIndex >= 0 &&
+                _startDayComboBox?.SelectedItem != null &&
+                int.TryParse(_startDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day) &&
+                _startHourComboBox?.SelectedIndex >= 0 &&
+                _startMinuteComboBox?.SelectedIndex >= 0 &&
                 _startSecondComboBox?.SelectedIndex >= 0)
             {
-                var startTime = _startDatePicker.SelectedDate.Value.Date
-                    .Add(new TimeSpan(_startHourComboBox.SelectedIndex, 
-                        _startMinuteComboBox.SelectedIndex, 
-                        _startSecondComboBox.SelectedIndex));
-                Settings.StartTime = UnixTimeHelper.ToUnixTimestamp(startTime);
+                var month = _startMonthComboBox.SelectedIndex + 1;
+                try
+                {
+                    var startTime = new DateTime(year, month, day, _startHourComboBox.SelectedIndex,
+                        _startMinuteComboBox.SelectedIndex, _startSecondComboBox.SelectedIndex);
+                    Settings.StartTime = UnixTimeHelper.ToUnixTimestamp(startTime);
+                }
+                catch { }
             }
         }
 
-        if (_startDatePicker != null)
+        if (_startYearTextBox != null)
         {
-            _startDatePicker.SelectedDateChanged += (s, e) => UpdateStartTime();
+            _startYearTextBox.LostFocus += (s, e) => UpdateStartTime();
+        }
+
+        if (_startMonthComboBox != null)
+        {
+            _startMonthComboBox.SelectionChanged += (s, e) => UpdateStartTime();
+        }
+
+        if (_startDayComboBox != null)
+        {
+            _startDayComboBox.SelectionChanged += (s, e) => UpdateStartTime();
         }
 
         if (_startHourComboBox != null)
@@ -711,20 +746,44 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         contentPanel.Children.Add(nameTextBox);
 
         var targetLabel = new TextBlock { Text = "目标时间:", Foreground = Brushes.White };
-        var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
-        var datePicker = new DatePicker { SelectedDate = targetTime.Date };
-
-        var timePicker = new TimePicker
-        {
-            Width = 260,
-            ClockIdentifier = "24HourClock",
-            UseSeconds = true,
-            SelectedTime = new TimeSpan(targetTime.Hour, targetTime.Minute, targetTime.Second)
-        };
-
         contentPanel.Children.Add(targetLabel);
-        contentPanel.Children.Add(datePicker);
-        contentPanel.Children.Add(timePicker);
+
+        var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
+
+        var datePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var yearTextBox = new TextBox { Width = 80, Watermark = "年", Text = targetTime.Year.ToString() };
+        var monthComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 12; i++) monthComboBox.Items.Add($"{i}月");
+        monthComboBox.SelectedIndex = targetTime.Month - 1;
+        var dayComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 31; i++) dayComboBox.Items.Add($"{i}日");
+        dayComboBox.SelectedItem = $"{targetTime.Day}日";
+
+        yearTextBox.LostFocus += (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox);
+        monthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox);
+
+        datePanel.Children.Add(yearTextBox);
+        datePanel.Children.Add(monthComboBox);
+        datePanel.Children.Add(dayComboBox);
+        contentPanel.Children.Add(datePanel);
+
+        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var hourComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 24; i++) hourComboBox.Items.Add(i.ToString("D2"));
+        hourComboBox.SelectedIndex = targetTime.Hour;
+        var minuteComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) minuteComboBox.Items.Add(i.ToString("D2"));
+        minuteComboBox.SelectedIndex = targetTime.Minute;
+        var secondComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) secondComboBox.Items.Add(i.ToString("D2"));
+        secondComboBox.SelectedIndex = targetTime.Second;
+
+        timePanel.Children.Add(hourComboBox);
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(minuteComboBox);
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(secondComboBox);
+        contentPanel.Children.Add(timePanel);
 
         var notifyToggle = new ToggleSwitch { Content = new TextBlock { Text = "启用通知", Foreground = Brushes.White }, IsChecked = item.EnableNotification };
         contentPanel.Children.Add(notifyToggle);
@@ -771,12 +830,21 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         {
             item.Name = nameTextBox.Text ?? "新倒计时";
 
-            if (datePicker.SelectedDate.HasValue)
+            if (int.TryParse(yearTextBox.Text?.Trim(), out var year) &&
+                monthComboBox.SelectedIndex >= 0 &&
+                dayComboBox.SelectedItem != null &&
+                int.TryParse(dayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day) &&
+                hourComboBox.SelectedIndex >= 0 &&
+                minuteComboBox.SelectedIndex >= 0 &&
+                secondComboBox.SelectedIndex >= 0)
             {
-                var time = timePicker.SelectedTime ?? TimeSpan.Zero;
-                var target = datePicker.SelectedDate.Value.Date
-                    .Add(time);
-                item.TargetTimestamp = UnixTimeHelper.ToUnixTimestamp(target);
+                try
+                {
+                    var target = new DateTime(year, monthComboBox.SelectedIndex + 1, day,
+                        hourComboBox.SelectedIndex, minuteComboBox.SelectedIndex, secondComboBox.SelectedIndex);
+                    item.TargetTimestamp = UnixTimeHelper.ToUnixTimestamp(target);
+                }
+                catch { }
             }
 
             item.EnableNotification = notifyToggle.IsChecked == true;
@@ -798,6 +866,92 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         };
 
         dialog.ShowAsync(TopLevel.GetTopLevel(this));
+    }
+
+    private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    {
+        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+            return;
+        if (monthComboBox.SelectedItem == null)
+            return;
+        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
+            return;
+
+        var selectedDayText = dayComboBox.SelectedItem?.ToString();
+        int? selectedDay = null;
+        if (selectedDayText != null && int.TryParse(selectedDayText.Replace("日", ""), out var d))
+            selectedDay = d;
+
+        dayComboBox.Items.Clear();
+
+        if (year == 1582 && month == 10)
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+            for (int i = 15; i <= 31; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+        else
+        {
+            var daysInMonth = GetDaysInMonth(year, month);
+            for (int i = 1; i <= daysInMonth; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+
+        if (selectedDay.HasValue)
+        {
+            var safeDay = Math.Min(selectedDay.Value, dayComboBox.Items.Count);
+            if (safeDay > 0)
+            {
+                dayComboBox.SelectedItem = $"{safeDay}日";
+            }
+            else
+            {
+                dayComboBox.SelectedIndex = -1;
+            }
+        }
+        else
+        {
+            dayComboBox.SelectedIndex = -1;
+        }
+    }
+
+    private static int GetDaysInMonth(int year, int month)
+    {
+        if (year > 1582)
+        {
+            return Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+        }
+
+        if (year == 1582 && month == 10)
+        {
+            return 21;
+        }
+
+        if (month == 2)
+        {
+            if (IsJulianLeapYear(year))
+                return 29;
+            return 28;
+        }
+
+        if (month == 4 || month == 6 || month == 9 || month == 11)
+        {
+            return 30;
+        }
+
+        return 31;
+    }
+
+    private static bool IsJulianLeapYear(int year)
+    {
+        return year % 4 == 0;
     }
 }
 

@@ -717,78 +717,99 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarPanel.Children.Add(solarDateLabel);
 
         var currentSolarDate = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
-        var solarDatePicker = new DatePicker { SelectedDate = currentSolarDate.Date };
 
-        var solarTimeRow = new Grid();
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        solarTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
+        var solarDatePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var solarYearTextBox = new TextBox { Width = 80, Watermark = "年", Text = currentSolarDate.Year.ToString() };
+        var solarMonthComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 12; i++) solarMonthComboBox.Items.Add($"{i}月");
+        solarMonthComboBox.SelectedIndex = currentSolarDate.Month - 1;
+        var solarDayComboBox = new ComboBox { Width = 80 };
+        for (int i = 1; i <= 31; i++) solarDayComboBox.Items.Add($"{i}日");
+        solarDayComboBox.SelectedItem = $"{currentSolarDate.Day}日";
 
-        var solarTimeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(solarTimeLabel, 0);
-        solarTimeRow.Children.Add(solarTimeLabel);
+        solarYearTextBox.LostFocus += (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
+        solarMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
 
-        var solarTimePicker = new TimePicker
-        {
-            Width = 260,
-            ClockIdentifier = "24HourClock",
-            UseSeconds = true,
-            SelectedTime = new TimeSpan(currentSolarDate.Hour, currentSolarDate.Minute, currentSolarDate.Second)
-        };
-        Grid.SetColumn(solarTimePicker, 1);
-        solarTimeRow.Children.Add(solarTimePicker);
+        solarDatePanel.Children.Add(solarYearTextBox);
+        solarDatePanel.Children.Add(solarMonthComboBox);
+        solarDatePanel.Children.Add(solarDayComboBox);
+        solarPanel.Children.Add(solarDatePanel);
 
-        solarPanel.Children.Add(solarDatePicker);
-        solarPanel.Children.Add(solarTimeRow);
+        var solarTimePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var solarHourComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 24; i++) solarHourComboBox.Items.Add(i.ToString("D2"));
+        solarHourComboBox.SelectedIndex = currentSolarDate.Hour;
+        var solarMinuteComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) solarMinuteComboBox.Items.Add(i.ToString("D2"));
+        solarMinuteComboBox.SelectedIndex = currentSolarDate.Minute;
+        var solarSecondComboBox = new ComboBox { Width = 80 };
+        for (int i = 0; i < 60; i++) solarSecondComboBox.Items.Add(i.ToString("D2"));
+        solarSecondComboBox.SelectedIndex = currentSolarDate.Second;
+
+        solarTimePanel.Children.Add(solarHourComboBox);
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(solarMinuteComboBox);
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(solarSecondComboBox);
+        solarPanel.Children.Add(solarTimePanel);
 
         var syncButton = new Button { Content = "同步公历→农历", Width = 150, HorizontalAlignment = HorizontalAlignment.Left };
         syncButton.Click += (s, e) =>
         {
-            if (solarDatePicker.SelectedDate.HasValue)
+            if (int.TryParse(solarYearTextBox.Text?.Trim(), out var year) &&
+                solarMonthComboBox.SelectedIndex >= 0 &&
+                solarDayComboBox.SelectedItem != null &&
+                int.TryParse(solarDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day) &&
+                solarHourComboBox.SelectedIndex >= 0 &&
+                solarMinuteComboBox.SelectedIndex >= 0 &&
+                solarSecondComboBox.SelectedIndex >= 0)
             {
-                var solarDate = solarDatePicker.SelectedDate.Value.Date;
-                if (solarTimePicker.SelectedTime.HasValue)
+                var month = solarMonthComboBox.SelectedIndex + 1;
+                try
                 {
-                    solarDate = solarDate.Add(solarTimePicker.SelectedTime.Value);
-                }
+                    var solarDate = new DateTime(year, month, day,
+                        solarHourComboBox.SelectedIndex, solarMinuteComboBox.SelectedIndex, solarSecondComboBox.SelectedIndex);
 
-                if (!LunarCalendarHelper.IsDateSupported(solarDate))
-                {
-                    return;
-                }
-
-                var lunarYear = LunarCalendarHelper.GetLunarYear(solarDate);
-                var lunarMonth = LunarCalendarHelper.GetLunarMonth(solarDate);
-                var isLeap = LunarCalendarHelper.IsLeapMonth(solarDate);
-                var lunarDay = LunarCalendarHelper.GetLunarDay(solarDate);
-
-                if (lunarYear == 0 || lunarMonth == 0 || lunarDay == 0)
-                {
-                    return;
-                }
-
-                var tgIndexNew = (lunarYear - 4) % 10;
-                if (tgIndexNew < 0) tgIndexNew += 10;
-                var dzIndexNew = (lunarYear - 4) % 12;
-                if (dzIndexNew < 0) dzIndexNew += 12;
-
-                tianganCombo.SelectedIndex = tgIndexNew;
-                dizhiCombo.SelectedIndex = dzIndexNew;
-                monthCombo.SelectedIndex = lunarMonth - 1;
-                leapToggle.IsChecked = isLeap;
-                dayCombo.SelectedIndex = lunarDay - 1;
-                lunarTimePicker.SelectedTime = new TimeSpan(solarDate.Hour, solarDate.Minute, solarDate.Second);
-
-                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
-                {
-                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    if (!LunarCalendarHelper.IsDateSupported(solarDate))
                     {
-                        if (lunarYear >= startYear && lunarYear <= endYear)
+                        return;
+                    }
+
+                    var lunarYear = LunarCalendarHelper.GetLunarYear(solarDate);
+                    var lunarMonth = LunarCalendarHelper.GetLunarMonth(solarDate);
+                    var isLeap = LunarCalendarHelper.IsLeapMonth(solarDate);
+                    var lunarDay = LunarCalendarHelper.GetLunarDay(solarDate);
+
+                    if (lunarYear == 0 || lunarMonth == 0 || lunarDay == 0)
+                    {
+                        return;
+                    }
+
+                    var tgIndexNew = (lunarYear - 4) % 10;
+                    if (tgIndexNew < 0) tgIndexNew += 10;
+                    var dzIndexNew = (lunarYear - 4) % 12;
+                    if (dzIndexNew < 0) dzIndexNew += 12;
+
+                    tianganCombo.SelectedIndex = tgIndexNew;
+                    dizhiCombo.SelectedIndex = dzIndexNew;
+                    monthCombo.SelectedIndex = lunarMonth - 1;
+                    leapToggle.IsChecked = isLeap;
+                    dayCombo.SelectedIndex = lunarDay - 1;
+                    lunarTimePicker.SelectedTime = new TimeSpan(solarDate.Hour, solarDate.Minute, solarDate.Second);
+
+                    foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                    {
+                        if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
                         {
-                            yearRangeCombo.SelectedItem = range;
-                            break;
+                            if (lunarYear >= startYear && lunarYear <= endYear)
+                            {
+                                yearRangeCombo.SelectedItem = range;
+                                break;
+                            }
                         }
                     }
                 }
+                catch { }
             }
         };
         solarPanel.Children.Add(syncButton);
@@ -843,8 +864,12 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             var solarResult = LunarCalendarHelper.LunarToSolar(lunarYearVal, lunarMonthVal, isLeapVal, lunarDayVal, hourVal, minuteVal, secondVal);
             if (solarResult.HasValue)
             {
-                solarDatePicker.SelectedDate = solarResult.Value.Date;
-                solarTimePicker.SelectedTime = new TimeSpan(solarResult.Value.Hour, solarResult.Value.Minute, solarResult.Value.Second);
+                solarYearTextBox.Text = solarResult.Value.Year.ToString();
+                solarMonthComboBox.SelectedIndex = solarResult.Value.Month - 1;
+                solarDayComboBox.SelectedItem = $"{solarResult.Value.Day}日";
+                solarHourComboBox.SelectedIndex = solarResult.Value.Hour;
+                solarMinuteComboBox.SelectedIndex = solarResult.Value.Minute;
+                solarSecondComboBox.SelectedIndex = solarResult.Value.Second;
             }
         };
         solarPanel.Children.Add(syncButton2);
@@ -929,6 +954,92 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         dialog.Content = mainPanel;
 
         dialog.ShowAsync(TopLevel.GetTopLevel(this));
+    }
+
+    private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    {
+        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+            return;
+        if (monthComboBox.SelectedItem == null)
+            return;
+        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
+            return;
+
+        var selectedDayText = dayComboBox.SelectedItem?.ToString();
+        int? selectedDay = null;
+        if (selectedDayText != null && int.TryParse(selectedDayText.Replace("日", ""), out var d))
+            selectedDay = d;
+
+        dayComboBox.Items.Clear();
+
+        if (year == 1582 && month == 10)
+        {
+            for (int i = 1; i <= 4; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+            for (int i = 15; i <= 31; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+        else
+        {
+            var daysInMonth = GetDaysInMonth(year, month);
+            for (int i = 1; i <= daysInMonth; i++)
+            {
+                dayComboBox.Items.Add($"{i}日");
+            }
+        }
+
+        if (selectedDay.HasValue)
+        {
+            var safeDay = Math.Min(selectedDay.Value, dayComboBox.Items.Count);
+            if (safeDay > 0)
+            {
+                dayComboBox.SelectedItem = $"{safeDay}日";
+            }
+            else
+            {
+                dayComboBox.SelectedIndex = -1;
+            }
+        }
+        else
+        {
+            dayComboBox.SelectedIndex = -1;
+        }
+    }
+
+    private static int GetDaysInMonth(int year, int month)
+    {
+        if (year > 1582)
+        {
+            return Lunar.Util.SolarUtil.GetDaysOfMonth(year, month);
+        }
+
+        if (year == 1582 && month == 10)
+        {
+            return 21;
+        }
+
+        if (month == 2)
+        {
+            if (IsJulianLeapYear(year))
+                return 29;
+            return 28;
+        }
+
+        if (month == 4 || month == 6 || month == 9 || month == 11)
+        {
+            return 30;
+        }
+
+        return 31;
+    }
+
+    private static bool IsJulianLeapYear(int year)
+    {
+        return year % 4 == 0;
     }
 }
 

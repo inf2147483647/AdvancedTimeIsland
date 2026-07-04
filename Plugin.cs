@@ -246,6 +246,16 @@ public class Plugin : PluginBase
 
         services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
 
+        services.AddComponent<XingZuoControl, XingZuoSettingsControl>();
+        services.AddComponent<JieQiControl, JieQiSettingsControl>();
+        services.AddComponent<ShengXiaoControl, ShengXiaoSettingsControl>();
+        services.AddComponent<FestivalControl, FestivalSettingsControl>();
+        services.AddComponent<DayYiJiControl, DayYiJiSettingsControl>();
+        services.AddComponent<NextJieQiCountdownControl, NextJieQiCountdownSettingsControl>();
+        services.AddComponent<NextXingZuoCountdownControl, NextXingZuoCountdownSettingsControl>();
+        services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
+        services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
+
         services.AddSingleton<ExactTimeTrigger>();
 
         services.AddSingleton<TimeRangeCondition>();
@@ -1406,6 +1416,62 @@ public class Plugin : PluginBase
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();
         services.AddAction<Automation.Actions.SyncPluginTimeAction>();
+
+        // ========== 新增条件：星座、节气、生肖 ==========
+
+        services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
+            "advancedtimeisland.xingzuo",
+            "当前星座是",
+            "\uE120",
+            settings =>
+            {
+                if (settings is not XingZuoRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.TargetXingZuo))
+                    return false;
+
+                var now = GetCurrentTime();
+                var currentXingZuo = LunarHelper.GetXingZuo(now);
+                return currentXingZuo == s.TargetXingZuo;
+            }
+        );
+
+        services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
+            "advancedtimeisland.jieqi",
+            "当前节气是",
+            "\uE123",
+            settings =>
+            {
+                if (settings is not JieQiRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.TargetJieQi))
+                    return false;
+
+                var now = GetCurrentTime();
+                var currentJieQi = LunarHelper.GetJieQi(now);
+                return currentJieQi == s.TargetJieQi;
+            }
+        );
+
+        services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
+            "advancedtimeisland.shengxiao",
+            "当前生肖是",
+            "\uE124",
+            settings =>
+            {
+                if (settings is not ShengXiaoRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.TargetShengXiao))
+                    return false;
+
+                var now = GetCurrentTime();
+                var currentShengXiao = LunarHelper.GetCurrentShengXiao(now);
+                return currentShengXiao == s.TargetShengXiao;
+            }
+        );
     }
 }
 

@@ -755,6 +755,327 @@ public class AdvancedDateSettings : INotifyPropertyChanged
     }
 }
 
+public class XingZuoSettings : INotifyPropertyChanged
+{
+    private string _labelFontColor = "#FFFFFF";
+    private double _labelFontSize = 14;
+    private string _valueFontColor = "#FFFFFF";
+    private double _valueFontSize = 14;
+
+    public string LabelFontColor
+    {
+        get => _labelFontColor;
+        set
+        {
+            if (_labelFontColor != value)
+            {
+                _labelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set
+        {
+            if (Math.Abs(_labelFontSize - value) > 0.001)
+            {
+                _labelFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ValueFontColor
+    {
+        get => _valueFontColor;
+        set
+        {
+            if (_valueFontColor != value)
+            {
+                _valueFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double ValueFontSize
+    {
+        get => _valueFontSize;
+        set
+        {
+            if (Math.Abs(_valueFontSize - value) > 0.001)
+            {
+                _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class JieQiSettings : INotifyPropertyChanged
+{
+    private string _labelFontColor = "#FFFFFF";
+    private double _labelFontSize = 14;
+    private string _valueFontColor = "#FFFFFF";
+    private double _valueFontSize = 14;
+
+    public string LabelFontColor
+    {
+        get => _labelFontColor;
+        set
+        {
+            if (_labelFontColor != value)
+            {
+                _labelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set
+        {
+            if (Math.Abs(_labelFontSize - value) > 0.001)
+            {
+                _labelFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ValueFontColor
+    {
+        get => _valueFontColor;
+        set
+        {
+            if (_valueFontColor != value)
+            {
+                _valueFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double ValueFontSize
+    {
+        get => _valueFontSize;
+        set
+        {
+            if (Math.Abs(_valueFontSize - value) > 0.001)
+            {
+                _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class ShengXiaoSettings : INotifyPropertyChanged
+{
+    private string _labelFontColor = "#FFFFFF";
+    private double _labelFontSize = 14;
+    private string _valueFontColor = "#FFFFFF";
+    private double _valueFontSize = 14;
+
+    public string LabelFontColor
+    {
+        get => _labelFontColor;
+        set
+        {
+            if (_labelFontColor != value)
+            {
+                _labelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set
+        {
+            if (Math.Abs(_labelFontSize - value) > 0.001)
+            {
+                _labelFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ValueFontColor
+    {
+        get => _valueFontColor;
+        set
+        {
+            if (_valueFontColor != value)
+            {
+                _valueFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double ValueFontSize
+    {
+        get => _valueFontSize;
+        set
+        {
+            if (Math.Abs(_valueFontSize - value) > 0.001)
+            {
+                _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class FestivalSettings : INotifyPropertyChanged
+{
+    private string _labelFontColor = "#FFFFFF";
+    private double _labelFontSize = 14;
+    private string _valueFontColor = "#FFFFFF";
+    private double _valueFontSize = 14;
+
+    public string LabelFontColor
+    {
+        get => _labelFontColor;
+        set
+        {
+            if (_labelFontColor != value)
+            {
+                _labelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set
+        {
+            if (Math.Abs(_labelFontSize - value) > 0.001)
+            {
+                _labelFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string ValueFontColor
+    {
+        get => _valueFontColor;
+        set
+        {
+            if (_valueFontColor != value)
+            {
+                _valueFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double ValueFontSize
+    {
+        get => _valueFontSize;
+        set
+        {
+            if (Math.Abs(_valueFontSize - value) > 0.001)
+            {
+                _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
+public class DayYiJiSettings : INotifyPropertyChanged
+{
+    private string _labelFontColor = "#FFFFFF";
+    private double _labelFontSize = 14;
+    private double _valueFontSize = 14;
+
+    public string LabelFontColor
+    {
+        get => _labelFontColor;
+        set
+        {
+            if (_labelFontColor != value)
+            {
+                _labelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double LabelFontSize
+    {
+        get => _labelFontSize;
+        set
+        {
+            if (Math.Abs(_labelFontSize - value) > 0.001)
+            {
+                _labelFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double ValueFontSize
+    {
+        get => _valueFontSize;
+        set
+        {
+            if (Math.Abs(_valueFontSize - value) > 0.001)
+            {
+                _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public event PropertyChangedEventHandler? PropertyChanged;
+
+    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+}
+
 public class LunarCountdownSettings : INotifyPropertyChanged
 {
     private string _text1 = string.Empty;

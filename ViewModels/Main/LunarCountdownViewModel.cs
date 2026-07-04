@@ -26,7 +26,7 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
     private bool _isFirstUpdate = true;
     private bool _requiresHighFrequencyRefresh;
     private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
-    private readonly TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
+    private TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
 
     private string _text1Display = string.Empty;
     private string _nameDisplay = string.Empty;
@@ -162,6 +162,8 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
         UpdateCountdown();
         _isFirstUpdate = false;
 
+        _highFrequencyInterval = DisplayHelper.CalculateHighFrequencyInterval();
+
         _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
         InitializeTimers();
     }
@@ -186,7 +188,11 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
     {
         if (string.IsNullOrEmpty(timeFormat))
             return false;
-        return timeFormat.Contains("%x") || timeFormat.Contains("%X");
+        return timeFormat.Contains("%x") || 
+               timeFormat.Contains("%X") ||
+               timeFormat.Contains("%P") ||
+               timeFormat.Contains("%p") ||
+               timeFormat.Contains("%L");
     }
 
     public void UpdateRefreshMode()
@@ -386,11 +392,13 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
         var sortedItems = activeItems.OrderBy(item => item.GetTargetTimestamp()).ToList();
         var currentItem = sortedItems.First();
 
-        var timeLeft = (double)currentItem.GetTargetTimestamp() - unixNow;
-        var timeLeftMs = timeLeft * 1000;
+        var currentTargetDate = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(currentItem.GetTargetTimestamp()).ToLocalTime();
+        var timeLeftSpan = currentTargetDate - now;
+        var timeLeft = timeLeftSpan.TotalSeconds;
+        var timeLeftMs = timeLeftSpan.TotalMilliseconds;
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate);
 
         return new LunarCountdownDisplayData
         {
@@ -424,7 +432,7 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private string FormatTime(string format, long secondsLeft, double millisecondsLeft)
+    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, DateTime now, DateTime targetDate)
     {
         var totalSeconds = secondsLeft;
         var totalMilliseconds = millisecondsLeft;
@@ -440,49 +448,47 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
 
-        var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
         bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
         bool hasYear = format.Contains("%yy") || format.Contains("%YY");
 
-        int displayMonths;
-        if (hasYear)
+        int displayYears = 0;
+        int displayMonths = 0;
+        int displayDays = days;
+
+        if (hasYear || hasMonth)
         {
-            var totalMonthsValue = (int)(totalSeconds / (30.4375 * 86400.0));
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayMonths = totalMonthsValue - yearsFromTotal * 12;
-        }
-        else
-        {
-            displayMonths = (int)(totalSeconds / (30.4375 * 86400.0));
+            var tempDate = now;
+            displayYears = 0;
+
+            while (tempDate.AddYears(1) <= targetDate)
+            {
+                tempDate = tempDate.AddYears(1);
+                displayYears++;
+            }
+
+            if (hasMonth)
+            {
+                displayMonths = 0;
+                while (tempDate.AddMonths(1) <= targetDate)
+                {
+                    tempDate = tempDate.AddMonths(1);
+                    displayMonths++;
+                }
+
+                var dayDiff = (targetDate - tempDate).Days;
+                displayDays = Math.Max(0, dayDiff);
+            }
+            else
+            {
+                var dayDiff = (targetDate - tempDate).Days;
+                displayDays = Math.Max(0, dayDiff);
+            }
         }
 
-        int displayDays;
-        if (hasMonth && hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365 - displayMonths * 30;
-        }
-        else if (hasMonth)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var monthsFromTotal = (int)(totalSeconds / (30.4375 * 86400.0));
-            displayDays = totalDaysValue - monthsFromTotal * 30;
-        }
-        else if (hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365;
-        }
-        else
-        {
-            displayDays = days;
-        }
+        var yy = displayYears.ToString();
+        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
+        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
+        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
 
         var result = format
             .Replace("%D", ((int)totalDays).ToString())

@@ -123,6 +123,99 @@ public static class LunarHelper
         return string.IsNullOrEmpty(jq) ? null : jq;
     }
 
+    /// <summary>
+    /// 获取节日列表
+    /// </summary>
+    public static string[] GetFestivals(DateTime solarDate)
+    {
+        return GetFestivals(solarDate, true, true, true);
+    }
+
+    /// <summary>
+    /// 获取节日列表（支持分类筛选）
+    /// </summary>
+    public static string[] GetFestivals(DateTime solarDate, bool includeInternational, bool includeTraditional, bool includeRed)
+    {
+        var festivalNames = new System.Collections.Generic.HashSet<string>();
+
+        if (includeInternational || includeTraditional)
+        {
+            var solar = Solar.FromDate(solarDate);
+            var festivals = solar.Festivals;
+            if (festivals != null && festivals.Count > 0)
+            {
+                foreach (var f in festivals)
+                    festivalNames.Add(f);
+            }
+            var lunarFestivals = solar.Lunar.Festivals;
+            if (lunarFestivals != null && lunarFestivals.Count > 0)
+            {
+                foreach (var f in lunarFestivals)
+                    festivalNames.Add(f);
+            }
+        }
+
+        if (includeRed)
+        {
+            var redFestivals = GetRedFestivals(solarDate);
+            foreach (var f in redFestivals)
+                festivalNames.Add(f);
+        }
+
+        return festivalNames.ToArray();
+    }
+
+    /// <summary>
+    /// 获取红色节日
+    /// </summary>
+    private static string[] GetRedFestivals(DateTime date)
+    {
+        var festivals = new System.Collections.Generic.List<string>();
+
+        if (date.Month == 2 && date.Day == 7) festivals.Add("二七纪念日");
+        if (date.Month == 3 && date.Day == 5) festivals.Add("学雷锋纪念日");
+        if (date.Month == 5 && date.Day == 4) festivals.Add("五四青年节");
+        if (date.Month == 7 && date.Day == 1) festivals.Add("七一建党节");
+        if (date.Month == 8 && date.Day == 1) festivals.Add("八一建军节");
+        if (date.Month == 9 && date.Day == 3) festivals.Add("中国人民抗日战争胜利纪念日");
+        if (date.Month == 9 && date.Day == 18) festivals.Add("九一八事变纪念日");
+        if (date.Month == 9 && date.Day == 30) festivals.Add("烈士纪念日");
+        if (date.Month == 10 && date.Day == 1) festivals.Add("十一国庆节");
+        if (date.Month == 10 && date.Day == 22) festivals.Add("中国工农红军长征胜利纪念日");
+        if (date.Month == 12 && date.Day == 13) festivals.Add("南京大屠杀死难者国家公祭日");
+
+        return festivals.ToArray();
+    }
+
+    /// <summary>
+    /// 获取今日宜做事项
+    /// </summary>
+    public static string[] GetDayYi(DateTime solarDate)
+    {
+        var solar = Solar.FromDate(solarDate);
+        var yi = solar.Lunar.DayYi;
+        return yi == null || yi.Count == 0 ? Array.Empty<string>() : yi.ToArray();
+    }
+
+    /// <summary>
+    /// 获取今日忌做事项
+    /// </summary>
+    public static string[] GetDayJi(DateTime solarDate)
+    {
+        var solar = Solar.FromDate(solarDate);
+        var ji = solar.Lunar.DayJi;
+        return ji == null || ji.Count == 0 ? Array.Empty<string>() : ji.ToArray();
+    }
+
+    /// <summary>
+    /// 获取当前生肖（从公历日期）
+    /// </summary>
+    public static string GetCurrentShengXiao(DateTime solarDate)
+    {
+        var solar = Solar.FromDate(solarDate);
+        return solar.Lunar.YearShengXiao;
+    }
+
     #endregion
 
     #region 日期算术（完全基于lunar-csharp Solar，自动处理1582年消失的10天和儒略历）
@@ -289,6 +382,24 @@ public static class LunarHelper
     public static double JulianDayToUnixTimestamp(double julianDay)
     {
         return (julianDay - JulianDayUnixEpoch) * 86400;
+    }
+
+    /// <summary>
+    /// 儒略日转DateTime（基于Solar，正确处理1582年之前的日期）
+    /// </summary>
+    public static DateTime JulianDayToDateTime(double julianDay)
+    {
+        var solar = Solar.FromJulianDay(julianDay);
+        return new DateTime(solar.Year, solar.Month, solar.Day, solar.Hour, solar.Minute, solar.Second);
+    }
+
+    /// <summary>
+    /// Unix时间戳转DateTime（基于Solar，正确处理1582年之前的日期）
+    /// </summary>
+    public static DateTime UnixTimestampToDateTime(double unixSeconds)
+    {
+        var julianDay = UnixTimestampToJulianDay(unixSeconds);
+        return JulianDayToDateTime(julianDay);
     }
 
     #endregion

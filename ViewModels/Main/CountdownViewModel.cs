@@ -27,7 +27,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private bool _isFirstUpdate = true;
     private bool _requiresHighFrequencyRefresh;
     private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
-    private readonly TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67); // ~60fps
+    private TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
 
     private string _text1Display = string.Empty;
     private string _text2Display = string.Empty;
@@ -163,6 +163,9 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         UpdateCountdown();
         _isFirstUpdate = false;
 
+        // 根据显示器刷新率动态计算高频率刷新间隔
+        _highFrequencyInterval = DisplayHelper.CalculateHighFrequencyInterval();
+
         // 检测是否需要高频率刷新
         _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
 
@@ -204,7 +207,10 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             return false;
 
         return timeFormat.Contains("%x") || 
-               timeFormat.Contains("%X");
+               timeFormat.Contains("%X") ||
+               timeFormat.Contains("%P") ||
+               timeFormat.Contains("%p") ||
+               timeFormat.Contains("%L");
     }
 
     /// <summary>
@@ -410,11 +416,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var sortedItems = activeItems.OrderBy(item => item.TargetTimestamp).ToList();
         var currentItem = sortedItems.First();
 
-        var timeLeft = (double)currentItem.TargetTimestamp - unixNow;
-        var timeLeftMs = timeLeft * 1000;
+        var currentTargetDate = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(currentItem.TargetTimestamp).ToLocalTime();
+        var timeLeftSpan = currentTargetDate - now;
+        var timeLeft = timeLeftSpan.TotalSeconds;
+        var timeLeftMs = timeLeftSpan.TotalMilliseconds;
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
         return new CountdownDisplayData
         {
@@ -450,7 +458,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, long startTime, long targetTime, bool enableTimeCorrection)
+    private string FormatTime(string format, long secondsLeft, double millisecondsLeft, DateTime now, DateTime targetDate, long startTime, long targetTime, bool enableTimeCorrection)
     {
         var totalSeconds = secondsLeft;
         var totalMilliseconds = millisecondsLeft;
@@ -466,11 +474,9 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
 
-        // 差一矫正逻辑：当时间格式不包含毫秒时，对最小显示单位加一
         bool hasMillisecond = format.Contains("%x") || format.Contains("%X");
         if (enableTimeCorrection && !hasMillisecond && secondsLeft > 0)
         {
-            // 找到最小显示单位
             bool hasSeconds = format.Contains("%s") || format.Contains("%S");
             bool hasMinutes = format.Contains("%m") || format.Contains("%M");
             bool hasHours = format.Contains("%h") || format.Contains("%H");
@@ -478,7 +484,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
             if (hasSeconds)
             {
-                // 秒是最小单位，对秒加一
                 seconds++;
                 if (seconds >= 60)
                 {
@@ -498,7 +503,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             }
             else if (hasMinutes)
             {
-                // 分钟是最小单位，对分钟加一
                 minutes++;
                 if (minutes >= 60)
                 {
@@ -513,7 +517,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             }
             else if (hasHours)
             {
-                // 小时是最小单位，对小时加一
                 hours++;
                 if (hours >= 24)
                 {
@@ -523,7 +526,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             }
             else if (hasDays)
             {
-                // 天是最小单位，对天加一
                 days++;
             }
         }
@@ -542,49 +544,47 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             elapsedPercentDecimal = (elapsedSeconds * 100.0 / totalDuration).ToString("F2");
         }
 
-        var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
         bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
         bool hasYear = format.Contains("%yy") || format.Contains("%YY");
 
-        int displayMonths;
-        if (hasYear)
+        int displayYears = 0;
+        int displayMonths = 0;
+        int displayDays = days;
+
+        if (hasYear || hasMonth)
         {
-            var totalMonthsValue = (int)(totalSeconds / (30.4375 * 86400.0));
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayMonths = totalMonthsValue - yearsFromTotal * 12;
-        }
-        else
-        {
-            displayMonths = (int)(totalSeconds / (30.4375 * 86400.0));
+            var tempDate = now;
+            displayYears = 0;
+
+            while (tempDate.AddYears(1) <= targetDate)
+            {
+                tempDate = tempDate.AddYears(1);
+                displayYears++;
+            }
+
+            if (hasMonth)
+            {
+                displayMonths = 0;
+                while (tempDate.AddMonths(1) <= targetDate)
+                {
+                    tempDate = tempDate.AddMonths(1);
+                    displayMonths++;
+                }
+
+                var dayDiff = (targetDate - tempDate).Days;
+                displayDays = Math.Max(0, dayDiff);
+            }
+            else
+            {
+                var dayDiff = (targetDate - tempDate).Days;
+                displayDays = Math.Max(0, dayDiff);
+            }
         }
 
-        int displayDays;
-        if (hasMonth && hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365 - displayMonths * 30;
-        }
-        else if (hasMonth)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var monthsFromTotal = (int)(totalSeconds / (30.4375 * 86400.0));
-            displayDays = totalDaysValue - monthsFromTotal * 30;
-        }
-        else if (hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365;
-        }
-        else
-        {
-            displayDays = days;
-        }
+        var yy = displayYears.ToString();
+        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
+        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
+        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
 
         var result = format
             .Replace("%D", ((int)totalDays).ToString())

@@ -285,8 +285,11 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
     private void ProcessTimer(DateTime now)
     {
-        var unixNow = UnixTimeHelper.ToUnixTimestampDouble(now);
-        var elapsedSeconds = unixNow - _settings.StartTime;
+        var startTimeDate = LunarHelper.UnixTimestampToDateTime(_settings.StartTime);
+        var startTimeJd = LunarHelper.UnixTimestampToJulianDay(_settings.StartTime);
+        var nowTimestamp = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0;
+        var nowJd = LunarHelper.UnixTimestampToJulianDay(nowTimestamp);
+        var elapsedSeconds = (nowJd - startTimeJd) * 86400;
         
         if (elapsedSeconds < 0)
         {
@@ -301,10 +304,10 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
         IsNotStarted = false;
 
-        var elapsedMs = elapsedSeconds * 1000;
+        var elapsedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _settings.StartTime * 1000;
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, (long)Math.Floor(elapsedSeconds), elapsedMs);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(elapsedSeconds), elapsedMs, startTimeDate, now);
 
         Text1Display = _settings.Text1;
         NameDisplay = _settings.Name;
@@ -313,7 +316,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         Text4Display = _settings.Text4;
     }
 
-    private string FormatTime(string format, long secondsElapsed, double millisecondsElapsed)
+    private string FormatTime(string format, long secondsElapsed, double millisecondsElapsed, DateTime startTimeDate, DateTime now)
     {
         var totalSeconds = secondsElapsed;
         var totalMilliseconds = millisecondsElapsed;
@@ -342,49 +345,47 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
             remainingPercent = "0";
         }
 
-        var yy = ((int)(totalSeconds / (365.25 * 86400.0))).ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
         bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
         bool hasYear = format.Contains("%yy") || format.Contains("%YY");
 
-        int displayMonths;
-        if (hasYear)
+        int displayYears = 0;
+        int displayMonths = 0;
+        int displayDays = days;
+
+        if (hasYear || hasMonth)
         {
-            var totalMonthsValue = (int)(totalSeconds / (30.4375 * 86400.0));
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayMonths = totalMonthsValue - yearsFromTotal * 12;
-        }
-        else
-        {
-            displayMonths = (int)(totalSeconds / (30.4375 * 86400.0));
+            var tempDate = startTimeDate;
+            displayYears = 0;
+
+            while (LunarHelper.SolarAddYears(tempDate, 1) <= now)
+            {
+                tempDate = LunarHelper.SolarAddYears(tempDate, 1);
+                displayYears++;
+            }
+
+            if (hasMonth)
+            {
+                displayMonths = 0;
+                while (LunarHelper.SolarAddMonths(tempDate, 1) <= now)
+                {
+                    tempDate = LunarHelper.SolarAddMonths(tempDate, 1);
+                    displayMonths++;
+                }
+
+                var dayDiff = (int)Math.Floor(LunarHelper.DaysBetween(tempDate, now));
+                displayDays = Math.Max(0, dayDiff);
+            }
+            else
+            {
+                var dayDiff = (int)Math.Floor(LunarHelper.DaysBetween(tempDate, now));
+                displayDays = Math.Max(0, dayDiff);
+            }
         }
 
-        int displayDays;
-        if (hasMonth && hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365 - displayMonths * 30;
-        }
-        else if (hasMonth)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var monthsFromTotal = (int)(totalSeconds / (30.4375 * 86400.0));
-            displayDays = totalDaysValue - monthsFromTotal * 30;
-        }
-        else if (hasYear)
-        {
-            var totalDaysValue = (int)Math.Floor(totalSeconds / 86400.0);
-            var yearsFromTotal = (int)(totalSeconds / (365.25 * 86400.0));
-            displayDays = totalDaysValue - yearsFromTotal * 365;
-        }
-        else
-        {
-            displayDays = days;
-        }
+        var yy = displayYears.ToString();
+        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
+        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
+        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
 
         var result = format
             .Replace("%D", ((int)totalDays).ToString())
