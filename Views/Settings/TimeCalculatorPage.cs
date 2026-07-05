@@ -11,12 +11,21 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
 public class TimeCalculatorPage : UserControl
 {
     private readonly PluginSettings? _pluginSettings;
+
+    private TextBlock? _titleTextBlock;
+    private TextBlock? _minuendTitleTextBlock;
+    private TextBlock? _subtrahendTitleTextBlock;
+    private TextBlock? _resultTitleTextBlock;
+
+    private List<TextBlock>? _labelTextBlocks;
+    private List<Border>? _sectionBorders;
 
     private TextBox? _minuendYearTextBox;
     private ComboBox? _minuendMonthComboBox;
@@ -49,6 +58,9 @@ public class TimeCalculatorPage : UserControl
 
     private void InitializeComponent()
     {
+        _labelTextBlocks = new List<TextBlock>();
+        _sectionBorders = new List<Border>();
+
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -56,14 +68,14 @@ public class TimeCalculatorPage : UserControl
             Spacing = 16
         };
 
-        var titleText = new TextBlock
+        _titleTextBlock = new TextBlock
         {
             Text = "时间计算器",
             FontSize = 18,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
+            Foreground = ThemeHelper.GetTextBrush()
         };
-        mainPanel.Children.Add(titleText);
+        mainPanel.Children.Add(_titleTextBlock);
 
         _clearButton = new Button
         {
@@ -97,12 +109,13 @@ public class TimeCalculatorPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        panel.Children.Add(new TextBlock
+        _minuendTitleTextBlock = new TextBlock
         {
             Text = "被减数",
             FontSize = 18,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        panel.Children.Add(_minuendTitleTextBlock);
 
         var datePanel = CreateDatePickerRow("日期输入:", out _minuendYearTextBox, out _minuendMonthComboBox, out _minuendDayComboBox);
         panel.Children.Add(datePanel);
@@ -119,13 +132,15 @@ public class TimeCalculatorPage : UserControl
         _minuendNowButton.Click += OnMinuendNowButtonClick;
         panel.Children.Add(_minuendNowButton);
 
-        return new Border
+        var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel
         };
+        _sectionBorders.Add(border);
+        return border;
     }
 
     private Control CreateSubtrahendSection()
@@ -137,12 +152,13 @@ public class TimeCalculatorPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        panel.Children.Add(new TextBlock
+        _subtrahendTitleTextBlock = new TextBlock
         {
             Text = "减数",
             FontSize = 18,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        panel.Children.Add(_subtrahendTitleTextBlock);
 
         var inputRow = new StackPanel
         {
@@ -170,7 +186,7 @@ public class TimeCalculatorPage : UserControl
         {
             Text = "格式化规则：D总天数 H总小时 M总分钟 S总秒 X总毫秒 d天 h小时 m分钟 s秒 yy年 YY总年 mo月 MO总月\n大写小写不共存，大写规则互斥，不能出现3YY6mo的现象",
             FontSize = 11,
-            Foreground = Brushes.Gray,
+            Foreground = ThemeHelper.GetGrayBrush(),
             TextWrapping = TextWrapping.Wrap
         };
         panel.Children.Add(_subtrahendHint);
@@ -184,13 +200,15 @@ public class TimeCalculatorPage : UserControl
         _calculateButton.Click += OnCalculateButtonClick;
         panel.Children.Add(_calculateButton);
 
-        return new Border
+        var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel
         };
+        _sectionBorders.Add(border);
+        return border;
     }
 
     private Control CreateResultSection()
@@ -202,12 +220,13 @@ public class TimeCalculatorPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        panel.Children.Add(new TextBlock
+        _resultTitleTextBlock = new TextBlock
         {
             Text = "结果",
             FontSize = 18,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        panel.Children.Add(_resultTitleTextBlock);
 
         var datePanel = CreateDatePickerRow("日期输出:", out _resultYearTextBox, out _resultMonthComboBox, out _resultDayComboBox);
         panel.Children.Add(datePanel);
@@ -224,13 +243,15 @@ public class TimeCalculatorPage : UserControl
         _diffButton.Click += OnDiffButtonClick;
         panel.Children.Add(_diffButton);
 
-        return new Border
+        var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel
         };
+        _sectionBorders.Add(border);
+        return border;
     }
 
     private void OnClearButtonClick(object? sender, RoutedEventArgs e)
@@ -632,13 +653,15 @@ public class TimeCalculatorPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        panel.Children.Add(new TextBlock
+        var labelTextBlock = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _labelTextBlocks.Add(labelTextBlock);
+        panel.Children.Add(labelTextBlock);
 
         var datePanel = new StackPanel
         {
@@ -700,13 +723,15 @@ public class TimeCalculatorPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        panel.Children.Add(new TextBlock
+        var labelTextBlock = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _labelTextBlocks.Add(labelTextBlock);
+        panel.Children.Add(labelTextBlock);
 
         timePicker = new TimePicker
         {
@@ -784,6 +809,63 @@ public class TimeCalculatorPage : UserControl
         else
         {
             dayComboBox.SelectedIndex = -1;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_titleTextBlock != null)
+            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_minuendTitleTextBlock != null)
+            _minuendTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_subtrahendTitleTextBlock != null)
+            _subtrahendTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_resultTitleTextBlock != null)
+            _resultTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_subtrahendHint != null)
+            _subtrahendHint.Foreground = ThemeHelper.GetGrayBrush();
+
+        if (_labelTextBlocks != null)
+        {
+            foreach (var tb in _labelTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetTextBrush();
+            }
+        }
+
+        if (_sectionBorders != null)
+        {
+            foreach (var border in _sectionBorders)
+            {
+                border.Background = ThemeHelper.GetCardBackgroundBrush();
+            }
         }
     }
 }

@@ -75,6 +75,16 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#FFA500" : "#FF8C00";
     }
 
+    public static IBrush GetCardBackgroundBrush()
+    {
+        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#2D2D30")) : new SolidColorBrush(Color.Parse("#F5F5F5"));
+    }
+
+    public static string GetCardBackgroundColorHex()
+    {
+        return IsDarkTheme() ? "#2D2D30" : "#F5F5F5";
+    }
+
     public static IBrush GetYiBrush()
     {
         return IsDarkTheme() ? Brushes.LightGreen : Brushes.DarkGreen;

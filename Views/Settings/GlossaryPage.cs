@@ -5,6 +5,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -14,6 +16,13 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// </summary>
 public class GlossaryPage : UserControl
 {
+    private List<TextBlock>? _paragraphTextBlocks;
+    private List<TextBlock>? _heading2TextBlocks;
+    private List<TextBlock>? _heading3TextBlocks;
+    private List<TextBlock>? _listItemTextBlocks;
+    private List<Border>? _quoteBorders;
+    private List<TextBlock>? _quoteTextBlocks;
+
     /// <summary>
     /// 获取 ClassIsland 强调色画刷
     /// </summary>
@@ -106,6 +115,13 @@ public class GlossaryPage : UserControl
     /// </summary>
     private Border CreateMarkdownSection(string markdownText)
     {
+        _paragraphTextBlocks = new List<TextBlock>();
+        _heading2TextBlocks = new List<TextBlock>();
+        _heading3TextBlocks = new List<TextBlock>();
+        _listItemTextBlocks = new List<TextBlock>();
+        _quoteBorders = new List<Border>();
+        _quoteTextBlocks = new List<TextBlock>();
+
         var section = new Border
         {
             Background = new SolidColorBrush(Color.Parse("#2D2D30")),
@@ -129,7 +145,9 @@ public class GlossaryPage : UserControl
             paragraphBuffer.Clear();
             if (string.IsNullOrWhiteSpace(paragraphText)) return;
 
-            content.Children.Add(BuildInlineTextBlock(paragraphText, 13, Brushes.LightGray, false));
+            var tb = BuildInlineTextBlock(paragraphText, 13, ThemeHelper.GetSubTextBrush(), false);
+            _paragraphTextBlocks.Add(tb);
+            content.Children.Add(tb);
         }
 
         foreach (var rawLine in lines)
@@ -146,7 +164,7 @@ public class GlossaryPage : UserControl
             if (line.StartsWith("## "))
             {
                 FlushParagraph();
-                content.Children.Add(new TextBlock
+                var h2 = new TextBlock
                 {
                     Text = line.Substring(3).Trim(),
                     FontSize = 18,
@@ -154,22 +172,26 @@ public class GlossaryPage : UserControl
                     Foreground = GetAccentBrush(),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 12, 0, 4)
-                });
+                };
+                _heading2TextBlocks.Add(h2);
+                content.Children.Add(h2);
                 continue;
             }
 
             if (line.StartsWith("### "))
             {
                 FlushParagraph();
-                content.Children.Add(new TextBlock
+                var h3 = new TextBlock
                 {
                     Text = line.Substring(4).Trim(),
                     FontSize = 15,
                     FontWeight = FontWeight.Bold,
-                    Foreground = Brushes.LightBlue,
+                    Foreground = ThemeHelper.GetLightBlueBrush(),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 6, 0, 2)
-                });
+                };
+                _heading3TextBlocks.Add(h3);
+                content.Children.Add(h3);
                 continue;
             }
 
@@ -196,8 +218,10 @@ public class GlossaryPage : UserControl
                     Padding = new Thickness(10, 6, 6, 6),
                     Margin = new Thickness(0, 4, 0, 4),
                     Background = new SolidColorBrush(Color.Parse("#252528")),
-                    Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, Brushes.Khaki, false)
+                    Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetYellowBrush(), false)
                 };
+                _quoteBorders.Add(quotePanel);
+                _quoteTextBlocks.Add((TextBlock)quotePanel.Child);
                 content.Children.Add(quotePanel);
                 continue;
             }
@@ -218,7 +242,9 @@ public class GlossaryPage : UserControl
                     Foreground = GetAccentBrush(),
                     FontWeight = FontWeight.Bold
                 });
-                itemPanel.Children.Add(BuildInlineTextBlock(line.Substring(2).Trim(), 13, Brushes.LightGray, false));
+                var itemText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetSubTextBrush(), false);
+                _listItemTextBlocks.Add(itemText);
+                itemPanel.Children.Add(itemText);
                 content.Children.Add(itemPanel);
                 continue;
             }
@@ -248,6 +274,61 @@ public class GlossaryPage : UserControl
             TextWrapping = TextWrapping.Wrap,
             FontStyle = isItalic ? FontStyle.Italic : FontStyle.Normal
         };
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_paragraphTextBlocks != null)
+        {
+            foreach (var tb in _paragraphTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+        if (_heading3TextBlocks != null)
+        {
+            foreach (var tb in _heading3TextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetLightBlueBrush();
+            }
+        }
+        if (_listItemTextBlocks != null)
+        {
+            foreach (var tb in _listItemTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+        if (_quoteTextBlocks != null)
+        {
+            foreach (var tb in _quoteTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetYellowBrush();
+            }
+        }
     }
 }
 

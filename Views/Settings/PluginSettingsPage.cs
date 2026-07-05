@@ -8,6 +8,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -500,6 +501,13 @@ public class PluginSettingsPage : UserControl
     private ToggleSwitch? _experimentalToggle;
     private Border? _experimentalItem;
 
+    private TextBlock? _titleTextBlock;
+    private TextBlock? _generalSettingsTextBlock;
+    private TextBlock? _licenseTextBlock;
+    private TextBlock? _ntpHintTextBlock;
+    private List<TextBlock>? _settingTitleTextBlocks;
+    private List<TextBlock>? _settingDescriptionTextBlocks;
+
     public Action? RequestRestartAction { get; set; }
 
     public PluginSettingsPage() : this(null, null)
@@ -518,6 +526,9 @@ public class PluginSettingsPage : UserControl
 
     private void InitializeComponent()
     {
+        _settingTitleTextBlocks = new List<TextBlock>();
+        _settingDescriptionTextBlocks = new List<TextBlock>();
+
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -526,33 +537,36 @@ public class PluginSettingsPage : UserControl
         };
 
         // 标题
-        mainPanel.Children.Add(new TextBlock
+        _titleTextBlock = new TextBlock
         {
             Text = "插件设置",
             FontSize = 18,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        mainPanel.Children.Add(_titleTextBlock);
 
         // 通用设置
-        mainPanel.Children.Add(new TextBlock
+        _generalSettingsTextBlock = new TextBlock
         {
             Text = "通用设置",
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             Margin = new Avalonia.Thickness(0, 8, 0, 0)
-        });
+        };
+        mainPanel.Children.Add(_generalSettingsTextBlock);
 
         // 许可证声明
-        mainPanel.Children.Add(new TextBlock
+        _licenseTextBlock = new TextBlock
         {
             Text = "本项目基于 GNU Lesser General Public License v3.0 获得许可",
             FontSize = 12,
-            Foreground = Brushes.LightGray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
-        });
+        };
+        mainPanel.Children.Add(_licenseTextBlock);
 
         // 地方时经度设置
         mainPanel.Children.Add(CreateSettingItem(
@@ -656,7 +670,7 @@ public class PluginSettingsPage : UserControl
         _echoHoleDisplayText = new TextBlock
         {
             FontSize = 13,
-            Foreground = Brushes.LightGray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 0),
             IsVisible = false
@@ -704,9 +718,10 @@ public class PluginSettingsPage : UserControl
             Text = title,
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        _settingTitleTextBlocks?.Add(titleText);
         Grid.SetColumn(titleText, 0);
         titlePanel.Children.Add(titleText);
 
@@ -722,13 +737,15 @@ public class PluginSettingsPage : UserControl
         // 描述
         if (!string.IsNullOrEmpty(description))
         {
-            content.Children.Add(new TextBlock
+            var descText = new TextBlock
             {
                 Text = description,
                 FontSize = 12,
-                Foreground = Brushes.LightGray,
+                Foreground = ThemeHelper.GetSubTextBrush(),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap
-            });
+            };
+            _settingDescriptionTextBlocks?.Add(descText);
+            content.Children.Add(descText);
         }
 
         itemPanel.Child = content;
@@ -762,9 +779,10 @@ public class PluginSettingsPage : UserControl
             Text = title,
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        _settingTitleTextBlocks?.Add(titleText);
         Grid.SetColumn(titleText, 0);
         titlePanel.Children.Add(titleText);
 
@@ -797,13 +815,15 @@ public class PluginSettingsPage : UserControl
 
         if (!string.IsNullOrEmpty(description))
         {
-            content.Children.Add(new TextBlock
+            var descText = new TextBlock
             {
                 Text = description,
                 FontSize = 12,
-                Foreground = Brushes.LightGray,
+                Foreground = ThemeHelper.GetSubTextBrush(),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap
-            });
+            };
+            _settingDescriptionTextBlocks?.Add(descText);
+            content.Children.Add(descText);
         }
 
         itemPanel.Child = content;
@@ -1086,14 +1106,14 @@ public class PluginSettingsPage : UserControl
         };
         panel.Children.Add(_syncStatusText);
 
-        var hint = new TextBlock
+        _ntpHintTextBlock = new TextBlock
         {
             Text = "请输入不小于1的整数，单位为分钟",
             FontSize = 11,
-            Foreground = Brushes.Gray,
+            Foreground = ThemeHelper.GetGrayBrush(),
             TextWrapping = TextWrapping.Wrap
         };
-        panel.Children.Add(hint);
+        panel.Children.Add(_ntpHintTextBlock);
 
         // 订阅TimeBaseService的同步事件
         if (TimeBaseService.Instance != null)
@@ -1231,7 +1251,7 @@ public class PluginSettingsPage : UserControl
         else
         {
             _syncStatusText.Text = "尚未同步时间";
-            _syncStatusText.Foreground = Brushes.Gray;
+            _syncStatusText.Foreground = ThemeHelper.GetGrayBrush();
         }
     }
 
@@ -1552,6 +1572,58 @@ public class PluginSettingsPage : UserControl
                     _echoHoleDisplayText.Text = currentText + "_";
                 }
             });
+        }
+
+        protected override void OnInitialized()
+        {
+            base.OnInitialized();
+            if (Application.Current != null)
+            {
+                Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            }
+        }
+
+        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+        {
+            base.OnDetachedFromVisualTree(e);
+            if (Application.Current != null)
+            {
+                Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            }
+        }
+
+        private void OnThemeVariantChanged(object? sender, EventArgs e)
+        {
+            UpdateThemeColors();
+        }
+
+        private void UpdateThemeColors()
+        {
+            if (_titleTextBlock != null)
+                _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+            if (_generalSettingsTextBlock != null)
+                _generalSettingsTextBlock.Foreground = ThemeHelper.GetTextBrush();
+            if (_licenseTextBlock != null)
+                _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+            if (_echoHoleDisplayText != null)
+                _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
+            if (_ntpHintTextBlock != null)
+                _ntpHintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+
+            if (_settingTitleTextBlocks != null)
+            {
+                foreach (var tb in _settingTitleTextBlocks)
+                {
+                    tb.Foreground = ThemeHelper.GetTextBrush();
+                }
+            }
+            if (_settingDescriptionTextBlocks != null)
+            {
+                foreach (var tb in _settingDescriptionTextBlocks)
+                {
+                    tb.Foreground = ThemeHelper.GetSubTextBrush();
+                }
+            }
         }
 
         #endregion

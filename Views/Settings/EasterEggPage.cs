@@ -7,6 +7,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using FluentAvalonia.UI.Controls;
 
@@ -32,6 +34,10 @@ public class EasterEggPage : UserControl
     }
 
     private readonly PluginSettings? _pluginSettings;
+
+    private List<TextBlock>? _normalTextBlocks;
+    private List<TextBlock>? _boldTextBlocks;
+    private List<Border>? _separatorBorders;
 
     public EasterEggPage() : this(null)
     {
@@ -126,6 +132,10 @@ public class EasterEggPage : UserControl
     /// </summary>
     private Border CreateMarkdownSection(string markdownText)
     {
+        _normalTextBlocks = new List<TextBlock>();
+        _boldTextBlocks = new List<TextBlock>();
+        _separatorBorders = new List<Border>();
+
         var section = new Border
         {
             Background = new SolidColorBrush(Color.Parse("#2D2D30")),
@@ -166,12 +176,14 @@ public class EasterEggPage : UserControl
             else if (line.StartsWith("---"))
             {
                 // 分隔线
-                content.Children.Add(new Border
+                var sep = new Border
                 {
                     Height = 1,
-                    Background = Brushes.Gray,
+                    Background = ThemeHelper.GetGrayBrush(),
                     Margin = new Thickness(0, 8, 0, 8)
-                });
+                };
+                _separatorBorders.Add(sep);
+                content.Children.Add(sep);
             }
             else if (line.StartsWith("!["))
             {
@@ -198,15 +210,17 @@ public class EasterEggPage : UserControl
             else if (line.StartsWith("**") && line.EndsWith("**"))
             {
                 // 粗体标题
-                content.Children.Add(new TextBlock
+                var boldText = new TextBlock
                 {
                     Text = line.Trim('*'),
                     FontSize = 14,
                     FontWeight = FontWeight.Bold,
-                    Foreground = Brushes.Orange,
+                    Foreground = ThemeHelper.GetOrangeBrush(),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 8, 0, 4)
-                });
+                };
+                _boldTextBlocks.Add(boldText);
+                content.Children.Add(boldText);
             }
             else if (line.Contains("[") && line.Contains("]("))
             {
@@ -217,13 +231,15 @@ public class EasterEggPage : UserControl
             else
             {
                 // 普通文本
-                content.Children.Add(new TextBlock
+                var normalText = new TextBlock
                 {
                     Text = line.Trim(),
                     FontSize = 13,
-                    Foreground = Brushes.LightGray,
+                    Foreground = ThemeHelper.GetSubTextBrush(),
                     TextWrapping = TextWrapping.Wrap
-                });
+                };
+                _normalTextBlocks.Add(normalText);
+                content.Children.Add(normalText);
             }
         }
 
@@ -282,7 +298,7 @@ public class EasterEggPage : UserControl
             {
                 Text = "• ",
                 FontSize = 13,
-                Foreground = Brushes.LightGray
+                Foreground = ThemeHelper.GetSubTextBrush()
             });
             panel.Children.Add(link);
         }
@@ -292,7 +308,7 @@ public class EasterEggPage : UserControl
             {
                 Text = linkText,
                 FontSize = 13,
-                Foreground = Brushes.LightGray
+                Foreground = ThemeHelper.GetSubTextBrush()
             });
         }
 
@@ -308,7 +324,7 @@ public class EasterEggPage : UserControl
         var textBlock = new TextBlock
         {
             FontSize = 13,
-            Foreground = Brushes.LightGray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap
         };
 
@@ -329,7 +345,7 @@ public class EasterEggPage : UserControl
             {
                 Text = beforeColon,
                 FontSize = 13,
-                Foreground = Brushes.LightGray
+                Foreground = ThemeHelper.GetSubTextBrush()
             });
 
             // 解析链接
@@ -375,7 +391,7 @@ public class EasterEggPage : UserControl
             {
                 Text = line.Replace("[", "").Replace("]", "").Split('(')[0].Trim(),
                 FontSize = 13,
-                Foreground = Brushes.LightGray,
+                Foreground = ThemeHelper.GetSubTextBrush(),
                 TextWrapping = TextWrapping.Wrap
             };
         }
@@ -395,11 +411,11 @@ public class EasterEggPage : UserControl
         var endParen = line.IndexOf(')');
 
         if (startBracket < 0 || endBracket <= startBracket || startParen <= endBracket || endParen <= startParen)
-            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = Brushes.Gray };
+            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = ThemeHelper.GetGrayBrush() };
 
         var assetPath = line.Substring(startParen + 1, endParen - startParen - 1);
         if (string.IsNullOrWhiteSpace(assetPath))
-            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = Brushes.Gray };
+            return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = ThemeHelper.GetGrayBrush() };
 
         var image = new Image
         {
@@ -454,6 +470,54 @@ public class EasterEggPage : UserControl
         catch
         {
             imageControl.Source = null;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_normalTextBlocks != null)
+        {
+            foreach (var tb in _normalTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+        if (_boldTextBlocks != null)
+        {
+            foreach (var tb in _boldTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetOrangeBrush();
+            }
+        }
+        if (_separatorBorders != null)
+        {
+            foreach (var border in _separatorBorders)
+            {
+                border.Background = ThemeHelper.GetGrayBrush();
+            }
         }
     }
 }

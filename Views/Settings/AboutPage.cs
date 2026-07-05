@@ -6,6 +6,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
@@ -47,6 +48,12 @@ public class AboutPage : SettingsPageBase
     private bool _easterEggActive;
     private readonly LunarInstallerService? _lunarInstaller;
     private readonly PluginSettings? _pluginSettings;
+
+    private TextBlock? _nameTextBlock;
+    private TextBlock? _authorTextBlock;
+    private List<TextBlock>? _aboutContentTextBlocks;
+    private List<TextBlock>? _infoRowLabelTextBlocks;
+    private List<TextBlock>? _infoRowValueTextBlocks;
 
     public AboutPage() : this(null, null)
     {
@@ -195,7 +202,7 @@ public class AboutPage : SettingsPageBase
             {
                 Text = "触发彩蛋成功~",
                 FontSize = 16,
-                Foreground = Brushes.White,
+                Foreground = ThemeHelper.GetTextBrush(),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextWrapping = TextWrapping.Wrap
             },
@@ -294,6 +301,8 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private Control CreateAboutContent()
     {
+        _aboutContentTextBlocks = new List<TextBlock>();
+
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -301,27 +310,33 @@ public class AboutPage : SettingsPageBase
             Spacing = 12
         };
 
-        panel.Children.Add(new TextBlock
+        var authorText = new TextBlock
         {
             Text = "作者：inf2147483647",
             FontSize = 14,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        _aboutContentTextBlocks.Add(authorText);
+        panel.Children.Add(authorText);
 
-        panel.Children.Add(new TextBlock
+        var versionText = new TextBlock
         {
             Text = "版本：1.0.1.0",
             FontSize = 14,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        _aboutContentTextBlocks.Add(versionText);
+        panel.Children.Add(versionText);
 
-        panel.Children.Add(new TextBlock
+        var descText = new TextBlock
         {
             Text = "介绍：AdvancedTimeIsland 是 ClassIsland 的高级时间类型插件，提供倒计时、正向计时、高级日期、农历倒计时、地方时和时区时间等多种组件。支持 NTP 服务器时间同步，时间系统独立于本地系统。内置丰富的自动化规则，涵盖精确时间和年/月/日/时/分/秒时间范围触发，以及地方时和时区规则。集成农历服务和地理时间功能，支持多种时间基准选择，全面提升时间管理体验。更多功能开发中，敬请期待。",
             FontSize = 14,
-            Foreground = Brushes.LightGray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap
-        });
+        };
+        _aboutContentTextBlocks.Add(descText);
+        panel.Children.Add(descText);
 
         return panel;
     }
@@ -344,12 +359,12 @@ public class AboutPage : SettingsPageBase
             Spacing = 4
         };
 
-        var nameText = new TextBlock
+        _nameTextBlock = new TextBlock
         {
             Text = "AdvancedTimeIsland",
             FontSize = 20,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
+            Foreground = ThemeHelper.GetTextBrush()
         };
 
         var authorPanel = new StackPanel
@@ -358,11 +373,11 @@ public class AboutPage : SettingsPageBase
             Spacing = 8
         };
 
-        var authorText = new TextBlock
+        _authorTextBlock = new TextBlock
         {
             Text = "inf2147483647",
             FontSize = 12,
-            Foreground = Brushes.LightGray
+            Foreground = ThemeHelper.GetSubTextBrush()
         };
 
         var projectButton = new Button
@@ -393,7 +408,7 @@ public class AboutPage : SettingsPageBase
             }
         };
 
-        authorPanel.Children.Add(authorText);
+        authorPanel.Children.Add(_authorTextBlock);
         authorPanel.Children.Add(projectButton);
 
         // 反馈问题按钮
@@ -428,7 +443,7 @@ public class AboutPage : SettingsPageBase
 
         authorPanel.Children.Add(feedbackButton);
 
-        infoPanel.Children.Add(nameText);
+        infoPanel.Children.Add(_nameTextBlock);
         infoPanel.Children.Add(authorPanel);
 
         DockPanel.SetDock(iconBorder, Dock.Left);
@@ -449,19 +464,23 @@ public class AboutPage : SettingsPageBase
             Spacing = 8
         };
 
-        row.Children.Add(new TextBlock
+        var labelText = new TextBlock
         {
             Text = $"{label}：",
             FontSize = 13,
-            Foreground = Brushes.White
-        });
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        _infoRowLabelTextBlocks?.Add(labelText);
+        row.Children.Add(labelText);
 
-        row.Children.Add(new TextBlock
+        var valueText = new TextBlock
         {
             Text = value,
             FontSize = 13,
-            Foreground = Brushes.LightGray
-        });
+            Foreground = ThemeHelper.GetSubTextBrush()
+        };
+        _infoRowValueTextBlocks?.Add(valueText);
+        row.Children.Add(valueText);
 
         return row;
     }
@@ -533,7 +552,7 @@ public class AboutPage : SettingsPageBase
                     tabItem.Content = new GlossaryPage();
                     break;
                 default:
-                    tabItem.Content = new TextBlock { Text = "内容加载中...", Foreground = Brushes.White };
+                    tabItem.Content = new TextBlock { Text = "内容加载中...", Foreground = ThemeHelper.GetTextBrush() };
                     break;
             }
         }
@@ -545,6 +564,63 @@ public class AboutPage : SettingsPageBase
                 Foreground = Brushes.Red,
                 TextWrapping = TextWrapping.Wrap
             };
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_nameTextBlock != null)
+            _nameTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        if (_authorTextBlock != null)
+            _authorTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+
+        if (_aboutContentTextBlocks != null)
+        {
+            for (int i = 0; i < _aboutContentTextBlocks.Count; i++)
+            {
+                if (i < 2)
+                    _aboutContentTextBlocks[i].Foreground = ThemeHelper.GetTextBrush();
+                else
+                    _aboutContentTextBlocks[i].Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+
+        if (_infoRowLabelTextBlocks != null)
+        {
+            foreach (var tb in _infoRowLabelTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetTextBrush();
+            }
+        }
+        if (_infoRowValueTextBlocks != null)
+        {
+            foreach (var tb in _infoRowValueTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
         }
     }
 }

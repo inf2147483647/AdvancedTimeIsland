@@ -10,6 +10,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -101,6 +102,16 @@ public class TimeConverterPage : UserControl
     // 插件设置（用于获取经度显示方式）
     private readonly PluginSettings? _settings;
 
+    // 主题相关成员变量
+    private List<TextBlock>? _whiteTextBlocks;
+    private List<TextBlock>? _lightGrayTextBlocks;
+    private List<TextBlock>? _orangeTextBlocks;
+    private List<TextBlock>? _lightGreenTextBlocks;
+    private List<Border>? _moduleBorders;
+    private Button? _clearButton;
+    private Button? _copyButton;
+    private Button? _beijingCurrentButton;
+
     // 天干列表
     private readonly string[] _tiangan = { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
 
@@ -168,6 +179,12 @@ public class TimeConverterPage : UserControl
 
     private void InitializeComponent()
     {
+        _whiteTextBlocks = new List<TextBlock>();
+        _lightGrayTextBlocks = new List<TextBlock>();
+        _orangeTextBlocks = new List<TextBlock>();
+        _lightGreenTextBlocks = new List<TextBlock>();
+        _moduleBorders = new List<Border>();
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
@@ -187,17 +204,17 @@ public class TimeConverterPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
-        var clearButton = new Button
+        _clearButton = new Button
         {
             Content = "清空",
             Padding = new Avalonia.Thickness(16, 8),
-            Background = Brushes.Gray,
-            Foreground = Brushes.White,
+            Background = ThemeHelper.GetGrayBrush(),
+            Foreground = ThemeHelper.GetTextBrush(),
             CornerRadius = new CornerRadius(6)
         };
-        clearButton.Click += OnClearAllClick;
+        _clearButton.Click += OnClearAllClick;
 
-        headerPanel.Children.Add(clearButton);
+        headerPanel.Children.Add(_clearButton);
         mainPanel.Children.Add(headerPanel);
 
         // 注意事项（放在导航栏下方，转换模块上方）
@@ -239,17 +256,17 @@ public class TimeConverterPage : UserControl
         content.Children.Add(timePanel);
 
         // 选取当前时间按钮
-        var currentButton = new Button
+        _beijingCurrentButton = new Button
         {
             Content = "选取当前时间",
             Padding = new Avalonia.Thickness(12, 6),
-            Background = Brushes.DarkGreen,
-            Foreground = Brushes.White,
+            Background = ThemeHelper.GetYiBrush(),
+            Foreground = ThemeHelper.GetTextBrush(),
             HorizontalAlignment = HorizontalAlignment.Left,
             CornerRadius = new CornerRadius(6)
         };
-        currentButton.Click += OnBeijingCurrentTimeClick;
-        content.Children.Add(currentButton);
+        _beijingCurrentButton.Click += OnBeijingCurrentTimeClick;
+        content.Children.Add(_beijingCurrentButton);
 
         // 转换按钮组
         var buttonPanel = new StackPanel
@@ -288,17 +305,17 @@ public class TimeConverterPage : UserControl
         content.Children.Add(inputPanel);
 
         // 复制按钮
-        var copyButton = new Button
+        _copyButton = new Button
         {
             Content = "复制",
             Padding = new Avalonia.Thickness(12, 6),
-            Background = Brushes.Gray,
-            Foreground = Brushes.White,
+            Background = ThemeHelper.GetGrayBrush(),
+            Foreground = ThemeHelper.GetTextBrush(),
             HorizontalAlignment = HorizontalAlignment.Left,
             CornerRadius = new CornerRadius(6)
         };
-        copyButton.Click += OnUnixCopyClick;
-        content.Children.Add(copyButton);
+        _copyButton.Click += OnUnixCopyClick;
+        content.Children.Add(_copyButton);
 
         // 转换按钮组
         var buttonPanel = new StackPanel
@@ -338,13 +355,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        yearRangePanel.Children.Add(new TextBlock
+        var yearRangeLabel = new TextBlock
         {
             Text = "年份范围:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(yearRangeLabel);
+        yearRangePanel.Children.Add(yearRangeLabel);
 
         _lunarYearRangeComboBox = new ComboBox { Width = 180 };
         foreach (var range in LunarCalendarHelper.GetAllYearRanges())
@@ -372,13 +391,15 @@ public class TimeConverterPage : UserControl
         foreach (var dz in _dizhi) _lunarDizhiComboBox.Items.Add(dz);
         tgdzPanel.Children.Add(_lunarDizhiComboBox);
 
-        tgdzPanel.Children.Add(new TextBlock
+        var yearLabel = new TextBlock
         {
             Text = "年",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(yearLabel);
+        tgdzPanel.Children.Add(yearLabel);
 
         content.Children.Add(tgdzPanel);
 
@@ -390,13 +411,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        monthPanel.Children.Add(new TextBlock
+        var monthLabel = new TextBlock
         {
             Text = "月份:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(monthLabel);
+        monthPanel.Children.Add(monthLabel);
 
         _lunarMonthComboBox = new ComboBox { Width = 80 };
         for (int i = 1; i <= 12; i++)
@@ -416,13 +439,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        dayPanel.Children.Add(new TextBlock
+        var dayLabel = new TextBlock
         {
             Text = "日期:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(dayLabel);
+        dayPanel.Children.Add(dayLabel);
 
         _lunarDayComboBox = new ComboBox { Width = 70 };
         for (int i = 1; i <= 30; i++)
@@ -483,13 +508,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        zonePanel.Children.Add(new TextBlock
+        var zoneLabel = new TextBlock
         {
             Text = "时区:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(zoneLabel);
+        zonePanel.Children.Add(zoneLabel);
 
         _zoneComboBox = new ComboBox { Width = 200 };
         foreach (var zone in _timeZones.Keys)
@@ -499,19 +526,21 @@ public class TimeConverterPage : UserControl
         _zoneComboBox.SelectedIndex = 15; // 默认选中中时区(UTC±00:00)
         zonePanel.Children.Add(_zoneComboBox);
 
-        zonePanel.Children.Add(new TextBlock
+        var dstLabel = new TextBlock
         {
             Text = "夏令时:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Avalonia.Thickness(16, 0, 0, 0)
-        });
+        };
+        _whiteTextBlocks.Add(dstLabel);
+        zonePanel.Children.Add(dstLabel);
 
         _zoneDstCheckBox = new CheckBox
         {
             Content = "开启",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
         zonePanel.Children.Add(_zoneDstCheckBox);
@@ -558,13 +587,15 @@ public class TimeConverterPage : UserControl
 
         // 经度输入
         var lonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        lonPanel.Children.Add(new TextBlock
+        var longitudeLabel = new TextBlock
         {
             Text = "经度:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(longitudeLabel);
+        lonPanel.Children.Add(longitudeLabel);
 
         var isDms = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
         
@@ -608,18 +639,20 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        dstPanel.Children.Add(new TextBlock
+        var localDstLabel = new TextBlock
         {
             Text = "夏令时:",
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(localDstLabel);
+        dstPanel.Children.Add(localDstLabel);
 
         _localDstCheckBox = new CheckBox
         {
             Content = "开启",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
         dstPanel.Children.Add(_localDstCheckBox);
@@ -654,12 +687,13 @@ public class TimeConverterPage : UserControl
     {
         var panel = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 16),
             CornerRadius = new CornerRadius(8),
             ClipToBounds = true
         };
+        _moduleBorders.Add(panel);
 
         var content = new StackPanel
         {
@@ -683,12 +717,14 @@ public class TimeConverterPage : UserControl
             Foreground = GetAccentBrush()
         });
 
-        titlePanel.Children.Add(new TextBlock
+        var subtitleTextBlock = new TextBlock
         {
             Text = $"| {title}",
             FontSize = 14,
-            Foreground = Brushes.LightGray
-        });
+            Foreground = ThemeHelper.GetSubTextBrush()
+        };
+        _lightGrayTextBlocks.Add(subtitleTextBlock);
+        titlePanel.Children.Add(subtitleTextBlock);
 
         content.Children.Add(titlePanel);
         panel.Child = content;
@@ -710,13 +746,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        panel.Children.Add(new TextBlock
+        var labelTextBlock = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(labelTextBlock);
+        panel.Children.Add(labelTextBlock);
 
         var textBox = new TextBox
         {
@@ -738,13 +776,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        panel.Children.Add(new TextBlock
+        var labelTextBlock = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(labelTextBlock);
+        panel.Children.Add(labelTextBlock);
 
         var datePanel = new StackPanel
         {
@@ -806,13 +846,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 0, 0, 8)
         };
 
-        panel.Children.Add(new TextBlock
+        var labelTextBlock = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        });
+        };
+        _whiteTextBlocks.Add(labelTextBlock);
+        panel.Children.Add(labelTextBlock);
 
         timePicker = new TimePicker
         {
@@ -850,10 +892,11 @@ public class TimeConverterPage : UserControl
             Text = "",
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.LightGreen,
+            Foreground = ThemeHelper.GetYiBrush(),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
             Margin = new Avalonia.Thickness(0, 8, 0, 0)
         };
+        _lightGreenTextBlocks.Add(textBlock);
 
         // 为每个TextBlock创建定时器
         var timer = new System.Timers.Timer(5000); // 5秒后自动清除
@@ -899,13 +942,15 @@ public class TimeConverterPage : UserControl
             Margin = new Avalonia.Thickness(0, 16, 0, 0)
         };
 
-        panel.Children.Add(new TextBlock
+        var notesTitle = new TextBlock
         {
             Text = "注意事项：",
             FontSize = 14,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.Orange
-        });
+            Foreground = ThemeHelper.GetOrangeBrush()
+        };
+        _orangeTextBlocks.Add(notesTitle);
+        panel.Children.Add(notesTitle);
 
         var notes = new[]
         {
@@ -917,13 +962,15 @@ public class TimeConverterPage : UserControl
 
         foreach (var note in notes)
         {
-            panel.Children.Add(new TextBlock
+            var noteTextBlock = new TextBlock
             {
                 Text = note,
                 FontSize = 12,
-                Foreground = Brushes.LightGray,
+                Foreground = ThemeHelper.GetSubTextBrush(),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap
-            });
+            };
+            _lightGrayTextBlocks.Add(noteTextBlock);
+            panel.Children.Add(noteTextBlock);
         }
 
         return panel;
@@ -2134,6 +2181,100 @@ public class TimeConverterPage : UserControl
             _localLongitudeDmsMinutesTextBox!.Text = m.ToString();
             _localLongitudeDmsSecondsTextBox!.Text = s.ToString("F2");
             _localLongitudeDmsDirectionComboBox!.SelectedIndex = isEast ? 0 : 1;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_whiteTextBlocks != null)
+        {
+            foreach (var tb in _whiteTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetTextBrush();
+            }
+        }
+
+        if (_lightGrayTextBlocks != null)
+        {
+            foreach (var tb in _lightGrayTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+
+        if (_orangeTextBlocks != null)
+        {
+            foreach (var tb in _orangeTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetOrangeBrush();
+            }
+        }
+
+        if (_lightGreenTextBlocks != null)
+        {
+            foreach (var tb in _lightGreenTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetYiBrush();
+            }
+        }
+
+        if (_moduleBorders != null)
+        {
+            foreach (var border in _moduleBorders)
+            {
+                border.Background = ThemeHelper.GetCardBackgroundBrush();
+            }
+        }
+
+        if (_clearButton != null)
+        {
+            _clearButton.Background = ThemeHelper.GetGrayBrush();
+            _clearButton.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        if (_copyButton != null)
+        {
+            _copyButton.Background = ThemeHelper.GetGrayBrush();
+            _copyButton.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        if (_beijingCurrentButton != null)
+        {
+            _beijingCurrentButton.Background = ThemeHelper.GetYiBrush();
+            _beijingCurrentButton.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        if (_zoneDstCheckBox != null)
+        {
+            _zoneDstCheckBox.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        if (_localDstCheckBox != null)
+        {
+            _localDstCheckBox.Foreground = ThemeHelper.GetTextBrush();
         }
     }
 }
