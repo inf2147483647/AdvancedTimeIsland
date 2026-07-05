@@ -1,11 +1,13 @@
 using System;
 using System.Globalization;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
@@ -16,6 +18,13 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueFontSizeTextBox;
 
+    private TextBlock _labelTitleTextBlock;
+    private TextBlock _labelColorLabelTextBlock;
+    private TextBlock _labelFontSizeLabelTextBlock;
+    private TextBlock _valueTitleTextBlock;
+    private TextBlock _valueColorNoteTextBlock;
+    private TextBlock _valueFontSizeLabelTextBlock;
+
     public DayYiJiSettingsControl()
     {
         InitializeComponent();
@@ -25,16 +34,16 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var labelTitle = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(labelTitle);
+        _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_labelTitleTextBlock);
 
         var labelColorRow = new Grid();
         labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var labelColorLabel = new TextBlock { Text = "颜色:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(labelColorLabel, 0);
-        labelColorRow.Children.Add(labelColorLabel);
+        _labelColorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_labelColorLabelTextBlock, 0);
+        labelColorRow.Children.Add(_labelColorLabelTextBlock);
 
         _labelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_labelColorTextBox, 1);
@@ -46,9 +55,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var labelFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(labelFontSizeLabel, 0);
-        labelFontSizeRow.Children.Add(labelFontSizeLabel);
+        _labelFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_labelFontSizeLabelTextBlock, 0);
+        labelFontSizeRow.Children.Add(_labelFontSizeLabelTextBlock);
 
         _labelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_labelFontSizeTextBox, 1);
@@ -56,19 +65,19 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
 
-        var valueTitle = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(valueTitle);
+        _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_valueTitleTextBlock);
 
-        var valueColorNote = new TextBlock { Text = "宜：绿色（固定）；忌：红色（固定）", FontSize = 12, Foreground = Brushes.Gray, Margin = new Thickness(0, 4, 0, 0) };
-        sp.Children.Add(valueColorNote);
+        _valueColorNoteTextBlock = new TextBlock { Text = "宜：绿色（固定）；忌：红色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+        sp.Children.Add(_valueColorNoteTextBlock);
 
         var valueFontSizeRow = new Grid();
         valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var valueFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(valueFontSizeLabel, 0);
-        valueFontSizeRow.Children.Add(valueFontSizeLabel);
+        _valueFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_valueFontSizeLabelTextBlock, 0);
+        valueFontSizeRow.Children.Add(_valueFontSizeLabelTextBlock);
 
         _valueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_valueFontSizeTextBox, 1);
@@ -85,12 +94,41 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         Content = scrollViewer;
     }
 
+    private void UpdateThemeColors()
+    {
+        _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _valueTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _valueColorNoteTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+        _valueFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
         _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void OnLabelColorLostFocus(object? sender, EventArgs e)

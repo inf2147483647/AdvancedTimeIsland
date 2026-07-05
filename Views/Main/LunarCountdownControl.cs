@@ -2,9 +2,12 @@ using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -49,11 +52,11 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        tbText1 = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "" };
-        tbName = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "" };
-        tbText3 = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "还有" };
-        tbTime = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "Loading..." };
-        tbText4 = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "" };
+        tbText1 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
+        tbName = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
+        tbText3 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "还有" };
+        tbTime = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "Loading..." };
+        tbText4 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
 
         contentPanel.Children.Add(tbText1);
         contentPanel.Children.Add(tbName);
@@ -92,24 +95,26 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize)
     {
-        try
-        {
-            tb.FontSize = fontSize;
-            if (!string.IsNullOrEmpty(colorStr) && colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                tb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch
-        {
-            tb.Foreground = Brushes.White;
-        }
+        tb.FontSize = fontSize;
+        tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1FontSize);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameFontSize);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3FontSize);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeFontSize);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4FontSize);
     }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new LunarCountdownViewModel(_timeBaseService, Settings,
             UpdateText1Style, UpdateNameStyle, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
@@ -180,6 +185,10 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
     }
 }

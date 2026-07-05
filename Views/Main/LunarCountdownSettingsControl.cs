@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using FluentAvalonia.UI.Controls;
 
@@ -40,6 +41,27 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBox? _text4FontSizeTextBox;
     private ColorPicker? _text4FontColorPicker;
 
+    private TextBlock? _titleTextBlock;
+    private TextBlock? _descTextBlock;
+    private TextBlock? _orderHintTextBlock;
+    private TextBlock? _textGroupHeader;
+    private TextBlock? _formatGroupHeader;
+    private TextBlock? _timeBaseGroupHeader;
+    private TextBlock? _timeBaseLabel;
+    private TextBlock? _fontGroupHeader;
+    private TextBlock? _listGroupHeader;
+    private TextBlock? _lunarHeader;
+    private TextBlock? _solarHeader;
+    private TextBlock? _notifyHeader;
+
+    private TextBlock? _text1StyleTextBlock;
+    private TextBlock? _nameStyleTextBlock;
+    private TextBlock? _text3StyleTextBlock;
+    private TextBlock? _timeStyleTextBlock;
+    private TextBlock? _text4StyleTextBlock;
+
+    private List<TextBlock> _dynamicTextBlocks = new();
+
     public LunarCountdownSettingsControl()
     {
         InitializeComponent();
@@ -49,16 +71,18 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     {
         var mainPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var title = new TextBlock { Text = "农历多倒计时设置", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White };
-        mainPanel.Children.Add(title);
+        _titleTextBlock = new TextBlock { Text = "农历多倒计时设置", FontSize = 14, FontWeight = FontWeight.Bold };
+        mainPanel.Children.Add(_titleTextBlock);
 
-        var desc = new TextBlock { Text = "配置农历倒计时显示选项和倒计时列表", FontSize = 12, Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap };
-        mainPanel.Children.Add(desc);
+        _descTextBlock = new TextBlock { Text = "配置农历倒计时显示选项和倒计时列表", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        mainPanel.Children.Add(_descTextBlock);
 
-        var textGroup = new Expander { Header = new TextBlock { Text = "文案设置", Foreground = Brushes.White }, IsExpanded = true };
+        _textGroupHeader = new TextBlock { Text = "文案设置" };
+        var textGroup = new Expander { Header = _textGroupHeader, IsExpanded = true };
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        textPanel.Children.Add(new TextBlock { Text = "以下内容在主界面上的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", Foreground = Brushes.Yellow, FontSize = 11, FontWeight = FontWeight.Bold });
+        _orderHintTextBlock = new TextBlock { Text = "以下内容在主界面上的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", FontSize = 11, FontWeight = FontWeight.Bold };
+        textPanel.Children.Add(_orderHintTextBlock);
         textPanel.Children.Add(CreateTextRowFullWidth("文案1", "", out _text1TextBox));
         textPanel.Children.Add(CreateText2ButtonRow());
         textPanel.Children.Add(CreateTextRowFullWidth("文案3", "还有", out _text3TextBox));
@@ -67,7 +91,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         textGroup.Content = textPanel;
         mainPanel.Children.Add(textGroup);
 
-        var formatGroup = new Expander { Header = new TextBlock { Text = "时间格式", Foreground = Brushes.White }, IsExpanded = true };
+        _formatGroupHeader = new TextBlock { Text = "时间格式" };
+        var formatGroup = new Expander { Header = _formatGroupHeader, IsExpanded = true };
         var formatPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         _timeFormatTextBox = new TextBox { Watermark = "%d天%h小时%m分钟%s秒" };
@@ -77,7 +102,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         {
             Text = "格式化变量: %D总天数 %H总小时 %M总分钟 %S总秒 %X总毫秒\n%d天 %h小时 %m分钟 %s秒 %x毫秒\n%L剩余百分比 %P已过百分比 %p已过百分比(两位)\n%yy总年 %YY总年(两位) %mo总月 %MO总月(两位)",
             FontSize = 11,
-            Foreground = Brushes.Gray,
             TextWrapping = TextWrapping.Wrap
         };
         formatPanel.Children.Add(_timeFormatHint);
@@ -85,16 +109,18 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         formatGroup.Content = formatPanel;
         mainPanel.Children.Add(formatGroup);
 
-        var timeBaseGroup = new Expander { Header = new TextBlock { Text = "时间基准", Foreground = Brushes.White }, IsExpanded = true };
+        _timeBaseGroupHeader = new TextBlock { Text = "时间基准" };
+        var timeBaseGroup = new Expander { Header = _timeBaseGroupHeader, IsExpanded = true };
         var timeBasePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var timeBaseRow = new Grid();
         timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var timeBaseLabel = new TextBlock { Text = "时间基准:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(timeBaseLabel, 0);
-        timeBaseRow.Children.Add(timeBaseLabel);
+        _timeBaseLabel = new TextBlock { Text = "时间基准:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(_timeBaseLabel);
+        Grid.SetColumn(_timeBaseLabel, 0);
+        timeBaseRow.Children.Add(_timeBaseLabel);
 
         _timeBaseComboBox = new ComboBox();
         _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
@@ -108,33 +134,40 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         timeBaseGroup.Content = timeBasePanel;
         mainPanel.Children.Add(timeBaseGroup);
 
-        var fontGroup = new Expander { Header = new TextBlock { Text = "字体样式", Foreground = Brushes.White }, IsExpanded = false };
+        _fontGroupHeader = new TextBlock { Text = "字体样式" };
+        var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
         var fontPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text1StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "倒计时名称样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _nameStyleTextBlock = new TextBlock { Text = "倒计时名称样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_nameStyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _nameFontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _nameFontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text3StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_timeStyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text4StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker));
 
         fontGroup.Content = fontPanel;
         mainPanel.Children.Add(fontGroup);
 
-        var listGroup = new Expander { Header = new TextBlock { Text = "农历倒计时列表", Foreground = Brushes.White }, IsExpanded = true };
+        _listGroupHeader = new TextBlock { Text = "农历倒计时列表" };
+        var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
         var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var headerGrid = new Grid();
@@ -142,39 +175,36 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
-        var lunarHeader = new TextBlock
+        _lunarHeader = new TextBlock
         {
             Text = "农历日期",
-            Foreground = Brushes.LightGray,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(lunarHeader, 0);
-        headerGrid.Children.Add(lunarHeader);
+        Grid.SetColumn(_lunarHeader, 0);
+        headerGrid.Children.Add(_lunarHeader);
 
-        var solarHeader = new TextBlock
+        _solarHeader = new TextBlock
         {
             Text = "对应公历日期",
-            Foreground = Brushes.LightGray,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(solarHeader, 1);
-        headerGrid.Children.Add(solarHeader);
+        Grid.SetColumn(_solarHeader, 1);
+        headerGrid.Children.Add(_solarHeader);
 
-        var notifyHeader = new TextBlock
+        _notifyHeader = new TextBlock
         {
             Text = "启用通知？",
-            Foreground = Brushes.LightGray,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        Grid.SetColumn(notifyHeader, 2);
-        headerGrid.Children.Add(notifyHeader);
+        Grid.SetColumn(_notifyHeader, 2);
+        headerGrid.Children.Add(_notifyHeader);
         listPanel.Children.Add(headerGrid);
 
         _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
@@ -206,7 +236,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         _selectionHintTextBlock = new TextBlock
         {
             Text = "请选择一个农历倒计时",
-            Foreground = Brushes.Orange,
             IsVisible = false,
             HorizontalAlignment = HorizontalAlignment.Center,
             FontSize = 12
@@ -230,7 +259,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label + ":", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var lbl = new TextBlock { Text = label + ":", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -247,7 +277,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -264,7 +295,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -281,7 +313,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = "倒计时名称:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var lbl = new TextBlock { Text = "倒计时名称:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -314,9 +347,47 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         }
     }
 
+    private void UpdateThemeColors()
+    {
+        if (_titleTextBlock != null) _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        if (_descTextBlock != null) _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_orderHintTextBlock != null) _orderHintTextBlock.Foreground = ThemeHelper.GetYellowBrush();
+        if (_textGroupHeader != null) _textGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
+        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_fontGroupHeader != null) _fontGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_lunarHeader != null) _lunarHeader.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_solarHeader != null) _solarHeader.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
+
+        if (_text1StyleTextBlock != null) _text1StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_nameStyleTextBlock != null) _nameStyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_text3StyleTextBlock != null) _text3StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_timeStyleTextBlock != null) _timeStyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_text4StyleTextBlock != null) _text4StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+
+        foreach (var tb in _dynamicTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
 
         if (_text1TextBox != null) _text1TextBox.Text = Settings.Text1;
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
@@ -338,6 +409,15 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         UpdateCountdownList();
 
         AttachEventHandlers();
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void AttachEventHandlers()
@@ -434,7 +514,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 {
                     Text = $"{item.Name} - {lunarDesc}",
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = Brushes.White,
+                    Foreground = ThemeHelper.GetTextBrush(),
                     Padding = new Avalonia.Thickness(0, 4, 0, 4)
                 };
                 Grid.SetColumn(lunarTextBlock, 0);
@@ -444,7 +524,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 {
                     Text = targetSolar.ToString("yyyy-MM-dd HH:mm:ss"),
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = Brushes.LightGray,
+                    Foreground = ThemeHelper.GetSubTextBrush(),
                     Padding = new Avalonia.Thickness(0, 4, 0, 4)
                 };
                 Grid.SetColumn(solarTextBlock, 1);
@@ -582,16 +662,16 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         };
         contentPanel.Children.Add(infoBar);
 
-        var nameLabel = new TextBlock { Text = "名称:", Foreground = Brushes.White };
+        var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
         var nameTextBox = new TextBox { Text = item.Name };
         contentPanel.Children.Add(nameLabel);
         contentPanel.Children.Add(nameTextBox);
 
-        var lunarGroup = new Expander { Header = new TextBlock { Text = "农历日期", Foreground = Brushes.White }, IsExpanded = true };
+        var lunarGroup = new Expander { Header = new TextBlock { Text = "农历日期", Foreground = ThemeHelper.GetTextBrush() }, IsExpanded = true };
         var lunarPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var yearRangePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        yearRangePanel.Children.Add(new TextBlock { Text = "年份范围:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        yearRangePanel.Children.Add(new TextBlock { Text = "年份范围:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
         var yearRangeCombo = new ComboBox { Width = 180 };
         foreach (var range in LunarCalendarHelper.GetAllYearRanges())
         {
@@ -623,7 +703,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var yearLabel = new TextBlock { Text = "天干地支年:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var yearLabel = new TextBlock { Text = "天干地支年:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(yearLabel, 0);
         yearRow.Children.Add(yearLabel);
 
@@ -633,7 +713,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         Grid.SetColumn(tianganCombo, 1);
         yearRow.Children.Add(tianganCombo);
 
-        var dizhiLabel = new TextBlock { Text = "地支:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
+        var dizhiLabel = new TextBlock { Text = "地支:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
         Grid.SetColumn(dizhiLabel, 2);
         yearRow.Children.Add(dizhiLabel);
 
@@ -660,7 +740,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
-        var monthLabel = new TextBlock { Text = "月:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var monthLabel = new TextBlock { Text = "月:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(monthLabel, 0);
         monthRow.Children.Add(monthLabel);
 
@@ -670,7 +750,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         Grid.SetColumn(monthCombo, 1);
         monthRow.Children.Add(monthCombo);
 
-        var leapLabel = new TextBlock { Text = "闰月:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
+        var leapLabel = new TextBlock { Text = "闰月:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
         Grid.SetColumn(leapLabel, 2);
         monthRow.Children.Add(leapLabel);
 
@@ -678,7 +758,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         Grid.SetColumn(leapToggle, 3);
         monthRow.Children.Add(leapToggle);
 
-        var dayLabel = new TextBlock { Text = "日:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
+        var dayLabel = new TextBlock { Text = "日:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
         Grid.SetColumn(dayLabel, 4);
         monthRow.Children.Add(dayLabel);
 
@@ -694,7 +774,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
 
-        var timeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var timeLabel = new TextBlock { Text = "时间:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
         Grid.SetColumn(timeLabel, 0);
         timeRow.Children.Add(timeLabel);
 
@@ -710,10 +790,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         lunarPanel.Children.Add(timeRow);
 
-        var solarGroup = new Expander { Header = new TextBlock { Text = "公历对照（可互转）", Foreground = Brushes.White }, IsExpanded = true };
+        var solarGroup = new Expander { Header = new TextBlock { Text = "公历对照（可互转）", Foreground = ThemeHelper.GetTextBrush() }, IsExpanded = true };
         var solarPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        var solarDateLabel = new TextBlock { Text = "公历日期:", Foreground = Brushes.White };
+        var solarDateLabel = new TextBlock { Text = "公历日期:", Foreground = ThemeHelper.GetTextBrush() };
         solarPanel.Children.Add(solarDateLabel);
 
         var currentSolarDate = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
@@ -747,9 +827,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarSecondComboBox.SelectedIndex = currentSolarDate.Second;
 
         solarTimePanel.Children.Add(solarHourComboBox);
-        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
         solarTimePanel.Children.Add(solarMinuteComboBox);
-        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
         solarTimePanel.Children.Add(solarSecondComboBox);
         solarPanel.Children.Add(solarTimePanel);
 
@@ -875,7 +955,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarPanel.Children.Add(syncButton2);
 
 
-        var notifyToggle = new ToggleSwitch { Content = new TextBlock { Text = "启用通知", Foreground = Brushes.White }, IsChecked = item.EnableNotification };
+        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
         contentPanel.Children.Add(notifyToggle);
 
         lunarGroup.Content = lunarPanel;

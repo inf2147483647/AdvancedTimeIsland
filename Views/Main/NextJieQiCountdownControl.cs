@@ -1,10 +1,13 @@
-using System;
+﻿using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -27,10 +30,10 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
     {
         rootBorder = new Border { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        text1Tb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        nameTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        text3Tb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        timeTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
+        text1Tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        nameTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        text3Tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        timeTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
         sp.Children.Add(text1Tb);
         sp.Children.Add(nameTb);
         sp.Children.Add(text3Tb);
@@ -41,64 +44,44 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
 
     private void UpdateText1FontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                text1Tb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { text1Tb.Foreground = Brushes.White; }
+        text1Tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateText1FontSize(double fontSize) { text1Tb.FontSize = fontSize; }
     private void UpdateNameFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                nameTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { nameTb.Foreground = Brushes.White; }
+        nameTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateNameFontSize(double fontSize) { nameTb.FontSize = fontSize; }
     private void UpdateText3FontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                text3Tb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { text3Tb.Foreground = Brushes.White; }
+        text3Tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateText3FontSize(double fontSize) { text3Tb.FontSize = fontSize; }
     private void UpdateTimeFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                timeTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { timeTb.Foreground = Brushes.White; }
+        timeTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateTimeFontSize(double fontSize) { timeTb.FontSize = fontSize; }
 
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateText1FontColor(Settings.Text1FontColor);
+        UpdateNameFontColor(Settings.NameFontColor);
+        UpdateText3FontColor(Settings.Text3FontColor);
+        UpdateTimeFontColor(Settings.TimeFontColor);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new NextJieQiCountdownViewModel(_timeBaseService, Settings, UpdateText1FontColor, UpdateText1FontSize, UpdateNameFontColor, UpdateNameFontSize, UpdateText3FontColor, UpdateText3FontSize, UpdateTimeFontColor, UpdateTimeFontSize);
         DataContext = vm;
         text1Tb.Text = vm.Text1Display;
@@ -125,6 +108,10 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
     }
 }

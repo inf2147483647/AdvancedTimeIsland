@@ -2,9 +2,12 @@ using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -43,15 +46,15 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         var mainSp = new StackPanel { Orientation = Orientation.Vertical };
         
         var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        yiLabelTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        yiValueTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green };
+        yiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        yiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetYiBrush() };
         yiSp.Children.Add(yiLabelTb);
         yiSp.Children.Add(yiValueTb);
         mainSp.Children.Add(yiSp);
         
         var jiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        jiLabelTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        jiValueTb = new TextBlock { FontSize = 14, Foreground = Brushes.Red };
+        jiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        jiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetJiBrush() };
         jiSp.Children.Add(jiLabelTb);
         jiSp.Children.Add(jiValueTb);
         mainSp.Children.Add(jiSp);
@@ -62,21 +65,9 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && colorStr.Length == 7)
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                var brush = new SolidColorBrush(color);
-                yiLabelTb.Foreground = brush;
-                jiLabelTb.Foreground = brush;
-            }
-        }
-        catch
-        {
-            yiLabelTb.Foreground = Brushes.White;
-            jiLabelTb.Foreground = Brushes.White;
-        }
+        var brush = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        yiLabelTb.Foreground = brush;
+        jiLabelTb.Foreground = brush;
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -91,9 +82,19 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         jiValueTb.FontSize = fontSize;
     }
 
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontColor(Settings.LabelFontColor);
+        yiValueTb.Foreground = ThemeHelper.GetYiBrush();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new DayYiJiViewModel(_timeBaseService, Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateValueFontSize);
         DataContext = vm;
         yiLabelTb.Text = vm.YiLabelText;
@@ -115,6 +116,10 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
     }
 }

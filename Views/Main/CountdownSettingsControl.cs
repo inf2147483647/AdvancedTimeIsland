@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using FluentAvalonia.UI.Controls;
 
@@ -48,6 +49,32 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private ComboBox? _startMinuteComboBox;
     private ComboBox? _startSecondComboBox;
 
+    private TextBlock? _titleTextBlock;
+    private TextBlock? _descTextBlock;
+    private TextBlock? _orderHintTextBlock;
+    private TextBlock? _textGroupHeader;
+    private TextBlock? _formatGroupHeader;
+    private TextBlock? _formatLabel;
+    private TextBlock? _timeBaseGroupHeader;
+    private TextBlock? _timeBaseLabel;
+    private TextBlock? _startTimeGroupHeader;
+    private TextBlock? _startDateLabel;
+    private TextBlock? _startTimeLabel;
+    private TextBlock? _hourSeparator;
+    private TextBlock? _minuteSeparator;
+    private TextBlock? _fontGroupHeader;
+    private TextBlock? _listGroupHeader;
+    private TextBlock? _nameHeader;
+    private TextBlock? _notifyHeader;
+
+    private TextBlock? _text1StyleTextBlock;
+    private TextBlock? _text2StyleTextBlock;
+    private TextBlock? _text3StyleTextBlock;
+    private TextBlock? _timeStyleTextBlock;
+    private TextBlock? _text4StyleTextBlock;
+
+    private List<TextBlock> _dynamicTextBlocks = new();
+
     public CountdownSettingsControl()
     {
         InitializeComponent();
@@ -57,16 +84,18 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     {
         var mainPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var title = new TextBlock { Text = "多倒计时设置", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White };
-        mainPanel.Children.Add(title);
+        _titleTextBlock = new TextBlock { Text = "多倒计时设置", FontSize = 14, FontWeight = FontWeight.Bold };
+        mainPanel.Children.Add(_titleTextBlock);
 
-        var desc = new TextBlock { Text = "配置倒计时显示选项和倒计时列表", FontSize = 12, Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap };
-        mainPanel.Children.Add(desc);
+        _descTextBlock = new TextBlock { Text = "配置倒计时显示选项和倒计时列表", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        mainPanel.Children.Add(_descTextBlock);
 
-        var textGroup = new Expander { Header = new TextBlock { Text = "文案设置", Foreground = Brushes.White }, IsExpanded = true };
+        _textGroupHeader = new TextBlock { Text = "文案设置" };
+        var textGroup = new Expander { Header = _textGroupHeader, IsExpanded = true };
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        textPanel.Children.Add(new TextBlock { Text = "以下内容在主界面上显示的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", Foreground = Brushes.Yellow, FontSize = 11, FontWeight = FontWeight.Bold });
+        _orderHintTextBlock = new TextBlock { Text = "以下内容在主界面上显示的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", FontSize = 11, FontWeight = FontWeight.Bold };
+        textPanel.Children.Add(_orderHintTextBlock);
         textPanel.Children.Add(CreateTextRow("文案1", "距离", out _text1TextBox));
         textPanel.Children.Add(CreateText2ButtonRow());
         textPanel.Children.Add(CreateTextRow("文案3", "还有", out _text3TextBox));
@@ -75,16 +104,17 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         textGroup.Content = textPanel;
         mainPanel.Children.Add(textGroup);
 
-        var formatGroup = new Expander { Header = new TextBlock { Text = "时间格式", Foreground = Brushes.White }, IsExpanded = true };
+        _formatGroupHeader = new TextBlock { Text = "时间格式" };
+        var formatGroup = new Expander { Header = _formatGroupHeader, IsExpanded = true };
         var formatPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var formatRow = new Grid();
         formatRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         formatRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var formatLabel = new TextBlock { Text = "时间格式:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(formatLabel, 0);
-        formatRow.Children.Add(formatLabel);
+        _formatLabel = new TextBlock { Text = "时间格式:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_formatLabel, 0);
+        formatRow.Children.Add(_formatLabel);
 
         _timeFormatTextBox = new TextBox { Watermark = "%d天%h小时%m分钟%s秒" };
         Grid.SetColumn(_timeFormatTextBox, 1);
@@ -96,14 +126,13 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         {
             Text = "格式化变量: %D总天数 %H总小时 %M总分钟 %S总秒 %X总毫秒\n%d天 %h小时 %m分钟 %s秒 %x毫秒\n%L剩余百分比 %P已过百分比 %p已过百分比(两位)\n%yy总年 %YY总年(两位) %mo总月 %MO总月(两位)",
             FontSize = 11,
-            Foreground = Brushes.Gray,
             TextWrapping = TextWrapping.Wrap
         };
         formatPanel.Children.Add(_timeFormatHint);
 
         _timeCorrectionToggle = new ToggleSwitch
         {
-            Content = new TextBlock { Text = "差一矫正（当精度不足时最小单位加一）", Foreground = Brushes.White },
+            Content = "差一矫正（当精度不足时最小单位加一）",
             IsChecked = true
         };
         _timeCorrectionToggle.IsCheckedChanged += (s, e) =>
@@ -115,16 +144,17 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         formatGroup.Content = formatPanel;
         mainPanel.Children.Add(formatGroup);
 
-        var timeBaseGroup = new Expander { Header = new TextBlock { Text = "时间基准", Foreground = Brushes.White }, IsExpanded = true };
+        _timeBaseGroupHeader = new TextBlock { Text = "时间基准" };
+        var timeBaseGroup = new Expander { Header = _timeBaseGroupHeader, IsExpanded = true };
         var timeBasePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var timeBaseRow = new Grid();
         timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var timeBaseLabel = new TextBlock { Text = "时间基准:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(timeBaseLabel, 0);
-        timeBaseRow.Children.Add(timeBaseLabel);
+        _timeBaseLabel = new TextBlock { Text = "时间基准:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_timeBaseLabel, 0);
+        timeBaseRow.Children.Add(_timeBaseLabel);
 
         _timeBaseComboBox = new ComboBox();
         _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
@@ -138,7 +168,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         timeBaseGroup.Content = timeBasePanel;
         mainPanel.Children.Add(timeBaseGroup);
 
-        var startTimeGroup = new Expander { Header = new TextBlock { Text = "开始时间", Foreground = Brushes.White }, IsExpanded = true };
+        _startTimeGroupHeader = new TextBlock { Text = "开始时间" };
+        var startTimeGroup = new Expander { Header = _startTimeGroupHeader, IsExpanded = true };
         var startTimePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var startDateRow = new Grid();
@@ -147,9 +178,9 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
         startDateRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
-        var startDateLabel = new TextBlock { Text = "日期:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(startDateLabel, 0);
-        startDateRow.Children.Add(startDateLabel);
+        _startDateLabel = new TextBlock { Text = "日期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_startDateLabel, 0);
+        startDateRow.Children.Add(_startDateLabel);
 
         _startYearTextBox = new TextBox { Width = 80, Watermark = "年" };
         Grid.SetColumn(_startYearTextBox, 1);
@@ -178,27 +209,27 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         startTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
-        var startTimeLabel = new TextBlock { Text = "时间:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(startTimeLabel, 0);
-        startTimeRow.Children.Add(startTimeLabel);
+        _startTimeLabel = new TextBlock { Text = "时间:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_startTimeLabel, 0);
+        startTimeRow.Children.Add(_startTimeLabel);
 
         _startHourComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 24; i++) _startHourComboBox.Items.Add(i.ToString("D2"));
         Grid.SetColumn(_startHourComboBox, 1);
         startTimeRow.Children.Add(_startHourComboBox);
 
-        var hourSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(hourSeparator, 2);
-        startTimeRow.Children.Add(hourSeparator);
+        _hourSeparator = new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_hourSeparator, 2);
+        startTimeRow.Children.Add(_hourSeparator);
 
         _startMinuteComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 60; i++) _startMinuteComboBox.Items.Add(i.ToString("D2"));
         Grid.SetColumn(_startMinuteComboBox, 3);
         startTimeRow.Children.Add(_startMinuteComboBox);
 
-        var minuteSeparator = new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(minuteSeparator, 4);
-        startTimeRow.Children.Add(minuteSeparator);
+        _minuteSeparator = new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_minuteSeparator, 4);
+        startTimeRow.Children.Add(_minuteSeparator);
 
         _startSecondComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 60; i++) _startSecondComboBox.Items.Add(i.ToString("D2"));
@@ -210,61 +241,66 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         startTimeGroup.Content = startTimePanel;
         mainPanel.Children.Add(startTimeGroup);
 
-        var fontGroup = new Expander { Header = new TextBlock { Text = "字体样式", Foreground = Brushes.White }, IsExpanded = false };
+        _fontGroupHeader = new TextBlock { Text = "字体样式" };
+        var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
         var fontPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text1StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text2StyleTextBlock = new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text2StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text2FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text2FontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text3StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_timeStyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker));
 
-        fontPanel.Children.Add(new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold, Foreground = Brushes.LightBlue });
+        _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
+        fontPanel.Children.Add(_text4StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker));
 
         fontGroup.Content = fontPanel;
         mainPanel.Children.Add(fontGroup);
 
-        var listGroup = new Expander { Header = new TextBlock { Text = "倒计时列表", Foreground = Brushes.White }, IsExpanded = true };
+        _listGroupHeader = new TextBlock { Text = "倒计时列表" };
+        var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
         var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var headerGrid = new Grid();
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
 
-        var nameHeader = new TextBlock
+        _nameHeader = new TextBlock
         {
             Text = "倒计时目标时间",
-            Foreground = Brushes.LightGray,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             VerticalAlignment = VerticalAlignment.Center
         };
-        Grid.SetColumn(nameHeader, 0);
-        headerGrid.Children.Add(nameHeader);
+        Grid.SetColumn(_nameHeader, 0);
+        headerGrid.Children.Add(_nameHeader);
 
-        var notifyHeader = new TextBlock
+        _notifyHeader = new TextBlock
         {
             Text = "启用通知？",
-            Foreground = Brushes.LightGray,
             FontSize = 11,
             FontWeight = FontWeight.Bold,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        Grid.SetColumn(notifyHeader, 1);
-        headerGrid.Children.Add(notifyHeader);
+        Grid.SetColumn(_notifyHeader, 1);
+        headerGrid.Children.Add(_notifyHeader);
         listPanel.Children.Add(headerGrid);
 
         _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
@@ -320,7 +356,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -337,7 +374,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -354,7 +392,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -371,7 +410,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -388,7 +428,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = "倒计时名称", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var lbl = new TextBlock { Text = "倒计时名称", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
@@ -421,9 +462,53 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 
+    private void UpdateThemeColors()
+    {
+        if (_titleTextBlock != null) _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        if (_descTextBlock != null) _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_orderHintTextBlock != null) _orderHintTextBlock.Foreground = ThemeHelper.GetYellowBrush();
+        if (_textGroupHeader != null) _textGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_formatLabel != null) _formatLabel.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
+        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeBaseLabel != null) _timeBaseLabel.Foreground = ThemeHelper.GetTextBrush();
+        if (_startTimeGroupHeader != null) _startTimeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_startDateLabel != null) _startDateLabel.Foreground = ThemeHelper.GetTextBrush();
+        if (_startTimeLabel != null) _startTimeLabel.Foreground = ThemeHelper.GetTextBrush();
+        if (_hourSeparator != null) _hourSeparator.Foreground = ThemeHelper.GetTextBrush();
+        if (_minuteSeparator != null) _minuteSeparator.Foreground = ThemeHelper.GetTextBrush();
+        if (_fontGroupHeader != null) _fontGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_nameHeader != null) _nameHeader.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
+
+        if (_text1StyleTextBlock != null) _text1StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_text2StyleTextBlock != null) _text2StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_text3StyleTextBlock != null) _text3StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_timeStyleTextBlock != null) _timeStyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+        if (_text4StyleTextBlock != null) _text4StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
+
+        foreach (var tb in _dynamicTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
 
         if (_text1TextBox != null) _text1TextBox.Text = Settings.Text1;
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
@@ -458,6 +543,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         UpdateCountdownList();
 
         AttachEventHandlers();
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void AttachEventHandlers()
@@ -631,7 +725,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
                 {
                     Text = $"{item.Name} - {targetTime:yyyy-MM-dd HH:mm:ss}",
                     VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = Brushes.White,
+                    Foreground = ThemeHelper.GetTextBrush(),
                     Padding = new Avalonia.Thickness(0, 4, 0, 4)
                 };
                 Grid.SetColumn(textBlock, 0);
@@ -740,12 +834,12 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var nameLabel = new TextBlock { Text = "名称:", Foreground = Brushes.White };
+        var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
         var nameTextBox = new TextBox { Text = item.Name };
         contentPanel.Children.Add(nameLabel);
         contentPanel.Children.Add(nameTextBox);
 
-        var targetLabel = new TextBlock { Text = "目标时间:", Foreground = Brushes.White };
+        var targetLabel = new TextBlock { Text = "目标时间:", Foreground = ThemeHelper.GetTextBrush() };
         contentPanel.Children.Add(targetLabel);
 
         var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
@@ -779,31 +873,31 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         secondComboBox.SelectedIndex = targetTime.Second;
 
         timePanel.Children.Add(hourComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(minuteComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(secondComboBox);
         contentPanel.Children.Add(timePanel);
 
-        var notifyToggle = new ToggleSwitch { Content = new TextBlock { Text = "启用通知", Foreground = Brushes.White }, IsChecked = item.EnableNotification };
+        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
         contentPanel.Children.Add(notifyToggle);
 
-        var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = Brushes.White };
+        var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = ThemeHelper.GetTextBrush() };
         var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
         contentPanel.Children.Add(notifyTitleLabel);
         contentPanel.Children.Add(notifyTitleTextBox);
 
-        var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = Brushes.White };
+        var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = ThemeHelper.GetTextBrush() };
         var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
         contentPanel.Children.Add(notifyContentLabel);
         contentPanel.Children.Add(notifyContentTextBox);
 
-        var maskDurationLabel = new TextBlock { Text = "通知标题时长(秒):", Foreground = Brushes.White };
+        var maskDurationLabel = new TextBlock { Text = "通知标题时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
         var maskDurationTextBox = new TextBox { Text = item.NotificationMaskDurationSeconds.ToString() };
         contentPanel.Children.Add(maskDurationLabel);
         contentPanel.Children.Add(maskDurationTextBox);
 
-        var overlayDurationLabel = new TextBlock { Text = "通知内容时长(秒):", Foreground = Brushes.White };
+        var overlayDurationLabel = new TextBlock { Text = "通知内容时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
         var overlayDurationTextBox = new TextBox { Text = item.NotificationOverlayDurationSeconds.ToString() };
         contentPanel.Children.Add(overlayDurationLabel);
         contentPanel.Children.Add(overlayDurationTextBox);

@@ -1,9 +1,12 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
@@ -14,6 +17,13 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private TextBox _colorTextBox;
     private TextBox _fontSizeTextBox;
 
+    private TextBlock _titleTextBlock;
+    private TextBlock _descTextBlock;
+    private TextBlock _labelTextBlock;
+    private TextBlock _styleTitleTextBlock;
+    private TextBlock _colorLabelTextBlock;
+    private TextBlock _fontSizeLabelTextBlock;
+
     public AdvancedDateSettingsControl()
     {
         InitializeComponent();
@@ -23,20 +33,19 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        // 日期设置
-        var title = new TextBlock { Text = "日期设置", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White };
-        sp.Children.Add(title);
+        _titleTextBlock = new TextBlock { Text = "日期设置", FontSize = 14, FontWeight = FontWeight.Bold };
+        sp.Children.Add(_titleTextBlock);
 
-        var desc = new TextBlock { Text = "配置日期显示选项", FontSize = 12, Foreground = Brushes.LightGray, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(desc);
+        _descTextBlock = new TextBlock { Text = "配置日期显示选项", FontSize = 12, TextWrapping = TextWrapping.Wrap };
+        sp.Children.Add(_descTextBlock);
 
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
 
-        var label = new TextBlock { Text = "显示星期", FontSize = 12, Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+        _labelTextBlock = new TextBlock { Text = "显示星期", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_labelTextBlock, 0);
+        row.Children.Add(_labelTextBlock);
 
         _showWeekDayToggle = new ToggleSwitch();
         _showWeekDayToggle.IsCheckedChanged += OnShowWeekDayChanged;
@@ -45,18 +54,16 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 
         sp.Children.Add(row);
 
-        // 字体样式设置
-        var styleTitle = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
-        sp.Children.Add(styleTitle);
+        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_styleTitleTextBlock);
 
-        // 字体颜色设置
         var colorRow = new Grid();
         colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var colorLabel = new TextBlock { Text = "颜色:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(colorLabel, 0);
-        colorRow.Children.Add(colorLabel);
+        _colorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_colorLabelTextBlock, 0);
+        colorRow.Children.Add(_colorLabelTextBlock);
 
         _colorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_colorTextBox, 1);
@@ -64,14 +71,13 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         colorRow.Children.Add(_colorTextBox);
         sp.Children.Add(colorRow);
 
-        // 字体大小设置
         var fontSizeRow = new Grid();
         fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var fontSizeLabel = new TextBlock { Text = "日期大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(fontSizeLabel, 0);
-        fontSizeRow.Children.Add(fontSizeLabel);
+        _fontSizeLabelTextBlock = new TextBlock { Text = "日期大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_fontSizeLabelTextBlock, 0);
+        fontSizeRow.Children.Add(_fontSizeLabelTextBlock);
 
         _fontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_fontSizeTextBox, 1);
@@ -88,12 +94,41 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Content = scrollViewer;
     }
 
+    private void UpdateThemeColors()
+    {
+        _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+        _labelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
         _showWeekDayToggle.IsChecked = Settings.ShowWeekDay;
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void OnShowWeekDayChanged(object? sender, EventArgs e)
@@ -135,6 +170,5 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         }
     }
 }
-
 
 

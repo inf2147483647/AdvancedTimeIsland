@@ -2,9 +2,12 @@ using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -29,14 +32,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         var mainSp = new StackPanel { Orientation = Orientation.Vertical };
         
         var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        yiLabelTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        yiValueTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green };
+        yiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        yiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetYiBrush() };
         yiSp.Children.Add(yiLabelTb);
         yiSp.Children.Add(yiValueTb);
         
         var jiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        jiLabelTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        jiValueTb = new TextBlock { FontSize = 14, Foreground = Brushes.Red };
+        jiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        jiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetJiBrush() };
         jiSp.Children.Add(jiLabelTb);
         jiSp.Children.Add(jiValueTb);
         
@@ -48,38 +51,33 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void UpdateYiLabelFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                yiLabelTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { yiLabelTb.Foreground = Brushes.White; }
+        yiLabelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
     private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
     private void UpdateJiLabelFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                jiLabelTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch { jiLabelTb.Foreground = Brushes.White; }
+        jiLabelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
     private void UpdateJiValueFontSize(double fontSize) { jiValueTb.FontSize = fontSize; }
 
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateYiLabelFontColor(Settings.YiLabelFontColor);
+        UpdateJiLabelFontColor(Settings.JiLabelFontColor);
+        yiValueTb.Foreground = ThemeHelper.GetYiBrush();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new TomorrowYiJiViewModel(_timeBaseService, Settings, UpdateYiLabelFontColor, UpdateYiLabelFontSize, UpdateYiValueFontSize, UpdateJiLabelFontColor, UpdateJiLabelFontSize, UpdateJiValueFontSize);
         DataContext = vm;
         yiLabelTb.Text = vm.YiLabelText;
@@ -104,6 +102,10 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
     }
 }

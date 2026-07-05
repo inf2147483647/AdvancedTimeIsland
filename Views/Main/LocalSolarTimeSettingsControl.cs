@@ -8,6 +8,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -27,6 +28,16 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private TextBlock _statusText;
     private readonly PluginSettings? _pluginSettings;
 
+    private TextBlock _titleTextBlock;
+    private TextBlock _longitudeLabelTextBlock;
+    private TextBlock _dmsDegreeSymbol;
+    private TextBlock _dmsMinuteSymbol;
+    private TextBlock _dmsSecondSymbol;
+    private TextBlock _hintTextBlock;
+    private TextBlock _styleTitleTextBlock;
+    private TextBlock _colorLabelTextBlock;
+    private TextBlock _fontSizeLabelTextBlock;
+
     public LocalSolarTimeSettingsControl() : this(null)
     {
     }
@@ -45,19 +56,17 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        // 经度设置
-        var title = new TextBlock { Text = "经度设置", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White };
-        sp.Children.Add(title);
+        _titleTextBlock = new TextBlock { Text = "经度设置", FontSize = 14, FontWeight = FontWeight.Bold };
+        sp.Children.Add(_titleTextBlock);
 
-        // 经度输入行：标签 + 输入框 + 获取位置按钮
         var longitudeRow = new Grid();
         longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
-        var longitudeLabel = new TextBlock { Text = "经度:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(longitudeLabel, 0);
-        longitudeRow.Children.Add(longitudeLabel);
+        _longitudeLabelTextBlock = new TextBlock { Text = "经度:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_longitudeLabelTextBlock, 0);
+        longitudeRow.Children.Add(_longitudeLabelTextBlock);
 
         var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
 
@@ -72,17 +81,20 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _longitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
         _longitudeDmsDegreesTextBox.LostFocus += OnLongitudeDmsValueChanged;
         _longitudeDmsPanel.Children.Add(_longitudeDmsDegreesTextBox);
-        _longitudeDmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
+        _dmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
+        _longitudeDmsPanel.Children.Add(_dmsDegreeSymbol);
 
         _longitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
         _longitudeDmsMinutesTextBox.LostFocus += OnLongitudeDmsValueChanged;
         _longitudeDmsPanel.Children.Add(_longitudeDmsMinutesTextBox);
-        _longitudeDmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
+        _dmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
+        _longitudeDmsPanel.Children.Add(_dmsMinuteSymbol);
 
         _longitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
         _longitudeDmsSecondsTextBox.LostFocus += OnLongitudeDmsValueChanged;
         _longitudeDmsPanel.Children.Add(_longitudeDmsSecondsTextBox);
-        _longitudeDmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
+        _dmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
+        _longitudeDmsPanel.Children.Add(_dmsSecondSymbol);
 
         _longitudeDmsDirectionComboBox = new ComboBox { Width = 90 };
         _longitudeDmsDirectionComboBox.Items.Add("东经");
@@ -105,26 +117,22 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         longitudeRow.Children.Add(_getLocationButton);
         sp.Children.Add(longitudeRow);
 
-        // 状态提示
-        _statusText = new TextBlock { Text = "", FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
+        _statusText = new TextBlock { Text = "", FontSize = 11, TextWrapping = TextWrapping.Wrap };
         sp.Children.Add(_statusText);
 
-        // 提示
-        var hint = new TextBlock { Text = "取值范围为(-180到180]，单位为度，正数为东经，负数为西经", FontSize = 11, Foreground = Brushes.Gray, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(hint);
+        _hintTextBlock = new TextBlock { Text = "取值范围为(-180到180]，单位为度，正数为东经，负数为西经", FontSize = 11, TextWrapping = TextWrapping.Wrap };
+        sp.Children.Add(_hintTextBlock);
 
-        // 字体样式设置
-        var styleTitle = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(styleTitle);
+        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_styleTitleTextBlock);
 
-        // 字体颜色设置
         var colorRow = new Grid();
         colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var colorLabel = new TextBlock { Text = "颜色:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(colorLabel, 0);
-        colorRow.Children.Add(colorLabel);
+        _colorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_colorLabelTextBlock, 0);
+        colorRow.Children.Add(_colorLabelTextBlock);
 
         _colorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_colorTextBox, 1);
@@ -132,14 +140,13 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         colorRow.Children.Add(_colorTextBox);
         sp.Children.Add(colorRow);
 
-        // 字体大小设置
         var fontSizeRow = new Grid();
         fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var fontSizeLabel = new TextBlock { Text = "文本大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(fontSizeLabel, 0);
-        fontSizeRow.Children.Add(fontSizeLabel);
+        _fontSizeLabelTextBlock = new TextBlock { Text = "文本大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_fontSizeLabelTextBlock, 0);
+        fontSizeRow.Children.Add(_fontSizeLabelTextBlock);
 
         _fontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_fontSizeTextBox, 1);
@@ -156,9 +163,33 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         Content = scrollViewer;
     }
 
+    private void UpdateThemeColors()
+    {
+        _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _longitudeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _dmsDegreeSymbol.Foreground = ThemeHelper.GetTextBrush();
+        _dmsMinuteSymbol.Foreground = ThemeHelper.GetTextBrush();
+        _dmsSecondSymbol.Foreground = ThemeHelper.GetTextBrush();
+        _statusText.Foreground = ThemeHelper.GetGrayBrush();
+        _hintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
         _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
         UpdateDmsFromLongitude();
         if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
@@ -173,6 +204,15 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void UpdateDmsFromLongitude()
@@ -220,14 +260,13 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _getLocationButton.IsEnabled = false;
         _getLocationButton.Content = "获取中...";
         _statusText.Text = "正在获取位置...";
-        _statusText.Foreground = Brushes.Orange;
+        _statusText.Foreground = ThemeHelper.GetOrangeBrush();
 
         try
         {
             var location = await GetLocationAsync();
             if (location != null)
             {
-                // 精确到0.0001（保留4位小数）
                 var longitude = Math.Round(location.Value, 4);
                 Settings.Longitude = longitude;
                 if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
@@ -240,7 +279,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
                     _longitudeTextBox.Text = longitude.ToString("F4", System.Globalization.CultureInfo.InvariantCulture);
                     _statusText.Text = $"已获取位置：经度 {longitude:F4}°";
                 }
-                _statusText.Foreground = Brushes.LightGreen;
+                _statusText.Foreground = ThemeHelper.GetYiBrush();
             }
             else
             {
@@ -264,7 +303,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     {
         try
         {
-            // 使用 Windows.Devices.Geolocation 获取位置
             var accessStatus = await Windows.Devices.Geolocation.Geolocator.RequestAccessAsync();
             
             if (accessStatus == Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
@@ -286,14 +324,10 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
         catch (Exception)
         {
-            // 如果 Windows API 失败，尝试备用方案
             return await GetLocationByIpAsync();
         }
     }
 
-    /// <summary>
-    /// 备用方案：通过 IP 定位服务获取位置
-    /// </summary>
     private async Task<double?> GetLocationByIpAsync()
     {
         try
@@ -301,10 +335,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
             using var client = new System.Net.Http.HttpClient();
             client.Timeout = TimeSpan.FromSeconds(10);
             
-            // 使用免费的 IP 定位 API
             var response = await client.GetStringAsync("http://ip-api.com/json/?fields=lon");
             
-            // 解析 JSON 响应
             var json = System.Text.Json.JsonDocument.Parse(response);
             if (json.RootElement.TryGetProperty("lon", out var lonElement))
             {
@@ -379,6 +411,5 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
     }
 }
-
 
 

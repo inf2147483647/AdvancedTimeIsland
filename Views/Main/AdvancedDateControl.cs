@@ -2,9 +2,12 @@ using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -22,6 +25,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
     private TextBlock tb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private bool _isDisposed;
 
     public AdvancedDateControl(TimeBaseService tbs)
     {
@@ -36,25 +40,14 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        tb = new TextBlock { FontSize = 14, Foreground = Brushes.White, Text = "Loading..." };
+        tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "Loading..." };
         rootBorder.Child = tb;
         Content = rootBorder;
     }
 
     private void UpdateFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && colorStr.Length == 7)
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                tb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch
-        {
-            tb.Foreground = Brushes.White;
-        }
+        tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateFontSize(double fontSize)
@@ -62,9 +55,18 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         tb.FontSize = fontSize;
     }
 
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateFontColor(Settings.FontColor);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new AdvancedDateViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.DateDisplay;
@@ -79,9 +81,11 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
+        _isDisposed = true;
     }
 }
-
-
-

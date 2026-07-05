@@ -1,11 +1,13 @@
-﻿using System;
+using System;
 using System.Globalization;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
@@ -19,21 +21,34 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private TextBox _jiLabelColorTextBox;
     private TextBox _jiValueFontSizeTextBox;
 
+    private TextBlock _yiLabelTitle;
+    private TextBlock _yiLabelColorLabel;
+    private TextBlock _yiLabelFontSizeLabel;
+    private TextBlock _yiValueTitle;
+    private TextBlock _yiValueColorNote;
+    private TextBlock _yiValueFontSizeLabel;
+    private TextBlock _jiLabelTitle;
+    private TextBlock _jiLabelColorLabel;
+    private TextBlock _jiLabelFontSizeLabel;
+    private TextBlock _jiValueTitle;
+    private TextBlock _jiValueColorNote;
+    private TextBlock _jiValueFontSizeLabel;
+
     public TomorrowYiJiSettingsControl() { InitializeComponent(); }
 
     private void InitializeComponent()
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var yiLabelTitle = new TextBlock { Text = "宜标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(yiLabelTitle);
+        _yiLabelTitle = new TextBlock { Text = "宜标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_yiLabelTitle);
 
         var yiLabelColorRow = new Grid();
         yiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         yiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var yiLabelColorLabel = new TextBlock { Text = "颜色:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(yiLabelColorLabel, 0);
-        yiLabelColorRow.Children.Add(yiLabelColorLabel);
+        _yiLabelColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_yiLabelColorLabel, 0);
+        yiLabelColorRow.Children.Add(_yiLabelColorLabel);
         _yiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_yiLabelColorTextBox, 1);
         _yiLabelColorTextBox.LostFocus += OnYiLabelColorLostFocus;
@@ -43,42 +58,42 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         var yiLabelFontSizeRow = new Grid();
         yiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         yiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var yiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(yiLabelFontSizeLabel, 0);
-        yiLabelFontSizeRow.Children.Add(yiLabelFontSizeLabel);
+        _yiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_yiLabelFontSizeLabel, 0);
+        yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeLabel);
         _yiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_yiLabelFontSizeTextBox, 1);
         _yiLabelFontSizeTextBox.LostFocus += OnYiLabelFontSizeLostFocus;
         yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeTextBox);
         sp.Children.Add(yiLabelFontSizeRow);
 
-        var yiValueTitle = new TextBlock { Text = "宜内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(yiValueTitle);
+        _yiValueTitle = new TextBlock { Text = "宜内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_yiValueTitle);
 
-        var yiValueColorNote = new TextBlock { Text = "颜色：绿色（固定）", FontSize = 12, Foreground = Brushes.Gray, Margin = new Thickness(0, 4, 0, 0) };
-        sp.Children.Add(yiValueColorNote);
+        _yiValueColorNote = new TextBlock { Text = "颜色：绿色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+        sp.Children.Add(_yiValueColorNote);
 
         var yiValueFontSizeRow = new Grid();
         yiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         yiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var yiValueFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(yiValueFontSizeLabel, 0);
-        yiValueFontSizeRow.Children.Add(yiValueFontSizeLabel);
+        _yiValueFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_yiValueFontSizeLabel, 0);
+        yiValueFontSizeRow.Children.Add(_yiValueFontSizeLabel);
         _yiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_yiValueFontSizeTextBox, 1);
         _yiValueFontSizeTextBox.LostFocus += OnYiValueFontSizeLostFocus;
         yiValueFontSizeRow.Children.Add(_yiValueFontSizeTextBox);
         sp.Children.Add(yiValueFontSizeRow);
 
-        var jiLabelTitle = new TextBlock { Text = "忌标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(jiLabelTitle);
+        _jiLabelTitle = new TextBlock { Text = "忌标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_jiLabelTitle);
 
         var jiLabelColorRow = new Grid();
         jiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         jiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var jiLabelColorLabel = new TextBlock { Text = "颜色:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(jiLabelColorLabel, 0);
-        jiLabelColorRow.Children.Add(jiLabelColorLabel);
+        _jiLabelColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_jiLabelColorLabel, 0);
+        jiLabelColorRow.Children.Add(_jiLabelColorLabel);
         _jiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_jiLabelColorTextBox, 1);
         _jiLabelColorTextBox.LostFocus += OnJiLabelColorLostFocus;
@@ -88,27 +103,27 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         var jiLabelFontSizeRow = new Grid();
         jiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         jiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var jiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(jiLabelFontSizeLabel, 0);
-        jiLabelFontSizeRow.Children.Add(jiLabelFontSizeLabel);
+        _jiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_jiLabelFontSizeLabel, 0);
+        jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeLabel);
         _jiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_jiLabelFontSizeTextBox, 1);
         _jiLabelFontSizeTextBox.LostFocus += OnJiLabelFontSizeLostFocus;
         jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeTextBox);
         sp.Children.Add(jiLabelFontSizeRow);
 
-        var jiValueTitle = new TextBlock { Text = "忌内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Foreground = Brushes.White, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(jiValueTitle);
+        _jiValueTitle = new TextBlock { Text = "忌内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_jiValueTitle);
 
-        var jiValueColorNote = new TextBlock { Text = "颜色：红色（固定）", FontSize = 12, Foreground = Brushes.Gray, Margin = new Thickness(0, 4, 0, 0) };
-        sp.Children.Add(jiValueColorNote);
+        _jiValueColorNote = new TextBlock { Text = "颜色：红色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
+        sp.Children.Add(_jiValueColorNote);
 
         var jiValueFontSizeRow = new Grid();
         jiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         jiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        var jiValueFontSizeLabel = new TextBlock { Text = "字体大小:", Foreground = Brushes.White, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(jiValueFontSizeLabel, 0);
-        jiValueFontSizeRow.Children.Add(jiValueFontSizeLabel);
+        _jiValueFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_jiValueFontSizeLabel, 0);
+        jiValueFontSizeRow.Children.Add(_jiValueFontSizeLabel);
         _jiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_jiValueFontSizeTextBox, 1);
         _jiValueFontSizeTextBox.LostFocus += OnJiValueFontSizeLostFocus;
@@ -124,15 +139,50 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         Content = scrollViewer;
     }
 
+    private void UpdateThemeColors()
+    {
+        _yiLabelTitle.Foreground = ThemeHelper.GetTextBrush();
+        _yiLabelColorLabel.Foreground = ThemeHelper.GetTextBrush();
+        _yiLabelFontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
+        _yiValueTitle.Foreground = ThemeHelper.GetTextBrush();
+        _yiValueColorNote.Foreground = ThemeHelper.GetGrayBrush();
+        _yiValueFontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelTitle.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelColorLabel.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelFontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
+        _jiValueTitle.Foreground = ThemeHelper.GetTextBrush();
+        _jiValueColorNote.Foreground = ThemeHelper.GetGrayBrush();
+        _jiValueFontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        UpdateThemeColors();
         _yiLabelColorTextBox.Text = Settings.YiLabelFontColor;
         _yiLabelFontSizeTextBox.Text = Settings.YiLabelFontSize.ToString(CultureInfo.InvariantCulture);
         _yiValueFontSizeTextBox.Text = Settings.YiValueFontSize.ToString(CultureInfo.InvariantCulture);
         _jiLabelColorTextBox.Text = Settings.JiLabelFontColor;
         _jiLabelFontSizeTextBox.Text = Settings.JiLabelFontSize.ToString(CultureInfo.InvariantCulture);
         _jiValueFontSizeTextBox.Text = Settings.JiValueFontSize.ToString(CultureInfo.InvariantCulture);
+    }
+
+    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
     }
 
     private void OnYiLabelColorLostFocus(object? sender, EventArgs e)

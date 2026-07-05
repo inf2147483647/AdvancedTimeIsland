@@ -1,10 +1,13 @@
-using System;
+﻿using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -38,8 +41,8 @@ public class JieQiControl : ComponentBase<JieQiSettings>
             HorizontalAlignment = HorizontalAlignment.Center
         };
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        labelTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
-        valueTb = new TextBlock { FontSize = 14, Foreground = Brushes.White };
+        labelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        valueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
         sp.Children.Add(labelTb);
         sp.Children.Add(valueTb);
         rootBorder.Child = sp;
@@ -48,18 +51,7 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && colorStr.Length == 7)
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                labelTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch
-        {
-            labelTb.Foreground = Brushes.White;
-        }
+        labelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -69,18 +61,13 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateValueFontColor(string colorStr)
     {
-        try
-        {
-            if (colorStr.StartsWith("#") && colorStr.Length == 7)
-            {
-                var color = Avalonia.Media.Color.Parse(colorStr);
-                valueTb.Foreground = new SolidColorBrush(color);
-            }
-        }
-        catch
-        {
-            valueTb.Foreground = Brushes.White;
-        }
+        valueTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontColor(Settings.LabelFontColor);
+        UpdateValueFontColor(Settings.ValueFontColor);
     }
 
     private void UpdateValueFontSize(double fontSize)
@@ -91,6 +78,10 @@ public class JieQiControl : ComponentBase<JieQiSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
         vm = new JieQiViewModel(_timeBaseService, Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateValueFontColor, UpdateValueFontSize);
         DataContext = vm;
         labelTb.Text = vm.LabelText;
@@ -109,6 +100,10 @@ public class JieQiControl : ComponentBase<JieQiSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
         (vm as IDisposable)?.Dispose();
     }
 }
