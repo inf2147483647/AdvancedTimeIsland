@@ -17,6 +17,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private TextBox _labelColorTextBox;
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueFontSizeTextBox;
+    private ToggleSwitch _enableCustomToggle;
 
     private TextBlock _labelTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
@@ -33,6 +34,10 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private void InitializeComponent()
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
 
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
@@ -96,6 +101,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateThemeColors()
     {
+        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -107,6 +113,31 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
+        Settings.LabelFontColor = newLabelColor;
+        _labelColorTextBox.Text = newLabelColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var enabled = Settings.EnableCustomColorAndFont;
+        _labelColorTextBox.IsEnabled = enabled;
+        _labelFontSizeTextBox.IsEnabled = enabled;
+        _valueFontSizeTextBox.IsEnabled = enabled;
     }
 
     protected override void OnInitialized()
@@ -117,6 +148,8 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
         _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);

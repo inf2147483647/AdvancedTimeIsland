@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
@@ -66,8 +66,13 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateValueFontColor(Settings.ValueFontColor);
+        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
+        Settings.LabelFontColor = newLabelColor;
+        UpdateLabelFontColor(newLabelColor);
+
+        var newValueColor = ThemeHelper.GetSmartContrastColor(Settings.ValueFontColor);
+        Settings.ValueFontColor = newValueColor;
+        UpdateValueFontColor(newValueColor);
     }
 
     private void UpdateValueFontSize(double fontSize)

@@ -22,6 +22,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBox? _timeFormatTextBox;
     private TextBlock? _timeFormatHint;
     private ComboBox? _timeBaseComboBox;
+    private ToggleSwitch? _enableCustomToggle;
     private ListBox? _countdownListBox;
     private Button? _addButton;
     private Button? _removeButton;
@@ -133,6 +134,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         timeBasePanel.Children.Add(timeBaseRow);
         timeBaseGroup.Content = timeBasePanel;
         mainPanel.Children.Add(timeBaseGroup);
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        mainPanel.Children.Add(_enableCustomToggle);
 
         _fontGroupHeader = new TextBlock { Text = "字体样式" };
         var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
@@ -378,6 +383,66 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newColor = ThemeHelper.GetThemeAwareTextColor();
+
+        if (_text1FontColorPicker != null)
+        {
+            Settings.Text1FontColor = newColor;
+            _text1FontColorPicker.Color = ParseColor(newColor);
+        }
+        if (_nameFontColorPicker != null)
+        {
+            Settings.NameFontColor = newColor;
+            _nameFontColorPicker.Color = ParseColor(newColor);
+        }
+        if (_text3FontColorPicker != null)
+        {
+            Settings.Text3FontColor = newColor;
+            _text3FontColorPicker.Color = ParseColor(newColor);
+        }
+        if (_timeFontColorPicker != null)
+        {
+            Settings.TimeFontColor = newColor;
+            _timeFontColorPicker.Color = ParseColor(newColor);
+        }
+        if (_text4FontColorPicker != null)
+        {
+            Settings.Text4FontColor = newColor;
+            _text4FontColorPicker.Color = ParseColor(newColor);
+        }
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var isEnabled = Settings.EnableCustomColorAndFont;
+        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
+        _text1FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+        _nameFontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
+        _nameFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
+        _text3FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
+        _timeFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
+        _text4FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
     }
 
     protected override void OnInitialized()
@@ -409,6 +474,12 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         UpdateCountdownList();
 
         AttachEventHandlers();
+
+        if (_enableCustomToggle != null)
+        {
+            _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+            UpdateControlsEnabled();
+        }
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

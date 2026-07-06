@@ -18,6 +18,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueColorTextBox;
     private TextBox _valueFontSizeTextBox;
+    private ToggleSwitch _enableCustomToggle;
 
     private TextBlock _labelTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
@@ -34,6 +35,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private void InitializeComponent()
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
 
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
@@ -108,6 +113,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
 
     private void UpdateThemeColors()
     {
+        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -119,6 +125,36 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
+        Settings.LabelFontColor = newLabelColor;
+        _labelColorTextBox.Text = newLabelColor;
+
+        var newValueColor = ThemeHelper.GetSmartContrastColor(Settings.ValueFontColor);
+        Settings.ValueFontColor = newValueColor;
+        _valueColorTextBox.Text = newValueColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var enabled = Settings.EnableCustomColorAndFont;
+        _labelColorTextBox.IsEnabled = enabled;
+        _labelFontSizeTextBox.IsEnabled = enabled;
+        _valueColorTextBox.IsEnabled = enabled;
+        _valueFontSizeTextBox.IsEnabled = enabled;
     }
 
     protected override void OnInitialized()
@@ -129,6 +165,8 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
         _valueColorTextBox.Text = Settings.ValueFontColor;

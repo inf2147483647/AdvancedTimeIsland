@@ -339,6 +339,21 @@ public class CountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -588,6 +603,21 @@ public class ForwardTimerSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -636,6 +666,21 @@ public class LocalSolarTimeSettings : INotifyPropertyChanged
             if (Math.Abs(_textFontSize - value) > 0.001)
             {
                 _textFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }
@@ -694,6 +739,21 @@ public class TimeZoneTimeSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -742,6 +802,21 @@ public class AdvancedDateSettings : INotifyPropertyChanged
             if (Math.Abs(_dateFontSize - value) > 0.001)
             {
                 _dateFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }
@@ -814,6 +889,21 @@ public class XingZuoSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -876,6 +966,21 @@ public class JieQiSettings : INotifyPropertyChanged
             if (Math.Abs(_valueFontSize - value) > 0.001)
             {
                 _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }
@@ -948,6 +1053,21 @@ public class ShengXiaoSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1015,6 +1135,21 @@ public class FestivalSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1063,6 +1198,21 @@ public class DayYiJiSettings : INotifyPropertyChanged
             if (Math.Abs(_valueFontSize - value) > 0.001)
             {
                 _valueFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }
@@ -1298,6 +1448,21 @@ public class LunarCountdownSettings : INotifyPropertyChanged
             if (_countdownItems != value)
             {
                 _countdownItems = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }

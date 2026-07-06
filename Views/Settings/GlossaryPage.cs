@@ -22,6 +22,8 @@ public class GlossaryPage : UserControl
     private List<TextBlock>? _listItemTextBlocks;
     private List<Border>? _quoteBorders;
     private List<TextBlock>? _quoteTextBlocks;
+    private Border? _markdownSectionBorder;
+    private List<Border>? _separatorBorders;
 
     /// <summary>
     /// 获取 ClassIsland 强调色画刷
@@ -124,10 +126,11 @@ public class GlossaryPage : UserControl
 
         var section = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(20),
             CornerRadius = new CornerRadius(6)
         };
+        _markdownSectionBorder = section;
 
         var content = new StackPanel
         {
@@ -198,12 +201,14 @@ public class GlossaryPage : UserControl
             if (line.StartsWith("---"))
             {
                 FlushParagraph();
-                content.Children.Add(new Border
+                var sep = new Border
                 {
                     Height = 1,
-                    Background = new SolidColorBrush(Color.Parse("#555555")),
+                    Background = ThemeHelper.GetSeparatorBrush(),
                     Margin = new Thickness(0, 8, 0, 8)
-                });
+                };
+                _separatorBorders?.Add(sep);
+                content.Children.Add(sep);
                 continue;
             }
 
@@ -217,7 +222,7 @@ public class GlossaryPage : UserControl
                     BorderThickness = new Thickness(3, 0, 0, 0),
                     Padding = new Thickness(10, 6, 6, 6),
                     Margin = new Thickness(0, 4, 0, 4),
-                    Background = new SolidColorBrush(Color.Parse("#252528")),
+                    Background = ThemeHelper.GetQuoteBackgroundBrush(),
                     Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetYellowBrush(), false)
                 };
                 _quoteBorders.Add(quotePanel);
@@ -301,6 +306,25 @@ public class GlossaryPage : UserControl
 
     private void UpdateThemeColors()
     {
+        if (_markdownSectionBorder != null)
+            _markdownSectionBorder.Background = ThemeHelper.GetCardBackgroundBrush();
+
+        if (_separatorBorders != null)
+        {
+            foreach (var border in _separatorBorders)
+            {
+                border.Background = ThemeHelper.GetSeparatorBrush();
+            }
+        }
+
+        if (_quoteBorders != null)
+        {
+            foreach (var border in _quoteBorders)
+            {
+                border.Background = ThemeHelper.GetQuoteBackgroundBrush();
+            }
+        }
+
         if (_paragraphTextBlocks != null)
         {
             foreach (var tb in _paragraphTextBlocks)

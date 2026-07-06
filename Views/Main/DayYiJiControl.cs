@@ -84,8 +84,11 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateLabelFontColor(Settings.LabelFontColor);
+        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
+        Settings.LabelFontColor = newLabelColor;
+        UpdateLabelFontColor(newLabelColor);
         yiValueTb.Foreground = ThemeHelper.GetYiBrush();
+        jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }
 
     protected override void OnInitialized()

@@ -85,6 +85,36 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#2D2D30" : "#F5F5F5";
     }
 
+    public static IBrush GetSeparatorBrush()
+    {
+        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#555555")) : new SolidColorBrush(Color.Parse("#CCCCCC"));
+    }
+
+    public static string GetSeparatorColorHex()
+    {
+        return IsDarkTheme() ? "#555555" : "#CCCCCC";
+    }
+
+    public static IBrush GetQuoteBackgroundBrush()
+    {
+        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#252528")) : new SolidColorBrush(Color.Parse("#F0F0F0"));
+    }
+
+    public static string GetQuoteBackgroundColorHex()
+    {
+        return IsDarkTheme() ? "#252528" : "#F0F0F0";
+    }
+
+    public static IBrush GetHanfuBackgroundBrush()
+    {
+        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#1E1E1E")) : new SolidColorBrush(Color.Parse("#FFFFFF"));
+    }
+
+    public static string GetHanfuBackgroundColorHex()
+    {
+        return IsDarkTheme() ? "#1E1E1E" : "#FFFFFF";
+    }
+
     public static IBrush GetYiBrush()
     {
         return IsDarkTheme() ? Brushes.LightGreen : Brushes.DarkGreen;
@@ -119,6 +149,15 @@ public static class ThemeHelper
         return GetTextBrush();
     }
 
+    public static IBrush GetColorBrush(string? colorStr, bool enableCustom)
+    {
+        if (enableCustom)
+        {
+            return ParseColorOrThemeDefault(colorStr);
+        }
+        return GetTextBrush();
+    }
+
     public static event EventHandler? ThemeChanged;
 
     public static void Initialize()
@@ -132,5 +171,65 @@ public static class ThemeHelper
     private static void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         ThemeChanged?.Invoke(null, EventArgs.Empty);
+    }
+
+    public static string GetContrastColor(string colorHex)
+    {
+        try
+        {
+            var color = Color.Parse(colorHex);
+            var brightness = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
+            if (brightness > 0.5)
+            {
+                return "#000000";
+            }
+            return "#FFFFFF";
+        }
+        catch
+        {
+            return IsDarkTheme() ? "#FFFFFF" : "#000000";
+        }
+    }
+
+    public static string GetThemeAwareTextColor()
+    {
+        return IsDarkTheme() ? "#FFFFFF" : "#000000";
+    }
+
+    public static bool IsLightColor(string colorHex)
+    {
+        try
+        {
+            var color = Color.Parse(colorHex);
+            var brightness = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
+            return brightness > 0.5;
+        }
+        catch
+        {
+            return true;
+        }
+    }
+
+    public static string GetSmartContrastColor(string colorHex)
+    {
+        var isDark = IsDarkTheme();
+        var isLight = IsLightColor(colorHex);
+        
+        if (isDark)
+        {
+            if (isLight)
+            {
+                return colorHex;
+            }
+            return "#FFFFFF";
+        }
+        else
+        {
+            if (!isLight)
+            {
+                return colorHex;
+            }
+            return "#000000";
+        }
     }
 }

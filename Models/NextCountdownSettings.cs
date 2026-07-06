@@ -161,6 +161,21 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -321,6 +336,21 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
             if (_timeFontColor != value)
             {
                 _timeFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }
@@ -533,6 +563,21 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -651,6 +696,21 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
             if (_jiLabelFontColor != value)
             {
                 _jiLabelFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
                 OnPropertyChanged();
             }
         }

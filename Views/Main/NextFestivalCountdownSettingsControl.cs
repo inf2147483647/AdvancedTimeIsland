@@ -27,6 +27,7 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private ToggleSwitch _internationalToggle;
     private ToggleSwitch _traditionalToggle;
     private ToggleSwitch _redToggle;
+    private ToggleSwitch _enableCustomToggle;
 
     private TextBlock _formatTitle;
     private TextBlock _formatLabel;
@@ -91,6 +92,10 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _redToggle = new ToggleSwitch { Content = "红色节日", OffContent = "", OnContent = "" };
         _redToggle.IsCheckedChanged += OnRedToggled;
         sp.Children.Add(_redToggle);
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
 
         _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_text1Title);
@@ -232,6 +237,52 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newText1Color = ThemeHelper.GetSmartContrastColor(Settings.Text1FontColor);
+        Settings.Text1FontColor = newText1Color;
+        _text1ColorTextBox.Text = newText1Color;
+
+        var newNameColor = ThemeHelper.GetSmartContrastColor(Settings.NameFontColor);
+        Settings.NameFontColor = newNameColor;
+        _nameColorTextBox.Text = newNameColor;
+
+        var newText3Color = ThemeHelper.GetSmartContrastColor(Settings.Text3FontColor);
+        Settings.Text3FontColor = newText3Color;
+        _text3ColorTextBox.Text = newText3Color;
+
+        var newTimeColor = ThemeHelper.GetSmartContrastColor(Settings.TimeFontColor);
+        Settings.TimeFontColor = newTimeColor;
+        _timeColorTextBox.Text = newTimeColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var isEnabled = Settings.EnableCustomColorAndFont;
+        _text1ColorTextBox.IsEnabled = isEnabled;
+        _text1FontSizeTextBox.IsEnabled = isEnabled;
+        _nameColorTextBox.IsEnabled = isEnabled;
+        _nameFontSizeTextBox.IsEnabled = isEnabled;
+        _text3ColorTextBox.IsEnabled = isEnabled;
+        _text3FontSizeTextBox.IsEnabled = isEnabled;
+        _timeColorTextBox.IsEnabled = isEnabled;
+        _timeFontSizeTextBox.IsEnabled = isEnabled;
     }
 
     protected override void OnInitialized()
@@ -254,6 +305,8 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _internationalToggle.IsChecked = Settings.EnableInternationalFestivals;
         _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
         _redToggle.IsChecked = Settings.EnableRedFestivals;
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

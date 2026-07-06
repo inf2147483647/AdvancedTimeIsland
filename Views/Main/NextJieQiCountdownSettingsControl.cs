@@ -23,6 +23,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     private TextBox _text3ColorTextBox;
     private TextBox _timeFontSizeTextBox;
     private TextBox _timeColorTextBox;
+    private ToggleSwitch _enableCustomToggle;
 
     private TextBlock _formatTitle;
     private TextBlock _formatLabel;
@@ -71,6 +72,10 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
             Margin = new Thickness(0, 4, 0, 0)
         };
         sp.Children.Add(_formatHelpText);
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
 
         _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_text1Title);
@@ -194,6 +199,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         _formatTitle.Foreground = ThemeHelper.GetTextBrush();
         _formatLabel.Foreground = ThemeHelper.GetTextBrush();
         _formatHelpText.Foreground = ThemeHelper.GetGrayBrush();
+        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
         _text1Title.Foreground = ThemeHelper.GetTextBrush();
         _text1ColorLabel.Foreground = ThemeHelper.GetTextBrush();
         _text1FontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -211,6 +217,48 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newText1Color = ThemeHelper.GetSmartContrastColor(Settings.Text1FontColor);
+        Settings.Text1FontColor = newText1Color;
+        _text1ColorTextBox.Text = newText1Color;
+
+        var newNameColor = ThemeHelper.GetSmartContrastColor(Settings.NameFontColor);
+        Settings.NameFontColor = newNameColor;
+        _nameColorTextBox.Text = newNameColor;
+
+        var newText3Color = ThemeHelper.GetSmartContrastColor(Settings.Text3FontColor);
+        Settings.Text3FontColor = newText3Color;
+        _text3ColorTextBox.Text = newText3Color;
+
+        var newTimeColor = ThemeHelper.GetSmartContrastColor(Settings.TimeFontColor);
+        Settings.TimeFontColor = newTimeColor;
+        _timeColorTextBox.Text = newTimeColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var enabled = Settings.EnableCustomColorAndFont;
+        _text1ColorTextBox.IsEnabled = enabled;
+        _text1FontSizeTextBox.IsEnabled = enabled;
+        _nameColorTextBox.IsEnabled = enabled;
+        _nameFontSizeTextBox.IsEnabled = enabled;
+        _text3ColorTextBox.IsEnabled = enabled;
+        _text3FontSizeTextBox.IsEnabled = enabled;
+        _timeColorTextBox.IsEnabled = enabled;
+        _timeFontSizeTextBox.IsEnabled = enabled;
     }
 
     protected override void OnInitialized()
@@ -222,6 +270,8 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         }
         UpdateThemeColors();
         _formatTextBox.Text = Settings.TimeFormat;
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
         _text1ColorTextBox.Text = Settings.Text1FontColor;
         _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
         _nameColorTextBox.Text = Settings.NameFontColor;

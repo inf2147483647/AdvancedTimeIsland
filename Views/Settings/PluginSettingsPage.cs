@@ -507,6 +507,7 @@ public class PluginSettingsPage : UserControl
     private TextBlock? _ntpHintTextBlock;
     private List<TextBlock>? _settingTitleTextBlocks;
     private List<TextBlock>? _settingDescriptionTextBlocks;
+    private List<Border>? _settingItemBorders;
 
     public Action? RequestRestartAction { get; set; }
 
@@ -528,6 +529,7 @@ public class PluginSettingsPage : UserControl
     {
         _settingTitleTextBlocks = new List<TextBlock>();
         _settingDescriptionTextBlocks = new List<TextBlock>();
+        _settingItemBorders = new List<Border>();
 
         var mainPanel = new StackPanel
         {
@@ -694,12 +696,13 @@ public class PluginSettingsPage : UserControl
     {
         var itemPanel = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             Margin = new Thickness(0, 0, 0, 12),
             CornerRadius = new CornerRadius(8),
             ClipToBounds = true
         };
+        _settingItemBorders?.Add(itemPanel);
 
         var content = new StackPanel
         {
@@ -756,12 +759,13 @@ public class PluginSettingsPage : UserControl
     {
         var itemPanel = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             Margin = new Thickness(0, 0, 0, 12),
             CornerRadius = new CornerRadius(8),
             ClipToBounds = true
         };
+        _settingItemBorders?.Add(itemPanel);
 
         var content = new StackPanel
         {
@@ -1609,6 +1613,14 @@ public class PluginSettingsPage : UserControl
                 _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
             if (_ntpHintTextBlock != null)
                 _ntpHintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+
+            if (_settingItemBorders != null)
+            {
+                foreach (var border in _settingItemBorders)
+                {
+                    border.Background = ThemeHelper.GetCardBackgroundBrush();
+                }
+            }
 
             if (_settingTitleTextBlocks != null)
             {

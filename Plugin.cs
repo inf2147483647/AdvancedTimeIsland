@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
@@ -255,6 +256,9 @@ public class Plugin : PluginBase
         services.AddComponent<NextXingZuoCountdownControl, NextXingZuoCountdownSettingsControl>();
         services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
         services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
+
+        services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
+        services.AddHostedService<Services.FpsBackgroundCollectorService>();
 
         services.AddSingleton<ExactTimeTrigger>();
 
@@ -1409,6 +1413,7 @@ public class Plugin : PluginBase
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
+        services.AddSettingsPage<Views.Settings.FpsChartPage>();
         if (Settings.EnableExperimentalFeatures)
         {
             services.AddSettingsPage<Views.Settings.HanfuPage>();

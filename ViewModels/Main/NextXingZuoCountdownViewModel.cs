@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -129,20 +129,40 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
             ("双鱼座", "2.19-3.20", 2, 19)
         };
 
+        var currentMonth = date.Month;
+        var currentDay = date.Day;
+        var currentIndex = -1;
+
         for (int i = 0; i < xingZuoDates.Length; i++)
         {
-            var (name, range, month, day) = xingZuoDates[i];
-            int year = date.Year;
-            if (month < date.Month || (month == date.Month && day <= date.Day))
-                year = date.Year + 1;
-            if (month == 1 && date.Month == 12)
-                year = date.Year;
-
-            var targetDate = new DateTime(year, month, day);
-            if (targetDate > date)
-                return (name, range, year, month, day);
+            var (_, _, xzMonth, xzDay) = xingZuoDates[i];
+            if (i == 9 && ((currentMonth == 12 && currentDay >= 22) || (currentMonth == 1 && currentDay <= 19)))
+            {
+                currentIndex = i;
+                break;
+            }
+            if ((currentMonth == xzMonth && currentDay >= xzDay) || 
+                (i < xingZuoDates.Length - 1 && currentMonth == xingZuoDates[i + 1].Item3 && currentDay < xingZuoDates[i + 1].Item4))
+            {
+                currentIndex = i;
+                break;
+            }
         }
-        return ("白羊座", "3.21-4.19", date.Year + 1, 3, 21);
+
+        if (currentIndex == -1)
+            currentIndex = 11;
+
+        var nextIndex = (currentIndex + 1) % xingZuoDates.Length;
+        var nextXingZuo = xingZuoDates[nextIndex];
+        var (name, range, month, day) = nextXingZuo;
+
+        int year = date.Year;
+        if (nextIndex == 0 && currentMonth > 3)
+            year = date.Year + 1;
+        else if (nextIndex < currentIndex)
+            year = date.Year + 1;
+
+        return (name, range, year, month, day);
     }
 
     private string FormatTime(TimeSpan timeLeft)

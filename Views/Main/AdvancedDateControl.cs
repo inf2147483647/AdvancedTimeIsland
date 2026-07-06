@@ -57,7 +57,9 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateFontColor(Settings.FontColor);
+        var newColor = ThemeHelper.GetSmartContrastColor(Settings.FontColor);
+        Settings.FontColor = newColor;
+        UpdateFontColor(newColor);
     }
 
     protected override void OnInitialized()

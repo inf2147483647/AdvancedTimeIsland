@@ -26,6 +26,7 @@ public class HanfuPage : SettingsPageBase
     private TextBlock? _maleDescriptionTextBlock;
     private List<TextBlock>? _sectionTextBlocks;
     private List<TextBlock>? _paragraphTextBlocks;
+    private Border? _femaleContentBorder;
 
     public HanfuPage() : this(null)
     {
@@ -151,11 +152,12 @@ public class HanfuPage : SettingsPageBase
 
         var border = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#1E1E1E")),
+            Background = ThemeHelper.GetHanfuBackgroundBrush(),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16),
             Margin = new Thickness(16)
         };
+        _femaleContentBorder = border;
 
         var panel = new StackPanel
         {
@@ -319,6 +321,9 @@ public class HanfuPage : SettingsPageBase
             _maleSubtitleTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         if (_maleDescriptionTextBlock != null)
             _maleDescriptionTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+
+        if (_femaleContentBorder != null)
+            _femaleContentBorder.Background = ThemeHelper.GetHanfuBackgroundBrush();
 
         if (_paragraphTextBlocks != null)
         {

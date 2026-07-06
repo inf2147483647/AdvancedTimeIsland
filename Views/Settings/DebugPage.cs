@@ -8,6 +8,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
+using Avalonia.Styling;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
@@ -18,6 +20,9 @@ namespace AdvancedTimeIsland.Views.Settings;
 [SettingsPageInfo("AdvancedTimeIslandDebug", "AdvancedTimeIsland 调试", SettingsPageCategory.Debug)]
 public class DebugPage : SettingsPageBase
 {
+    private TextBlock? _titleTextBlock;
+    private List<TextBlock>? _testPanelTitleTextBlocks;
+
     public DebugPage()
     {
         InitializeComponent();
@@ -25,6 +30,8 @@ public class DebugPage : SettingsPageBase
 
     private void InitializeComponent()
     {
+        _testPanelTitleTextBlocks = new List<TextBlock>();
+
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -42,13 +49,14 @@ public class DebugPage : SettingsPageBase
         };
         mainPanel.Children.Add(warningBar);
 
-        var title = new TextBlock
+        _titleTextBlock = new TextBlock
         {
             Text = "AdvancedTimeIsland 调试",
             FontSize = 24,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeight.Bold,
+            Foreground = ThemeHelper.GetTextBrush()
         };
-        mainPanel.Children.Add(title);
+        mainPanel.Children.Add(_titleTextBlock);
 
         // 标签 1: 抛出异常测试
         var tab1Panel = CreateSimpleTestPanel(
@@ -103,8 +111,10 @@ public class DebugPage : SettingsPageBase
             Text = titleText,
             FontSize = 16,
             FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        _testPanelTitleTextBlocks?.Add(titleBlock);
         Grid.SetColumn(titleBlock, 0);
         grid.Children.Add(titleBlock);
 
@@ -333,7 +343,8 @@ public class DebugPage : SettingsPageBase
         {
             Text = message,
             FontSize = 14,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetTextBrush()
         });
         stack.Children.Add(okButton);
 
@@ -342,6 +353,43 @@ public class DebugPage : SettingsPageBase
         okButton.Click += (s, e) => dialog.Close();
 
         await dialog.ShowDialog((Window)VisualRoot!);
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_titleTextBlock != null)
+            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_testPanelTitleTextBlocks != null)
+        {
+            foreach (var tb in _testPanelTitleTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetTextBrush();
+            }
+        }
     }
 }
 

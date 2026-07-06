@@ -14,6 +14,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 {
     private ToggleSwitch _showWeekDayToggle;
+    private ToggleSwitch _enableCustomToggle;
     private TextBox _colorTextBox;
     private TextBox _fontSizeTextBox;
 
@@ -53,6 +54,10 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         row.Children.Add(_showWeekDayToggle);
 
         sp.Children.Add(row);
+
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
 
         _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
         sp.Children.Add(_styleTitleTextBlock);
@@ -99,6 +104,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         _labelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -107,6 +113,30 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newColor = ThemeHelper.GetSmartContrastColor(Settings.FontColor);
+        Settings.FontColor = newColor;
+        _colorTextBox.Text = newColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var enabled = Settings.EnableCustomColorAndFont;
+        _colorTextBox.IsEnabled = enabled;
+        _fontSizeTextBox.IsEnabled = enabled;
     }
 
     protected override void OnInitialized()
@@ -118,6 +148,8 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         }
         UpdateThemeColors();
         _showWeekDayToggle.IsChecked = Settings.ShowWeekDay;
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
     }

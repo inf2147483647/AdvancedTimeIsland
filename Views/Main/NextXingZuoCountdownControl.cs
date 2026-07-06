@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
@@ -44,35 +44,56 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
 
     private void UpdateText1FontColor(string colorStr)
     {
-        text1Tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateText1FontSize(double fontSize) { text1Tb.FontSize = fontSize; }
     private void UpdateNameFontColor(string colorStr)
     {
-        nameTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateNameFontSize(double fontSize) { nameTb.FontSize = fontSize; }
     private void UpdateText3FontColor(string colorStr)
     {
-        text3Tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateText3FontSize(double fontSize) { text3Tb.FontSize = fontSize; }
     private void UpdateTimeFontColor(string colorStr)
     {
-        timeTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateTimeFontSize(double fontSize) { timeTb.FontSize = fontSize; }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateText1FontColor(Settings.Text1FontColor);
-        UpdateNameFontColor(Settings.NameFontColor);
-        UpdateText3FontColor(Settings.Text3FontColor);
-        UpdateTimeFontColor(Settings.TimeFontColor);
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newText1Color = ThemeHelper.GetThemeAwareTextColor();
+            Settings.Text1FontColor = newText1Color;
+            UpdateText1FontColor(newText1Color);
+
+            var newNameColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.NameFontColor = newNameColor;
+            UpdateNameFontColor(newNameColor);
+
+            var newText3Color = ThemeHelper.GetThemeAwareTextColor();
+            Settings.Text3FontColor = newText3Color;
+            UpdateText3FontColor(newText3Color);
+
+            var newTimeColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.TimeFontColor = newTimeColor;
+            UpdateTimeFontColor(newTimeColor);
+        }
+        else
+        {
+            UpdateText1FontColor(Settings.Text1FontColor);
+            UpdateNameFontColor(Settings.NameFontColor);
+            UpdateText3FontColor(Settings.Text3FontColor);
+            UpdateTimeFontColor(Settings.TimeFontColor);
+        }
     }
 
     protected override void OnInitialized()

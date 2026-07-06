@@ -51,14 +51,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void UpdateYiLabelFontColor(string colorStr)
     {
-        yiLabelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
     private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
     private void UpdateJiLabelFontColor(string colorStr)
     {
-        jiLabelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
@@ -66,9 +66,21 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateYiLabelFontColor(Settings.YiLabelFontColor);
-        UpdateJiLabelFontColor(Settings.JiLabelFontColor);
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.YiLabelFontColor = newColor;
+            Settings.JiLabelFontColor = newColor;
+            UpdateYiLabelFontColor(newColor);
+            UpdateJiLabelFontColor(newColor);
+        }
+        else
+        {
+            UpdateYiLabelFontColor(Settings.YiLabelFontColor);
+            UpdateJiLabelFontColor(Settings.JiLabelFontColor);
+        }
         yiValueTb.Foreground = ThemeHelper.GetYiBrush();
+        jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }
 
     protected override void OnInitialized()

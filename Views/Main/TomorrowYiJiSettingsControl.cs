@@ -20,6 +20,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private TextBox _jiLabelFontSizeTextBox;
     private TextBox _jiLabelColorTextBox;
     private TextBox _jiValueFontSizeTextBox;
+    private ToggleSwitch _enableCustomToggle;
 
     private TextBlock _yiLabelTitle;
     private TextBlock _yiLabelColorLabel;
@@ -130,6 +131,10 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         jiValueFontSizeRow.Children.Add(_jiValueFontSizeTextBox);
         sp.Children.Add(jiValueFontSizeRow);
 
+        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
+        sp.Children.Add(_enableCustomToggle);
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -158,6 +163,42 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateFontColorsForTheme()
+    {
+        var newYiLabelColor = ThemeHelper.GetSmartContrastColor(Settings.YiLabelFontColor);
+        Settings.YiLabelFontColor = newYiLabelColor;
+        _yiLabelColorTextBox.Text = newYiLabelColor;
+
+        var newJiLabelColor = ThemeHelper.GetSmartContrastColor(Settings.JiLabelFontColor);
+        Settings.JiLabelFontColor = newJiLabelColor;
+        _jiLabelColorTextBox.Text = newJiLabelColor;
+    }
+
+    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            UpdateFontColorsForTheme();
+        }
+    }
+
+    private void UpdateControlsEnabled()
+    {
+        var isEnabled = Settings.EnableCustomColorAndFont;
+        _yiLabelColorTextBox.IsEnabled = isEnabled;
+        _yiLabelFontSizeTextBox.IsEnabled = isEnabled;
+        _yiValueFontSizeTextBox.IsEnabled = isEnabled;
+        _jiLabelColorTextBox.IsEnabled = isEnabled;
+        _jiLabelFontSizeTextBox.IsEnabled = isEnabled;
+        _jiValueFontSizeTextBox.IsEnabled = isEnabled;
     }
 
     protected override void OnInitialized()
@@ -174,6 +215,8 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         _jiLabelColorTextBox.Text = Settings.JiLabelFontColor;
         _jiLabelFontSizeTextBox.Text = Settings.JiLabelFontSize.ToString(CultureInfo.InvariantCulture);
         _jiValueFontSizeTextBox.Text = Settings.JiValueFontSize.ToString(CultureInfo.InvariantCulture);
+        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        UpdateControlsEnabled();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

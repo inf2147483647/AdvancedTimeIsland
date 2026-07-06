@@ -96,11 +96,20 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize)
     {
         tb.FontSize = fontSize;
-        tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.Text1FontColor = newColor;
+            Settings.NameFontColor = newColor;
+            Settings.Text3FontColor = newColor;
+            Settings.TimeFontColor = newColor;
+            Settings.Text4FontColor = newColor;
+        }
         UpdateText1Style(Settings.Text1FontColor, Settings.Text1FontSize);
         UpdateNameStyle(Settings.NameFontColor, Settings.NameFontSize);
         UpdateText3Style(Settings.Text3FontColor, Settings.Text3FontSize);

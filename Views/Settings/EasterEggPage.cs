@@ -38,6 +38,7 @@ public class EasterEggPage : UserControl
     private List<TextBlock>? _normalTextBlocks;
     private List<TextBlock>? _boldTextBlocks;
     private List<Border>? _separatorBorders;
+    private Border? _markdownSectionBorder;
 
     public EasterEggPage() : this(null)
     {
@@ -138,10 +139,11 @@ public class EasterEggPage : UserControl
 
         var section = new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 16)
         };
+        _markdownSectionBorder = section;
 
         var content = new StackPanel
         {
@@ -498,6 +500,9 @@ public class EasterEggPage : UserControl
 
     private void UpdateThemeColors()
     {
+        if (_markdownSectionBorder != null)
+            _markdownSectionBorder.Background = ThemeHelper.GetCardBackgroundBrush();
+
         if (_normalTextBlocks != null)
         {
             foreach (var tb in _normalTextBlocks)
