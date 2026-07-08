@@ -34,6 +34,10 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private string _low1Text = "0.0";
     private double _currentFps = 0;
     private readonly List<double> _fpsSamples = new();
+    private double _currentMaxFps;
+    private double _currentMinFps = double.MaxValue;
+    private double _currentSumFps;
+    private SortedList<double, int> _sortedFpsCounts = new();
 
     public FpsMonitorViewModel(FpsMonitorSettings settings,
         Action<string>? updateLabelFontColor = null,
@@ -64,16 +68,38 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         {
             _currentFps = fps;
             _fpsSamples.Add(fps);
+            _currentSumFps += fps;
+            _currentMaxFps = Math.Max(_currentMaxFps, fps);
+            _currentMinFps = Math.Min(_currentMinFps, fps);
+
+            if (_sortedFpsCounts.TryGetValue(fps, out int count))
+                _sortedFpsCounts[fps] = count + 1;
+            else
+                _sortedFpsCounts[fps] = 1;
 
             while (_fpsSamples.Count > MaxWindowSamples)
             {
+                var removed = _fpsSamples[0];
                 _fpsSamples.RemoveAt(0);
+                _currentSumFps -= removed;
+
+                _sortedFpsCounts[removed]--;
+                if (_sortedFpsCounts[removed] == 0)
+                    _sortedFpsCounts.Remove(removed);
+
+                if (_fpsSamples.Count > 0)
+                {
+                    if (removed >= _currentMaxFps)
+                        _currentMaxFps = _fpsSamples.Max();
+                    if (removed <= _currentMinFps)
+                        _currentMinFps = _fpsSamples.Min();
+                }
             }
 
-            double maxFps = _fpsSamples.Max();
-            double minFps = _fpsSamples.Min();
-            double avgFps = _fpsSamples.Average();
-            double low1Fps = CalculateLow1Percent();
+            double maxFps = _currentMaxFps;
+            double minFps = _currentMinFps;
+            double avgFps = _fpsSamples.Count > 0 ? _currentSumFps / _fpsSamples.Count : 0;
+            double low1Fps = CalculateLow1PercentFast();
 
             var fpsStr = fps.ToString("F1");
             var maxStr = maxFps.ToString("F1");
@@ -103,18 +129,30 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private double CalculateLow1Percent()
+    private double CalculateLow1PercentFast()
     {
-        if (_fpsSamples.Count == 0)
+        if (_sortedFpsCounts.Count == 0)
             return 0;
 
-        var sorted = _fpsSamples.OrderBy(f => f).ToList();
-        var count = (int)Math.Ceiling(sorted.Count * 0.01);
+        var totalCount = _fpsSamples.Count;
+        var targetCount = (int)Math.Ceiling(totalCount * 0.01);
+        if (targetCount == 0)
+            targetCount = 1;
 
-        if (count == 0)
-            count = 1;
+        double sum = 0;
+        int count = 0;
 
-        return sorted.Take(count).Average();
+        foreach (var kvp in _sortedFpsCounts)
+        {
+            var take = Math.Min(kvp.Value, targetCount - count);
+            sum += kvp.Key * take;
+            count += take;
+
+            if (count >= targetCount)
+                break;
+        }
+
+        return count > 0 ? sum / count : 0;
     }
 
     public static IBrush GetFpsBrush(double fps)

@@ -242,6 +242,7 @@ public class Plugin : PluginBase
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
         services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
         services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
+        services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
 
         services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
 
@@ -257,8 +258,11 @@ public class Plugin : PluginBase
         services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
         services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
 
-        services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
-        services.AddHostedService<Services.FpsBackgroundCollectorService>();
+        if (Settings.EnableExperimentalFeatures)
+        {
+            services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
+            services.AddHostedService<Services.FpsBackgroundCollectorService>();
+        }
 
         services.AddSingleton<ExactTimeTrigger>();
 
@@ -1413,9 +1417,10 @@ public class Plugin : PluginBase
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
-        services.AddSettingsPage<Views.Settings.FpsChartPage>();
         if (Settings.EnableExperimentalFeatures)
         {
+            services.AddSettingsPage<Views.Settings.FpsChartPage>();
+            services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
             services.AddSettingsPage<Views.Settings.HanfuPage>();
         }
 

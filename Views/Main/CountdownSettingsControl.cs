@@ -50,6 +50,10 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private ComboBox? _startMinuteComboBox;
     private ComboBox? _startSecondComboBox;
 
+    private ComboBox? _progressDisplayModeComboBox;
+    private TextBlock? _progressDisplayModeLabel;
+    private TextBlock? _progressDisplayModeGroupHeader;
+
     private TextBlock? _titleTextBlock;
     private TextBlock? _descTextBlock;
     private TextBlock? _orderHintTextBlock;
@@ -241,6 +245,30 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         startTimeGroup.Content = startTimePanel;
         mainPanel.Children.Add(startTimeGroup);
+
+        _progressDisplayModeGroupHeader = new TextBlock { Text = "进度显示" };
+        var progressDisplayModeGroup = new Expander { Header = _progressDisplayModeGroupHeader, IsExpanded = true };
+        var progressDisplayModePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        var progressDisplayModeRow = new Grid();
+        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _progressDisplayModeLabel = new TextBlock { Text = "显示进度条:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_progressDisplayModeLabel, 0);
+        progressDisplayModeRow.Children.Add(_progressDisplayModeLabel);
+
+        _progressDisplayModeComboBox = new ComboBox();
+        _progressDisplayModeComboBox.Items.Add("不显示");
+        _progressDisplayModeComboBox.Items.Add("进度条");
+        _progressDisplayModeComboBox.Items.Add("进度环");
+        _progressDisplayModeComboBox.Items.Add("进度条和进度环");
+        Grid.SetColumn(_progressDisplayModeComboBox, 1);
+        progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
+
+        progressDisplayModePanel.Children.Add(progressDisplayModeRow);
+        progressDisplayModeGroup.Content = progressDisplayModePanel;
+        mainPanel.Children.Add(progressDisplayModeGroup);
 
         _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
         _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
@@ -483,6 +511,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_startTimeLabel != null) _startTimeLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_hourSeparator != null) _hourSeparator.Foreground = ThemeHelper.GetTextBrush();
         if (_minuteSeparator != null) _minuteSeparator.Foreground = ThemeHelper.GetTextBrush();
+        if (_progressDisplayModeGroupHeader != null) _progressDisplayModeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_progressDisplayModeLabel != null) _progressDisplayModeLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_fontGroupHeader != null) _fontGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_nameHeader != null) _nameHeader.Foreground = ThemeHelper.GetSubTextBrush();
@@ -583,6 +613,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
 
+        if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
+
         if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
         if (_text2FontSizeTextBox != null) _text2FontSizeTextBox.Text = Settings.Text2FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -639,6 +671,17 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
                 if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
                 {
                     Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
+                }
+            };
+        }
+
+        if (_progressDisplayModeComboBox != null)
+        {
+            _progressDisplayModeComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
+                {
+                    Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
                 }
             };
         }

@@ -37,6 +37,20 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private CountdownItem? _currentItem;
     private bool _isAllCompleted;
     private bool _isEmpty;
+    private double _percent;
+
+    public double Percent
+    {
+        get => _percent;
+        private set
+        {
+            if (_percent != value)
+            {
+                _percent = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     public string Text1Display
     {
@@ -324,6 +338,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                 IsAllCompleted = displayData.IsAllCompleted;
                 IsEmpty = displayData.IsEmpty;
                 CurrentItem = displayData.CurrentItem;
+                Percent = displayData.Percent;
             });
         }
         catch
@@ -365,6 +380,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         Text4Display = displayData.Text4;
         IsAllCompleted = displayData.IsAllCompleted;
         CurrentItem = displayData.CurrentItem;
+        Percent = displayData.Percent;
     }
 
     private CountdownDisplayData ProcessCountdownInternal(DateTime now)
@@ -424,6 +440,14 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
+        double percent = 0;
+        if (_settings.StartTime > 0 && currentItem.TargetTimestamp > _settings.StartTime)
+        {
+            var totalDuration = currentItem.TargetTimestamp - _settings.StartTime;
+            var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
+            percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
+        }
+
         return new CountdownDisplayData
         {
             Text1 = _settings.Text1,
@@ -433,7 +457,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             Text4 = _settings.Text4,
             IsAllCompleted = false,
             IsEmpty = false,
-            CurrentItem = currentItem
+            CurrentItem = currentItem,
+            Percent = percent
         };
     }
 
@@ -635,6 +660,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         public bool IsAllCompleted { get; set; }
         public bool IsEmpty { get; set; }
         public CountdownItem? CurrentItem { get; set; }
+        public double Percent { get; set; }
     }
 }
 

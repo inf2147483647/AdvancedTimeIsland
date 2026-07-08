@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
@@ -17,9 +18,14 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 
     private readonly ILogger<FpsBackgroundCollectorService> _logger;
     private DispatcherTimer? _fpsTimer;
-    private long _lastFrameTime;
+    private readonly Stopwatch _stopwatch = new();
+    private double _lastFrameTimestamp;
     private double _currentFps;
     private readonly List<double> _fpsSamples = new();
+    private double _currentMaxFps;
+    private double _currentMinFps = double.MaxValue;
+    private double _currentSumFps;
+    private SortedList<double, int> _sortedFpsCounts = new();
     private bool _isDisposed;
     private bool _isRunning;
     private bool _isPaused;
@@ -41,10 +47,14 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
         {
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
+                _stopwatch.Restart();
+                _lastFrameTimestamp = 0;
                 _fpsTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(SampleIntervalMs), DispatcherPriority.Background, OnFpsTimerTick);
                 _fpsTimer.Start();
                 _isRunning = true;
             }, DispatcherPriority.Background);
+
+            ViewModels.Settings.FpsSampler.Start();
         }
         catch (Exception ex)
         {
@@ -62,8 +72,11 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
             {
                 _fpsTimer?.Stop();
                 _fpsTimer = null;
+                _stopwatch.Stop();
                 _isRunning = false;
             }, DispatcherPriority.Background);
+
+            ViewModels.Settings.FpsSampler.Stop();
         }
         catch (Exception ex)
         {
@@ -79,7 +92,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
     public void Resume()
     {
         _isPaused = false;
-        _lastFrameTime = 0;
+        _lastFrameTimestamp = 0;
     }
 
     private void OnFpsTimerTick(object? sender, EventArgs e)
@@ -88,50 +101,84 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 
         try
         {
-            var currentTime = DateTime.Now.Ticks;
+            var currentTimestamp = _stopwatch.Elapsed.TotalSeconds;
 
-            if (_lastFrameTime > 0)
+            if (_lastFrameTimestamp > 0)
             {
-                var deltaTicks = currentTime - _lastFrameTime;
-                if (deltaTicks > 0)
+                var deltaSeconds = currentTimestamp - _lastFrameTimestamp;
+                if (deltaSeconds > 0)
                 {
-                    var deltaSeconds = deltaTicks / (double)TimeSpan.TicksPerSecond;
                     _currentFps = 1.0 / deltaSeconds;
 
                     _fpsSamples.Add(_currentFps);
+                    _currentSumFps += _currentFps;
+                    _currentMaxFps = Math.Max(_currentMaxFps, _currentFps);
+                    _currentMinFps = Math.Min(_currentMinFps, _currentFps);
+
+                    if (_sortedFpsCounts.TryGetValue(_currentFps, out int count))
+                        _sortedFpsCounts[_currentFps] = count + 1;
+                    else
+                        _sortedFpsCounts[_currentFps] = 1;
+
                     while (_fpsSamples.Count > MaxWindowSamples)
                     {
+                        var removed = _fpsSamples[0];
                         _fpsSamples.RemoveAt(0);
+                        _currentSumFps -= removed;
+
+                        _sortedFpsCounts[removed]--;
+                        if (_sortedFpsCounts[removed] == 0)
+                            _sortedFpsCounts.Remove(removed);
+
+                        if (_fpsSamples.Count > 0)
+                        {
+                            if (removed >= _currentMaxFps)
+                                _currentMaxFps = _fpsSamples.Max();
+                            if (removed <= _currentMinFps)
+                                _currentMinFps = _fpsSamples.Min();
+                        }
                     }
 
-                    double maxFps = _fpsSamples.Max();
-                    double minFps = _fpsSamples.Min();
-                    double avgFps = _fpsSamples.Average();
-                    double low1Fps = CalculateLow1Percent();
+                    double maxFps = _currentMaxFps;
+                    double minFps = _currentMinFps;
+                    double avgFps = _fpsSamples.Count > 0 ? _currentSumFps / _fpsSamples.Count : 0;
+                    double low1Fps = CalculateLow1PercentFast();
 
                     FpsDataUpdated?.Invoke(DateTime.Now, _currentFps, maxFps, avgFps, minFps, low1Fps);
                 }
             }
 
-            _lastFrameTime = currentTime;
+            _lastFrameTimestamp = currentTimestamp;
         }
         catch (Exception)
         {
         }
     }
 
-    private double CalculateLow1Percent()
+    private double CalculateLow1PercentFast()
     {
-        if (_fpsSamples.Count == 0)
+        if (_sortedFpsCounts.Count == 0)
             return 0;
 
-        var sorted = _fpsSamples.OrderBy(f => f).ToList();
-        var count = (int)Math.Ceiling(sorted.Count * 0.01);
+        var totalCount = _fpsSamples.Count;
+        var targetCount = (int)Math.Ceiling(totalCount * 0.01);
+        if (targetCount == 0)
+            targetCount = 1;
 
-        if (count == 0)
-            count = 1;
+        double sum = 0;
+        int count = 0;
 
-        return sorted.Take(count).Average();
+        foreach (var kvp in _sortedFpsCounts)
+        {
+            var take = Math.Min(kvp.Value, targetCount - count);
+            sum += kvp.Key * take;
+            count += take;
+
+            if (count >= targetCount)
+                break;
+        }
+
+        return count > 0 ? sum / count : 0;
     }
 
     public void Dispose()
@@ -145,6 +192,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
             {
                 _fpsTimer?.Stop();
                 _fpsTimer = null;
+                _stopwatch.Stop();
             }, DispatcherPriority.Background);
         }
         catch

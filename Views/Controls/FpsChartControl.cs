@@ -11,6 +11,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
 using AdvancedTimeIsland.ViewModels.Settings;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Views.Controls;
 
@@ -24,8 +25,19 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private const int RedrawIntervalMs = 200;
     private const double LegendWidth = 100.0;
     private const double ChartHeight = 350.0;
+    private const int MaxVisiblePoints = 10000;
+    private const double MaxCanvasWidth = 100000;
+    private const double MinZoom = 0.1;
+    private const double MaxZoom = 10.0;
+    private const double DefaultZoom = 1.0;
+    private const double ZoomStep = 1.25;
+
+    private double _zoomLevel = DefaultZoom;
+
+    private double CurrentSamplePixelWidth => SamplePixelWidth * _zoomLevel;
 
     private Canvas? _canvas;
+    private Canvas? _yAxisPanel;
     private ScrollViewer? _scrollViewer;
     private Grid? _rootGrid;
     private StackPanel? _legendPanel;
@@ -44,8 +56,21 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private bool _isInitialized;
     private Button? _pauseButton;
     private bool _isPaused;
+    private bool _isEffectivelyVisible = true;
     private bool _isDragging;
     private double _lastScreenX;
+    private bool _isPinching;
+    private int _lastDrawnRecordCount;
+    private double _lastYMax;
+    private List<TextBlock> _yAxisLabels = new();
+    private List<Line> _gridLines = new();
+    private List<TextBlock> _timeLabels = new();
+    private bool[] _seriesVisible = { true, true, true, true, true };
+    private TextBox? _refreshRateTextBox;
+    private double _initialPinchDistance;
+    private double _initialPinchZoom;
+    private (IPointer? Pointer, Point Position) _pointer1;
+    private (IPointer? Pointer, Point Position) _pointer2;
 
     public FpsChartControl()
     {
@@ -70,12 +95,17 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
         _canvas = new Canvas
         {
-            Background = new SolidColorBrush(Color.FromArgb(20, 255, 255, 255))
+            Background = ThemeHelper.IsDarkTheme() 
+                ? new SolidColorBrush(Color.FromArgb(20, 255, 255, 255)) 
+                : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
+            Focusable = false
         };
         _canvas.PointerPressed += OnCanvasPointerPressed;
         _canvas.PointerReleased += OnCanvasPointerReleased;
         _canvas.PointerMoved += OnCanvasPointerMoved;
         _canvas.PointerExited += OnCanvasPointerLeave;
+        _canvas.PointerWheelChanged += OnCanvasPointerWheelChanged;
+        _canvas.KeyDown += OnCanvasKeyDown;
 
         for (int i = 0; i < 5; i++)
         {
@@ -122,7 +152,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             {
                 Text = _seriesNames[i],
                 FontSize = 11,
-                Foreground = Brushes.White
+                Foreground = ThemeHelper.GetTextBrush()
             };
             legendItem.Children.Add(label);
 
@@ -152,10 +182,51 @@ public class FpsChartControl : TemplatedControl, IDisposable
         _pauseButton.Click += OnPauseButtonClick;
         metricsPanel.Children.Add(_pauseButton);
 
+        var zoomPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var zoomInButton = new Button
+        {
+            Content = "放大",
+            Width = 60,
+            Height = 24,
+            FontSize = 11
+        };
+        zoomInButton.Click += (s, e) => ZoomIn();
+        zoomPanel.Children.Add(zoomInButton);
+
+        var zoomOutButton = new Button
+        {
+            Content = "缩小",
+            Width = 60,
+            Height = 24,
+            FontSize = 11
+        };
+        zoomOutButton.Click += (s, e) => ZoomOut();
+        zoomPanel.Children.Add(zoomOutButton);
+
+        var zoomResetButton = new Button
+        {
+            Content = "重置缩放",
+            Width = 70,
+            Height = 24,
+            FontSize = 11
+        };
+        zoomResetButton.Click += (s, e) => ZoomReset();
+        zoomPanel.Children.Add(zoomResetButton);
+
+        metricsPanel.Children.Add(zoomPanel);
+
         _tooltipBorder = new Border
         {
-            Background = new SolidColorBrush(Color.FromRgb(30, 30, 30)),
-            BorderBrush = Brushes.Gray,
+            Background = ThemeHelper.IsDarkTheme() 
+                ? new SolidColorBrush(Color.FromRgb(30, 30, 30)) 
+                : new SolidColorBrush(Color.FromRgb(230, 230, 230)),
+            BorderBrush = ThemeHelper.GetGrayBrush(),
             BorderThickness = new Thickness(1),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(8),
@@ -165,33 +236,123 @@ public class FpsChartControl : TemplatedControl, IDisposable
         _tooltipTextBlock = new TextBlock
         {
             FontSize = 12,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             TextWrapping = TextWrapping.Wrap
         };
         _tooltipBorder.Child = _tooltipTextBlock;
         _canvas.Children.Add(_tooltipBorder);
 
+        _yAxisPanel = new Canvas
+        {
+            Width = LeftPadding,
+            Height = ChartHeight
+        };
+
         _rootGrid = new Grid
         {
-            MinHeight = ChartHeight + 30,
-            Height = ChartHeight + 30
+            MinHeight = ChartHeight + 80
         };
         _rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         _rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        _rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LeftPadding) });
         _rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         _rootGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(LegendWidth) });
 
         Grid.SetRow(metricsPanel, 0);
-        Grid.SetColumn(metricsPanel, 0);
+        Grid.SetColumn(metricsPanel, 1);
         _rootGrid.Children.Add(metricsPanel);
 
+        Grid.SetRow(_yAxisPanel, 1);
+        Grid.SetColumn(_yAxisPanel, 0);
+        _rootGrid.Children.Add(_yAxisPanel);
+
         Grid.SetRow(_scrollViewer, 1);
-        Grid.SetColumn(_scrollViewer, 0);
+        Grid.SetColumn(_scrollViewer, 1);
         Grid.SetRow(_legendPanel, 1);
-        Grid.SetColumn(_legendPanel, 1);
+        Grid.SetColumn(_legendPanel, 2);
 
         _rootGrid.Children.Add(_scrollViewer);
         _rootGrid.Children.Add(_legendPanel);
+
+        var checkboxPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 16,
+            Margin = new Thickness(10, 8, 10, 0),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        for (int i = 0; i < 5; i++)
+        {
+            var checkbox = new CheckBox
+            {
+                Content = _seriesNames[i],
+                IsChecked = true,
+                FontSize = 11,
+                Foreground = ThemeHelper.GetTextBrush()
+            };
+            var idx = i;
+            checkbox.Checked += (s, e) =>
+            {
+                _seriesVisible[idx] = true;
+                _lastDrawnRecordCount = 0;
+                Redraw();
+            };
+            checkbox.Unchecked += (s, e) =>
+            {
+                _seriesVisible[idx] = false;
+                _lastDrawnRecordCount = 0;
+                Redraw();
+            };
+            checkboxPanel.Children.Add(checkbox);
+        }
+
+        Grid.SetRow(checkboxPanel, 2);
+        Grid.SetColumn(checkboxPanel, 1);
+        _rootGrid.Children.Add(checkboxPanel);
+
+        var refreshRatePanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(10, 4, 10, 8),
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+
+        var refreshRateLabel = new TextBlock
+        {
+            Text = "刷新频率:",
+            FontSize = 11,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        refreshRatePanel.Children.Add(refreshRateLabel);
+
+        _refreshRateTextBox = new TextBox
+        {
+            Text = "5",
+            Width = 60,
+            Height = 24,
+            FontSize = 11,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        _refreshRateTextBox.LostFocus += OnRefreshRateLostFocus;
+        refreshRatePanel.Children.Add(_refreshRateTextBox);
+
+        var refreshRateUnit = new TextBlock
+        {
+            Text = "次/秒",
+            FontSize = 11,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        refreshRatePanel.Children.Add(refreshRateUnit);
+
+        Grid.SetRow(refreshRatePanel, 3);
+        Grid.SetColumn(refreshRatePanel, 1);
+        _rootGrid.Children.Add(refreshRatePanel);
 
         _redrawTimer = new DispatcherTimer(
             TimeSpan.FromMilliseconds(RedrawIntervalMs),
@@ -206,13 +367,13 @@ public class FpsChartControl : TemplatedControl, IDisposable
         {
             Text = labelText,
             FontSize = 12,
-            Foreground = Brushes.Gray
+            Foreground = ThemeHelper.GetSubTextBrush()
         };
         valueTextBlock = new TextBlock
         {
             Text = "---",
             FontSize = 12,
-            Foreground = Brushes.Green
+            Foreground = ThemeHelper.GetYiBrush()
         };
         panel.Children.Add(label);
         panel.Children.Add(valueTextBlock);
@@ -225,12 +386,36 @@ public class FpsChartControl : TemplatedControl, IDisposable
         try
         {
             Initialize();
-            FpsSampler.DataUpdated += OnDataUpdated;
-            _redrawTimer?.Start();
-            DispatcherTimer.RunOnce(Redraw, TimeSpan.FromMilliseconds(50));
+            _isEffectivelyVisible = IsEffectivelyVisible;
+            if (_isEffectivelyVisible)
+            {
+                FpsSampler.DataUpdated += OnDataUpdated;
+                _redrawTimer?.Start();
+                DispatcherTimer.RunOnce(Redraw, TimeSpan.FromMilliseconds(50));
+            }
         }
         catch (Exception)
         {
+        }
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs e)
+    {
+        base.OnPropertyChanged(e);
+        if (e.Property.Name == "IsEffectivelyVisible")
+        {
+            _isEffectivelyVisible = (bool)e.NewValue!;
+            if (_isEffectivelyVisible)
+            {
+                FpsSampler.DataUpdated += OnDataUpdated;
+                _redrawTimer?.Start();
+                DispatcherTimer.RunOnce(Redraw, TimeSpan.FromMilliseconds(50));
+            }
+            else
+            {
+                FpsSampler.DataUpdated -= OnDataUpdated;
+                _redrawTimer?.Stop();
+            }
         }
     }
 
@@ -245,6 +430,8 @@ public class FpsChartControl : TemplatedControl, IDisposable
             {
                 _canvas.PointerMoved -= OnCanvasPointerMoved;
                 _canvas.PointerExited -= OnCanvasPointerLeave;
+                _canvas.PointerWheelChanged -= OnCanvasPointerWheelChanged;
+                _canvas.KeyDown -= OnCanvasKeyDown;
             }
         }
         catch (Exception)
@@ -254,9 +441,16 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
     private void OnDataUpdated()
     {
+        _lastDrawnRecordCount = 0;
     }
 
     private void OnRedrawTick(object? sender, EventArgs e)
+    {
+        if (_isPaused) return;
+        Redraw();
+    }
+
+    public void ForceRedraw()
     {
         Redraw();
     }
@@ -264,10 +458,16 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private void Redraw()
     {
         if (_isDisposed || !_isInitialized) return;
+        if (!_isEffectivelyVisible) return;
         if (_canvas == null || _scrollViewer == null || _polylines == null) return;
 
         var records = FpsSampler.Records;
-        if (records.Count == 0) return;
+        
+        if (records.Count == 0)
+        {
+            ClearCanvas();
+            return;
+        }
 
         UpdateMetrics(records[records.Count - 1]);
 
@@ -282,15 +482,14 @@ public class FpsChartControl : TemplatedControl, IDisposable
         {
             var visibleWidth = _scrollViewer.Bounds.Width;
             var offset = _scrollViewer.Offset.X;
-            visibleStartIndex = Math.Max(0, (int)((offset - LeftPadding) / SamplePixelWidth));
-            visibleEndIndex = Math.Min(records.Count - 1, visibleStartIndex + (int)(visibleWidth / SamplePixelWidth) + 100);
+            visibleStartIndex = Math.Max(0, (int)(offset / CurrentSamplePixelWidth));
+            visibleEndIndex = Math.Min(records.Count - 1, visibleStartIndex + (int)(visibleWidth / CurrentSamplePixelWidth) + 100);
         }
 
-        var visibleRecords = records.Skip(visibleStartIndex).Take(visibleEndIndex - visibleStartIndex + 1).ToList();
-
         double yMax = 0;
-        foreach (var r in visibleRecords)
+        for (int i = visibleStartIndex; i <= visibleEndIndex; i++)
         {
+            var r = records[i];
             if (r.Fps > yMax) yMax = r.Fps;
             if (r.Max > yMax) yMax = r.Max;
             if (r.Avg > yMax) yMax = r.Avg;
@@ -300,67 +499,87 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
         var canvasWidth = Math.Max(
             _scrollViewer.Bounds.Width > 0 ? _scrollViewer.Bounds.Width : 800,
-            records.Count * SamplePixelWidth + LeftPadding + RightPadding);
+            Math.Min(records.Count * CurrentSamplePixelWidth + RightPadding, MaxCanvasWidth));
 
         _canvas.Width = canvasWidth;
         _canvas.Height = controlHeight;
 
-        var toRemove = _canvas.Children.OfType<TextBlock>().Where(tb => tb != _tooltipTextBlock).ToList();
-        foreach (var tb in toRemove)
+        bool needsFullRedraw = _lastDrawnRecordCount == 0 || 
+                               records.Count - _lastDrawnRecordCount > 1 ||
+                               yMax != _lastYMax;
+
+        if (yMax != _lastYMax)
         {
-            _canvas.Children.Remove(tb);
+            UpdateYAxisAndGrid(yMax, chartHeight, controlHeight, canvasWidth);
+            _lastYMax = yMax;
+            needsFullRedraw = true;
         }
 
-        var lineToRemove = _canvas.Children.OfType<Line>().ToList();
-        foreach (var line in lineToRemove)
+        UpdateTimeLabels(records, chartHeight, canvasWidth, visibleStartIndex, visibleEndIndex);
+
+        if (needsFullRedraw)
         {
-            _canvas.Children.Remove(line);
+            for (int seriesIdx = 0; seriesIdx < 5; seriesIdx++)
+            {
+                if (!_seriesVisible[seriesIdx])
+                {
+                    _polylines[seriesIdx].Points.Clear();
+                    continue;
+                }
+                
+                var points = new List<Point>();
+                int visibleCount = visibleEndIndex - visibleStartIndex + 1;
+                int step = visibleCount <= MaxVisiblePoints ? 1 : (int)Math.Ceiling((double)visibleCount / MaxVisiblePoints);
+
+                for (int i = visibleStartIndex; i <= visibleEndIndex; i += step)
+                {
+                    double value = seriesIdx switch
+                    {
+                        0 => records[i].Fps,
+                        1 => records[i].Max,
+                        2 => records[i].Avg,
+                        3 => records[i].Min,
+                        4 => records[i].Low1,
+                        _ => 0
+                    };
+                    var x = i * CurrentSamplePixelWidth;
+                    var y = TopPadding + chartHeight - (value / yMax * chartHeight);
+                    points.Add(new Point(x, y));
+                }
+                
+                if (visibleCount > MaxVisiblePoints && visibleEndIndex - visibleStartIndex >= step)
+                {
+                    double lastValue = seriesIdx switch
+                    {
+                        0 => records[visibleEndIndex].Fps,
+                        1 => records[visibleEndIndex].Max,
+                        2 => records[visibleEndIndex].Avg,
+                        3 => records[visibleEndIndex].Min,
+                        4 => records[visibleEndIndex].Low1,
+                        _ => 0
+                    };
+                    var lastX = visibleEndIndex * CurrentSamplePixelWidth;
+                    var lastY = TopPadding + chartHeight - (lastValue / yMax * chartHeight);
+                    points.Add(new Point(lastX, lastY));
+                }
+                
+                _polylines[seriesIdx].Points = points;
+            }
+            _lastDrawnRecordCount = records.Count;
         }
-
-        int yStep = (int)yMax / 5;
-        if (yStep < 1) yStep = 1;
-        for (int y = 0; y <= yMax; y += yStep)
+        else
         {
-            var yLabel = new TextBlock
+            for (int seriesIdx = 0; seriesIdx < 5; seriesIdx++)
             {
-                Text = y.ToString(),
-                FontSize = 10,
-                Foreground = Brushes.Gray
-            };
-            Canvas.SetLeft(yLabel, 5);
-            Canvas.SetTop(yLabel, TopPadding + chartHeight - (y / yMax * chartHeight) - 6);
-            _canvas.Children.Add(yLabel);
-
-            var gridLine = new Line
-            {
-                StartPoint = new Point(LeftPadding, TopPadding + chartHeight - (y / yMax * chartHeight)),
-                EndPoint = new Point(canvasWidth - RightPadding, TopPadding + chartHeight - (y / yMax * chartHeight)),
-                Stroke = new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)),
-                StrokeThickness = 0.5
-            };
-            _canvas.Children.Add(gridLine);
-        }
-
-        int labelInterval = 300;
-        for (int i = 0; i < records.Count; i += labelInterval)
-        {
-            var x = LeftPadding + i * SamplePixelWidth;
-            var timeLabel = new TextBlock
-            {
-                Text = records[i].Time.ToString("HH:mm:ss"),
-                FontSize = 10,
-                Foreground = Brushes.Gray
-            };
-            Canvas.SetLeft(timeLabel, x - 20);
-            Canvas.SetTop(timeLabel, TopPadding + chartHeight + 5);
-            _canvas.Children.Add(timeLabel);
-        }
-
-        for (int seriesIdx = 0; seriesIdx < 5; seriesIdx++)
-        {
-            var points = new List<Point>();
-            for (int i = visibleStartIndex; i <= visibleEndIndex; i++)
-            {
+                if (!_seriesVisible[seriesIdx])
+                {
+                    _polylines[seriesIdx].Points.Clear();
+                    continue;
+                }
+                
+                var i = records.Count - 1;
+                if (i < visibleStartIndex || i > visibleEndIndex) continue;
+                
                 double value = seriesIdx switch
                 {
                     0 => records[i].Fps,
@@ -370,12 +589,11 @@ public class FpsChartControl : TemplatedControl, IDisposable
                     4 => records[i].Low1,
                     _ => 0
                 };
-
-                var x = LeftPadding + i * SamplePixelWidth;
+                var x = i * CurrentSamplePixelWidth;
                 var y = TopPadding + chartHeight - (value / yMax * chartHeight);
-                points.Add(new Point(x, y));
+                _polylines[seriesIdx].Points.Add(new Point(x, y));
             }
-            _polylines[seriesIdx].Points = points;
+            _lastDrawnRecordCount = records.Count;
         }
 
         Dispatcher.UIThread.Post(() =>
@@ -390,6 +608,121 @@ public class FpsChartControl : TemplatedControl, IDisposable
                 }
             }
         }, DispatcherPriority.Background);
+    }
+
+    private void UpdateYAxisAndGrid(double yMax, double chartHeight, double controlHeight, double canvasWidth)
+    {
+        if (_yAxisPanel != null)
+        {
+            foreach (var label in _yAxisLabels)
+            {
+                _yAxisPanel.Children.Remove(label);
+            }
+            _yAxisLabels.Clear();
+
+            int yStep = (int)yMax / 5;
+            if (yStep < 1) yStep = 1;
+            for (int y = 0; y <= yMax; y += yStep)
+            {
+                var yLabel = new TextBlock
+                {
+                    Text = y.ToString(),
+                    FontSize = 10,
+                    Foreground = ThemeHelper.GetSubTextBrush(),
+                    TextAlignment = TextAlignment.Right
+                };
+                Canvas.SetLeft(yLabel, LeftPadding - 25);
+                Canvas.SetTop(yLabel, TopPadding + chartHeight - (y / yMax * chartHeight) - 6);
+                _yAxisPanel.Children.Add(yLabel);
+                _yAxisLabels.Add(yLabel);
+            }
+        }
+
+        foreach (var line in _gridLines)
+        {
+            _canvas?.Children.Remove(line);
+        }
+        _gridLines.Clear();
+
+        int yStep2 = (int)yMax / 5;
+        if (yStep2 < 1) yStep2 = 1;
+        for (int y = 0; y <= yMax; y += yStep2)
+        {
+            var gridLine = new Line
+            {
+                StartPoint = new Point(0, TopPadding + chartHeight - (y / yMax * chartHeight)),
+                EndPoint = new Point(canvasWidth - RightPadding, TopPadding + chartHeight - (y / yMax * chartHeight)),
+                Stroke = ThemeHelper.IsDarkTheme() 
+                    ? new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)) 
+                    : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
+                StrokeThickness = 0.5
+            };
+            _canvas?.Children.Add(gridLine);
+            _gridLines.Add(gridLine);
+        }
+    }
+
+    private void UpdateTimeLabels(IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> records, double chartHeight, double canvasWidth, int visibleStartIndex, int visibleEndIndex)
+    {
+        if (_canvas == null) return;
+
+        int labelInterval = (int)(150 / CurrentSamplePixelWidth);
+        if (labelInterval < 1) labelInterval = 1;
+
+        int startLabelIndex = visibleStartIndex - (visibleStartIndex % labelInterval);
+        if (startLabelIndex < 0) startLabelIndex = 0;
+        int requiredCount = (visibleEndIndex - startLabelIndex) / labelInterval + 1;
+
+        while (_timeLabels.Count < requiredCount)
+        {
+            var timeLabel = new TextBlock
+            {
+                FontSize = 10,
+                Foreground = ThemeHelper.GetSubTextBrush()
+            };
+            _timeLabels.Add(timeLabel);
+            _canvas.Children.Add(timeLabel);
+        }
+
+        while (_timeLabels.Count > requiredCount)
+        {
+            var tb = _timeLabels[^1];
+            _canvas.Children.Remove(tb);
+            _timeLabels.RemoveAt(_timeLabels.Count - 1);
+        }
+
+        int labelIndex = 0;
+        for (int i = startLabelIndex; i <= visibleEndIndex; i += labelInterval)
+        {
+            var x = i * CurrentSamplePixelWidth;
+            var timeLabel = _timeLabels[labelIndex];
+            timeLabel.Text = records[i].Time.ToString("HH:mm:ss");
+            Canvas.SetLeft(timeLabel, x - 20);
+            Canvas.SetTop(timeLabel, TopPadding + chartHeight + 5);
+            labelIndex++;
+        }
+    }
+
+    private void OnRefreshRateLostFocus(object? sender, RoutedEventArgs e)
+    {
+        if (_refreshRateTextBox == null || _redrawTimer == null) return;
+
+        if (double.TryParse(_refreshRateTextBox.Text, out var rate) && rate > 0)
+        {
+            const double maxRate = 30.0;
+            if (rate > maxRate)
+            {
+                rate = maxRate;
+                _refreshRateTextBox.Text = maxRate.ToString();
+            }
+            var intervalMs = TimeSpan.FromMilliseconds(1000.0 / rate);
+            _redrawTimer.Interval = intervalMs;
+        }
+        else
+        {
+            _refreshRateTextBox.Text = "5";
+            _redrawTimer.Interval = TimeSpan.FromMilliseconds(200);
+        }
     }
 
     private void OnPauseButtonClick(object? sender, RoutedEventArgs e)
@@ -428,16 +761,37 @@ public class FpsChartControl : TemplatedControl, IDisposable
         if (textBlock == null) return;
 
         if (fps >= 30)
-            textBlock.Foreground = new SolidColorBrush(Color.FromRgb(0, 255, 0));
+            textBlock.Foreground = ThemeHelper.GetYiBrush();
         else if (fps >= 20)
-            textBlock.Foreground = new SolidColorBrush(Color.FromRgb(255, 255, 0));
+            textBlock.Foreground = ThemeHelper.GetOrangeBrush();
         else
             textBlock.Foreground = new SolidColorBrush(Color.FromRgb(255, 0, 0));
     }
 
     private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        if (!_isInitialized || _scrollViewer == null) return;
+        if (!_isInitialized || _scrollViewer == null || _canvas == null) return;
+
+        var position = e.GetPosition(_canvas);
+
+        if (_pointer1.Pointer == null)
+        {
+            _pointer1 = (e.Pointer, position);
+        }
+        else if (_pointer2.Pointer == null)
+        {
+            _pointer2 = (e.Pointer, position);
+            _isPinching = true;
+            _initialPinchDistance = GetDistance(_pointer1.Position, _pointer2.Position);
+            _initialPinchZoom = _zoomLevel;
+        }
+
+        if (_pointer1.Pointer != null && _pointer2.Pointer != null)
+        {
+            _isDragging = false;
+            return;
+        }
+
         if (e.GetCurrentPoint(_canvas).Properties.IsLeftButtonPressed)
         {
             _isDragging = true;
@@ -457,6 +811,20 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
     private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
     {
+        if (_pointer1.Pointer == e.Pointer)
+        {
+            _pointer1 = (null, default);
+        }
+        else if (_pointer2.Pointer == e.Pointer)
+        {
+            _pointer2 = (null, default);
+        }
+
+        if (_pointer1.Pointer == null && _pointer2.Pointer == null)
+        {
+            _isPinching = false;
+        }
+
         if (_isDragging)
         {
             _isDragging = false;
@@ -468,6 +836,12 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_isInitialized || _canvas == null) return;
+
+        if (_isPinching)
+        {
+            UpdatePointerPositions(e);
+            return;
+        }
 
         if (_isDragging && _scrollViewer != null)
         {
@@ -500,13 +874,13 @@ public class FpsChartControl : TemplatedControl, IDisposable
         var position = e.GetPosition(_canvas);
         var chartHeight = ChartHeight - TopPadding - BottomPadding;
 
-        if (position.X < LeftPadding || position.Y < TopPadding || position.Y > TopPadding + chartHeight)
+        if (position.X < 0 || position.Y < TopPadding || position.Y > TopPadding + chartHeight)
         {
             _tooltipBorder.IsVisible = false;
             return;
         }
 
-        var index = (int)((position.X - LeftPadding) / SamplePixelWidth);
+        var index = (int)(position.X / CurrentSamplePixelWidth);
         if (index < 0 || index >= records.Count)
         {
             _tooltipBorder.IsVisible = false;
@@ -543,6 +917,177 @@ public class FpsChartControl : TemplatedControl, IDisposable
         }
     }
 
+    private void UpdatePointerPositions(PointerEventArgs e)
+    {
+        if (_canvas == null) return;
+
+        var currentPoint = e.GetPosition(_canvas);
+        
+        if (_pointer1.Pointer == e.Pointer)
+        {
+            _pointer1 = (_pointer1.Pointer, currentPoint);
+        }
+        else if (_pointer2.Pointer == e.Pointer)
+        {
+            _pointer2 = (_pointer2.Pointer, currentPoint);
+        }
+
+        if (_pointer1.Pointer != null && _pointer2.Pointer != null)
+        {
+            double currentDistance = GetDistance(_pointer1.Position, _pointer2.Position);
+            double scale = currentDistance / _initialPinchDistance;
+            double newZoom = _initialPinchZoom * scale;
+            newZoom = Math.Max(MinZoom, Math.Min(MaxZoom, newZoom));
+            
+            if (Math.Abs(newZoom - _zoomLevel) >= 0.001)
+            {
+                ApplyZoom(newZoom);
+            }
+        }
+    }
+
+    private double GetDistance(Point p1, Point p2)
+    {
+        double dx = p1.X - p2.X;
+        double dy = p1.Y - p2.Y;
+        return Math.Sqrt(dx * dx + dy * dy);
+    }
+
+    private void ClearCanvas()
+    {
+        if (_canvas == null || _polylines == null) return;
+
+        foreach (var polyline in _polylines)
+        {
+            polyline.Points.Clear();
+        }
+
+        _lastDrawnRecordCount = 0;
+        _lastYMax = 0;
+
+        foreach (var label in _yAxisLabels)
+        {
+            _yAxisPanel?.Children.Remove(label);
+        }
+        _yAxisLabels.Clear();
+
+        foreach (var line in _gridLines)
+        {
+            _canvas.Children.Remove(line);
+        }
+        _gridLines.Clear();
+
+        foreach (var tb in _timeLabels)
+        {
+            _canvas.Children.Remove(tb);
+        }
+        _timeLabels.Clear();
+
+        _canvas.Width = _scrollViewer?.Bounds.Width > 0 ? _scrollViewer.Bounds.Width : 800;
+        
+        if (_fpsValueTextBlock != null)
+            _fpsValueTextBlock.Text = "---";
+        if (_maxValueTextBlock != null)
+            _maxValueTextBlock.Text = "---";
+        if (_avgValueTextBlock != null)
+            _avgValueTextBlock.Text = "---";
+        if (_minValueTextBlock != null)
+            _minValueTextBlock.Text = "---";
+        if (_low1ValueTextBlock != null)
+            _low1ValueTextBlock.Text = "---";
+    }
+
+    private void OnCanvasPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (!_isInitialized || _scrollViewer == null) return;
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+
+        e.Handled = true;
+
+        // 向上滚动放大，向下滚动缩小
+        if (e.Delta.Y > 0)
+            ZoomIn();
+        else if (e.Delta.Y < 0)
+            ZoomOut();
+    }
+
+    private void OnCanvasKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!_isInitialized) return;
+        if (!e.KeyModifiers.HasFlag(KeyModifiers.Control)) return;
+
+        switch (e.Key)
+        {
+            case Key.OemPlus or Key.Add:
+                e.Handled = true;
+                ZoomIn();
+                break;
+            case Key.OemMinus or Key.Subtract:
+                e.Handled = true;
+                ZoomOut();
+                break;
+            case Key.D0 or Key.NumPad0:
+                e.Handled = true;
+                ZoomReset();
+                break;
+        }
+    }
+
+    private void ZoomIn()
+    {
+        var newZoom = _zoomLevel * ZoomStep;
+        if (newZoom > MaxZoom) newZoom = MaxZoom;
+        if (Math.Abs(newZoom - _zoomLevel) < 0.001) return;
+        ApplyZoom(newZoom);
+    }
+
+    private void ZoomOut()
+    {
+        var newZoom = _zoomLevel / ZoomStep;
+        if (newZoom < MinZoom) newZoom = MinZoom;
+        if (Math.Abs(newZoom - _zoomLevel) < 0.001) return;
+        ApplyZoom(newZoom);
+    }
+
+    private void ZoomReset()
+    {
+        if (Math.Abs(_zoomLevel - DefaultZoom) < 0.001) return;
+        ApplyZoom(DefaultZoom);
+    }
+
+    private void ApplyZoom(double newZoom)
+    {
+        if (_scrollViewer == null || _canvas == null) return;
+
+        // 记录当前视口中心对应的数据索引
+        var oldSampleWidth = CurrentSamplePixelWidth;
+        var oldOffset = _scrollViewer.Offset.X;
+        var viewportWidth = _scrollViewer.Viewport.Width;
+        var centerOffset = oldOffset + viewportWidth / 2.0;
+        var centerDataIndex = (centerOffset - LeftPadding) / oldSampleWidth;
+
+        _zoomLevel = newZoom;
+
+        // 计算新的偏移量，保持视口中心的数据点不变
+        var newSampleWidth = CurrentSamplePixelWidth;
+        var newCenterOffset = LeftPadding + centerDataIndex * newSampleWidth;
+        var newOffset = newCenterOffset - viewportWidth / 2.0;
+
+        // 强制完全重绘以更新画布尺寸
+        _lastDrawnRecordCount = 0;
+        Redraw();
+
+        // 更新暂停红线位置
+        // 设置新的偏移量
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_scrollViewer == null) return;
+            var maxOffset = _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width;
+            newOffset = Math.Max(0, Math.Min(maxOffset, newOffset));
+            _scrollViewer.Offset = new Vector(newOffset, 0);
+        }, DispatcherPriority.Background);
+    }
+
     public Control GetContent()
     {
         Initialize();
@@ -562,6 +1107,8 @@ public class FpsChartControl : TemplatedControl, IDisposable
                 _canvas.PointerReleased -= OnCanvasPointerReleased;
                 _canvas.PointerMoved -= OnCanvasPointerMoved;
                 _canvas.PointerExited -= OnCanvasPointerLeave;
+                _canvas.PointerWheelChanged -= OnCanvasPointerWheelChanged;
+                _canvas.KeyDown -= OnCanvasKeyDown;
             }
         }
         catch

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
 using Avalonia;
@@ -10,6 +11,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
@@ -22,6 +24,13 @@ public class DebugPage : SettingsPageBase
 {
     private TextBlock? _titleTextBlock;
     private List<TextBlock>? _testPanelTitleTextBlocks;
+
+    private TextBlock? _memoryLeakTitleTextBlock;
+    private Button? _memoryLeakStartButton;
+    private Button? _memoryLeakClearButton;
+    private TextBox? _memoryLeakRateTextBox;
+    private ComboBox? _memoryLeakUnitComboBox;
+    private TextBlock? _memoryLeakAmountTextBlock;
 
     public DebugPage()
     {
@@ -58,19 +67,16 @@ public class DebugPage : SettingsPageBase
         };
         mainPanel.Children.Add(_titleTextBlock);
 
-        // 标签 1: 抛出异常测试
         var tab1Panel = CreateSimpleTestPanel(
             "抛出异常测试",
             "开始",
             ButtonCrash_OnClick);
 
-        // 标签 2: 强制崩溃测试
         var tab2Panel = CreateSimpleTestPanel(
             "强制崩溃测试",
             "开始",
             ButtonForceCrash_OnClick);
 
-        // 标签 3: 自毁测试
         var tab3Panel = CreateSimpleTestPanel(
             "自毁测试",
             "开始",
@@ -81,6 +87,8 @@ public class DebugPage : SettingsPageBase
         mainPanel.Children.Add(tab2Panel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         mainPanel.Children.Add(tab3Panel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        mainPanel.Children.Add(CreateMemoryLeakTestPanel());
 
         var scrollViewer = new ScrollViewer
         {
@@ -362,6 +370,8 @@ public class DebugPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        MemoryLeakTestService.Instance.LeakUpdated += OnLeakUpdated;
+        UpdateMemoryLeakUI();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -371,6 +381,7 @@ public class DebugPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        MemoryLeakTestService.Instance.LeakUpdated -= OnLeakUpdated;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -390,8 +401,236 @@ public class DebugPage : SettingsPageBase
                 tb.Foreground = ThemeHelper.GetTextBrush();
             }
         }
+
+        if (_memoryLeakTitleTextBlock != null)
+            _memoryLeakTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_memoryLeakAmountTextBlock != null)
+            _memoryLeakAmountTextBlock.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    private Border CreateMemoryLeakTestPanel()
+    {
+        var panel = new Border
+        {
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true
+        };
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8
+        };
+
+        _memoryLeakTitleTextBlock = new TextBlock
+        {
+            Text = "内存泄漏测试",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        content.Children.Add(_memoryLeakTitleTextBlock);
+
+        var buttonPanel = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                new ColumnDefinition { Width = GridLength.Auto },
+                new ColumnDefinition { Width = GridLength.Auto }
+            },
+            ColumnSpacing = 8
+        };
+
+        _memoryLeakStartButton = new Button
+        {
+            Content = "开始",
+            Padding = new Thickness(16, 8, 16, 8)
+        };
+        _memoryLeakStartButton.Click += MemoryLeakStartButton_OnClick;
+        Grid.SetColumn(_memoryLeakStartButton, 1);
+        buttonPanel.Children.Add(_memoryLeakStartButton);
+
+        _memoryLeakClearButton = new Button
+        {
+            Content = "清除",
+            Padding = new Thickness(16, 8, 16, 8)
+        };
+        _memoryLeakClearButton.Click += MemoryLeakClearButton_OnClick;
+        Grid.SetColumn(_memoryLeakClearButton, 2);
+        buttonPanel.Children.Add(_memoryLeakClearButton);
+
+        content.Children.Add(buttonPanel);
+
+        var ratePanel = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                new ColumnDefinition { Width = new GridLength(100) },
+                new ColumnDefinition { Width = new GridLength(80) }
+            },
+            ColumnSpacing = 8
+        };
+
+        var rateLabel = new TextBlock
+        {
+            Text = "每秒泄漏量",
+            FontSize = 14,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(rateLabel, 0);
+        ratePanel.Children.Add(rateLabel);
+
+        _memoryLeakRateTextBox = new TextBox
+        {
+            Text = MemoryLeakTestService.Instance.LeakRate.ToString(),
+            FontSize = 14,
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        Grid.SetColumn(_memoryLeakRateTextBox, 1);
+        ratePanel.Children.Add(_memoryLeakRateTextBox);
+
+        _memoryLeakUnitComboBox = new ComboBox
+        {
+            FontSize = 14,
+            Padding = new Thickness(8, 4, 8, 4)
+        };
+        _memoryLeakUnitComboBox.Items.Add("Byte");
+        _memoryLeakUnitComboBox.Items.Add("KiB");
+        _memoryLeakUnitComboBox.Items.Add("MiB");
+        var unitIndex = Array.IndexOf(new[] { "Byte", "KiB", "MiB" }, MemoryLeakTestService.Instance.LeakUnit);
+        _memoryLeakUnitComboBox.SelectedIndex = unitIndex >= 0 ? unitIndex : 1;
+        Grid.SetColumn(_memoryLeakUnitComboBox, 2);
+        ratePanel.Children.Add(_memoryLeakUnitComboBox);
+
+        content.Children.Add(ratePanel);
+
+        var amountPanel = new Grid
+        {
+            ColumnDefinitions =
+            {
+                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
+                new ColumnDefinition { Width = GridLength.Auto }
+            }
+        };
+
+        var amountLabel = new TextBlock
+        {
+            Text = "已泄漏内存：",
+            FontSize = 14,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(amountLabel, 0);
+        amountPanel.Children.Add(amountLabel);
+
+        _memoryLeakAmountTextBlock = new TextBlock
+        {
+            Text = MemoryLeakTestService.Instance.FormatMemorySize(MemoryLeakTestService.Instance.LeakedBytes),
+            FontSize = 14,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(_memoryLeakAmountTextBlock, 1);
+        amountPanel.Children.Add(_memoryLeakAmountTextBlock);
+
+        content.Children.Add(amountPanel);
+
+        panel.Child = content;
+
+        return panel;
+    }
+
+    private void MemoryLeakStartButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        var service = MemoryLeakTestService.Instance;
+
+        UpdateLeakRateFromUI();
+
+        if (service.IsRunning)
+        {
+            if (service.IsPaused)
+            {
+                service.Start();
+                _memoryLeakStartButton!.Content = "暂停";
+            }
+            else
+            {
+                service.Pause();
+                _memoryLeakStartButton!.Content = "继续";
+            }
+        }
+        else
+        {
+            service.Start();
+            _memoryLeakStartButton!.Content = "暂停";
+        }
+    }
+
+    private void MemoryLeakClearButton_OnClick(object? sender, RoutedEventArgs e)
+    {
+        ShowMemoryLeakClearDialog();
+    }
+
+    private void ShowMemoryLeakClearDialog()
+    {
+        var dialog = new ContentDialog()
+        {
+            Title = "需要重启",
+            Content = "需要重启以清除内存泄漏。",
+            PrimaryButtonText = "立即重启",
+            SecondaryButtonText = "稍后",
+            DefaultButton = ContentDialogButton.Primary
+        };
+        dialog.ShowAsync(TopLevel.GetTopLevel(this)).ContinueWith(task =>
+        {
+            if (task.Result == ContentDialogResult.Primary)
+            {
+                ClassIsland.Core.AppBase.Current.Restart();
+            }
+        });
+    }
+
+    private void OnLeakUpdated(object? sender, EventArgs e)
+    {
+        Dispatcher.UIThread.Post(UpdateMemoryLeakUI);
+    }
+
+    private void UpdateMemoryLeakUI()
+    {
+        var service = MemoryLeakTestService.Instance;
+
+        if (_memoryLeakStartButton != null)
+        {
+            if (service.IsRunning)
+            {
+                _memoryLeakStartButton.Content = service.IsPaused ? "继续" : "暂停";
+            }
+            else
+            {
+                _memoryLeakStartButton.Content = "开始";
+            }
+        }
+
+        if (_memoryLeakAmountTextBlock != null)
+        {
+            _memoryLeakAmountTextBlock.Text = service.FormatMemorySize(service.LeakedBytes);
+        }
+    }
+
+    private void UpdateLeakRateFromUI()
+    {
+        if (!double.TryParse(_memoryLeakRateTextBox?.Text ?? "0", out var rate))
+        {
+            rate = 0;
+        }
+
+        var unit = _memoryLeakUnitComboBox?.SelectedItem?.ToString() ?? "KiB";
+        MemoryLeakTestService.Instance.SetLeakRate(rate, unit);
     }
 }
-
-
-

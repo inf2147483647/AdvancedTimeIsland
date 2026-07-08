@@ -5,6 +5,14 @@ using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
 
+public enum ProgressDisplayMode
+{
+    None = 0,
+    Bar = 1,
+    Ring = 2,
+    Both = 3
+}
+
 public enum TimeBaseType
 {
     PluginOffsetServerTime,  // 插件偏移后的服务器时间（默认）
@@ -341,28 +349,43 @@ public class CountdownSettings : INotifyPropertyChanged
 
     private bool _enableCustomColorAndFont = false;
 
-    public bool EnableCustomColorAndFont
-    {
-        get => _enableCustomColorAndFont;
-        set
+        public bool EnableCustomColorAndFont
         {
-            if (_enableCustomColorAndFont != value)
+            get => _enableCustomColorAndFont;
+            set
             {
-                _enableCustomColorAndFont = value;
-                OnPropertyChanged();
+                if (_enableCustomColorAndFont != value)
+                {
+                    _enableCustomColorAndFont = value;
+                    OnPropertyChanged();
+                }
             }
+        }
+
+        private ProgressDisplayMode _progressDisplayMode = ProgressDisplayMode.None;
+
+        public ProgressDisplayMode ProgressDisplayMode
+        {
+            get => _progressDisplayMode;
+            set
+            {
+                if (_progressDisplayMode != value)
+                {
+                    _progressDisplayMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-public class ForwardTimerSettings : INotifyPropertyChanged
+    public class ForwardTimerSettings : INotifyPropertyChanged
 {
     private string _text1 = string.Empty;
     private string _name = "新正向计时器";
@@ -1468,6 +1491,21 @@ public class LunarCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private ProgressDisplayMode _progressDisplayMode = ProgressDisplayMode.None;
+
+    public ProgressDisplayMode ProgressDisplayMode
+    {
+        get => _progressDisplayMode;
+        set
+        {
+            if (_progressDisplayMode != value)
+            {
+                _progressDisplayMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1475,5 +1513,313 @@ public class LunarCountdownSettings : INotifyPropertyChanged
         PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
     }
 }
+
+public class PeriodicCountdownSettings : INotifyPropertyChanged
+{
+    private string _text1 = "距离";
+    private string _text2 = "倒计时名称";
+    private string _text3 = "还有";
+    private string _text4 = string.Empty;
+    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private double _text1FontSize = 14;
+    private double _text2FontSize = 14;
+    private double _text3FontSize = 14;
+    private double _timeFontSize = 14;
+    private double _text4FontSize = 14;
+    private string _text1FontColor = "#FFFFFF";
+    private string _text2FontColor = "#FFFFFF";
+    private string _text3FontColor = "#FFFFFF";
+    private string _timeFontColor = "#FFFFFF";
+    private string _text4FontColor = "#FFFFFF";
+    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
+    private List<PeriodicCountdownItem> _countdownItems = new();
+    private bool _enableTimeCorrection = true;
+
+    public string Text1
+    {
+        get => _text1;
+        set
+        {
+            if (_text1 != value)
+            {
+                _text1 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text2
+    {
+        get => _text2;
+        set
+        {
+            if (_text2 != value)
+            {
+                _text2 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text3
+    {
+        get => _text3;
+        set
+        {
+            if (_text3 != value)
+            {
+                _text3 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text4
+    {
+        get => _text4;
+        set
+        {
+            if (_text4 != value)
+            {
+                _text4 = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string TimeFormat
+    {
+        get => _timeFormat;
+        set
+        {
+            if (_timeFormat != value)
+            {
+                _timeFormat = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text1FontSize
+    {
+        get => _text1FontSize;
+        set
+        {
+            if (Math.Abs(_text1FontSize - value) > 0.001)
+            {
+                _text1FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text2FontSize
+    {
+        get => _text2FontSize;
+        set
+        {
+            if (Math.Abs(_text2FontSize - value) > 0.001)
+            {
+                _text2FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text3FontSize
+    {
+        get => _text3FontSize;
+        set
+        {
+            if (Math.Abs(_text3FontSize - value) > 0.001)
+            {
+                _text3FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double TimeFontSize
+    {
+        get => _timeFontSize;
+        set
+        {
+            if (Math.Abs(_timeFontSize - value) > 0.001)
+            {
+                _timeFontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public double Text4FontSize
+    {
+        get => _text4FontSize;
+        set
+        {
+            if (Math.Abs(_text4FontSize - value) > 0.001)
+            {
+                _text4FontSize = Math.Max(6, Math.Min(72, value));
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text1FontColor
+    {
+        get => _text1FontColor;
+        set
+        {
+            if (_text1FontColor != value)
+            {
+                _text1FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text2FontColor
+    {
+        get => _text2FontColor;
+        set
+        {
+            if (_text2FontColor != value)
+            {
+                _text2FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text3FontColor
+    {
+        get => _text3FontColor;
+        set
+        {
+            if (_text3FontColor != value)
+            {
+                _text3FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string TimeFontColor
+    {
+        get => _timeFontColor;
+        set
+        {
+            if (_timeFontColor != value)
+            {
+                _timeFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string Text4FontColor
+    {
+        get => _text4FontColor;
+        set
+        {
+            if (_text4FontColor != value)
+            {
+                _text4FontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public TimeBaseType TimeBaseType
+    {
+        get => _timeBaseType;
+        set
+        {
+            if (_timeBaseType != value)
+            {
+                _timeBaseType = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public List<PeriodicCountdownItem> CountdownItems
+    {
+        get => _countdownItems;
+        set
+        {
+            if (_countdownItems != value)
+            {
+                _countdownItems = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set
+        {
+            if (_enableTimeCorrection != value)
+            {
+                _enableTimeCorrection = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomColorAndFont = false;
+
+    public bool EnableCustomColorAndFont
+    {
+        get => _enableCustomColorAndFont;
+        set
+        {
+            if (_enableCustomColorAndFont != value)
+            {
+                _enableCustomColorAndFont = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _warningAccepted = false;
+
+        public bool WarningAccepted
+        {
+            get => _warningAccepted;
+            set
+            {
+                if (_warningAccepted != value)
+                {
+                    _warningAccepted = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private ProgressDisplayMode _progressDisplayMode = ProgressDisplayMode.None;
+
+        public ProgressDisplayMode ProgressDisplayMode
+        {
+            get => _progressDisplayMode;
+            set
+            {
+                if (_progressDisplayMode != value)
+                {
+                    _progressDisplayMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
 
 

@@ -55,6 +55,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBlock? _solarHeader;
     private TextBlock? _notifyHeader;
 
+    private ComboBox? _progressDisplayModeComboBox;
+    private TextBlock? _progressDisplayModeLabel;
+    private TextBlock? _progressDisplayModeGroupHeader;
+
     private TextBlock? _text1StyleTextBlock;
     private TextBlock? _nameStyleTextBlock;
     private TextBlock? _text3StyleTextBlock;
@@ -134,6 +138,31 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         timeBasePanel.Children.Add(timeBaseRow);
         timeBaseGroup.Content = timeBasePanel;
         mainPanel.Children.Add(timeBaseGroup);
+
+        _progressDisplayModeGroupHeader = new TextBlock { Text = "进度显示" };
+        var progressDisplayModeGroup = new Expander { Header = _progressDisplayModeGroupHeader, IsExpanded = true };
+        var progressDisplayModePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        var progressDisplayModeRow = new Grid();
+        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _progressDisplayModeLabel = new TextBlock { Text = "显示进度条:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        _dynamicTextBlocks.Add(_progressDisplayModeLabel);
+        Grid.SetColumn(_progressDisplayModeLabel, 0);
+        progressDisplayModeRow.Children.Add(_progressDisplayModeLabel);
+
+        _progressDisplayModeComboBox = new ComboBox();
+        _progressDisplayModeComboBox.Items.Add("不显示");
+        _progressDisplayModeComboBox.Items.Add("进度条");
+        _progressDisplayModeComboBox.Items.Add("进度环");
+        _progressDisplayModeComboBox.Items.Add("进度条和进度环");
+        Grid.SetColumn(_progressDisplayModeComboBox, 1);
+        progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
+
+        progressDisplayModePanel.Children.Add(progressDisplayModeRow);
+        progressDisplayModeGroup.Content = progressDisplayModePanel;
+        mainPanel.Children.Add(progressDisplayModeGroup);
 
         _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
         _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
@@ -361,6 +390,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
         if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
+        if (_progressDisplayModeGroupHeader != null) _progressDisplayModeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_fontGroupHeader != null) _fontGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_lunarHeader != null) _lunarHeader.Foreground = ThemeHelper.GetSubTextBrush();
@@ -460,6 +490,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
         if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
 
+        if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
+
         if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
         if (_nameFontSizeTextBox != null) _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
@@ -505,6 +537,17 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
                 {
                     Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
+                }
+            };
+        }
+
+        if (_progressDisplayModeComboBox != null)
+        {
+            _progressDisplayModeComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
+                {
+                    Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
                 }
             };
         }

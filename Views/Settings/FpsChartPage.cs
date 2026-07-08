@@ -11,6 +11,7 @@ using Avalonia.Threading;
 using FluentAvalonia.UI.Controls;
 using AdvancedTimeIsland.ViewModels.Settings;
 using AdvancedTimeIsland.Views.Controls;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
@@ -42,22 +43,14 @@ public class FpsChartPage : SettingsPageBase
             Spacing = 12
         };
 
-        var warningBar = new InfoBar
-        {
-            Severity = InfoBarSeverity.Error,
-            Message = "帧率折线视图不是炒股，与任何股票及其内容无任何关联，也不代表与反映任何股票的涨跌情况；仅供调试，请勿用于教学环境！！！",
-            IsOpen = true,
-            IsClosable = true,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
-        mainPanel.Children.Add(warningBar);
+        
 
         _titleTextBlock = new TextBlock
         {
             Text = "帧率折线图",
             FontSize = 24,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
+            Foreground = ThemeHelper.GetTextBrush()
         };
         mainPanel.Children.Add(_titleTextBlock);
 
@@ -67,7 +60,7 @@ public class FpsChartPage : SettingsPageBase
                    "fps: 当前帧率 | max: 10秒内最高帧率 | avg: 10秒内平均帧率 | min: 10秒内最低帧率 | 1%low: 10秒内最低1%帧率平均值\n" +
                    "支持左右滚动查看历史数据，数据保留至应用重启。",
             FontSize = 12,
-            Foreground = Brushes.Gray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap
         };
         mainPanel.Children.Add(_descriptionTextBlock);
@@ -87,10 +80,18 @@ public class FpsChartPage : SettingsPageBase
         _exportButton.Click += OnExportClick;
         toolbar.Children.Add(_exportButton);
 
+        var clearButton = new Button
+        {
+            Content = "清空折线图",
+            Padding = new Thickness(16, 8, 16, 8)
+        };
+        clearButton.Click += OnClearClick;
+        toolbar.Children.Add(clearButton);
+
         _statusTextBlock = new TextBlock
         {
             FontSize = 12,
-            Foreground = Brushes.Gray,
+            Foreground = ThemeHelper.GetSubTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
         toolbar.Children.Add(_statusTextBlock);
@@ -107,7 +108,25 @@ public class FpsChartPage : SettingsPageBase
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
 
-        Content = scrollViewer;
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var warningBar = new InfoBar
+        {
+            Severity = InfoBarSeverity.Error,
+            Message = "帧率折线视图不是炒股，与任何股票及其内容无任何关联，也不代表与反映任何股票的涨跌情况；仅供调试，请勿用于教学环境！！！",
+            IsOpen = true,
+            IsClosable = false,
+            Margin = new Thickness(16, 16, 16, 0)
+        };
+        Grid.SetRow(warningBar, 0);
+        rootGrid.Children.Add(warningBar);
+
+        Grid.SetRow(scrollViewer, 1);
+        rootGrid.Children.Add(scrollViewer);
+
+        Content = rootGrid;
     }
 
     protected override void OnInitialized()
@@ -141,6 +160,27 @@ public class FpsChartPage : SettingsPageBase
         }
     }
 
+    private async void OnClearClick(object? sender, RoutedEventArgs e)
+    {
+        var dialog = new ContentDialog
+        {
+            Title = "确认清空",
+            Content = "确定要清空折线图数据吗？此操作不可撤销，清空后将从头开始采集数据。",
+            PrimaryButtonText = "确定",
+            CloseButtonText = "取消"
+        };
+
+        var result = await dialog.ShowAsync();
+        if (result == ContentDialogResult.Primary)
+        {
+            FpsSampler.Clear();
+            if (_statusTextBlock != null)
+            {
+                _statusTextBlock.Text = "已清空折线图数据，开始重新采集";
+            }
+        }
+    }
+
     private async void OnExportClick(object? sender, RoutedEventArgs e)
     {
         if (_viewModel == null) return;
@@ -166,12 +206,10 @@ public class FpsChartPage : SettingsPageBase
 
         try
         {
-            var csvData = _viewModel.GetCsvData();
             await using var stream = await file.OpenWriteAsync();
             var bom = Encoding.UTF8.GetPreamble();
             await stream.WriteAsync(bom);
-            var bytes = Encoding.UTF8.GetBytes(csvData);
-            await stream.WriteAsync(bytes);
+            _viewModel.WriteCsvData(stream);
 
             if (_statusTextBlock != null)
             {
@@ -211,12 +249,12 @@ public class FpsChartPage : SettingsPageBase
     private void UpdateThemeColors()
     {
         if (_titleTextBlock != null)
-            _titleTextBlock.Foreground = Brushes.White;
+            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
 
         if (_descriptionTextBlock != null)
-            _descriptionTextBlock.Foreground = Brushes.Gray;
+            _descriptionTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
 
         if (_statusTextBlock != null)
-            _statusTextBlock.Foreground = Brushes.Gray;
+            _statusTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
     }
 }

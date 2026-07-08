@@ -10,10 +10,6 @@ using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-/// <summary>
-/// 专业名词解释页面
-/// 使用Markdown格式展示名词解释
-/// </summary>
 public class GlossaryPage : UserControl
 {
     private List<TextBlock>? _paragraphTextBlocks;
@@ -25,9 +21,6 @@ public class GlossaryPage : UserControl
     private Border? _markdownSectionBorder;
     private List<Border>? _separatorBorders;
 
-    /// <summary>
-    /// 获取 ClassIsland 强调色画刷
-    /// </summary>
     private static IBrush GetAccentBrush()
     {
         if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
@@ -60,7 +53,6 @@ public class GlossaryPage : UserControl
             Spacing = 16
         };
 
-        // 标题
         mainPanel.Children.Add(new TextBlock
         {
             Text = "专业名词解释",
@@ -71,7 +63,6 @@ public class GlossaryPage : UserControl
             Margin = new Thickness(0, 0, 0, 8)
         });
 
-        // Markdown 文档
         var markdownContent = @"## Unix时间戳
 
 世界统一的时间，是指格林威治时间1970年01月01日00时00分00秒（北京时间1970年01月01日08时00分00秒）起至现在的总秒数（不考虑**闰秒**），它的核心作用是确保唯一性和顺序：在计算机系统中，它能精确记录事件发生的时刻，并且因为时间一直向前，每个时间戳都是独一无二的。
@@ -104,7 +95,36 @@ public class GlossaryPage : UserControl
 
 中国横跨五个时区，新中国成立后采取东八区区时（北京时间）作为国家标准时。
 
-> **注意**：时区与区时是两个相关但不相同的概念。";
+> **注意**：时区与区时是两个相关但不相同的概念。
+
+---
+
+## 帧率（FPS）
+
+每秒屏幕呈现的画面张数，数值越高，画面动作越连贯流畅。比如60帧就是1秒内播放60张画面，和快速翻漫画的原理一致，翻得越快动作越顺滑。
+
+---
+
+## 1% Low 帧率
+
+统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。
+
+---
+
+## 汉服
+
+全称""汉民族传统服饰""，是汉族流传数千年的传统服饰体系，**并非单指汉朝的衣服**。
+
+它以衣襟向右掩（交领右衽）、系带固定为典型特征，款式随朝代发展演变出多种样式，齐胸襦裙、明制袄裙、圆领袍等都属于经典形制，如今是传统文化复兴的重要符号，日常与节日场合都有人穿着。
+
+---
+
+## 交领右衽
+
+汉服最核心的标志性形制，可拆开理解：
+
+- **交领**：左右两片衣襟在胸前交叉，在第二人称下领口呈现""y""字形。
+- **右衽**：穿衣时左侧衣襟压住右侧衣襟，衣襟开口朝向人体右侧，最终在右腋下系带固定。";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
@@ -112,9 +132,6 @@ public class GlossaryPage : UserControl
         Content = scrollViewer;
     }
 
-    /// <summary>
-    /// 解析 Markdown 文本为带样式的 StackPanel
-    /// </summary>
     private Border CreateMarkdownSection(string markdownText)
     {
         _paragraphTextBlocks = new List<TextBlock>();
@@ -263,12 +280,8 @@ public class GlossaryPage : UserControl
         return section;
     }
 
-    /// <summary>
-    /// 构建支持 Markdown 内联格式的 TextBlock（支持 **bold** 和 `code`）
-    /// </summary>
     private TextBlock BuildInlineTextBlock(string text, double fontSize, IBrush defaultBrush, bool isItalic)
     {
-        // 简化处理：去除 Markdown 标记，保留纯文本
         var cleanText = text.Replace("**", "").Replace("`", "");
 
         return new TextBlock
@@ -355,6 +368,3 @@ public class GlossaryPage : UserControl
         }
     }
 }
-
-
-

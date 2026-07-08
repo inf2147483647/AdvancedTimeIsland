@@ -27,6 +27,8 @@ public class HanfuPage : SettingsPageBase
     private List<TextBlock>? _sectionTextBlocks;
     private List<TextBlock>? _paragraphTextBlocks;
     private Border? _femaleContentBorder;
+    private Border? _maleTitleTooltipBorder;
+    private TextBlock? _maleTitleTooltipTextBlock;
 
     public HanfuPage() : this(null)
     {
@@ -117,8 +119,34 @@ public class HanfuPage : SettingsPageBase
             Text = ":(",
             FontSize = 40,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ThemeHelper.GetTextBrush()
+            Foreground = ThemeHelper.GetTextBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
+
+        _maleTitleTooltipTextBlock = new TextBlock
+        {
+            Text = "目前这个页面开发意义不大，因为在汉服运动中，女生占比约80%（在开发者所在地——开封，可能超过95%），所以需要先满足大多数用户的使用需求，等到插件主要功能完善后在开发这个页面。你也可以反馈插件问题，帮助开发者进行完善功能。<delete_line>尽管作者也属于那5%的群体[大雾]</delete_line>",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetTextBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 300
+        };
+
+        _maleTitleTooltipBorder = new Border
+        {
+            Background = ThemeHelper.IsDarkTheme()
+                ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
+                : new SolidColorBrush(Color.FromRgb(230, 230, 230)),
+            BorderBrush = ThemeHelper.GetGrayBrush(),
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(4),
+            Padding = new Thickness(8),
+            Child = _maleTitleTooltipTextBlock
+        };
+
+        ToolTip.SetTip(_maleTitleTextBlock, _maleTitleTooltipBorder);
+        ToolTip.SetPlacement(_maleTitleTextBlock, PlacementMode.Pointer);
+
         panel.Children.Add(_maleTitleTextBlock);
 
         _maleSubtitleTextBlock = new TextBlock
@@ -324,6 +352,19 @@ public class HanfuPage : SettingsPageBase
 
         if (_femaleContentBorder != null)
             _femaleContentBorder.Background = ThemeHelper.GetHanfuBackgroundBrush();
+
+        if (_maleTitleTooltipBorder != null)
+        {
+            _maleTitleTooltipBorder.Background = ThemeHelper.IsDarkTheme()
+                ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
+                : new SolidColorBrush(Color.FromRgb(230, 230, 230));
+            _maleTitleTooltipBorder.BorderBrush = ThemeHelper.GetGrayBrush();
+        }
+
+        if (_maleTitleTooltipTextBlock != null)
+        {
+            _maleTitleTooltipTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        }
 
         if (_paragraphTextBlocks != null)
         {
