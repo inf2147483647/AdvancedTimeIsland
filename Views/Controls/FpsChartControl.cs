@@ -26,7 +26,6 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private const double LegendWidth = 100.0;
     private const double ChartHeight = 350.0;
     private const int MaxVisiblePoints = 10000;
-    private const double MaxCanvasWidth = 100000;
     private const double MinZoom = 0.1;
     private const double MaxZoom = 10.0;
     private const double DefaultZoom = 1.0;
@@ -127,6 +126,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             MinHeight = ChartHeight,
             Height = ChartHeight
         };
+        _scrollViewer.ScrollChanged += OnScrollChanged;
 
         _legendPanel = new StackPanel
         {
@@ -439,9 +439,30 @@ public class FpsChartControl : TemplatedControl, IDisposable
         }
     }
 
+    private double _lastScrollOffset;
+    private DateTime _lastScrollRedrawTime = DateTime.MinValue;
+    private const int ScrollRedrawIntervalMs = 50;
+
     private void OnDataUpdated()
     {
         _lastDrawnRecordCount = 0;
+    }
+
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (_scrollViewer == null) return;
+
+        var now = DateTime.Now;
+        if ((now - _lastScrollRedrawTime).TotalMilliseconds < ScrollRedrawIntervalMs) return;
+        _lastScrollRedrawTime = now;
+
+        var currentOffset = _scrollViewer.Offset.X;
+        if (Math.Abs(currentOffset - _lastScrollOffset) > 50)
+        {
+            _lastScrollOffset = currentOffset;
+            _lastDrawnRecordCount = 0;
+            Redraw();
+        }
     }
 
     private void OnRedrawTick(object? sender, EventArgs e)
@@ -499,7 +520,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
         var canvasWidth = Math.Max(
             _scrollViewer.Bounds.Width > 0 ? _scrollViewer.Bounds.Width : 800,
-            Math.Min(records.Count * CurrentSamplePixelWidth + RightPadding, MaxCanvasWidth));
+            records.Count * CurrentSamplePixelWidth + RightPadding);
 
         _canvas.Width = canvasWidth;
         _canvas.Height = controlHeight;

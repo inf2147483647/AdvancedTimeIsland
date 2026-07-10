@@ -29,6 +29,7 @@ public class HanfuPage : SettingsPageBase
     private Border? _femaleContentBorder;
     private Border? _maleTitleTooltipBorder;
     private TextBlock? _maleTitleTooltipTextBlock;
+    private TextBlock? _femaleGuideLinkTextBlock;
 
     public HanfuPage() : this(null)
     {
@@ -38,6 +39,19 @@ public class HanfuPage : SettingsPageBase
     {
         _pluginSettings = pluginSettings;
         InitializeComponent();
+    }
+
+    private static IBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return Brushes.DodgerBlue;
     }
 
     private void InitializeComponent()
@@ -193,6 +207,52 @@ public class HanfuPage : SettingsPageBase
             Spacing = 8
         };
 
+        var guidePanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 4
+        };
+
+        guidePanel.Children.Add(new TextBlock
+        {
+            Text = "想要实战汉服？试试学习",
+            FontSize = 14,
+            Foreground = ThemeHelper.GetSubTextBrush()
+        });
+
+        _femaleGuideLinkTextBlock = new TextBlock
+        {
+            Text = "汉服怎么穿",
+            FontSize = 14,
+            Foreground = GetAccentBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            TextDecorations = TextDecorations.Underline
+        };
+        _femaleGuideLinkTextBlock.PointerPressed += (s, e) =>
+        {
+            try
+            {
+                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = "https://jingyan.baidu.com/article/fdffd1f87b056bf3e98ca107.html",
+                    UseShellExecute = true
+                });
+            }
+            catch
+            {
+            }
+        };
+        guidePanel.Children.Add(_femaleGuideLinkTextBlock);
+        guidePanel.Children.Add(new TextBlock
+        {
+            Text = "。",
+            FontSize = 14,
+            Foreground = ThemeHelper.GetSubTextBrush()
+        });
+
+        panel.Children.Add(guidePanel);
+        panel.Children.Add(new Border { Height = 8 });
+
         AddSection(panel, "女款汉服", 24, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
 
@@ -211,6 +271,14 @@ public class HanfuPage : SettingsPageBase
         AddParagraph(panel, "上襦下裙是秦汉女性的日常装束。上襦极短，仅至腰间，交领右衽，袖口有宽窄两种样式；下裙长垂至地，多为四幅拼接，上窄下宽。腰间以丝带系扎，腰带长垂。襦裙形制朴素实用，是劳动女性与平民阶层的主要服饰，也为后世历代女服奠定了\"上衣下裳\"的基本范式。");
         AddParagraph(panel, "");
 
+        AddSection(panel, "留仙裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "留仙裙是汉代宫廷盛行的经典裙装款式，相传因赵飞燕身着此裙起舞宛若仙子而得名。裙身多用素纱、轻罗等轻薄面料制成，裙幅打有细密顺褶，行走时裙摆随步摇曳如水波流转，轻盈灵动。留仙裙开创了古代褶裙的审美先河，是汉代女性追求飘逸柔美气质的服饰体现，也成为后世诸多裙装款式的灵感源头。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "袿衣", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "袿衣是秦汉贵族女性的高级礼服，承袭先秦深衣体系发展而来，因衣摆两侧裁出上宽下窄的刀圭状尖角、形如圭玉而得名。相较于普通深衣，袿衣衣身更为宽大，多织绣云纹、龙凤等祥瑞图案，边缘镶以厚重锦缘，工艺繁复华丽。它是后妃、命妇参与祭祀、朝会等重要礼仪场合的盛装，集中体现了秦汉服饰的等级礼制与织造工艺水准。");
+        AddParagraph(panel, "");
+
         AddSection(panel, "魏晋南北朝", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
 
@@ -224,6 +292,10 @@ public class HanfuPage : SettingsPageBase
 
         AddSection(panel, "宽袖衫襦", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "女性日常多着宽袖衫襦，衫身宽博，广袖拂尘。梁简文帝诗中\"广袖拂红尘\"即是对此的生动描绘。衫为单层薄衣，交领或对襟，衣摆垂坠，两侧常有三角形饰片。搭配长裙与蔽膝，整体造型雍容飘逸，是贵族女性的典型装束，体现了魏晋时期对风度与气韵的极致追求。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "裲裆衫", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "裲裆衫最初源自北方少数民族戎装，魏晋时期传入中原并融入汉服体系，成为男女通用的流行服饰。其形制为前后两片织物，一片挡胸、一片挡背，肩部以皮革或织带相连，无袖无领，衣长及腰，类似后世坎肩。女性多将裲裆衫穿于衫襦之外，既可挡风御寒，又能丰富穿搭层次，兼具实用与装饰性，是当时胡汉服饰交融的典型代表。");
         AddParagraph(panel, "");
 
         AddSection(panel, "隋唐时期", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
@@ -249,6 +321,18 @@ public class HanfuPage : SettingsPageBase
         AddParagraph(panel, "唐代社会风气开放，女性身着男装成为时尚。圆领袍本为男子常服，盛唐时期贵族女性与宫女多有穿着。其形制为圆领、右衽、窄袖、腰间系带，搭配靴子与幞头，完整复刻男性装束。这种\"女扮男装\"的风尚从宫廷蔓延至民间，反映了唐代女性社会地位的提升与思想观念的解放，也体现了胡汉交融的文化特色。");
         AddParagraph(panel, "");
 
+        AddSection(panel, "诃子裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "诃子裙是唐代极具特色的无肩带裙装，是盛唐开放风气下的代表性服饰。其形制为下裙直接束于胸部，无需搭配上襦，仅以胸带固定，领口平齐，可完整展现肩颈线条。裙身多选用厚重华丽的锦缎面料，饰以繁复纹样，常外搭轻薄大袖衫或披帛，雍容妩媚。诃子裙的流行反映了唐代女性对身体美学的大胆表达，是盛唐服饰文化自信的缩影。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "大袖纱罗衫", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "大袖纱罗衫是唐代女性的礼服外搭，多用于宫廷宴会、正式礼仪场合。衫身以轻薄透明的纱罗为料，对襟宽袖，袖型宽大舒展，衣长及膝或及地，边缘多饰以织金锦缘。穿着时多罩于齐胸襦裙之外，若隐若现间透出内层衣裙的色彩与纹样，飘逸华贵，仙气十足。这种搭配既符合礼制规范，又尽显唐代女性的柔美风姿，是贵族女性盛装的经典组合。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "回鹘装", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "回鹘装是唐代受西域回鹘部族服饰影响而流行的胡服款式，在盛唐至中晚唐的贵族女性中风靡一时。其形制为翻领、窄袖、长身及地，衣身偏紧身，腰间束带，领口与袖口多镶有宽阔锦缘，色彩以深红、暗紫等浓郁色调为主。身着回鹘装常搭配回鹘髻与金饰，英气华美，是唐代胡汉文化深度交融、社会风气包容开放的直观体现。");
+        AddParagraph(panel, "");
+
         AddSection(panel, "宋代", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
 
@@ -262,6 +346,18 @@ public class HanfuPage : SettingsPageBase
 
         AddSection(panel, "抹胸与背子组合", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "宋代女性内衣外穿形成独特搭配。抹胸为贴身内衣，上可覆胸，下可及腹，外罩褙子或背子，领口敞开处露出抹胸，形成层次丰富的视觉效果。这种搭配既符合礼制规范，又不失女性柔美，是宋代市井女性常见的日常装束，体现了宋代服饰在礼制约束下的生活智慧与审美表达。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "礼服大袖", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "礼服大袖是宋代贵族女性与命妇的正式礼服，因袖型宽大异常而得名，形制为直领对襟，衣身宽博，衣长及膝，袖宽可达二尺以上。大袖用料极为考究，多以织金锦、妆花缎等高级面料制成，衣身饰以龙凤、花卉等吉祥纹样，领口、袖口镶有精致缘边。它通常与长裙、霞帔搭配，用于婚嫁、祭祀等重大礼仪场合，是宋代女性服饰中规格较高的盛装形制。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "旋裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "旋裙是宋代市井女性日常穿着的实用裙装，因便于行走活动而得名。其形制多为单片围合式，裙身打有稀疏褶裥，长度及踝，腰间系带，穿脱便捷。相较于百迭裙的精致繁复，旋裙款式简约，面料多为普通棉布、素绢，配色朴素，是平民女性、劳动女性的日常首选。部分旋裙还会在两侧开衩，进一步提升行动便利性，体现了宋代服饰务实的一面。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "膝裤", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "膝裤是宋代女性常用的腿部服饰，属于裤装的变体，仅覆盖膝盖至脚踝的部位，形似后世长筒袜。膝裤多以锦缎或布帛制成，有夹里可保暖，表面常绣有花卉纹样，穿着时套于裤外、藏于裙内，既可御寒，又能起到装饰作用。它是宋代女性日常穿搭的重要补充，尤其盛行于秋冬时节，从宫廷到民间均有广泛穿着。");
         AddParagraph(panel, "");
 
         AddSection(panel, "明代", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
@@ -285,7 +381,19 @@ public class HanfuPage : SettingsPageBase
 
         AddSection(panel, "大衫", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "大衫为明代皇后、命妇的礼服外袍，形制为直领对襟、大袖，衣长及地。皇后大衫为红色，织金龙凤纹；命妇大衫依品级用不同颜色与纹样。大衫内搭鞠衣、袄子等，下配长裙，前缀霞帔，头戴翟冠或凤冠，构成完整的命妇礼服体系。大衫霞帔组合是明代女性最高规格的礼服，用于重大礼仪场合，体现了明代冠服制度的完备与等级的森严。");
+        AddParagraph(panel, "");
 
+        AddSection(panel, "披风", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "披风是明代女性流行的外披服饰，形制为直领对襟、宽袖、长至膝下，两侧开衩，衣襟处用系带或纽扣固定，整体造型端庄舒展。披风面料随季节变化，夏用纱罗、冬用绸缎皮毛，素色与纹样皆有，既可作为日常常服外搭，也可作为礼仪场合的次礼服。它与比甲相比更为正式，袖型宽大，是明代中后期士庶女性皆喜爱的百搭外衫。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "水田衣", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "水田衣是明代兴起的特色服饰，又名\"百衲衣\"，以各色零碎织锦布料拼接缝制而成，因一块块面料交错形如水田而得名。其形制多为对襟长衣，袖型宽窄不一，拼接的布料色彩、纹样各异，错落有致，兼具别致的视觉效果与节俭的文化内涵。水田衣最初流行于民间，后传入宫廷，成为明代女性追求新奇审美、化零为整的服饰创意体现。");
+        AddParagraph(panel, "");
+
+        AddSection(panel, "主腰", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddParagraph(panel, "主腰是明代女性的贴身内衣，功能类似后世束腰与抹胸的结合体。其形制为梯形或长方形织物，上可覆胸、下可及腰，两侧有系带，穿着时围于腰间系紧，既可束裹身形，又能起到保暖与支撑作用。主腰面料多为棉、绸，贵族女性所用常饰以刺绣、钉珠，外搭袄裙或比甲，是明代女性日常穿搭中不可或缺的内搭单品，体现了明代服饰体系的完整性。");
+        AddParagraph(panel, "");
         border.Child = panel;
         return border;
     }
@@ -364,6 +472,11 @@ public class HanfuPage : SettingsPageBase
         if (_maleTitleTooltipTextBlock != null)
         {
             _maleTitleTooltipTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        if (_femaleGuideLinkTextBlock != null)
+        {
+            _femaleGuideLinkTextBlock.Foreground = GetAccentBrush();
         }
 
         if (_paragraphTextBlocks != null)
