@@ -49,6 +49,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private TextBlock? _avgValueTextBlock;
     private TextBlock? _minValueTextBlock;
     private TextBlock? _low1ValueTextBlock;
+    private TextBlock? _oneSecondFrameCountValueTextBlock;
     private Border? _tooltipBorder;
     private TextBlock? _tooltipTextBlock;
     private bool _isDisposed;
@@ -64,7 +65,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private List<TextBlock> _yAxisLabels = new();
     private List<Line> _gridLines = new();
     private List<TextBlock> _timeLabels = new();
-    private bool[] _seriesVisible = { true, true, true, true, true };
+    private bool[] _seriesVisible = { true, true, true, true, true, true };
     private TextBox? _refreshRateTextBox;
     private double _initialPinchDistance;
     private double _initialPinchZoom;
@@ -80,14 +81,15 @@ public class FpsChartControl : TemplatedControl, IDisposable
         if (_isInitialized) return;
         _isInitialized = true;
 
-        _seriesNames = new[] { "fps", "max", "avg", "min", "1%low" };
+        _seriesNames = new[] { "fps", "max", "avg", "min", "1%low", "1s frm" };
         _seriesColors = new IBrush[]
         {
             new SolidColorBrush(Color.FromRgb(0, 255, 0)),
             new SolidColorBrush(Color.FromRgb(255, 60, 60)),
             new SolidColorBrush(Color.FromRgb(0, 220, 255)),
             new SolidColorBrush(Color.FromRgb(100, 180, 255)),
-            new SolidColorBrush(Color.FromRgb(255, 180, 0))
+            new SolidColorBrush(Color.FromRgb(255, 180, 0)),
+            new SolidColorBrush(Color.FromRgb(255, 100, 255))
         };
 
         _polylines = new List<Polyline>();
@@ -106,7 +108,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
         _canvas.PointerWheelChanged += OnCanvasPointerWheelChanged;
         _canvas.KeyDown += OnCanvasKeyDown;
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             var line = new Polyline
             {
@@ -136,7 +138,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             VerticalAlignment = VerticalAlignment.Top
         };
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             var legendItem = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
 
@@ -171,6 +173,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
         metricsPanel.Children.Add(CreateMetricItem("avg:", out _avgValueTextBlock));
         metricsPanel.Children.Add(CreateMetricItem("min:", out _minValueTextBlock));
         metricsPanel.Children.Add(CreateMetricItem("1%low:", out _low1ValueTextBlock));
+        metricsPanel.Children.Add(CreateMetricItem("1s frm:", out _oneSecondFrameCountValueTextBlock));
 
         _pauseButton = new Button
         {
@@ -284,7 +287,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        for (int i = 0; i < 5; i++)
+        for (int i = 0; i < 6; i++)
         {
             var checkbox = new CheckBox
             {
@@ -446,6 +449,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
     private void OnDataUpdated()
     {
         _lastDrawnRecordCount = 0;
+        Redraw();
     }
 
     private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
@@ -514,6 +518,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             if (r.Fps > yMax) yMax = r.Fps;
             if (r.Max > yMax) yMax = r.Max;
             if (r.Avg > yMax) yMax = r.Avg;
+            if (r.OneSecondFrameCount > yMax) yMax = r.OneSecondFrameCount;
         }
         yMax = Math.Ceiling(yMax / 10.0) * 10;
         if (yMax < 10) yMax = 10;
@@ -540,7 +545,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
 
         if (needsFullRedraw)
         {
-            for (int seriesIdx = 0; seriesIdx < 5; seriesIdx++)
+            for (int seriesIdx = 0; seriesIdx < 6; seriesIdx++)
             {
                 if (!_seriesVisible[seriesIdx])
                 {
@@ -561,6 +566,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
                         2 => records[i].Avg,
                         3 => records[i].Min,
                         4 => records[i].Low1,
+                        5 => records[i].OneSecondFrameCount,
                         _ => 0
                     };
                     var x = i * CurrentSamplePixelWidth;
@@ -577,6 +583,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
                         2 => records[visibleEndIndex].Avg,
                         3 => records[visibleEndIndex].Min,
                         4 => records[visibleEndIndex].Low1,
+                        5 => records[visibleEndIndex].OneSecondFrameCount,
                         _ => 0
                     };
                     var lastX = visibleEndIndex * CurrentSamplePixelWidth;
@@ -590,7 +597,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
         }
         else
         {
-            for (int seriesIdx = 0; seriesIdx < 5; seriesIdx++)
+            for (int seriesIdx = 0; seriesIdx < 6; seriesIdx++)
             {
                 if (!_seriesVisible[seriesIdx])
                 {
@@ -608,6 +615,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
                     2 => records[i].Avg,
                     3 => records[i].Min,
                     4 => records[i].Low1,
+                    5 => records[i].OneSecondFrameCount,
                     _ => 0
                 };
                 var x = i * CurrentSamplePixelWidth;
@@ -683,7 +691,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
         }
     }
 
-    private void UpdateTimeLabels(IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> records, double chartHeight, double canvasWidth, int visibleStartIndex, int visibleEndIndex)
+    private void UpdateTimeLabels(IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> records, double chartHeight, double canvasWidth, int visibleStartIndex, int visibleEndIndex)
     {
         if (_canvas == null) return;
 
@@ -762,19 +770,21 @@ public class FpsChartControl : TemplatedControl, IDisposable
         }
     }
 
-    private void UpdateMetrics((DateTime Time, double Fps, double Max, double Avg, double Min, double Low1) record)
+    private void UpdateMetrics((DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount) record)
     {
         UpdateMetricColor(_fpsValueTextBlock, record.Fps);
         UpdateMetricColor(_maxValueTextBlock, record.Max);
         UpdateMetricColor(_avgValueTextBlock, record.Avg);
         UpdateMetricColor(_minValueTextBlock, record.Min);
         UpdateMetricColor(_low1ValueTextBlock, record.Low1);
+        UpdateMetricColor(_oneSecondFrameCountValueTextBlock, record.OneSecondFrameCount);
 
         _fpsValueTextBlock?.SetValue(TextBlock.TextProperty, $"{record.Fps:F1}");
         _maxValueTextBlock?.SetValue(TextBlock.TextProperty, $"{record.Max:F1}");
         _avgValueTextBlock?.SetValue(TextBlock.TextProperty, $"{record.Avg:F1}");
         _minValueTextBlock?.SetValue(TextBlock.TextProperty, $"{record.Min:F1}");
         _low1ValueTextBlock?.SetValue(TextBlock.TextProperty, $"{record.Low1:F1}");
+        _oneSecondFrameCountValueTextBlock?.SetValue(TextBlock.TextProperty, $"{Math.Round(record.OneSecondFrameCount)}");
     }
 
     private void UpdateMetricColor(TextBlock? textBlock, double fps)
@@ -915,7 +925,8 @@ public class FpsChartControl : TemplatedControl, IDisposable
                                 $"max: {record.Max:F1}\n" +
                                 $"avg: {record.Avg:F1}\n" +
                                 $"min: {record.Min:F1}\n" +
-                                $"1%low: {record.Low1:F1}";
+                                $"1%low: {record.Low1:F1}\n" +
+                                $"1s frm: {Math.Round(record.OneSecondFrameCount)}";
 
         var tooltipX = position.X + 10;
         var tooltipY = position.Y - 50;
@@ -1016,6 +1027,8 @@ public class FpsChartControl : TemplatedControl, IDisposable
             _minValueTextBlock.Text = "---";
         if (_low1ValueTextBlock != null)
             _low1ValueTextBlock.Text = "---";
+        if (_oneSecondFrameCountValueTextBlock != null)
+            _oneSecondFrameCountValueTextBlock.Text = "---";
     }
 
     private void OnCanvasPointerWheelChanged(object? sender, PointerWheelEventArgs e)

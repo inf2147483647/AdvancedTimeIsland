@@ -6,9 +6,9 @@ namespace AdvancedTimeIsland.Models;
 
 public class FpsMonitorSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
-    private string _valueFontColor = "#FFFFFF";
+    private string _valueFontColor = "";
     private double _valueFontSize = 14;
     private bool _enableCustomColorAndFont = false;
     private bool _enableComponent = false;

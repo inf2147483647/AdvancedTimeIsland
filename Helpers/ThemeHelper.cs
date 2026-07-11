@@ -95,6 +95,20 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#555555" : "#CCCCCC";
     }
 
+    public static IBrush GetProgressRingBackgroundBrush()
+    {
+        if (Application.Current?.Styles.TryGetResource("ControlStrongStrokeColorDisabledBrush", Application.Current.ActualThemeVariant, out var resource) == true && resource is IBrush brush)
+        {
+            return brush;
+        }
+        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#404040")) : new SolidColorBrush(Color.Parse("#E8E8E8"));
+    }
+
+    public static string GetProgressRingBackgroundColorHex()
+    {
+        return IsDarkTheme() ? "#404040" : "#E8E8E8";
+    }
+
     public static IBrush GetQuoteBackgroundBrush()
     {
         return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#252528")) : new SolidColorBrush(Color.Parse("#F0F0F0"));

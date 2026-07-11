@@ -13,10 +13,10 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _nameFontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _nameFontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
 
     public string Text1
     {
@@ -193,10 +193,10 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _nameFontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _nameFontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
 
     public string Text1
     {
@@ -373,10 +373,10 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _nameFontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _nameFontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
     private bool _enableInternationalFestivals = true;
     private bool _enableChineseTraditionalFestivals = true;
     private bool _enableRedFestivals = true;
@@ -594,8 +594,8 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
     private double _yiValueFontSize = 14;
     private double _jiLabelFontSize = 14;
     private double _jiValueFontSize = 14;
-    private string _yiLabelFontColor = "#FFFFFF";
-    private string _jiLabelFontColor = "#FFFFFF";
+    private string _yiLabelFontColor = "";
+    private string _jiLabelFontColor = "";
 
     public string YiLabel
     {

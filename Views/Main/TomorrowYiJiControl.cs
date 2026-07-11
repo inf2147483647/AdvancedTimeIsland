@@ -32,14 +32,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         var mainSp = new StackPanel { Orientation = Orientation.Vertical };
         
         var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        yiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        yiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetYiBrush() };
+        yiLabelTb = new TextBlock();
+        yiValueTb = new TextBlock { Foreground = ThemeHelper.GetYiBrush() };
         yiSp.Children.Add(yiLabelTb);
         yiSp.Children.Add(yiValueTb);
         
         var jiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        jiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        jiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetJiBrush() };
+        jiLabelTb = new TextBlock();
+        jiValueTb = new TextBlock { Foreground = ThemeHelper.GetJiBrush() };
         jiSp.Children.Add(jiLabelTb);
         jiSp.Children.Add(jiValueTb);
         

@@ -43,18 +43,18 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
             HorizontalAlignment = HorizontalAlignment.Center
         };
         
-        var mainSp = new StackPanel { Orientation = Orientation.Vertical };
+        var mainSp = new StackPanel { Orientation = Orientation.Vertical, VerticalAlignment = VerticalAlignment.Center };
         
-        var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        yiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        yiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetYiBrush() };
+        var yiSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        yiLabelTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        yiValueTb = new TextBlock { Foreground = ThemeHelper.GetYiBrush(), VerticalAlignment = VerticalAlignment.Center };
         yiSp.Children.Add(yiLabelTb);
         yiSp.Children.Add(yiValueTb);
         mainSp.Children.Add(yiSp);
         
-        var jiSp = new StackPanel { Orientation = Orientation.Horizontal };
-        jiLabelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        jiValueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetJiBrush() };
+        var jiSp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        jiLabelTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        jiValueTb = new TextBlock { Foreground = ThemeHelper.GetJiBrush(), VerticalAlignment = VerticalAlignment.Center };
         jiSp.Children.Add(jiLabelTb);
         jiSp.Children.Add(jiValueTb);
         mainSp.Children.Add(jiSp);
@@ -65,7 +65,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        var brush = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
         yiLabelTb.Foreground = brush;
         jiLabelTb.Foreground = brush;
     }
@@ -84,9 +84,12 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
-        Settings.LabelFontColor = newLabelColor;
-        UpdateLabelFontColor(newLabelColor);
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.LabelFontColor = newColor;
+        }
+        UpdateLabelFontColor(Settings.LabelFontColor);
         yiValueTb.Foreground = ThemeHelper.GetYiBrush();
         jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }

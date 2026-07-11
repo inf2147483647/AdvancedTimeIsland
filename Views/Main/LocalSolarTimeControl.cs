@@ -39,14 +39,14 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "Loading..." };
+        tb = new TextBlock { Text = "Loading..." };
         rootBorder.Child = tb;
         Content = rootBorder;
     }
 
     private void UpdateFontColor(string colorStr)
     {
-        tb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateFontSize(double fontSize)
@@ -56,9 +56,12 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        var newColor = ThemeHelper.GetSmartContrastColor(Settings.FontColor);
-        Settings.FontColor = newColor;
-        UpdateFontColor(newColor);
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.FontColor = newColor;
+        }
+        UpdateFontColor(Settings.FontColor);
     }
 
     protected override void OnInitialized()

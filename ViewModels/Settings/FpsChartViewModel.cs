@@ -15,13 +15,13 @@ public static class FpsSampler
 {
     private const int InitialCapacity = 10000;
     private const int MaxCapacity = 10000000;
-    private static readonly RingBuffer<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> s_records = new(InitialCapacity);
+    private static readonly RingBuffer<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> s_records = new(InitialCapacity);
     private static bool s_isRunning;
     private static bool s_isPaused;
 
     public static event Action? DataUpdated;
 
-    public static IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> Records => s_records;
+    public static IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> Records => s_records;
 
     public static int RecordCount => s_records.Count;
 
@@ -61,13 +61,13 @@ public static class FpsSampler
         Dispatcher.UIThread.Post(() => DataUpdated?.Invoke());
     }
 
-    private static void OnFpsDataUpdated(DateTime time, double fps, double max, double avg, double min, double low1)
+    private static void OnFpsDataUpdated(DateTime time, double fps, double max, double avg, double min, double low1, double oneSecondFrameCount)
     {
         if (s_isPaused) return;
         
         try
         {
-            s_records.Enqueue((time, fps, max, avg, min, low1));
+            s_records.Enqueue((time, fps, max, avg, min, low1, oneSecondFrameCount));
 
             while (s_records.Count > MaxCapacity)
             {
@@ -84,14 +84,14 @@ public static class FpsSampler
     public static void WriteCsvData(Stream stream)
     {
         using var writer = new StreamWriter(stream, Encoding.UTF8, leaveOpen: true);
-        writer.WriteLine("Time,fps,max,avg,min,1%min");
+        writer.WriteLine("Time,fps,max,avg,min,1%min,1sfrm");
 
         var invariantCulture = System.Globalization.CultureInfo.InvariantCulture;
 
         foreach (var r in s_records)
         {
-            writer.WriteLine("{0:yyyy-MM-dd HH:mm:ss.fff},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2}",
-                r.Time, r.Fps, r.Max, r.Avg, r.Min, r.Low1);
+            writer.WriteLine("{0:yyyy-MM-dd HH:mm:ss.fff},{1:F2},{2:F2},{3:F2},{4:F2},{5:F2},{6:F2}",
+                r.Time, r.Fps, r.Max, r.Avg, r.Min, r.Low1, r.OneSecondFrameCount);
         }
     }
 }
@@ -228,7 +228,7 @@ public class FpsChartViewModel : INotifyPropertyChanged, IDisposable
 {
     private bool _isDisposed;
 
-    public static IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> Records => FpsSampler.Records;
+    public static IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> Records => FpsSampler.Records;
 
     public int RecordCount => FpsSampler.RecordCount;
 

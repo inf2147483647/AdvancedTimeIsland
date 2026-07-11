@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Rendering;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
@@ -35,12 +36,15 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     private TextBlock valueMinTb;
     private TextBlock labelLow1Tb;
     private TextBlock valueLow1Tb;
+    private TextBlock labelOneSecondFrameCountTb;
+    private TextBlock valueOneSecondFrameCountTb;
     private Border rootBorder;
-    private DispatcherTimer? _fpsTimer;
-    private long _lastFrameTime;
+    private double _lastFrameTimestamp;
     private double _currentFps;
     private bool _isEnabled;
     private bool _isInDialogFlow;
+    private TopLevel? _topLevel;
+    private IDisposable? _renderTimerSubscription;
 
     public FpsMonitorControl()
     {
@@ -56,16 +60,18 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         };
         var sp = new StackPanel { Orientation = Orientation.Horizontal };
 
-        labelFpsTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "fps:" };
-        valueFpsTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green, Text = "---" };
-        labelMaxTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = " max:" };
-        valueMaxTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green, Text = "---" };
-        labelAvgTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = " avg:" };
-        valueAvgTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green, Text = "---" };
-        labelMinTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = " min:" };
-        valueMinTb = new TextBlock { FontSize = 14, Foreground = Brushes.Green, Text = "---" };
-        labelLow1Tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = " 1%low:" };
-        valueLow1Tb = new TextBlock { FontSize = 14, Foreground = Brushes.Green, Text = "---" };
+        labelFpsTb = new TextBlock { Text = "fps:" };
+        valueFpsTb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
+        labelMaxTb = new TextBlock { Text = " max:" };
+        valueMaxTb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
+        labelAvgTb = new TextBlock { Text = " avg:" };
+        valueAvgTb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
+        labelMinTb = new TextBlock { Text = " min:" };
+        valueMinTb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
+        labelLow1Tb = new TextBlock { Text = " 1%low:" };
+        valueLow1Tb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
+        labelOneSecondFrameCountTb = new TextBlock { Text = " 1s frm:" };
+        valueOneSecondFrameCountTb = new TextBlock { Foreground = Brushes.Green, Text = "---" };
 
         sp.Children.Add(labelFpsTb);
         sp.Children.Add(valueFpsTb);
@@ -77,6 +83,8 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         sp.Children.Add(valueMinTb);
         sp.Children.Add(labelLow1Tb);
         sp.Children.Add(valueLow1Tb);
+        sp.Children.Add(labelOneSecondFrameCountTb);
+        sp.Children.Add(valueOneSecondFrameCountTb);
 
         rootBorder.Child = sp;
         Content = rootBorder;
@@ -90,6 +98,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         labelAvgTb.Foreground = brush;
         labelMinTb.Foreground = brush;
         labelLow1Tb.Foreground = brush;
+        labelOneSecondFrameCountTb.Foreground = brush;
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -99,6 +108,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         labelAvgTb.FontSize = fontSize;
         labelMinTb.FontSize = fontSize;
         labelLow1Tb.FontSize = fontSize;
+        labelOneSecondFrameCountTb.FontSize = fontSize;
     }
 
     private void UpdateValueFontSize(double fontSize)
@@ -108,6 +118,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         valueAvgTb.FontSize = fontSize;
         valueMinTb.FontSize = fontSize;
         valueLow1Tb.FontSize = fontSize;
+        valueOneSecondFrameCountTb.FontSize = fontSize;
     }
 
     private void UpdateFpsForeground(IBrush brush)
@@ -135,6 +146,11 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         valueLow1Tb.Foreground = brush;
     }
 
+    private void UpdateOneSecondFrameCountForeground(IBrush brush)
+    {
+        valueOneSecondFrameCountTb.Foreground = brush;
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         if (!Settings.EnableCustomColorAndFont)
@@ -149,24 +165,38 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
     }
 
-    private void OnFpsTimerTick(object? sender, EventArgs e)
+    private void OnRenderTimerTick(TimeSpan timestamp)
     {
         if (!_isEnabled) return;
+        UpdateFpsValue(timestamp.TotalSeconds);
+    }
 
-        var currentTime = DateTime.Now.Ticks;
+    private void OnAnimationFrame(TimeSpan timestamp)
+    {
+        if (!_isEnabled) return;
+        UpdateFpsValue(timestamp.TotalSeconds);
+        _topLevel?.RequestAnimationFrame(OnAnimationFrame);
+    }
 
-        if (_lastFrameTime > 0)
+    private void UpdateFpsValue(double timestamp)
+    {
+        try
         {
-            var deltaTicks = currentTime - _lastFrameTime;
-            if (deltaTicks > 0)
+            if (_lastFrameTimestamp > 0)
             {
-                var deltaSeconds = deltaTicks / (double)TimeSpan.TicksPerSecond;
-                _currentFps = 1.0 / deltaSeconds;
-                vm?.UpdateFps(_currentFps);
+                var deltaSeconds = timestamp - _lastFrameTimestamp;
+                if (deltaSeconds > 0)
+                {
+                    _currentFps = 1.0 / deltaSeconds;
+                    vm?.UpdateFps(_currentFps);
+                }
             }
-        }
 
-        _lastFrameTime = currentTime;
+            _lastFrameTimestamp = timestamp;
+        }
+        catch (Exception)
+        {
+        }
     }
 
     private async Task<bool> ShowEpilepsyWarningDialogAsync()
@@ -289,7 +319,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         _isEnabled = true;
         Settings.EnableComponent = true;
 
-        vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateValueFontSize);
+        vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateOneSecondFrameCountForeground, UpdateValueFontSize);
         DataContext = vm;
 
         vm.PropertyChanged += (s, e) =>
@@ -300,10 +330,24 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
             if (e.PropertyName == nameof(vm.AvgText)) valueAvgTb.Text = vm.AvgText;
             if (e.PropertyName == nameof(vm.MinText)) valueMinTb.Text = vm.MinText;
             if (e.PropertyName == nameof(vm.Low1Text)) valueLow1Tb.Text = vm.Low1Text;
+            if (e.PropertyName == nameof(vm.OneSecondFrameCountText)) valueOneSecondFrameCountTb.Text = vm.OneSecondFrameCountText;
         };
 
-        _fpsTimer = new DispatcherTimer(TimeSpan.FromMilliseconds(16), DispatcherPriority.Render, OnFpsTimerTick);
-        _fpsTimer.Start();
+        _topLevel = TopLevel.GetTopLevel(this);
+        _lastFrameTimestamp = 0;
+
+        if (_topLevel != null)
+        {
+            // 优先使用 IRenderTimer.Tick（底层渲染定时器）
+            _renderTimerSubscription = RenderTimerHelper.SubscribeTick(_topLevel, OnRenderTimerTick);
+            if (_renderTimerSubscription != null)
+            {
+                return;
+            }
+
+            // 回退到 RequestAnimationFrame（Avalonia 公开 API）
+            _topLevel.RequestAnimationFrame(OnAnimationFrame);
+        }
     }
 
     private void DisableComponent()
@@ -311,8 +355,9 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         _isEnabled = false;
         Settings.EnableComponent = false;
 
-        _fpsTimer?.Stop();
-        _fpsTimer = null;
+        _renderTimerSubscription?.Dispose();
+        _renderTimerSubscription = null;
+        _topLevel = null;
 
         (vm as IDisposable)?.Dispose();
         vm = null;
@@ -322,6 +367,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         valueAvgTb.Text = "---";
         valueMinTb.Text = "---";
         valueLow1Tb.Text = "---";
+        valueOneSecondFrameCountTb.Text = "---";
     }
 
     protected override void OnInitialized()
@@ -329,6 +375,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         base.OnInitialized();
         if (Application.Current != null)
         {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
 
@@ -359,6 +406,23 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_isEnabled && _topLevel == null)
+        {
+            _topLevel = TopLevel.GetTopLevel(this);
+            if (_topLevel != null)
+            {
+                _renderTimerSubscription = RenderTimerHelper.SubscribeTick(_topLevel, OnRenderTimerTick);
+                if (_renderTimerSubscription == null)
+                {
+                    _topLevel.RequestAnimationFrame(OnAnimationFrame);
+                }
+            }
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -367,8 +431,11 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsPropertyChanged;
-        _fpsTimer?.Stop();
-        _fpsTimer = null;
+
+        _renderTimerSubscription?.Dispose();
+        _renderTimerSubscription = null;
+        _topLevel = null;
+        _isEnabled = false;
         (vm as IDisposable)?.Dispose();
     }
 }

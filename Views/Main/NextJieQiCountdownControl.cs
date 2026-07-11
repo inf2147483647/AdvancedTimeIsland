@@ -29,11 +29,11 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
     private void InitializeComponent()
     {
         rootBorder = new Border { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        text1Tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        nameTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        text3Tb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        timeTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        text1Tb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        nameTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        text3Tb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        timeTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(text1Tb);
         sp.Children.Add(nameTb);
         sp.Children.Add(text3Tb);

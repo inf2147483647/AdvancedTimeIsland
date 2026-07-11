@@ -27,17 +27,17 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text2 = "倒计时名称";
     private string _text3 = "还有";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private string _timeFormat = "%d天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _text2FontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
     private double _text4FontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _text2FontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
-    private string _text4FontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _text2FontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
+    private string _text4FontColor = "";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<CountdownItem> _countdownItems = new();
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
@@ -377,6 +377,51 @@ public class CountdownSettings : INotifyPropertyChanged
             }
         }
 
+        private bool _enableCustomProgressColor = false;
+
+        public bool EnableCustomProgressColor
+        {
+            get => _enableCustomProgressColor;
+            set
+            {
+                if (_enableCustomProgressColor != value)
+                {
+                    _enableCustomProgressColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _progressBarColor = "#0078D4";
+
+        public string ProgressBarColor
+        {
+            get => _progressBarColor;
+            set
+            {
+                if (_progressBarColor != value)
+                {
+                    _progressBarColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _progressRingColor = "#0078D4";
+
+        public string ProgressRingColor
+        {
+            get => _progressRingColor;
+            set
+            {
+                if (_progressRingColor != value)
+                {
+                    _progressRingColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -391,17 +436,17 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _name = "新正向计时器";
     private string _text3 = "已过";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private string _timeFormat = "%d天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
     private double _text4FontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _nameFontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
-    private string _text4FontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _nameFontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
+    private string _text4FontColor = "";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
@@ -652,7 +697,7 @@ public class CountdownSettings : INotifyPropertyChanged
 public class LocalSolarTimeSettings : INotifyPropertyChanged
 {
     private double _longitude = 116.4;
-    private string _fontColor = "#FFFFFF";
+    private string _fontColor = "";
     private double _textFontSize = 14;
 
     public double Longitude
@@ -720,7 +765,7 @@ public class LocalSolarTimeSettings : INotifyPropertyChanged
 public class TimeZoneTimeSettings : INotifyPropertyChanged
 {
     private string _timeZoneId = "China Standard Time";
-    private string _fontColor = "#FFFFFF";
+    private string _fontColor = "";
     private double _textFontSize = 14;
 
     public string TimeZoneId
@@ -788,7 +833,7 @@ public class TimeZoneTimeSettings : INotifyPropertyChanged
 public class AdvancedDateSettings : INotifyPropertyChanged
 {
     private bool _showWeekDay = true;
-    private string _fontColor = "#FFFFFF";
+    private string _fontColor = "";
     private double _dateFontSize = 14;
 
     public bool ShowWeekDay
@@ -855,9 +900,9 @@ public class AdvancedDateSettings : INotifyPropertyChanged
 
 public class XingZuoSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
-    private string _valueFontColor = "#FFFFFF";
+    private string _valueFontColor = "";
     private double _valueFontSize = 14;
 
     public string LabelFontColor
@@ -937,9 +982,9 @@ public class XingZuoSettings : INotifyPropertyChanged
 
 public class JieQiSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
-    private string _valueFontColor = "#FFFFFF";
+    private string _valueFontColor = "";
     private double _valueFontSize = 14;
 
     public string LabelFontColor
@@ -1019,9 +1064,9 @@ public class JieQiSettings : INotifyPropertyChanged
 
 public class ShengXiaoSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
-    private string _valueFontColor = "#FFFFFF";
+    private string _valueFontColor = "";
     private double _valueFontSize = 14;
 
     public string LabelFontColor
@@ -1101,9 +1146,9 @@ public class ShengXiaoSettings : INotifyPropertyChanged
 
 public class FestivalSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
-    private string _valueFontColor = "#FFFFFF";
+    private string _valueFontColor = "";
     private double _valueFontSize = 14;
 
     public string LabelFontColor
@@ -1183,7 +1228,7 @@ public class FestivalSettings : INotifyPropertyChanged
 
 public class DayYiJiSettings : INotifyPropertyChanged
 {
-    private string _labelFontColor = "#FFFFFF";
+    private string _labelFontColor = "";
     private double _labelFontSize = 14;
     private double _valueFontSize = 14;
 
@@ -1254,17 +1299,17 @@ public class LunarCountdownSettings : INotifyPropertyChanged
     private string _text1 = string.Empty;
     private string _text3 = "还有";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private string _timeFormat = "%d天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _nameFontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
     private double _text4FontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _nameFontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
-    private string _text4FontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _nameFontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
+    private string _text4FontColor = "";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<LunarCountdownItem> _countdownItems = new();
 
@@ -1506,6 +1551,51 @@ public class LunarCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableCustomProgressColor = false;
+
+    public bool EnableCustomProgressColor
+    {
+        get => _enableCustomProgressColor;
+        set
+        {
+            if (_enableCustomProgressColor != value)
+            {
+                _enableCustomProgressColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _progressBarColor = "#0078D4";
+
+    public string ProgressBarColor
+    {
+        get => _progressBarColor;
+        set
+        {
+            if (_progressBarColor != value)
+            {
+                _progressBarColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _progressRingColor = "#0078D4";
+
+    public string ProgressRingColor
+    {
+        get => _progressRingColor;
+        set
+        {
+            if (_progressRingColor != value)
+            {
+                _progressRingColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1520,17 +1610,17 @@ public class PeriodicCountdownSettings : INotifyPropertyChanged
     private string _text2 = "倒计时名称";
     private string _text3 = "还有";
     private string _text4 = string.Empty;
-    private string _timeFormat = "%D天%h小时%m分钟%s秒";
+    private string _timeFormat = "%d天%h小时%m分钟%s秒";
     private double _text1FontSize = 14;
     private double _text2FontSize = 14;
     private double _text3FontSize = 14;
     private double _timeFontSize = 14;
     private double _text4FontSize = 14;
-    private string _text1FontColor = "#FFFFFF";
-    private string _text2FontColor = "#FFFFFF";
-    private string _text3FontColor = "#FFFFFF";
-    private string _timeFontColor = "#FFFFFF";
-    private string _text4FontColor = "#FFFFFF";
+    private string _text1FontColor = "";
+    private string _text2FontColor = "";
+    private string _text3FontColor = "";
+    private string _timeFontColor = "";
+    private string _text4FontColor = "";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<PeriodicCountdownItem> _countdownItems = new();
     private bool _enableTimeCorrection = true;
@@ -1809,6 +1899,231 @@ public class PeriodicCountdownSettings : INotifyPropertyChanged
                 if (_progressDisplayMode != value)
                 {
                     _progressDisplayMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _enableCustomProgressColor = false;
+
+        public bool EnableCustomProgressColor
+        {
+            get => _enableCustomProgressColor;
+            set
+            {
+                if (_enableCustomProgressColor != value)
+                {
+                    _enableCustomProgressColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _progressBarColor = "#0078D4";
+
+        public string ProgressBarColor
+        {
+            get => _progressBarColor;
+            set
+            {
+                if (_progressBarColor != value)
+                {
+                    _progressBarColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _progressRingColor = "#0078D4";
+
+        public string ProgressRingColor
+        {
+            get => _progressRingColor;
+            set
+            {
+                if (_progressRingColor != value)
+                {
+                    _progressRingColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    public class SunriseSunsetSettings : INotifyPropertyChanged
+    {
+        private double _longitude = 114.207;
+        private double _latitude = 34.8138;
+        private string _timeZoneId = "China Standard Time";
+        private string _sunriseLabelFontColor = "";
+        private double _sunriseLabelFontSize = 14;
+        private string _sunriseTimeFontColor = "";
+        private double _sunriseTimeFontSize = 14;
+        private string _sunsetLabelFontColor = "";
+        private double _sunsetLabelFontSize = 14;
+        private string _sunsetTimeFontColor = "";
+        private double _sunsetTimeFontSize = 14;
+
+        public double Longitude
+        {
+            get => _longitude;
+            set
+            {
+                if (Math.Abs(_longitude - value) > 0.0001)
+                {
+                    _longitude = Math.Max(-180, Math.Min(180, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double Latitude
+        {
+            get => _latitude;
+            set
+            {
+                if (Math.Abs(_latitude - value) > 0.0001)
+                {
+                    _latitude = Math.Max(-90, Math.Min(90, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string TimeZoneId
+        {
+            get => _timeZoneId;
+            set
+            {
+                if (_timeZoneId != value)
+                {
+                    _timeZoneId = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string SunriseLabelFontColor
+        {
+            get => _sunriseLabelFontColor;
+            set
+            {
+                if (_sunriseLabelFontColor != value)
+                {
+                    _sunriseLabelFontColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double SunriseLabelFontSize
+        {
+            get => _sunriseLabelFontSize;
+            set
+            {
+                if (Math.Abs(_sunriseLabelFontSize - value) > 0.001)
+                {
+                    _sunriseLabelFontSize = Math.Max(6, Math.Min(72, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string SunriseTimeFontColor
+        {
+            get => _sunriseTimeFontColor;
+            set
+            {
+                if (_sunriseTimeFontColor != value)
+                {
+                    _sunriseTimeFontColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double SunriseTimeFontSize
+        {
+            get => _sunriseTimeFontSize;
+            set
+            {
+                if (Math.Abs(_sunriseTimeFontSize - value) > 0.001)
+                {
+                    _sunriseTimeFontSize = Math.Max(6, Math.Min(72, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string SunsetLabelFontColor
+        {
+            get => _sunsetLabelFontColor;
+            set
+            {
+                if (_sunsetLabelFontColor != value)
+                {
+                    _sunsetLabelFontColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double SunsetLabelFontSize
+        {
+            get => _sunsetLabelFontSize;
+            set
+            {
+                if (Math.Abs(_sunsetLabelFontSize - value) > 0.001)
+                {
+                    _sunsetLabelFontSize = Math.Max(6, Math.Min(72, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public string SunsetTimeFontColor
+        {
+            get => _sunsetTimeFontColor;
+            set
+            {
+                if (_sunsetTimeFontColor != value)
+                {
+                    _sunsetTimeFontColor = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public double SunsetTimeFontSize
+        {
+            get => _sunsetTimeFontSize;
+            set
+            {
+                if (Math.Abs(_sunsetTimeFontSize - value) > 0.001)
+                {
+                    _sunsetTimeFontSize = Math.Max(6, Math.Min(72, value));
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _enableCustomColorAndFont = false;
+
+        public bool EnableCustomColorAndFont
+        {
+            get => _enableCustomColorAndFont;
+            set
+            {
+                if (_enableCustomColorAndFont != value)
+                {
+                    _enableCustomColorAndFont = value;
                     OnPropertyChanged();
                 }
             }

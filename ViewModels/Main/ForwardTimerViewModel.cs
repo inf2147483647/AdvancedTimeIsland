@@ -306,7 +306,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
         var elapsedMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _settings.StartTime * 1000;
 
-        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
+        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(elapsedSeconds), elapsedMs, startTimeDate, now);
 
         Text1Display = _settings.Text1;

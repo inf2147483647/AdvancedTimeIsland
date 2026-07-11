@@ -40,9 +40,9 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        var sp = new StackPanel { Orientation = Orientation.Horizontal };
-        labelTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
-        valueTb = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush() };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        labelTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        valueTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(labelTb);
         sp.Children.Add(valueTb);
         rootBorder.Child = sp;
@@ -51,7 +51,7 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        labelTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        labelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -61,18 +61,19 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
 
     private void UpdateValueFontColor(string colorStr)
     {
-        valueTb.Foreground = ThemeHelper.ParseColorOrThemeDefault(colorStr);
+        valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
-        Settings.LabelFontColor = newLabelColor;
-        UpdateLabelFontColor(newLabelColor);
-
-        var newValueColor = ThemeHelper.GetSmartContrastColor(Settings.ValueFontColor);
-        Settings.ValueFontColor = newValueColor;
-        UpdateValueFontColor(newValueColor);
+        if (!Settings.EnableCustomColorAndFont)
+        {
+            var newColor = ThemeHelper.GetThemeAwareTextColor();
+            Settings.LabelFontColor = newColor;
+            Settings.ValueFontColor = newColor;
+        }
+        UpdateLabelFontColor(Settings.LabelFontColor);
+        UpdateValueFontColor(Settings.ValueFontColor);
     }
 
     private void UpdateValueFontSize(double fontSize)

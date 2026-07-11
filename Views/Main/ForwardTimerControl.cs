@@ -52,11 +52,11 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
             VerticalAlignment = VerticalAlignment.Center
         };
 
-        tbText1 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
-        tbName = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
-        tbText3 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "已过" };
-        tbTime = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "Loading..." };
-        tbText4 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
+        tbText1 = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
+        tbName = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
+        tbText3 = new TextBlock { Text = "已过", VerticalAlignment = VerticalAlignment.Center };
+        tbTime = new TextBlock { Text = "Loading...", VerticalAlignment = VerticalAlignment.Center };
+        tbText4 = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
 
         contentPanel.Children.Add(tbText1);
         contentPanel.Children.Add(tbName);

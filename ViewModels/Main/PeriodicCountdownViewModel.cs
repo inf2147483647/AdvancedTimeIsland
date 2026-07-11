@@ -431,9 +431,9 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         var periodSeconds = currentItem.Item.GetPeriodSeconds(now);
         if (periodSeconds > 0)
         {
-            var cycleStartTime = currentItem.Item.GetCycleStartTimeStamp(now);
-            var totalDuration = periodSeconds;
-            var elapsedSeconds = (long)unixNow - cycleStartTime;
+            var lastTargetTimestamp = currentItem.Item.GetPreviousTargetTimestamp(now);
+            var totalDuration = currentItem.TargetTimestamp - lastTargetTimestamp;
+            var elapsedSeconds = (long)unixNow - lastTargetTimestamp;
             percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }
 

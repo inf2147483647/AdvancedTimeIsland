@@ -13,9 +13,9 @@ namespace AdvancedTimeIsland.ViewModels.Main;
 public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
 {
     private const int WindowSeconds = 10;
-    private const int MaxWindowSamples = 600;
+    private const int MaxWindowSamples = 2400;
 
-    public static event Action<DateTime, double, double, double, double, double>? FpsDataUpdated;
+    public static event Action<DateTime, double, double, double, double, double, double>? FpsDataUpdated;
 
     private readonly FpsMonitorSettings _settings;
     private readonly Action<string>? _updateLabelFontColor;
@@ -25,6 +25,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private readonly Action<IBrush>? _updateAvgForeground;
     private readonly Action<IBrush>? _updateMinForeground;
     private readonly Action<IBrush>? _updateLow1Foreground;
+    private readonly Action<IBrush>? _updateOneSecondFrameCountForeground;
     private readonly Action<double>? _updateValueFontSize;
     private bool _isDisposed;
     private string _fpsText = "0.0";
@@ -32,6 +33,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private string _avgText = "0.0";
     private string _minText = "0.0";
     private string _low1Text = "0.0";
+    private string _oneSecondFrameCountText = "0";
     private double _currentFps = 0;
     private readonly List<double> _fpsSamples = new();
     private double _currentMaxFps;
@@ -47,6 +49,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         Action<IBrush>? updateAvgForeground = null,
         Action<IBrush>? updateMinForeground = null,
         Action<IBrush>? updateLow1Foreground = null,
+        Action<IBrush>? updateOneSecondFrameCountForeground = null,
         Action<double>? updateValueFontSize = null)
     {
         _settings = settings;
@@ -57,12 +60,13 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         _updateAvgForeground = updateAvgForeground;
         _updateMinForeground = updateMinForeground;
         _updateLow1Foreground = updateLow1Foreground;
+        _updateOneSecondFrameCountForeground = updateOneSecondFrameCountForeground;
         _updateValueFontSize = updateValueFontSize;
 
         _settings.PropertyChanged += OnSettingsChanged;
     }
 
-    public void UpdateFps(double fps)
+    public void UpdateFps(double fps, double oneSecondFrameCount = 0)
     {
         try
         {
@@ -106,6 +110,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
             var avgStr = avgFps.ToString("F1");
             var minStr = minFps.ToString("F1");
             var low1Str = low1Fps.ToString("F1");
+            var oneSecondFrameCountStr = Math.Round(oneSecondFrameCount).ToString();
 
             Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -114,15 +119,17 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
                 AvgText = avgStr;
                 MinText = minStr;
                 Low1Text = low1Str;
+                OneSecondFrameCountText = oneSecondFrameCountStr;
 
                 _updateFpsForeground?.Invoke(GetFpsBrush(fps));
                 _updateMaxForeground?.Invoke(GetFpsBrush(maxFps));
                 _updateAvgForeground?.Invoke(GetFpsBrush(avgFps));
                 _updateMinForeground?.Invoke(GetFpsBrush(minFps));
                 _updateLow1Foreground?.Invoke(GetFpsBrush(low1Fps));
+                _updateOneSecondFrameCountForeground?.Invoke(GetFpsBrush(oneSecondFrameCount));
             });
 
-            FpsDataUpdated?.Invoke(DateTime.Now, fps, maxFps, avgFps, minFps, low1Fps);
+            FpsDataUpdated?.Invoke(DateTime.Now, fps, maxFps, avgFps, minFps, low1Fps, oneSecondFrameCount);
         }
         catch (Exception)
         {
@@ -240,6 +247,19 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
             if (_low1Text != value)
             {
                 _low1Text = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string OneSecondFrameCountText
+    {
+        get => _oneSecondFrameCountText;
+        private set
+        {
+            if (_oneSecondFrameCountText != value)
+            {
+                _oneSecondFrameCountText = value;
                 OnPropertyChanged();
             }
         }

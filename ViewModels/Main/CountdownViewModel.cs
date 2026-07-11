@@ -437,7 +437,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeLeft = timeLeftSpan.TotalSeconds;
         var timeLeftMs = timeLeftSpan.TotalMilliseconds;
 
-        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%D天%h小时%m分钟%s秒" : _settings.TimeFormat;
+        var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
         double percent = 0;

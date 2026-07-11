@@ -298,6 +298,54 @@ public class PeriodicCountdownItem : INotifyPropertyChanged
         return (long)(targetDate.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
     }
 
+    public long GetPreviousTargetTimestamp(DateTime now)
+    {
+        var nextTargetTimestamp = GetNextTargetTimestamp(now);
+        var timeOfDay = new TimeSpan(Hour, Minute, Second);
+
+        DateTime previousTargetDate;
+        switch (PeriodType)
+        {
+            case PeriodType.Hourly:
+                previousTargetDate = new DateTime(now.Year, now.Month, now.Day, now.Hour, Minute, Second);
+                break;
+            case PeriodType.Daily:
+                previousTargetDate = now.Date.Add(timeOfDay);
+                if (previousTargetDate > now)
+                {
+                    previousTargetDate = previousTargetDate.AddDays(-1);
+                }
+                break;
+            case PeriodType.Weekly:
+                var daysToAdd = (DayOfWeek - (int)now.DayOfWeek + 7) % 7;
+                previousTargetDate = now.Date.AddDays(daysToAdd).Add(timeOfDay);
+                if (previousTargetDate > now)
+                {
+                    previousTargetDate = previousTargetDate.AddDays(-7);
+                }
+                break;
+            case PeriodType.Monthly:
+                var nextTargetDate = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(nextTargetTimestamp).ToLocalTime();
+                previousTargetDate = nextTargetDate.AddMonths(-1);
+                var daysInPrevMonth = DateTime.DaysInMonth(previousTargetDate.Year, previousTargetDate.Month);
+                var prevDay = Math.Min(DayOfMonth, daysInPrevMonth);
+                previousTargetDate = new DateTime(previousTargetDate.Year, previousTargetDate.Month, prevDay).Add(timeOfDay);
+                break;
+            case PeriodType.Yearly:
+                var nextTargetDateY = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(nextTargetTimestamp).ToLocalTime();
+                previousTargetDate = nextTargetDateY.AddYears(-1);
+                var daysInPrevYearMonth = DateTime.DaysInMonth(previousTargetDate.Year, previousTargetDate.Month);
+                var prevDayY = Math.Min(DayOfMonth, daysInPrevYearMonth);
+                previousTargetDate = new DateTime(previousTargetDate.Year, previousTargetDate.Month, prevDayY).Add(timeOfDay);
+                break;
+            default:
+                previousTargetDate = now.Date.Add(timeOfDay);
+                break;
+        }
+
+        return (long)(previousTargetDate.ToUniversalTime() - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
+    }
+
     public long GetPeriodSeconds(DateTime now)
     {
         switch (PeriodType)

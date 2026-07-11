@@ -58,6 +58,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private ComboBox? _progressDisplayModeComboBox;
     private TextBlock? _progressDisplayModeLabel;
     private TextBlock? _progressDisplayModeGroupHeader;
+    private ToggleSwitch? _enableCustomProgressColorToggle;
+    private ColorPicker? _progressBarColorPicker;
+    private ColorPicker? _progressRingColorPicker;
 
     private TextBlock? _text1StyleTextBlock;
     private TextBlock? _nameStyleTextBlock;
@@ -161,6 +164,17 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
 
         progressDisplayModePanel.Children.Add(progressDisplayModeRow);
+
+        _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0) };
+        _enableCustomProgressColorToggle.IsCheckedChanged += OnEnableCustomProgressColorChanged;
+        progressDisplayModePanel.Children.Add(_enableCustomProgressColorToggle);
+
+        var progressBarColorRow = CreateColorRow("进度条颜色:", out _progressBarColorPicker);
+        progressDisplayModePanel.Children.Add(progressBarColorRow);
+
+        var progressRingColorRow = CreateColorRow("进度环颜色:", out _progressRingColorPicker);
+        progressDisplayModePanel.Children.Add(progressRingColorRow);
+
         progressDisplayModeGroup.Content = progressDisplayModePanel;
         mainPanel.Children.Add(progressDisplayModeGroup);
 
@@ -460,6 +474,12 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         }
     }
 
+    private void OnEnableCustomProgressColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomProgressColor = _enableCustomProgressColorToggle?.IsChecked ?? false;
+        UpdateProgressColorControlsEnabled();
+    }
+
     private void UpdateControlsEnabled()
     {
         var isEnabled = Settings.EnableCustomColorAndFont;
@@ -473,6 +493,16 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         _timeFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
         _text4FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
         _text4FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+    }
+
+    private void UpdateProgressColorControlsEnabled()
+    {
+        var isCustomEnabled = Settings.EnableCustomProgressColor;
+        var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
+                              Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
+        
+        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
+        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
     }
 
     protected override void OnInitialized()
@@ -512,6 +542,14 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
             UpdateControlsEnabled();
         }
+
+        if (_enableCustomProgressColorToggle != null)
+        {
+            _enableCustomProgressColorToggle.IsChecked = Settings.EnableCustomProgressColor;
+            UpdateProgressColorControlsEnabled();
+        }
+        if (_progressBarColorPicker != null) _progressBarColorPicker.Color = ParseColor(Settings.ProgressBarColor);
+        if (_progressRingColorPicker != null) _progressRingColorPicker.Color = ParseColor(Settings.ProgressRingColor);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -548,6 +586,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                 if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
                 {
                     Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
+                    UpdateProgressColorControlsEnabled();
                 }
             };
         }
@@ -562,6 +601,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
         AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
         AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
+
+        AttachColorPickerHandler(_progressBarColorPicker, v => Settings.ProgressBarColor = v);
+        AttachColorPickerHandler(_progressRingColorPicker, v => Settings.ProgressRingColor = v);
     }
 
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)

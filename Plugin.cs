@@ -248,6 +248,8 @@ public class Plugin : PluginBase
 
         services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
 
+        services.AddComponent<SunriseSunsetControl, SunriseSunsetSettingsControl>();
+
         services.AddComponent<XingZuoControl, XingZuoSettingsControl>();
         services.AddComponent<JieQiControl, JieQiSettingsControl>();
         services.AddComponent<ShengXiaoControl, ShengXiaoSettingsControl>();

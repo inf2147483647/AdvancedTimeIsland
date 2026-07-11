@@ -60,6 +60,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private ComboBox? _progressDisplayModeComboBox;
     private TextBlock? _progressDisplayModeLabel;
     private TextBlock? _progressDisplayModeGroupHeader;
+    private ToggleSwitch? _enableCustomProgressColorToggle;
+    private ColorPicker? _progressBarColorPicker;
+    private ColorPicker? _progressRingColorPicker;
 
     private TextBlock? _text1StyleTextBlock;
     private TextBlock? _text2StyleTextBlock;
@@ -111,7 +114,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         Grid.SetColumn(_formatLabel, 0);
         formatRow.Children.Add(_formatLabel);
 
-        _timeFormatTextBox = new TextBox { Watermark = "%D天%h小时%m分钟%s秒" };
+        _timeFormatTextBox = new TextBox { Watermark = "%d天%h小时%m分钟%s秒" };
         Grid.SetColumn(_timeFormatTextBox, 1);
         formatRow.Children.Add(_timeFormatTextBox);
 
@@ -184,6 +187,17 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
 
         progressDisplayModePanel.Children.Add(progressDisplayModeRow);
+
+        _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0) };
+        _enableCustomProgressColorToggle.IsCheckedChanged += OnEnableCustomProgressColorChanged;
+        progressDisplayModePanel.Children.Add(_enableCustomProgressColorToggle);
+
+        var progressBarColorRow = CreateColorRow("进度条颜色:", out _progressBarColorPicker);
+        progressDisplayModePanel.Children.Add(progressBarColorRow);
+
+        var progressRingColorRow = CreateColorRow("进度环颜色:", out _progressRingColorPicker);
+        progressDisplayModePanel.Children.Add(progressRingColorRow);
+
         progressDisplayModeGroup.Content = progressDisplayModePanel;
         _mainPanel.Children.Add(progressDisplayModeGroup);
 
@@ -488,6 +502,12 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         }
     }
 
+    private void OnEnableCustomProgressColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomProgressColor = _enableCustomProgressColorToggle?.IsChecked ?? false;
+        UpdateProgressColorControlsEnabled();
+    }
+
     private void UpdateControlsEnabled()
     {
         var isEnabled = Settings.EnableCustomColorAndFont;
@@ -501,6 +521,16 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         _timeFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
         _text4FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
         _text4FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+    }
+
+    private void UpdateProgressColorControlsEnabled()
+    {
+        var isCustomEnabled = Settings.EnableCustomProgressColor;
+        var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
+                              Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
+        
+        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
+        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
     }
 
     protected override void OnInitialized()
@@ -561,6 +591,14 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
             _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
             UpdateControlsEnabled();
         }
+
+        if (_enableCustomProgressColorToggle != null)
+        {
+            _enableCustomProgressColorToggle.IsChecked = Settings.EnableCustomProgressColor;
+            UpdateProgressColorControlsEnabled();
+        }
+        if (_progressBarColorPicker != null) _progressBarColorPicker.Color = ParseColor(Settings.ProgressBarColor);
+        if (_progressRingColorPicker != null) _progressRingColorPicker.Color = ParseColor(Settings.ProgressRingColor);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -597,6 +635,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
                 if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
                 {
                     Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
+                    UpdateProgressColorControlsEnabled();
                 }
             };
         }
@@ -611,6 +650,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
         AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
         AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
+
+        AttachColorPickerHandler(_progressBarColorPicker, v => Settings.ProgressBarColor = v);
+        AttachColorPickerHandler(_progressRingColorPicker, v => Settings.ProgressRingColor = v);
     }
 
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)

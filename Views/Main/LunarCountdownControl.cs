@@ -46,30 +46,25 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
     {
         rootBorder = new Border
         {
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch
         };
 
-        var outerPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 4,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
+        var outerGrid = new Grid();
 
         contentPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 4,
-            VerticalAlignment = VerticalAlignment.Center
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        tbText1 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
-        tbName = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
-        tbText3 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "还有" };
-        tbTime = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "Loading..." };
-        tbText4 = new TextBlock { FontSize = 14, Foreground = ThemeHelper.GetTextBrush(), Text = "" };
+        tbText1 = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
+        tbName = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
+        tbText3 = new TextBlock { Text = "还有", VerticalAlignment = VerticalAlignment.Center };
+        tbTime = new TextBlock { Text = "Loading...", VerticalAlignment = VerticalAlignment.Center };
+        tbText4 = new TextBlock { Text = "", VerticalAlignment = VerticalAlignment.Center };
 
         contentPanel.Children.Add(tbText1);
         contentPanel.Children.Add(tbName);
@@ -77,13 +72,13 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         contentPanel.Children.Add(tbTime);
         contentPanel.Children.Add(tbText4);
 
-        outerPanel.Children.Add(contentPanel);
+        outerGrid.Children.Add(contentPanel);
 
         circleProgressRoot = new Panel
         {
             IsVisible = false,
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 4, 0)
+            Margin = new Thickness(15, 0, 4, 0)
         };
 
         circleProgressBackground = new Ellipse
@@ -91,7 +86,7 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
             Width = 21.4,
             Height = 21.4,
             Fill = Brushes.Transparent,
-            Stroke = ThemeHelper.GetTextBrush(),
+            Stroke = ThemeHelper.GetProgressRingBackgroundBrush(),
             StrokeThickness = 2.6,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -114,13 +109,6 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
         contentPanel.Children.Insert(0, circleProgressRoot);
 
-        var progressContainer = new Grid
-        {
-            VerticalAlignment = VerticalAlignment.Bottom,
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Height = 4
-        };
-
         progressBar = new ProgressBar
         {
             Maximum = 100,
@@ -128,13 +116,14 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
             MinWidth = 0,
             IsVisible = false,
             Value = 0,
-            HorizontalAlignment = HorizontalAlignment.Stretch
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Bottom,
+            Height = 4
         };
 
-        progressContainer.Children.Add(progressBar);
-        outerPanel.Children.Add(progressContainer);
+        outerGrid.Children.Add(progressBar);
 
-        rootBorder.Child = outerPanel;
+        rootBorder.Child = outerGrid;
         Content = rootBorder;
     }
 
@@ -190,8 +179,26 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
     private void UpdateProgressColors()
     {
-        circleProgressBackground.Stroke = ThemeHelper.GetTextBrush();
-        circleProgressPath.Stroke = ThemeHelper.GetLightBlueBrush();
+        circleProgressBackground.Stroke = ThemeHelper.GetProgressRingBackgroundBrush();
+        
+        if (Settings.EnableCustomProgressColor)
+        {
+            circleProgressPath.Stroke = ThemeHelper.GetColorBrush(Settings.ProgressRingColor, true);
+            progressBar.Foreground = ThemeHelper.GetColorBrush(Settings.ProgressBarColor, true);
+        }
+        else
+        {
+            if (Application.Current?.Styles.TryGetResource("AccentFillColorDefaultBrush", Application.Current.ActualThemeVariant, out var accentBrush) == true && accentBrush is IBrush brush)
+            {
+                circleProgressPath.Stroke = brush;
+                progressBar.Foreground = brush;
+            }
+            else
+            {
+                circleProgressPath.Stroke = ThemeHelper.GetLightBlueBrush();
+                progressBar.Foreground = ThemeHelper.GetLightBlueBrush();
+            }
+        }
     }
 
     protected override void OnInitialized()
@@ -357,6 +364,12 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         if (e.PropertyName == nameof(Settings.ProgressDisplayMode))
         {
             UpdateProgressDisplayMode();
+        }
+        else if (e.PropertyName == nameof(Settings.EnableCustomProgressColor) ||
+                 e.PropertyName == nameof(Settings.ProgressBarColor) ||
+                 e.PropertyName == nameof(Settings.ProgressRingColor))
+        {
+            UpdateProgressColors();
         }
     }
 
