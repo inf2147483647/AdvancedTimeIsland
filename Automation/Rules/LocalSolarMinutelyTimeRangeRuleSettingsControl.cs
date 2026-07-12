@@ -242,7 +242,7 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
 
         var scrollViewer = new ScrollViewer
         {

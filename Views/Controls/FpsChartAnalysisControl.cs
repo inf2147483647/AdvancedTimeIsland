@@ -276,13 +276,13 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
                 Foreground = ThemeHelper.GetTextBrush()
             };
             var idx = i;
-            checkbox.Checked += (s, e) =>
+            FluentAvaloniaCompatibilityHelper.AddCheckedHandler(checkbox, (s, e) =>
             {
                 _seriesVisible[idx] = true;
                 _lastDrawnRecordCount = 0;
                 Dispatcher.UIThread.Post(Redraw);
-            };
-            checkbox.Unchecked += (s, e) =>
+            });
+            FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(checkbox, (s, e) =>
             {
                 _seriesVisible[idx] = false;
                 _lastDrawnRecordCount = 0;
@@ -294,7 +294,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
                     }
                     Redraw();
                 });
-            };
+            });
             checkboxPanel.Children.Add(checkbox);
         }
 

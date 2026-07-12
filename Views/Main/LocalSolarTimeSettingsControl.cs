@@ -73,26 +73,26 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
         _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
         Grid.SetColumn(_longitudeTextBox, 1);
-        _longitudeTextBox.LostFocus += OnLongitudeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
         longitudeRow.Children.Add(_longitudeTextBox);
 
         _longitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
         Grid.SetColumn(_longitudeDmsPanel, 1);
 
         _longitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        _longitudeDmsDegreesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsDegreesTextBox);
         _dmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsDegreeSymbol);
 
         _longitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        _longitudeDmsMinutesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsMinutesTextBox);
         _dmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsMinuteSymbol);
 
         _longitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        _longitudeDmsSecondsTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsSecondsTextBox);
         _dmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsSecondSymbol);
@@ -141,7 +141,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
         _colorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_colorTextBox, 1);
-        _colorTextBox.LostFocus += OnColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_colorTextBox, OnColorLostFocus);
         colorRow.Children.Add(_colorTextBox);
         sp.Children.Add(colorRow);
 
@@ -155,7 +155,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
         _fontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_fontSizeTextBox, 1);
-        _fontSizeTextBox.LostFocus += OnFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_fontSizeTextBox, OnFontSizeLostFocus);
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 

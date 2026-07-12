@@ -8,7 +8,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using FluentAvalonia.UI.Controls;
+
 using AdvancedTimeIsland.ViewModels.Settings;
 using AdvancedTimeIsland.Views.Controls;
 using AdvancedTimeIsland.Helpers;
@@ -112,14 +112,12 @@ public class FpsChartPage : SettingsPageBase
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        var warningBar = new InfoBar
-        {
-            Severity = InfoBarSeverity.Error,
-            Message = "帧率折线视图不是炒股，与任何股票及其内容无任何关联，也不代表与反映任何股票的涨跌情况；仅供调试，请勿用于教学环境！！！",
-            IsOpen = true,
-            IsClosable = false,
-            Margin = new Thickness(16, 16, 16, 0)
-        };
+        var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "帧率折线视图不是炒股，与任何股票及其内容无任何关联，也不代表与反映任何股票的涨跌情况；仅供调试，请勿用于教学环境！！！");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
         Grid.SetRow(warningBar, 0);
         rootGrid.Children.Add(warningBar);
 
@@ -162,16 +160,14 @@ public class FpsChartPage : SettingsPageBase
 
     private async void OnClearClick(object? sender, RoutedEventArgs e)
     {
-        var dialog = new ContentDialog
-        {
-            Title = "确认清空",
-            Content = "确定要清空折线图数据吗？此操作不可撤销，清空后将从头开始采集数据。",
-            PrimaryButtonText = "确定",
-            CloseButtonText = "取消"
-        };
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "确认清空");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", "确定要清空折线图数据吗？此操作不可撤销，清空后将从头开始采集数据。");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
 
-        var result = await dialog.ShowAsync();
-        if (result == ContentDialogResult.Primary)
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result))
         {
             FpsSampler.Clear();
             if (_statusTextBlock != null)

@@ -11,7 +11,6 @@ using Avalonia.Rendering;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
-using FluentAvalonia.UI.Controls;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -226,14 +225,12 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         };
         contentPanel.Children.Add(countDownTextBlock);
 
-        var dialog = new ContentDialog
-        {
-            Title = "警告：使用前详阅",
-            Content = contentPanel,
-            PrimaryButtonText = "确定（15）",
-            CloseButtonText = "取消",
-            IsPrimaryButtonEnabled = false
-        };
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "警告：使用前详阅");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", contentPanel);
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定（15）");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "IsPrimaryButtonEnabled", false);
 
         _ = Task.Run(async () =>
         {
@@ -244,19 +241,19 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
                 {
                     if (i > 0)
                     {
-                        dialog.PrimaryButtonText = $"确定（{i}）";
+                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", $"确定（{i}）");
                     }
                     else
                     {
-                        dialog.PrimaryButtonText = "确定";
-                        dialog.IsPrimaryButtonEnabled = true;
+                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "IsPrimaryButtonEnabled", true);
                     }
                 });
             }
         });
 
-        var result = await dialog.ShowAsync();
-        return result == ContentDialogResult.Primary;
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)!);
+        return FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
     }
 
     private async Task<bool> ShowDebugWarningDialogAsync(int count)
@@ -264,22 +261,20 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         var topLevel = TopLevel.GetTopLevel(this);
         if (topLevel == null) return false;
 
-        var dialog = new ContentDialog
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "警告");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
         {
-            Title = "警告",
-            Content = new TextBlock
-            {
-                Text = "此组件仅供调试，严禁用于教学环境！！！",
-                FontSize = 14,
-                TextWrapping = TextWrapping.Wrap,
-                Padding = new Thickness(12)
-            },
-            PrimaryButtonText = "确定",
-            CloseButtonText = "取消"
-        };
+            Text = "此组件仅供调试，严禁用于教学环境！！！",
+            FontSize = 14,
+            TextWrapping = TextWrapping.Wrap,
+            Padding = new Thickness(12)
+        });
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
 
-        var result = await dialog.ShowAsync();
-        return result == ContentDialogResult.Primary;
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
+        return FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
     }
 
     private async void StartEnableFlow()

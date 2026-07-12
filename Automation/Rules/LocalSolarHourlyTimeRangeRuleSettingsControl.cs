@@ -250,8 +250,8 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
-        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);

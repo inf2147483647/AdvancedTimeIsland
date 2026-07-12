@@ -148,7 +148,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(_startDayComboBox, 3);
         startDateRow.Children.Add(_startDayComboBox);
 
-        _startYearTextBox.LostFocus += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startYearTextBox, (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox));
         _startMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
 
         startTimePanel.Children.Add(startDateRow);
@@ -462,10 +462,10 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         if (textBox == null) return;
 
-        textBox.LostFocus += (s, e) =>
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) =>
         {
             handler(textBox.Text);
-        };
+        });
     }
 
     private void AttachDateTimeHandlers()
@@ -494,7 +494,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         }
 
         if (_startYearTextBox != null)
-            _startYearTextBox.LostFocus += (s, e) => UpdateStartTime();
+            FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startYearTextBox, (s, e) => UpdateStartTime());
 
         if (_startMonthComboBox != null)
             _startMonthComboBox.SelectionChanged += (s, e) => UpdateStartTime();
@@ -516,14 +516,14 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         if (fontSizeTextBox != null)
         {
-            fontSizeTextBox.LostFocus += (s, e) =>
+            FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(fontSizeTextBox, (s, e) =>
             {
                 if (double.TryParse(fontSizeTextBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var fontSize))
                 {
                     var color = colorPicker?.Color.ToString() ?? "#FFFFFF";
                     handler(fontSize, color);
                 }
-            };
+            });
         }
 
         if (colorPicker != null)

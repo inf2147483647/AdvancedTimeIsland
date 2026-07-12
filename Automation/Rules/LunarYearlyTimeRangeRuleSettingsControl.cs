@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -119,8 +120,8 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
             IsChecked = isStart ? (Settings?.StartIsLeapMonth ?? false) : (Settings?.EndIsLeapMonth ?? false),
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        isLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
-        isLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
+        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(isLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(isLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
 
         if (isStart)
             _startIsLeapMonthCheckBox = isLeapMonthCheckBox;

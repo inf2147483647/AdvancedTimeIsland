@@ -10,7 +10,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
-using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
@@ -609,13 +608,13 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => setter(textBox.Text);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => setter(textBox.Text));
     }
 
     private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => ParseAndSetFontSize(textBox, setter);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetFontSize(textBox, setter));
     }
 
     private void AttachColorPickerHandler(ColorPicker? colorPicker, Action<string> setter)
@@ -799,23 +798,19 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
     private void ShowEditDialog(LunarCountdownItem item, int order = 0)
     {
-        var dialog = new ContentDialog()
-        {
-            Title = order > 0 ? $"正在编辑第{order}个农历倒计时" : "编辑农历倒计时",
-            PrimaryButtonText = "确定",
-            SecondaryButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary
-        };
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编辑第{order}个农历倒计时" : "编辑农历倒计时");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
 
         var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        var infoBar = new InfoBar
-        {
-            Severity = InfoBarSeverity.Informational,
-            Message = "公历可用范围为1901-02-19 ~ 2101-01-28",
-            IsOpen = true,
-            IsClosable = false
-        };
+        var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", "公历可用范围为1901-02-19 ~ 2101-01-28");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", false);
         contentPanel.Children.Add(infoBar);
 
         var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
@@ -963,7 +958,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         for (int i = 1; i <= 31; i++) solarDayComboBox.Items.Add($"{i}日");
         solarDayComboBox.SelectedItem = $"{currentSolarDate.Day}日";
 
-        solarYearTextBox.LostFocus += (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(solarYearTextBox, (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox));
         solarMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
 
         solarDatePanel.Children.Add(solarYearTextBox);
@@ -1119,7 +1114,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarGroup.Content = solarPanel;
         contentPanel.Children.Add(solarGroup);
 
-        dialog.PrimaryButtonClick += (s, e) =>
+        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
         {
             item.Name = nameTextBox.Text ?? "新农历倒计时";
 
@@ -1171,7 +1166,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             item.IsCompleted = false;
 
             UpdateCountdownList();
-        };
+        });
 
         var scrollViewer = new ScrollViewer
         {
@@ -1187,9 +1182,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         Grid.SetRow(scrollViewer, 0);
         mainPanel.Children.Add(scrollViewer);
 
-        dialog.Content = mainPanel;
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", mainPanel);
 
-        dialog.ShowAsync(TopLevel.GetTopLevel(this));
+        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
     private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)

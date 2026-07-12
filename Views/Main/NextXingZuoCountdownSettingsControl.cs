@@ -60,7 +60,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
 
         _formatTextBox = new TextBox { Width = 200, Watermark = "%d天" };
         Grid.SetColumn(_formatTextBox, 1);
-        _formatTextBox.LostFocus += OnFormatLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_formatTextBox, OnFormatLostFocus);
         formatRow.Children.Add(_formatTextBox);
         sp.Children.Add(formatRow);
 
@@ -88,7 +88,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         text1ColorRow.Children.Add(_text1ColorLabel);
         _text1ColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_text1ColorTextBox, 1);
-        _text1ColorTextBox.LostFocus += OnText1ColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text1ColorTextBox, OnText1ColorLostFocus);
         text1ColorRow.Children.Add(_text1ColorTextBox);
         sp.Children.Add(text1ColorRow);
 
@@ -100,7 +100,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         text1FontSizeRow.Children.Add(_text1FontSizeLabel);
         _text1FontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_text1FontSizeTextBox, 1);
-        _text1FontSizeTextBox.LostFocus += OnText1FontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text1FontSizeTextBox, OnText1FontSizeLostFocus);
         text1FontSizeRow.Children.Add(_text1FontSizeTextBox);
         sp.Children.Add(text1FontSizeRow);
 
@@ -115,7 +115,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         nameColorRow.Children.Add(_nameColorLabel);
         _nameColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_nameColorTextBox, 1);
-        _nameColorTextBox.LostFocus += OnNameColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_nameColorTextBox, OnNameColorLostFocus);
         nameColorRow.Children.Add(_nameColorTextBox);
         sp.Children.Add(nameColorRow);
 
@@ -127,7 +127,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         nameFontSizeRow.Children.Add(_nameFontSizeLabel);
         _nameFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_nameFontSizeTextBox, 1);
-        _nameFontSizeTextBox.LostFocus += OnNameFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_nameFontSizeTextBox, OnNameFontSizeLostFocus);
         nameFontSizeRow.Children.Add(_nameFontSizeTextBox);
         sp.Children.Add(nameFontSizeRow);
 
@@ -142,7 +142,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         text3ColorRow.Children.Add(_text3ColorLabel);
         _text3ColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_text3ColorTextBox, 1);
-        _text3ColorTextBox.LostFocus += OnText3ColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text3ColorTextBox, OnText3ColorLostFocus);
         text3ColorRow.Children.Add(_text3ColorTextBox);
         sp.Children.Add(text3ColorRow);
 
@@ -154,7 +154,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         text3FontSizeRow.Children.Add(_text3FontSizeLabel);
         _text3FontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_text3FontSizeTextBox, 1);
-        _text3FontSizeTextBox.LostFocus += OnText3FontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text3FontSizeTextBox, OnText3FontSizeLostFocus);
         text3FontSizeRow.Children.Add(_text3FontSizeTextBox);
         sp.Children.Add(text3FontSizeRow);
 
@@ -169,7 +169,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         timeColorRow.Children.Add(_timeColorLabel);
         _timeColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_timeColorTextBox, 1);
-        _timeColorTextBox.LostFocus += OnTimeColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_timeColorTextBox, OnTimeColorLostFocus);
         timeColorRow.Children.Add(_timeColorTextBox);
         sp.Children.Add(timeColorRow);
 
@@ -181,7 +181,7 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
         timeFontSizeRow.Children.Add(_timeFontSizeLabel);
         _timeFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_timeFontSizeTextBox, 1);
-        _timeFontSizeTextBox.LostFocus += OnTimeFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_timeFontSizeTextBox, OnTimeFontSizeLostFocus);
         timeFontSizeRow.Children.Add(_timeFontSizeTextBox);
         sp.Children.Add(timeFontSizeRow);
 

@@ -52,7 +52,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         yiLabelColorRow.Children.Add(_yiLabelColorLabel);
         _yiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_yiLabelColorTextBox, 1);
-        _yiLabelColorTextBox.LostFocus += OnYiLabelColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiLabelColorTextBox, OnYiLabelColorLostFocus);
         yiLabelColorRow.Children.Add(_yiLabelColorTextBox);
         sp.Children.Add(yiLabelColorRow);
 
@@ -64,7 +64,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeLabel);
         _yiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_yiLabelFontSizeTextBox, 1);
-        _yiLabelFontSizeTextBox.LostFocus += OnYiLabelFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiLabelFontSizeTextBox, OnYiLabelFontSizeLostFocus);
         yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeTextBox);
         sp.Children.Add(yiLabelFontSizeRow);
 
@@ -82,7 +82,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         yiValueFontSizeRow.Children.Add(_yiValueFontSizeLabel);
         _yiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_yiValueFontSizeTextBox, 1);
-        _yiValueFontSizeTextBox.LostFocus += OnYiValueFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiValueFontSizeTextBox, OnYiValueFontSizeLostFocus);
         yiValueFontSizeRow.Children.Add(_yiValueFontSizeTextBox);
         sp.Children.Add(yiValueFontSizeRow);
 
@@ -97,7 +97,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         jiLabelColorRow.Children.Add(_jiLabelColorLabel);
         _jiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_jiLabelColorTextBox, 1);
-        _jiLabelColorTextBox.LostFocus += OnJiLabelColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiLabelColorTextBox, OnJiLabelColorLostFocus);
         jiLabelColorRow.Children.Add(_jiLabelColorTextBox);
         sp.Children.Add(jiLabelColorRow);
 
@@ -109,7 +109,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeLabel);
         _jiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_jiLabelFontSizeTextBox, 1);
-        _jiLabelFontSizeTextBox.LostFocus += OnJiLabelFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiLabelFontSizeTextBox, OnJiLabelFontSizeLostFocus);
         jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeTextBox);
         sp.Children.Add(jiLabelFontSizeRow);
 
@@ -127,7 +127,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         jiValueFontSizeRow.Children.Add(_jiValueFontSizeLabel);
         _jiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_jiValueFontSizeTextBox, 1);
-        _jiValueFontSizeTextBox.LostFocus += OnJiValueFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiValueFontSizeTextBox, OnJiValueFontSizeLostFocus);
         jiValueFontSizeRow.Children.Add(_jiValueFontSizeTextBox);
         sp.Children.Add(jiValueFontSizeRow);
 

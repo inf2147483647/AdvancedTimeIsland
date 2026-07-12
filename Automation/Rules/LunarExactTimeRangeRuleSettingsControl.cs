@@ -230,8 +230,8 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             IsChecked = Settings?.StartIsLeapMonth ?? false,
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        _startLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
-        _startLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
+        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(_startLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(_startLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
 
         startMonthPanel.Children.Add(_startLeapMonthCheckBox);
         startSection.Children.Add(startMonthPanel);
@@ -494,8 +494,8 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             IsChecked = Settings?.EndIsLeapMonth ?? false,
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        _endLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
-        _endLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
+        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(_endLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(_endLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
 
         endMonthPanel.Children.Add(_endLeapMonthCheckBox);
         endSection.Children.Add(endMonthPanel);

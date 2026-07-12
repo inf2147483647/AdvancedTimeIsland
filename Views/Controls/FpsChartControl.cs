@@ -297,18 +297,18 @@ public class FpsChartControl : TemplatedControl, IDisposable
                 Foreground = ThemeHelper.GetTextBrush()
             };
             var idx = i;
-            checkbox.Checked += (s, e) =>
+            FluentAvaloniaCompatibilityHelper.AddCheckedHandler(checkbox, (s, e) =>
             {
                 _seriesVisible[idx] = true;
                 _lastDrawnRecordCount = 0;
                 Redraw();
-            };
-            checkbox.Unchecked += (s, e) =>
+            });
+            FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(checkbox, (s, e) =>
             {
                 _seriesVisible[idx] = false;
                 _lastDrawnRecordCount = 0;
                 Redraw();
-            };
+            });
             checkboxPanel.Children.Add(checkbox);
         }
 
@@ -341,7 +341,7 @@ public class FpsChartControl : TemplatedControl, IDisposable
             FontSize = 11,
             HorizontalAlignment = HorizontalAlignment.Right
         };
-        _refreshRateTextBox.LostFocus += OnRefreshRateLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_refreshRateTextBox, OnRefreshRateLostFocus);
         refreshRatePanel.Children.Add(_refreshRateTextBox);
 
         var refreshRateUnit = new TextBlock

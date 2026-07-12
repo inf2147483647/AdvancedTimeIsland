@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -82,7 +83,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
 
         var scrollViewer = new ScrollViewer
         {

@@ -10,7 +10,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
-using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
@@ -543,19 +542,17 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
         if (!Settings.WarningAccepted && _mainPanel != null)
         {
-            var warningInfoBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Warning,
-                Title = "作者提示",
-                Message = "不推荐使用此功能实现放学倒计时或回家倒计时，否则使用者挨老师批，作者概不负责。关闭提示则代表同意此提示。",
-                IsOpen = true,
-                IsClosable = true,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            warningInfoBar.Closed += (s, e) =>
+            var warningInfoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "Title", "作者提示");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "Message", "不推荐使用此功能实现放学倒计时或回家倒计时，否则使用者挨老师批，作者概不负责。关闭提示则代表同意此提示。");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "IsClosable", true);
+            warningInfoBar.Margin = new Thickness(0, 0, 0, 8);
+            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(warningInfoBar, (s, e) =>
             {
                 Settings.WarningAccepted = true;
-            };
+            });
             _mainPanel.Children.Insert(0, warningInfoBar);
         }
 
@@ -658,13 +655,13 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => setter(textBox.Text);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => setter(textBox.Text));
     }
 
     private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => ParseAndSetFontSize(textBox, setter);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetFontSize(textBox, setter));
     }
 
     private void AttachColorPickerHandler(ColorPicker? colorPicker, Action<string> setter)
@@ -839,13 +836,11 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void ShowEditDialog(PeriodicCountdownItem item, int order = 0)
     {
-        var dialog = new ContentDialog()
-        {
-            Title = order > 0 ? $"正在编辑第{order}个倒计时" : "编辑倒计时",
-            PrimaryButtonText = "确定",
-            SecondaryButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary
-        };
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编辑第{order}个倒计时" : "编辑倒计时");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
 
         var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
@@ -989,9 +984,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         Grid.SetRow(scrollViewer, 0);
         _mainPanel.Children.Add(scrollViewer);
 
-        dialog.Content = _mainPanel;
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", _mainPanel);
 
-        dialog.PrimaryButtonClick += (s, e) =>
+        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
         {
             item.Name = nameTextBox.Text ?? "新周期性倒计时";
             item.PeriodType = (PeriodType)(periodComboBox.SelectedIndex >= 0 ? periodComboBox.SelectedIndex : 1);
@@ -1028,8 +1023,8 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
             item.IsCompleted = false;
             UpdateCountdownList();
-        };
+        });
 
-        dialog.ShowAsync(TopLevel.GetTopLevel(this));
+        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 }

@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -159,8 +160,8 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
-        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);

@@ -9,7 +9,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
-using FluentAvalonia.UI.Controls;
+
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -624,14 +624,12 @@ public class PluginSettingsPage : UserControl
         else
         {
             // 32位系统显示警告InfoBar
-            var warningBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Warning,
-                Message = "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。",
-                IsOpen = true,
-                IsClosable = false,
-                Margin = new Thickness(0, 0, 0, 12)
-            };
+            var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
             mainPanel.Children.Add(warningBar);
         }
 
@@ -877,7 +875,7 @@ public class PluginSettingsPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Right,
             Watermark = "0"
         };
-        textBox.LostFocus += OnTimeOffsetLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, OnTimeOffsetLostFocus);
         return textBox;
     }
 
@@ -895,7 +893,7 @@ public class PluginSettingsPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Right,
             IsVisible = _settings?.LongitudeDisplayMode != LongitudeDisplayMode.Dms
         };
-        _longitudeTextBox.LostFocus += OnLongitudeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
         panel.Children.Add(_longitudeTextBox);
 
         var dmsPanel = new StackPanel
@@ -907,17 +905,17 @@ public class PluginSettingsPage : UserControl
         };
 
         _dmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        _dmsDegreesTextBox.LostFocus += OnDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsDegreesTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsDegreesTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
         _dmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        _dmsMinutesTextBox.LostFocus += OnDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsMinutesTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsMinutesTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
         _dmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        _dmsSecondsTextBox.LostFocus += OnDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsSecondsTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsSecondsTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
 
@@ -1087,7 +1085,7 @@ public class PluginSettingsPage : UserControl
             HorizontalAlignment = HorizontalAlignment.Right,
             Text = _settings?.NtpSyncIntervalMinutes.ToString() ?? "5"
         };
-        textBox.LostFocus += OnNtpSyncIntervalLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, OnNtpSyncIntervalLostFocus);
         inputRow.Children.Add(textBox);
 
         // 立即同步按钮
@@ -1462,17 +1460,15 @@ public class PluginSettingsPage : UserControl
 
             RequestRestartAction?.Invoke();
 
-            var dialog = new ContentDialog()
+            var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "需要重启");
+            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", "部分功能需在重启后生效。");
+            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "立即重启");
+            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "稍后");
+            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+            FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)).ContinueWith(task =>
             {
-                Title = "需要重启",
-                Content = "部分功能需在重启后生效。",
-                PrimaryButtonText = "立即重启",
-                SecondaryButtonText = "稍后",
-                DefaultButton = ContentDialogButton.Primary
-            };
-            dialog.ShowAsync(TopLevel.GetTopLevel(this)).ContinueWith(task =>
-            {
-                if (task.Result == ContentDialogResult.Primary)
+                if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(task.Result))
                 {
                     ClassIsland.Core.AppBase.Current.Restart();
                 }

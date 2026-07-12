@@ -10,7 +10,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
-using FluentAvalonia.UI.Controls;
+
 using AdvancedTimeIsland.Views.Controls;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -110,14 +110,12 @@ public class FpsChartAnalysisPage : SettingsPageBase
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
-        var warningBar = new InfoBar
-        {
-            Severity = InfoBarSeverity.Warning,
-            Message = "帧率折线图分析仅供调试使用，用于分析历史帧率数据。",
-            IsOpen = true,
-            IsClosable = false,
-            Margin = new Thickness(16, 16, 16, 0)
-        };
+        var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "帧率折线图分析仅供调试使用，用于分析历史帧率数据。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
         Grid.SetRow(warningBar, 0);
         rootGrid.Children.Add(warningBar);
 

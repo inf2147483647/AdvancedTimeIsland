@@ -241,8 +241,8 @@ public class LocalSolarHourlyTimeTriggerSettingsControl : TriggerSettingsControl
         minuteBox.TextChanged += (s, e) => UpdateSettingsValue();
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
-        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
-        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);

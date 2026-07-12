@@ -10,7 +10,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
-using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
@@ -204,7 +203,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetColumn(_startDayComboBox, 3);
         startDateRow.Children.Add(_startDayComboBox);
 
-        _startYearTextBox.LostFocus += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startYearTextBox, (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox));
         _startMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(_startYearTextBox, _startMonthComboBox, _startDayComboBox);
 
         startTimePanel.Children.Add(startDateRow);
@@ -767,7 +766,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         if (_startYearTextBox != null)
         {
-            _startYearTextBox.LostFocus += (s, e) => UpdateStartTime();
+            FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startYearTextBox, (s, e) => UpdateStartTime());
         }
 
         if (_startMonthComboBox != null)
@@ -803,13 +802,13 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => setter(textBox.Text);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => setter(textBox.Text));
     }
 
     private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => ParseAndSetFontSize(textBox, setter);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetFontSize(textBox, setter));
     }
 
     private void AttachColorPickerHandler(ColorPicker? colorPicker, Action<string> setter)
@@ -833,7 +832,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private void AttachNumberHandler(TextBox? textBox, Action<int> setter)
     {
         if (textBox == null) return;
-        textBox.LostFocus += (s, e) => ParseAndSetNumber(textBox, setter);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetNumber(textBox, setter));
     }
 
     private void ParseAndSetFontSize(TextBox textBox, Action<double> setter)
@@ -978,15 +977,13 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 
-    private void ShowEditDialog(CountdownItem item, int order = 0)
+    private async void ShowEditDialog(CountdownItem item, int order = 0)
     {
-        var dialog = new ContentDialog()
-        {
-            Title = order > 0 ? $"正在编写第{order}个倒计时" : "编辑倒计时",
-            PrimaryButtonText = "确定",
-            SecondaryButtonText = "取消",
-            DefaultButton = ContentDialogButton.Primary
-        };
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编写第{order}个倒计时" : "编辑倒计时");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
 
         var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
@@ -1009,7 +1006,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         for (int i = 1; i <= 31; i++) dayComboBox.Items.Add($"{i}日");
         dayComboBox.SelectedItem = $"{targetTime.Day}日";
 
-        yearTextBox.LostFocus += (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(yearTextBox, (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox));
         monthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox);
 
         datePanel.Children.Add(yearTextBox);
@@ -1074,9 +1071,9 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetRow(scrollViewer, 0);
         mainPanel.Children.Add(scrollViewer);
 
-        dialog.Content = mainPanel;
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", mainPanel);
 
-        dialog.PrimaryButtonClick += (s, e) =>
+        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
         {
             item.Name = nameTextBox.Text ?? "新倒计时";
 
@@ -1113,9 +1110,9 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
             item.IsCompleted = false;
             UpdateCountdownList();
-        };
+        });
 
-        dialog.ShowAsync(TopLevel.GetTopLevel(this));
+        await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
     private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)

@@ -52,7 +52,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
         _labelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_labelColorTextBox, 1);
-        _labelColorTextBox.LostFocus += OnLabelColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelColorTextBox, OnLabelColorLostFocus);
         labelColorRow.Children.Add(_labelColorTextBox);
         sp.Children.Add(labelColorRow);
 
@@ -66,7 +66,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
         _labelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_labelFontSizeTextBox, 1);
-        _labelFontSizeTextBox.LostFocus += OnLabelFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelFontSizeTextBox, OnLabelFontSizeLostFocus);
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
 
@@ -86,7 +86,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
         _valueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_valueFontSizeTextBox, 1);
-        _valueFontSizeTextBox.LostFocus += OnValueFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueFontSizeTextBox, OnValueFontSizeLostFocus);
         valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
         sp.Children.Add(valueFontSizeRow);
 

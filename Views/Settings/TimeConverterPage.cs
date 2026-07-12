@@ -601,22 +601,22 @@ public class TimeConverterPage : UserControl
         
         _localLongitudeTextBox = new TextBox { Width = 100, Watermark = "如：116.4", IsVisible = !isDms };
         _localLongitudeTextBox.Text = "116.4";
-        _localLongitudeTextBox.LostFocus += OnLongitudeTextBoxLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeTextBox, OnLongitudeTextBoxLostFocus);
         
         _localLongitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsVisible = isDms };
 
         _localLongitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        _localLongitudeDmsDegreesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsDegreesTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
         _localLongitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        _localLongitudeDmsMinutesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsMinutesTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
         _localLongitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        _localLongitudeDmsSecondsTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsSecondsTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
 
@@ -799,7 +799,7 @@ public class TimeConverterPage : UserControl
             Watermark = "年"
         };
         yearTextBox = ytb;
-        ytb.LostFocus += OnYearTextBoxLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, OnYearTextBoxLostFocus);
 
         var mcb = new ComboBox
         {
@@ -825,7 +825,7 @@ public class TimeConverterPage : UserControl
         }
         dayComboBox = dcb;
 
-        ytb.LostFocus += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, (s, e) => UpdateDayComboBox(ytb, mcb, dcb));
         mcb.SelectionChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
 
         datePanel.Children.Add(ytb);

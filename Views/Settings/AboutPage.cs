@@ -12,7 +12,7 @@ using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
-using FluentAvalonia.UI.Controls;
+
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -85,19 +85,17 @@ public class AboutPage : SettingsPageBase
 
         if (_pluginSettings?.DisclaimerAccepted != true)
         {
-            var disclaimerBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Warning,
-                Title = "免责声明",
-                Message = "插件内包含大量文本输入框，插件作者不对使用者在其中输入的内容做任何担保，如果使用者因输入不当内容导致造成不良影响，使用者需自行承担相关责任，插件作者概不负责。",
-                IsOpen = true,
-                IsClosable = true,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            disclaimerBar.Closed += (s, e) =>
+            var disclaimerBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Title", "免责声明");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Message", "插件内包含大量文本输入框，插件作者不对使用者在其中输入的内容做任何担保，如果使用者因输入不当内容导致造成不良影响，使用者需自行承担相关责任，插件作者概不负责。");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsClosable", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Margin", new Thickness(0, 0, 0, 8));
+            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(disclaimerBar, (s, e) =>
             {
                 _pluginSettings!.DisclaimerAccepted = true;
-            };
+            });
             mainPanel.Children.Add(disclaimerBar);
         }
 
@@ -195,22 +193,19 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private void ShowEasterEggDialog()
     {
-        var dialog = new ContentDialog()
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "提示");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
         {
-            Title = "提示",
-            Content = new TextBlock
-            {
-                Text = "触发彩蛋成功~",
-                FontSize = 16,
-                Foreground = ThemeHelper.GetTextBrush(),
-                HorizontalAlignment = HorizontalAlignment.Center,
-                TextWrapping = TextWrapping.Wrap
-            },
-            PrimaryButtonText = "确定",
-            DefaultButton = ContentDialogButton.Primary
-        };
-
-        dialog.ShowAsync(TopLevel.GetTopLevel(this));
+            Text = "触发彩蛋成功~",
+            FontSize = 16,
+            Foreground = ThemeHelper.GetTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        });
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
     /// <summary>

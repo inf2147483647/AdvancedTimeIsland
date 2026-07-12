@@ -169,8 +169,8 @@ public class LunarExactTimeTriggerSettingsControl : TriggerSettingsControlBase<L
             Content = "闰月",
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        _leapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
-        _leapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
+        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(_leapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(_leapMonthCheckBox, (s, e) => UpdateSettingsValue());
 
         monthPanel.Children.Add(_leapMonthCheckBox);
         mainPanel.Children.Add(monthPanel);

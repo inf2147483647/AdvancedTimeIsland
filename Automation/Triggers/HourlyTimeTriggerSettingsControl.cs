@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -93,8 +94,8 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
         _startMinuteBox.TextChanged += (s, e) => UpdateSettingsValue();
         _startSecondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
-        _startMinuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(_startMinuteBox);
-        _startSecondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(_startSecondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startMinuteBox, (s, e) => ValidateAndFormatTextBox(_startMinuteBox));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startSecondBox, (s, e) => ValidateAndFormatTextBox(_startSecondBox));
 
         inputPanel.Children.Add(_startMinuteBox);
         inputPanel.Children.Add(_startSecondBox);

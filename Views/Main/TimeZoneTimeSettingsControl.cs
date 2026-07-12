@@ -62,7 +62,7 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
 
         _colorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
         Grid.SetColumn(_colorTextBox, 1);
-        _colorTextBox.LostFocus += OnColorLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_colorTextBox, OnColorLostFocus);
         colorRow.Children.Add(_colorTextBox);
         sp.Children.Add(colorRow);
 
@@ -76,7 +76,7 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
 
         _fontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
         Grid.SetColumn(_fontSizeTextBox, 1);
-        _fontSizeTextBox.LostFocus += OnFontSizeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_fontSizeTextBox, OnFontSizeLostFocus);
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 

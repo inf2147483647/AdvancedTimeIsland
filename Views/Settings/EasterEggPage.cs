@@ -10,7 +10,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using FluentAvalonia.UI.Controls;
+
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -76,36 +76,32 @@ public class EasterEggPage : UserControl
 
         if (_pluginSettings?.EasterEggDisclaimerAccepted != true)
         {
-            var disclaimerBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Warning,
-                Title = "免责声明",
-                Message = "仅供娱乐，无不良引导。",
-                IsOpen = true,
-                IsClosable = true,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            disclaimerBar.Closed += (s, e) =>
+            var disclaimerBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Title", "免责声明");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Message", "仅供娱乐，无不良引导。");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsClosable", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Margin", new Thickness(0, 0, 0, 8));
+            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(disclaimerBar, (s, e) =>
             {
                 _pluginSettings!.EasterEggDisclaimerAccepted = true;
-            };
+            });
             mainPanel.Children.Add(disclaimerBar);
         }
 
         if (_pluginSettings?.EasterEggInfoAccepted != true)
         {
-            var infoBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Informational,
-                Message = "关闭女装彩蛋的方式：进入插件设置，划到最底部，关闭“女装”",
-                IsOpen = true,
-                IsClosable = true,
-                Margin = new Thickness(0, 0, 0, 8)
-            };
-            infoBar.Closed += (s, e) =>
+            var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", "关闭女装彩蛋的方式：进入插件设置，划到最底部，关闭“女装”");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 0, 0, 8));
+            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(infoBar, (s, e) =>
             {
                 _pluginSettings!.EasterEggInfoAccepted = true;
-            };
+            });
             mainPanel.Children.Add(infoBar);
         }
 

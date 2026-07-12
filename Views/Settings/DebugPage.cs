@@ -15,7 +15,7 @@ using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-using FluentAvalonia.UI.Controls;
+
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -48,14 +48,12 @@ public class DebugPage : SettingsPageBase
             Spacing = 16
         };
 
-        var warningBar = new InfoBar
-        {
-            Severity = InfoBarSeverity.Error,
-            Message = "仅供调试，除非你能知道您在做什么，请不要使用以下按钮。",
-            IsOpen = true,
-            IsClosable = false,
-            Margin = new Thickness(0, 0, 0, 8)
-        };
+        var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "仅供调试，除非你能知道您在做什么，请不要使用以下按钮。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 8));
         mainPanel.Children.Add(warningBar);
 
         _titleTextBlock = new TextBlock
@@ -579,17 +577,15 @@ public class DebugPage : SettingsPageBase
 
     private void ShowMemoryLeakClearDialog()
     {
-        var dialog = new ContentDialog()
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "需要重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", "需要重启以清除内存泄漏。");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "立即重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "稍后");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)).ContinueWith(task =>
         {
-            Title = "需要重启",
-            Content = "需要重启以清除内存泄漏。",
-            PrimaryButtonText = "立即重启",
-            SecondaryButtonText = "稍后",
-            DefaultButton = ContentDialogButton.Primary
-        };
-        dialog.ShowAsync(TopLevel.GetTopLevel(this)).ContinueWith(task =>
-        {
-            if (task.Result == ContentDialogResult.Primary)
+            if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(task.Result))
             {
                 ClassIsland.Core.AppBase.Current.Restart();
             }

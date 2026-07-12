@@ -227,7 +227,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         };
 
         _startSecondBox.TextChanged += (s, e) => UpdateSettingsValue();
-        _startSecondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(_startSecondBox);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_startSecondBox, (s, e) => ValidateAndFormatTextBox(_startSecondBox));
 
         var scrollViewer = new ScrollViewer
         {

@@ -113,26 +113,26 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
         Grid.SetColumn(_longitudeTextBox, 1);
-        _longitudeTextBox.LostFocus += OnLongitudeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
         longitudeRow.Children.Add(_longitudeTextBox);
 
         _longitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
         Grid.SetColumn(_longitudeDmsPanel, 1);
 
         _longitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        _longitudeDmsDegreesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsDegreesTextBox);
         _dmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsDegreeSymbol);
 
         _longitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        _longitudeDmsMinutesTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsMinutesTextBox);
         _dmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsMinuteSymbol);
 
         _longitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        _longitudeDmsSecondsTextBox.LostFocus += OnLongitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
         _longitudeDmsPanel.Children.Add(_longitudeDmsSecondsTextBox);
         _dmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
         _longitudeDmsPanel.Children.Add(_dmsSecondSymbol);
@@ -157,26 +157,26 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _latitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
         Grid.SetColumn(_latitudeTextBox, 1);
-        _latitudeTextBox.LostFocus += OnLatitudeLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeTextBox, OnLatitudeLostFocus);
         latitudeRow.Children.Add(_latitudeTextBox);
 
         _latitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
         Grid.SetColumn(_latitudeDmsPanel, 1);
 
         _latitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        _latitudeDmsDegreesTextBox.LostFocus += OnLatitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsDegreesTextBox, OnLatitudeDmsValueChanged);
         _latitudeDmsPanel.Children.Add(_latitudeDmsDegreesTextBox);
         _latDmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
         _latitudeDmsPanel.Children.Add(_latDmsDegreeSymbol);
 
         _latitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        _latitudeDmsMinutesTextBox.LostFocus += OnLatitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsMinutesTextBox, OnLatitudeDmsValueChanged);
         _latitudeDmsPanel.Children.Add(_latitudeDmsMinutesTextBox);
         _latDmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
         _latitudeDmsPanel.Children.Add(_latDmsMinuteSymbol);
 
         _latitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        _latitudeDmsSecondsTextBox.LostFocus += OnLatitudeDmsValueChanged;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsSecondsTextBox, OnLatitudeDmsValueChanged);
         _latitudeDmsPanel.Children.Add(_latitudeDmsSecondsTextBox);
         _latDmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
         _latitudeDmsPanel.Children.Add(_latDmsSecondSymbol);
@@ -258,12 +258,12 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _sunriseLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
         Grid.SetColumn(_sunriseLabelColorTextBox, 1);
-        _sunriseLabelColorTextBox.LostFocus += (s, e) => OnColorLostFocus(_sunriseLabelColorTextBox, nameof(Settings.SunriseLabelFontColor));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelColorTextBox, (s, e) => OnColorLostFocus(_sunriseLabelColorTextBox, nameof(Settings.SunriseLabelFontColor)));
         sunriseLabelRow.Children.Add(_sunriseLabelColorTextBox);
 
         _sunriseLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
         Grid.SetColumn(_sunriseLabelSizeTextBox, 3);
-        _sunriseLabelSizeTextBox.LostFocus += (s, e) => OnFontSizeLostFocus(_sunriseLabelSizeTextBox, nameof(Settings.SunriseLabelFontSize));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseLabelSizeTextBox, nameof(Settings.SunriseLabelFontSize)));
         sunriseLabelRow.Children.Add(_sunriseLabelSizeTextBox);
         sp.Children.Add(sunriseLabelRow);
 
@@ -279,12 +279,12 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _sunriseTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
         Grid.SetColumn(_sunriseTimeColorTextBox, 1);
-        _sunriseTimeColorTextBox.LostFocus += (s, e) => OnColorLostFocus(_sunriseTimeColorTextBox, nameof(Settings.SunriseTimeFontColor));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeColorTextBox, (s, e) => OnColorLostFocus(_sunriseTimeColorTextBox, nameof(Settings.SunriseTimeFontColor)));
         sunriseTimeRow.Children.Add(_sunriseTimeColorTextBox);
 
         _sunriseTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
         Grid.SetColumn(_sunriseTimeSizeTextBox, 3);
-        _sunriseTimeSizeTextBox.LostFocus += (s, e) => OnFontSizeLostFocus(_sunriseTimeSizeTextBox, nameof(Settings.SunriseTimeFontSize));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseTimeSizeTextBox, nameof(Settings.SunriseTimeFontSize)));
         sunriseTimeRow.Children.Add(_sunriseTimeSizeTextBox);
         sp.Children.Add(sunriseTimeRow);
 
@@ -300,12 +300,12 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _sunsetLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
         Grid.SetColumn(_sunsetLabelColorTextBox, 1);
-        _sunsetLabelColorTextBox.LostFocus += (s, e) => OnColorLostFocus(_sunsetLabelColorTextBox, nameof(Settings.SunsetLabelFontColor));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelColorTextBox, (s, e) => OnColorLostFocus(_sunsetLabelColorTextBox, nameof(Settings.SunsetLabelFontColor)));
         sunsetLabelRow.Children.Add(_sunsetLabelColorTextBox);
 
         _sunsetLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
         Grid.SetColumn(_sunsetLabelSizeTextBox, 3);
-        _sunsetLabelSizeTextBox.LostFocus += (s, e) => OnFontSizeLostFocus(_sunsetLabelSizeTextBox, nameof(Settings.SunsetLabelFontSize));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetLabelSizeTextBox, nameof(Settings.SunsetLabelFontSize)));
         sunsetLabelRow.Children.Add(_sunsetLabelSizeTextBox);
         sp.Children.Add(sunsetLabelRow);
 
@@ -321,12 +321,12 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         _sunsetTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
         Grid.SetColumn(_sunsetTimeColorTextBox, 1);
-        _sunsetTimeColorTextBox.LostFocus += (s, e) => OnColorLostFocus(_sunsetTimeColorTextBox, nameof(Settings.SunsetTimeFontColor));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeColorTextBox, (s, e) => OnColorLostFocus(_sunsetTimeColorTextBox, nameof(Settings.SunsetTimeFontColor)));
         sunsetTimeRow.Children.Add(_sunsetTimeColorTextBox);
 
         _sunsetTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
         Grid.SetColumn(_sunsetTimeSizeTextBox, 3);
-        _sunsetTimeSizeTextBox.LostFocus += (s, e) => OnFontSizeLostFocus(_sunsetTimeSizeTextBox, nameof(Settings.SunsetTimeFontSize));
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetTimeSizeTextBox, nameof(Settings.SunsetTimeFontSize)));
         sunsetTimeRow.Children.Add(_sunsetTimeSizeTextBox);
         sp.Children.Add(sunsetTimeRow);
 

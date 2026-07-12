@@ -676,7 +676,7 @@ public class TimeCalculatorPage : UserControl
             Watermark = "年"
         };
         yearTextBox = ytb;
-        ytb.LostFocus += OnYearTextBoxLostFocus;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, OnYearTextBoxLostFocus);
 
         var mcb = new ComboBox
         {
@@ -702,7 +702,7 @@ public class TimeCalculatorPage : UserControl
         }
         dayComboBox = dcb;
 
-        ytb.LostFocus += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, (s, e) => UpdateDayComboBox(ytb, mcb, dcb));
         mcb.SelectionChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
 
         datePanel.Children.Add(ytb);

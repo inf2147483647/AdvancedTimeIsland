@@ -11,7 +11,7 @@ using AdvancedTimeIsland.Models;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-using FluentAvalonia.UI.Controls;
+
 using Markdig;
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -72,14 +72,12 @@ public class HanfuPage : SettingsPageBase
 
         if (_pluginSettings == null || !_pluginSettings.EnableExperimentalFeatures)
         {
-            var warningBar = new InfoBar
-            {
-                Severity = InfoBarSeverity.Warning,
-                Message = "此页面为实验性功能，需要在插件设置中启用实验性功能才能查看完整内容。",
-                IsOpen = true,
-                IsClosable = false,
-                Margin = new Thickness(16, 16, 16, 0)
-            };
+            var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "此页面为实验性功能，需要在插件设置中启用实验性功能才能查看完整内容。");
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
             mainPanel.Children.Add(warningBar);
             scrollViewer.Content = mainPanel;
             Content = scrollViewer;
