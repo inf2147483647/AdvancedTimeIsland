@@ -3,5 +3,8 @@
 注意:1. 若无特殊解释,unix时间戳单位为秒
 
 1. 若无特殊解释,全部功能都需要使用异步操作,避免阻塞UI线程造成卡顿
-2. 必要时可前往D:\temp\ClassIsland查看源代码
+2. 必要时可前往D:\temp\ClassIsland查看源代码（或C:\Users\Administrator\citemp\ClassIsland）
+3. 所有主界面控件都需要随主题深浅自适应
+4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)和2.x版本
+5. 除了汉服的子页面之外其他新增页面都需要在plugin.cs中注册
 
