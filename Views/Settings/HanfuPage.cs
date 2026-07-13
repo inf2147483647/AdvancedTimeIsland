@@ -10,7 +10,9 @@ using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Enums.SettingsWindow;
+using ClassIsland.Shared;
 
 using Markdig;
 
@@ -30,6 +32,7 @@ public class HanfuPage : SettingsPageBase
     private Border? _maleTitleTooltipBorder;
     private TextBlock? _maleTitleTooltipTextBlock;
     private TextBlock? _femaleGuideLinkTextBlock;
+    private TextBlock? _mamianQunTitleTextBlock;
 
     public HanfuPage() : this(null)
     {
@@ -365,7 +368,7 @@ public class HanfuPage : SettingsPageBase
         AddParagraph(panel, "袄裙是明代女性最主要的常服形制，与前代襦裙最大区别在于上衣不束入裙内。\"袄\"为夹层或加棉的厚上衣，有交领、立领、方领等多种领型，袖型以琵琶袖最为典型，袖身宽大，袖口收紧。衣长过腰，两侧开衩。下配长裙，整体造型端庄稳重。明代袄裙用料考究，贵族多用妆花缎、织金绸，饰以云肩通袖纹样。立领款式在明中后期流行，既适应小冰河期的寒冷气候，又形成了独特的明代审美标识。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "马面裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddMamianQunTitle(panel);
         AddParagraph(panel, "马面裙是明代女裙的代表形制，因前后有光面裙门（俗称\"马面\"）而得名。裙身共四扇裙门，两两重合，两侧打褶，中间裙门重合形成光面。裙门两侧的褶子大而疏，为活褶。裙腰以白色织物为之，寓意\"白头偕老\"，两侧系带固定。马面裙结构科学，行走便利，兼具美观与实用。裙身常饰有底襕与膝襕，纹样丰富，有花卉、鸟兽、人物等。明代马面裙形制奠定了后世数百年裙装的基础范式。");
         AddParagraph(panel, "");
 
@@ -424,6 +427,28 @@ public class HanfuPage : SettingsPageBase
         panel.Children.Add(textBlock);
     }
 
+    private void AddMamianQunTitle(StackPanel panel)
+    {
+        _mamianQunTitleTextBlock = new TextBlock
+        {
+            Text = "马面裙 ›",
+            FontSize = 16,
+            FontWeight = FontWeight.Bold,
+            Foreground = GetAccentBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            TextDecorations = TextDecorations.Underline
+        };
+        _mamianQunTitleTextBlock.PointerPressed += OnMamianQunTitleClick;
+        panel.Children.Add(_mamianQunTitleTextBlock);
+    }
+
+    private void OnMamianQunTitleClick(object? sender, PointerPressedEventArgs e)
+    {
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQun?ci_keepHistory=true"));
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -475,6 +500,11 @@ public class HanfuPage : SettingsPageBase
         if (_femaleGuideLinkTextBlock != null)
         {
             _femaleGuideLinkTextBlock.Foreground = GetAccentBrush();
+        }
+
+        if (_mamianQunTitleTextBlock != null)
+        {
+            _mamianQunTitleTextBlock.Foreground = GetAccentBrush();
         }
 
         if (_paragraphTextBlocks != null)
