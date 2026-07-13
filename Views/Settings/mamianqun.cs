@@ -16,7 +16,7 @@ using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-[SettingsPageInfo("AdvancedTimeIslandMamianQun", "马面裙", true, SettingsPageCategory.Debug)]
+[SettingsPageInfo("AdvancedTimeIslandMamianQun", "马面裙", true, SettingsPageCategory.Debug)]  // 别问作者为什么先开发这个页面，因为作者也穿马面裙（bushi）
 public class MamianQunPage : SettingsPageBase
 {
     private Border? _contentBorder;
@@ -82,7 +82,7 @@ public class MamianQunPage : SettingsPageBase
 
         _backTextBlock = new TextBlock
         {
-            Text = "‹ 返回汉服",
+            Text = "‹ 返回上一级",
             FontSize = 14,
             Foreground = GetAccentBrush(),
             Cursor = new Cursor(StandardCursorType.Hand),

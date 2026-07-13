@@ -27,12 +27,12 @@ public static class ThemeHelper
 
     public static IBrush GetSubTextBrush()
     {
-        return IsDarkTheme() ? Brushes.LightGray : Brushes.DarkGray;
+        return IsDarkTheme() ? Brushes.LightGray : new SolidColorBrush(Color.Parse("#222222"));
     }
 
     public static string GetSubTextColorHex()
     {
-        return IsDarkTheme() ? "#D3D3D3" : "#A9A9A9";
+        return IsDarkTheme() ? "#D3D3D3" : "#222222";
     }
 
     public static IBrush GetGrayBrush()

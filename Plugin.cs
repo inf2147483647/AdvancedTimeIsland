@@ -1425,6 +1425,8 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
             services.AddSettingsPage<Views.Settings.HanfuPage>();
             services.AddSettingsPage<Views.Settings.MamianQunPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongPage>();
+            services.AddSettingsPage<Views.Settings.RuQunPage>();
         }
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();

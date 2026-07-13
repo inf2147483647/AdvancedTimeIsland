@@ -6,5 +6,4 @@
 2. 必要时可前往D:\temp\ClassIsland查看源代码（或C:\Users\Administrator\citemp\ClassIsland）
 3. 所有主界面控件都需要随主题深浅自适应
 4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)和2.x版本
-5. 除了汉服的子页面之外其他新增页面都需要在plugin.cs中注册
-
+5. 新增页面都需要在plugin.cs中注册

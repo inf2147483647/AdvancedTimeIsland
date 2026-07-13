@@ -33,6 +33,8 @@ public class HanfuPage : SettingsPageBase
     private TextBlock? _maleTitleTooltipTextBlock;
     private TextBlock? _femaleGuideLinkTextBlock;
     private TextBlock? _mamianQunTitleTextBlock;
+    private TextBlock? _qiXiongTitleTextBlock;
+    private TextBlock? _ruQunTitleTextBlock;
 
     public HanfuPage() : this(null)
     {
@@ -302,7 +304,7 @@ public class HanfuPage : SettingsPageBase
         AddSection(panel, "隋唐时期", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
 
-        AddSection(panel, "齐胸襦裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddQiXiongTitle(panel);
         AddParagraph(panel, "齐胸襦裙是唐代最具辨识度的女服形制。裙腰高束于胸部以上，上襦短小，对襟或交领，下裙宽大曳地。初唐多为交领，盛唐以后对襟款式盛行，领口渐低，可微露胸部。裙身常用六幅以上布料制成，裙摆宽大，行走时摇曳生姿。色彩明艳富丽，以红、绿、黄、紫等高饱和度色彩为主，著名的\"石榴裙\"即为此类。齐胸襦裙完美展现了大唐盛世的开放气度与雍容华贵，是盛唐气象在服饰上的集中体现。");
         AddParagraph(panel, "");
 
@@ -341,7 +343,7 @@ public class HanfuPage : SettingsPageBase
         AddParagraph(panel, "褙子是宋代最具代表性的女性服饰，又称背子。形制为直领对襟，两腋开衩，衣长有过膝与及膝两种，袖型宽窄不一。衣襟、袖口和侧缝处常装饰印金缘饰，时称\"领抹\"。褙子穿着方式灵活，可敞开可系带，既可作为常服外穿，也可作为礼服内衬。其造型简约修长，线条流畅，不事张扬，完美契合宋代程朱理学影响下的素雅审美，体现了宋代女性含蓄内敛、温润端庄的气质。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "襦裙", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddRuQunTitle(panel);
         AddParagraph(panel, "宋代襦裙在唐代基础上趋于收敛简约。上襦多为交领或对襟，衣袖较唐代变窄；下裙腰身回落至正常位置，裙身修长。宋代女裙名目繁多，以\"石榴裙\"\"千褶裙\"\"百迭裙\"最为著名。百迭裙用料六幅至十二幅，周身密打细裥，如诗中所形容\"裙儿细褶如眉皱\"。配色清丽淡雅，多为浅青、淡粉、米白等柔和色调，反映了宋代崇尚质朴雅致的审美风尚。");
         AddParagraph(panel, "");
 
@@ -449,6 +451,50 @@ public class HanfuPage : SettingsPageBase
             .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQun?ci_keepHistory=true"));
     }
 
+    private void AddQiXiongTitle(StackPanel panel)
+    {
+        _qiXiongTitleTextBlock = new TextBlock
+        {
+            Text = "齐胸襦裙 ›",
+            FontSize = 16,
+            FontWeight = FontWeight.Bold,
+            Foreground = GetAccentBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            TextDecorations = TextDecorations.Underline
+        };
+        _qiXiongTitleTextBlock.PointerPressed += OnQiXiongTitleClick;
+        panel.Children.Add(_qiXiongTitleTextBlock);
+    }
+
+    private void OnQiXiongTitleClick(object? sender, PointerPressedEventArgs e)
+    {
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandQiXiong?ci_keepHistory=true"));
+    }
+
+    private void AddRuQunTitle(StackPanel panel)
+    {
+        _ruQunTitleTextBlock = new TextBlock
+        {
+            Text = "襦裙 ›",
+            FontSize = 16,
+            FontWeight = FontWeight.Bold,
+            Foreground = GetAccentBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Cursor = new Cursor(StandardCursorType.Hand),
+            TextDecorations = TextDecorations.Underline
+        };
+        _ruQunTitleTextBlock.PointerPressed += OnRuQunTitleClick;
+        panel.Children.Add(_ruQunTitleTextBlock);
+    }
+
+    private void OnRuQunTitleClick(object? sender, PointerPressedEventArgs e)
+    {
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandRuQun?ci_keepHistory=true"));
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -505,6 +551,16 @@ public class HanfuPage : SettingsPageBase
         if (_mamianQunTitleTextBlock != null)
         {
             _mamianQunTitleTextBlock.Foreground = GetAccentBrush();
+        }
+
+        if (_qiXiongTitleTextBlock != null)
+        {
+            _qiXiongTitleTextBlock.Foreground = GetAccentBrush();
+        }
+
+        if (_ruQunTitleTextBlock != null)
+        {
+            _ruQunTitleTextBlock.Foreground = GetAccentBrush();
         }
 
         if (_paragraphTextBlocks != null)
