@@ -12,7 +12,6 @@ using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -150,11 +149,7 @@ public class QiXiongPage : SettingsPageBase
 
     private void OnBackClick(object? sender, PointerPressedEventArgs e)
     {
-        var frame = this.FindAncestorOfType<Frame>();
-        if (frame != null && frame.CanGoBack)
-        {
-            frame.GoBack();
-        }
+        FluentAvaloniaCompatibilityHelper.NavigateBack(this);
     }
 
     private void AddSection(StackPanel panel, string text, double fontSize, FontWeight fontWeight, IBrush foreground)

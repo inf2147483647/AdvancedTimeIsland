@@ -570,4 +570,77 @@ public static class FluentAvaloniaCompatibilityHelper
 
         return 3;
     }
+
+    public static void NavigateBack(Control control)
+    {
+        if (control == null)
+            return;
+
+        try
+        {
+            var frameType = Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia");
+            if (frameType != null)
+            {
+                var parent = FindVisualParent(control);
+                while (parent != null)
+                {
+                    if (frameType.IsAssignableFrom(parent.GetType()))
+                    {
+                        var canGoBackProp = frameType.GetProperty("CanGoBack");
+                        var canGoBack = (bool?)canGoBackProp?.GetValue(parent) ?? false;
+                        if (canGoBack)
+                        {
+                            var goBackMethod = frameType.GetMethod("GoBack");
+                            goBackMethod?.Invoke(parent, null);
+                        }
+                        return;
+                    }
+
+                    parent = FindVisualParent(parent);
+                }
+            }
+            else
+            {
+                var parent = FindVisualParent(control);
+                while (parent != null)
+                {
+                    var goBackMethod = parent.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                    if (goBackMethod != null)
+                    {
+                        var canGoBackProp = parent.GetType().GetProperty("CanGoBack");
+                        var canGoBack = (bool?)canGoBackProp?.GetValue(parent) ?? true;
+                        if (canGoBack)
+                        {
+                            goBackMethod.Invoke(parent, null);
+                        }
+                        return;
+                    }
+
+                    parent = FindVisualParent(parent);
+                }
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static Avalonia.Visual? FindVisualParent(Avalonia.Visual visual)
+    {
+        if (visual == null)
+            return null;
+
+        var visualParentProperty = visual.GetType().GetProperty("VisualParent");
+        if (visualParentProperty != null)
+        {
+            return visualParentProperty.GetValue(visual) as Avalonia.Visual;
+        }
+
+        if (visual is Avalonia.Controls.Control ctrl)
+        {
+            return ctrl.Parent as Avalonia.Visual;
+        }
+
+        return null;
+    }
 }

@@ -14,7 +14,6 @@ using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
 using ClassIsland.Shared;
-using FluentAvalonia.UI.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -220,11 +219,7 @@ public class RuQunPage : SettingsPageBase
 
     private void OnBackClick(object? sender, PointerPressedEventArgs e)
     {
-        var frame = this.FindAncestorOfType<Frame>();
-        if (frame != null && frame.CanGoBack)
-        {
-            frame.GoBack();
-        }
+        FluentAvaloniaCompatibilityHelper.NavigateBack(this);
     }
 
     private void OnQiXiongLinkClick(object? sender, PointerPressedEventArgs e)
