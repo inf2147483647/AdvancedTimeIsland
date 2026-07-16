@@ -1425,7 +1425,10 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
             services.AddSettingsPage<Views.Settings.HanfuPage>();
             services.AddSettingsPage<Views.Settings.MamianQunCeZhePage>();
+            services.AddSettingsPage<Views.Settings.BeiZiPage>();
             services.AddSettingsPage<Views.Settings.QiXiongPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongTopPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongJiaoYuQunPage>();
             services.AddSettingsPage<Views.Settings.RuQunPage>();
         }
 

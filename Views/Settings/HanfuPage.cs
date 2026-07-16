@@ -54,9 +54,14 @@ public class HanfuPage : SettingsPageBase
         return Brushes.DodgerBlue;
     }
 
+    private TabStrip? _tabStrip;
+    private ScrollViewer? _contentScrollViewer;
+    private Control? _maleContent;
+    private Control? _femaleContent;
+
     private void InitializeComponent()
     {
-        var scrollViewer = new ScrollViewer
+        _contentScrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -79,49 +84,68 @@ public class HanfuPage : SettingsPageBase
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
             mainPanel.Children.Add(warningBar);
-            scrollViewer.Content = mainPanel;
-            Content = scrollViewer;
+            _contentScrollViewer.Content = mainPanel;
+            Content = _contentScrollViewer;
             return;
         }
 
-        var tabControl = new TabControl
+        _maleContent = CreateMaleContent();
+        _femaleContent = CreateFemaleContent();
+
+        _tabStrip = new TabStrip
         {
-            Margin = new Thickness(0),
-            Height = double.NaN
+            Margin = new Thickness(0)
         };
 
-        var maleTab = new TabItem
+        var maleTab = new TabStripItem
         {
-            Header = "男装",
-            Content = CreateMaleContent()
+            Content = "男装"
         };
-        tabControl.Items.Add(maleTab);
+        _tabStrip.Items.Add(maleTab);
 
-        var femaleTab = new TabItem
+        var femaleTab = new TabStripItem
         {
-            Header = "女装",
-            Content = CreateFemaleContent()
+            Content = "女装"
         };
-        tabControl.Items.Add(femaleTab);
+        _tabStrip.Items.Add(femaleTab);
 
-        mainPanel.Children.Add(tabControl);
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
+        _tabStrip.SelectionChanged += OnTabSelectionChanged;
+        _contentScrollViewer.Content = _maleContent;
+
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetRow(_tabStrip, 0);
+        rootGrid.Children.Add(_tabStrip);
+
+        Grid.SetRow(_contentScrollViewer, 1);
+        rootGrid.Children.Add(_contentScrollViewer);
+
+        Content = rootGrid;
+    }
+
+    private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_tabStrip != null && _contentScrollViewer != null)
+        {
+            if (_tabStrip.SelectedIndex == 0)
+            {
+                _contentScrollViewer.Content = _maleContent;
+            }
+            else
+            {
+                _contentScrollViewer.Content = _femaleContent;
+            }
+        }
     }
 
     private Control CreateMaleContent()
     {
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(16)
-        };
-
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(0),
+            Margin = new Thickness(16),
             Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Center
         };
@@ -181,8 +205,7 @@ public class HanfuPage : SettingsPageBase
         };
         panel.Children.Add(_maleDescriptionTextBlock);
 
-        scrollViewer.Content = panel;
-        return scrollViewer;
+        return panel;
     }
 
     private List<Button>? _xingZhiButtons;
@@ -365,6 +388,21 @@ public class HanfuPage : SettingsPageBase
         {
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunCeZhe?ci_keepHistory=true"));
+        }
+        else if (text == "背子 褙子 宋制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandBeiZi?ci_keepHistory=true"));
+        }
+        else if (text == "交窬裙 唐制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandQiXiongJiaoYuQun?ci_keepHistory=true"));
+        }
+        else if (text == "袄 衫 直领 唐制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandQiXiongTop?ci_keepHistory=true"));
         }
     }
 
