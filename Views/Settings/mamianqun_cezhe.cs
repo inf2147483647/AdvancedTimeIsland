@@ -28,6 +28,7 @@ public class MamianQunCeZhePage : SettingsPageBase
     private TextBlock? _douyinLinkTextBlock;
     private TextBlock? _imageCaptionTextBlock;
     private Border? _imageContainer;
+    private TextBlock? _douyinLinkTextBlock2;
 
     public MamianQunCeZhePage()
     {
@@ -293,7 +294,19 @@ public class MamianQunCeZhePage : SettingsPageBase
         AddParagraph(panel, "双交叉法（更显精致）：在身前先交叉一次，再交叉一次，形成紧密的X型纹理，然后绕到身后或侧面系蝴蝶结，正面视觉效果更丰富。");
         AddParagraph(panel, "绕圈再交叉法（适合长系带）：系带从前面交叉绕到后面，再交叉一次回到腰侧，从腰内侧穿出，绕两圈后打结固定，能有效消耗过长的系带。");
         AddParagraph(panel, "隐藏式系法（防臃肿）：打好蝴蝶结后，将蝴蝶结的“耳朵”（线圈）塞进系带下方或裙腰内侧隐藏起来。这样可以保持腰部平整，穿短款上衣或袄子时不会显得腰部臃肿。");
-        AddParagraph(panel, "作者提示：不建议把系带结放在正后方，不然很可能导致系带结压迫脊椎，导致一系列问题！");
+        AddSection(panel, "作者提示：不建议把系带结放在正后方，不然很可能导致系带结压迫脊椎，导致一系列问题！",17, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+
+        _douyinLinkTextBlock2 = new TextBlock
+        {
+            Text = "[抖音]马面裙9系法，主打抠细节，看一遍就会。",
+            FontSize = 14,
+            Foreground = GetAccentBrush(),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            TextDecorations = TextDecorations.Underline,
+            TextWrapping = TextWrapping.Wrap
+        };
+        _douyinLinkTextBlock2.PointerPressed += OnDouyinLinkClick2;
+        panel.Children.Add(_douyinLinkTextBlock2);
         AddParagraph(panel, "");
 
         AddSection(panel, "穿后检查与注意事项", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
@@ -328,7 +341,20 @@ public class MamianQunCeZhePage : SettingsPageBase
         {
         }
     }
-
+    private void OnDouyinLinkClick2(object? sender, PointerPressedEventArgs e)
+    {
+        try
+        {
+            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = "https://www.douyin.com/video/7347524297797143808",
+                UseShellExecute = true
+            });
+        }
+        catch
+        {
+        }
+    }
     private void OnBaiduLinkClick(object? sender, RoutedEventArgs e)
     {
         try
@@ -443,6 +469,9 @@ public class MamianQunCeZhePage : SettingsPageBase
 
         if (_douyinLinkTextBlock != null)
             _douyinLinkTextBlock.Foreground = GetAccentBrush();
+
+        if (_douyinLinkTextBlock2 != null)
+            _douyinLinkTextBlock2.Foreground = GetAccentBrush();
 
         if (_imageCaptionTextBlock != null)
             _imageCaptionTextBlock.Foreground = ThemeHelper.GetTextBrush();
