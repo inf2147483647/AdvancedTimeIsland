@@ -116,7 +116,15 @@ public class EasterEggPage : UserControl
 
 ![图片4](Assets/Images/womenswear_IMG_6892.jpg)
 
-![图片5](Assets/Images/womenswear_IMG_6907.jpg)";
+![图片5](Assets/Images/womenswear_IMG_6907.jpg)
+
+![图片6](Assets/Images/8X9A0022.jpg)
+
+![图片7](Assets/Images/8X9A0031.jpg)
+
+![图片8](Assets/Images/8X9A0484.jpg)
+
+![图片9](Assets/Images/8X9A0488.jpg)";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
