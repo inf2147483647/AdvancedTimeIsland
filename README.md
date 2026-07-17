@@ -4,6 +4,8 @@
 
 ![demo](demo.png)
 
+图片仅供参考
+
 > \[!caution]
 >
 > # 免责声明
