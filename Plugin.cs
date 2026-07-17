@@ -1485,60 +1485,184 @@ public class Plugin : PluginBase
         services.AddAction<Automation.Actions.SyncPluginTimeAction>();
 
         // ========== 新增条件：星座、节气、生肖 ==========
+        if (Settings.EnableXingZuo)
+        {
+            services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
+                "advancedtimeisland.xingzuo",
+                "当前星座是",
+                "\uE120",
+                settings =>
+                {
+                    if (settings is not XingZuoRuleSettings s)
+                        return false;
 
-        services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
-            "advancedtimeisland.xingzuo",
-            "当前星座是",
-            "\uE120",
-            settings =>
-            {
-                if (settings is not XingZuoRuleSettings s)
-                    return false;
+                    if (string.IsNullOrWhiteSpace(s.TargetXingZuo))
+                        return false;
 
-                if (string.IsNullOrWhiteSpace(s.TargetXingZuo))
-                    return false;
+                    var now = GetCurrentTime();
+                    var currentXingZuo = LunarHelper.GetXingZuo(now);
+                    return currentXingZuo == s.TargetXingZuo;
+                }
+            );
+        }
 
-                var now = GetCurrentTime();
-                var currentXingZuo = LunarHelper.GetXingZuo(now);
-                return currentXingZuo == s.TargetXingZuo;
-            }
-        );
+        if (Settings.EnableJieQi)
+        {
+            services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
+                "advancedtimeisland.jieqi",
+                "当前节气是",
+                "\uE123",
+                settings =>
+                {
+                    if (settings is not JieQiRuleSettings s)
+                        return false;
 
-        services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
-            "advancedtimeisland.jieqi",
-            "当前节气是",
-            "\uE123",
-            settings =>
-            {
-                if (settings is not JieQiRuleSettings s)
-                    return false;
+                    if (string.IsNullOrWhiteSpace(s.TargetJieQi))
+                        return false;
 
-                if (string.IsNullOrWhiteSpace(s.TargetJieQi))
-                    return false;
+                    var now = GetCurrentTime();
+                    var currentJieQi = LunarHelper.GetJieQi(now);
+                    return currentJieQi == s.TargetJieQi;
+                }
+            );
+        }
 
-                var now = GetCurrentTime();
-                var currentJieQi = LunarHelper.GetJieQi(now);
-                return currentJieQi == s.TargetJieQi;
-            }
-        );
+        if (Settings.EnableShengXiao)
+        {
+            services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
+                "advancedtimeisland.shengxiao",
+                "当前生肖是",
+                "\uE124",
+                settings =>
+                {
+                    if (settings is not ShengXiaoRuleSettings s)
+                        return false;
 
-        services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
-            "advancedtimeisland.shengxiao",
-            "当前生肖是",
-            "\uE124",
-            settings =>
-            {
-                if (settings is not ShengXiaoRuleSettings s)
-                    return false;
+                    if (string.IsNullOrWhiteSpace(s.TargetShengXiao))
+                        return false;
 
-                if (string.IsNullOrWhiteSpace(s.TargetShengXiao))
-                    return false;
+                    var now = GetCurrentTime();
+                    var currentShengXiao = LunarHelper.GetCurrentShengXiao(now);
+                    return currentShengXiao == s.TargetShengXiao;
+                }
+            );
+        }
 
-                var now = GetCurrentTime();
-                var currentShengXiao = LunarHelper.GetCurrentShengXiao(now);
-                return currentShengXiao == s.TargetShengXiao;
-            }
-        );
+        if (Settings.EnableFestival)
+        {
+            services.AddRule<FestivalRuleSettings, FestivalRuleSettingsControl>(
+                "advancedtimeisland.festival",
+                "当前节日是",
+                "\uE125",
+                settings =>
+                {
+                    if (settings is not FestivalRuleSettings s)
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(s.TargetFestival))
+                        return false;
+
+                    var now = GetCurrentTime();
+                    var currentFestival = GetCurrentFestival(now);
+                    return s.TargetFestival.StartsWith(currentFestival + " ");
+                }
+            );
+        }
+    }
+
+    private string GetCurrentFestival(DateTime date)
+    {
+        var festivals = new List<(string Name, DateTime Date)>();
+
+        // 国际节日
+        festivals.Add(("元旦", new DateTime(date.Year, 1, 1)));
+        festivals.Add(("妇女节", new DateTime(date.Year, 3, 8)));
+        festivals.Add(("植树节", new DateTime(date.Year, 3, 12)));
+        festivals.Add(("劳动节", new DateTime(date.Year, 5, 1)));
+        festivals.Add(("儿童节", new DateTime(date.Year, 6, 1)));
+        festivals.Add(("教师节", new DateTime(date.Year, 9, 10)));
+        festivals.Add(("清明节", GetQingMingDate(date.Year)));
+        festivals.Add(("冬至", GetDongZhiDate(date.Year)));
+
+        // 中国传统节日（农历）
+        var solar = Lunar.Solar.FromDate(date);
+        var lunarYear = solar.Lunar.Year;
+        festivals.Add(("春节", LunarToSolar(lunarYear, 1, 1)));
+        festivals.Add(("元宵节", LunarToSolar(lunarYear, 1, 15)));
+        festivals.Add(("寒食节", GetQingMingDate(date.Year).AddDays(-1)));
+        festivals.Add(("端午节", LunarToSolar(lunarYear, 5, 5)));
+        festivals.Add(("七夕节", LunarToSolar(lunarYear, 7, 7)));
+        festivals.Add(("中元节", LunarToSolar(lunarYear, 7, 15)));
+        festivals.Add(("中秋节", LunarToSolar(lunarYear, 8, 15)));
+        festivals.Add(("重阳节", LunarToSolar(lunarYear, 9, 9)));
+        festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
+        festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
+        festivals.Add(("除夕", GetChuXiDate(lunarYear)));
+
+        // 红色节日
+        festivals.Add(("二七纪念日", new DateTime(date.Year, 2, 7)));
+        festivals.Add(("学雷锋纪念日", new DateTime(date.Year, 3, 5)));
+        festivals.Add(("五四青年节", new DateTime(date.Year, 5, 4)));
+        festivals.Add(("七一建党节", new DateTime(date.Year, 7, 1)));
+        festivals.Add(("八一建军节", new DateTime(date.Year, 8, 1)));
+        festivals.Add(("中国人民抗日战争胜利纪念日", new DateTime(date.Year, 9, 3)));
+        festivals.Add(("九一八事变纪念日", new DateTime(date.Year, 9, 18)));
+        festivals.Add(("烈士纪念日", new DateTime(date.Year, 9, 30)));
+        festivals.Add(("十一国庆节", new DateTime(date.Year, 10, 1)));
+        festivals.Add(("中国工农红军长征胜利纪念日", new DateTime(date.Year, 10, 22)));
+        festivals.Add(("南京大屠杀死难者国家公祭日", new DateTime(date.Year, 12, 13)));
+
+        var currentDate = date.Date;
+        var matchedFestival = festivals.FirstOrDefault(f => f.Date.Date == currentDate);
+        return matchedFestival.Name;
+    }
+
+    private DateTime GetQingMingDate(int year)
+    {
+        var solar = Lunar.Solar.FromYmdHms(year, 4, 4);
+        var jieQi = solar.Lunar.JieQi;
+        if (jieQi == "清明") return new DateTime(year, 4, 4);
+        return new DateTime(year, 4, 5);
+    }
+
+    private DateTime GetDongZhiDate(int year)
+    {
+        var solar = Lunar.Solar.FromYmdHms(year, 12, 21);
+        var jieQi = solar.Lunar.JieQi;
+        if (jieQi == "冬至") return new DateTime(year, 12, 21);
+        solar = Lunar.Solar.FromYmdHms(year, 12, 22);
+        jieQi = solar.Lunar.JieQi;
+        if (jieQi == "冬至") return new DateTime(year, 12, 22);
+        return new DateTime(year, 12, 23);
+    }
+
+    private DateTime LunarToSolar(int lunarYear, int lunarMonth, int lunarDay)
+    {
+        try
+        {
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, lunarMonth, lunarDay);
+            var solar = lunar.Solar;
+            return new DateTime(solar.Year, solar.Month, solar.Day);
+        }
+        catch
+        {
+            return DateTime.MaxValue;
+        }
+    }
+
+    private DateTime GetChuXiDate(int lunarYear)
+    {
+        try
+        {
+            var nextYearLunar = Lunar.Lunar.FromYmdHms(lunarYear + 1, 1, 1);
+            var nextYearSolar = nextYearLunar.Solar;
+            var nextYearDate = new DateTime(nextYearSolar.Year, nextYearSolar.Month, nextYearSolar.Day);
+            return nextYearDate.AddDays(-1);
+        }
+        catch
+        {
+            return DateTime.MaxValue;
+        }
     }
 }
 
