@@ -152,8 +152,9 @@ public class AboutPage : SettingsPageBase
         try
         {
             var baseDir = AppContext.BaseDirectory;
-            var fullPath = System.IO.Path.Combine(baseDir, "Assets", "icon", "icon.png");
-            
+            // 直接复用 manifest 引用的根目录 icon.png，避免在包内保留重复副本以减小安装包体积
+            var fullPath = System.IO.Path.Combine(baseDir, "icon.png");
+
             if (System.IO.File.Exists(fullPath))
             {
                 var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
@@ -165,7 +166,7 @@ public class AboutPage : SettingsPageBase
                 var pluginDir = System.IO.Path.GetDirectoryName(assemblyLocation);
                 if (!string.IsNullOrEmpty(pluginDir))
                 {
-                    fullPath = System.IO.Path.Combine(pluginDir, "Assets", "icon", "icon.png");
+                    fullPath = System.IO.Path.Combine(pluginDir, "icon.png");
                     if (System.IO.File.Exists(fullPath))
                     {
                         var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);

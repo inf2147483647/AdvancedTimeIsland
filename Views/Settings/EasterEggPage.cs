@@ -1,10 +1,13 @@
 using System;
 using System.IO;
+using System.Net.Http;
 using System.Reflection;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -108,23 +111,23 @@ public class EasterEggPage : UserControl
         // Markdown 内容
         var markdownContent = @"## 图片展示
 
-![图片1](Assets/Images/womenswear_IMG_6868.jpg)
+![图片1](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6868.jpg)
 
-![图片2](Assets/Images/womenswear_IMG_6871.jpg)
+![图片2](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6871.jpg)
 
-![图片3](Assets/Images/womenswear_IMG_6880.jpg)
+![图片3](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6880.jpg)
 
-![图片4](Assets/Images/womenswear_IMG_6892.jpg)
+![图片4](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6892.jpg)
 
-![图片5](Assets/Images/womenswear_IMG_6907.jpg)
+![图片5](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6907.jpg)
 
-![图片6](Assets/Images/8X9A0022.jpg)
+![图片6](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0022.jpg)
 
-![图片7](Assets/Images/8X9A0031.jpg)
+![图片7](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0031.jpg)
 
-![图片8](Assets/Images/8X9A0484.jpg)
+![图片8](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0484.jpg)
 
-![图片9](Assets/Images/8X9A0488.jpg)";
+![图片9](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0488.jpg)";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
@@ -419,8 +422,8 @@ public class EasterEggPage : UserControl
         if (startBracket < 0 || endBracket <= startBracket || startParen <= endBracket || endParen <= startParen)
             return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = ThemeHelper.GetGrayBrush() };
 
-        var assetPath = line.Substring(startParen + 1, endParen - startParen - 1);
-        if (string.IsNullOrWhiteSpace(assetPath))
+        var url = line.Substring(startParen + 1, endParen - startParen - 1);
+        if (string.IsNullOrWhiteSpace(url))
             return new TextBlock { Text = "[无效图片]", FontSize = 13, Foreground = ThemeHelper.GetGrayBrush() };
 
         var image = new Image
@@ -429,9 +432,41 @@ public class EasterEggPage : UserControl
             Margin = new Thickness(0, 4, 0, 4)
         };
 
+        var errorPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            Margin = new Thickness(16)
+        };
+
+        var errorText = new TextBlock
+        {
+            Text = "图片加载失败",
+            FontSize = 13,
+            Foreground = Brushes.Red,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        errorPanel.Children.Add(errorText);
+
+        var retryButton = new Button
+        {
+            Content = "重试",
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Padding = new Thickness(12, 6),
+            FontSize = 12
+        };
+        errorPanel.Children.Add(retryButton);
+
+        var grid = new Grid();
+        grid.Children.Add(image);
+        grid.Children.Add(errorPanel);
+
         var container = new Border
         {
-            Child = image,
+            Child = grid,
             HorizontalAlignment = HorizontalAlignment.Center,
             Width = 0
         };
@@ -445,37 +480,63 @@ public class EasterEggPage : UserControl
             }
         };
 
-        LoadLocalImage(assetPath, image);
+        async void RetryHandler(object? sender, RoutedEventArgs args)
+        {
+            retryButton.IsEnabled = false;
+            retryButton.Content = "加载中...";
+            errorPanel.IsVisible = false;
+            await LoadRemoteImageWithRetry(url, image, errorPanel, retryButton);
+        }
+
+        retryButton.Click += RetryHandler;
+
+        LoadRemoteImageWithRetry(url, image, errorPanel, retryButton);
 
         return container;
     }
 
-    private void LoadLocalImage(string assetPath, Image imageControl)
+    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, Button retryButton)
     {
         try
         {
-            var assemblyLocation = Assembly.GetExecutingAssembly().Location;
-            var pluginDir = Path.GetDirectoryName(assemblyLocation);
-            if (string.IsNullOrEmpty(pluginDir))
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var cachePath = Path.Combine(cacheDir, fileName);
+
+            if (File.Exists(cachePath))
             {
-                imageControl.Source = null;
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
+                imageControl.Source = bitmap;
                 return;
             }
 
-            var fullPath = Path.Combine(pluginDir, assetPath);
-            if (File.Exists(fullPath))
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+
+            using var ms = new MemoryStream(bytes);
+            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
+            imageControl.Source = bitmap2;
+
+            await Task.Run(() =>
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
-                imageControl.Source = bitmap;
-            }
-            else
-            {
-                imageControl.Source = null;
-            }
+                Directory.CreateDirectory(cacheDir);
+                var tempPath = Path.Combine(cacheDir, Guid.NewGuid().ToString() + ".tmp");
+                File.WriteAllBytes(tempPath, bytes);
+                if (File.Exists(cachePath))
+                    File.Delete(cachePath);
+                File.Move(tempPath, cachePath);
+            });
         }
         catch
         {
             imageControl.Source = null;
+            errorPanel.IsVisible = true;
+            retryButton.IsEnabled = true;
+            retryButton.Content = "重试";
         }
     }
 

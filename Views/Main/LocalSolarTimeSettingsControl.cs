@@ -333,31 +333,9 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
     private async Task<double?> GetLocationAsync()
     {
-        try
-        {
-            var accessStatus = await Windows.Devices.Geolocation.Geolocator.RequestAccessAsync();
-            
-            if (accessStatus == Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
-            {
-                var geolocator = new Windows.Devices.Geolocation.Geolocator
-                {
-                    DesiredAccuracy = Windows.Devices.Geolocation.PositionAccuracy.Default
-                };
-                
-                var position = await geolocator.GetGeopositionAsync();
-                
-                if (position?.Coordinate?.Point?.Position != null)
-                {
-                    return position.Coordinate.Point.Position.Longitude;
-                }
-            }
-            
-            return null;
-        }
-        catch (Exception)
-        {
-            return await GetLocationByIpAsync();
-        }
+        // 直接使用基于 IP 的定位，避免引入 WinRT/Windows SDK 依赖（可显著减小安装包体积）
+        // 精度为城市级，对本地真太阳时计算已足够
+        return await GetLocationByIpAsync();
     }
 
     private async Task<double?> GetLocationByIpAsync()

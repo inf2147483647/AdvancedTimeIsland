@@ -655,31 +655,9 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
     private async Task<(double Latitude, double Longitude)?> GetLocationAsync()
     {
-        try
-        {
-            var accessStatus = await Windows.Devices.Geolocation.Geolocator.RequestAccessAsync();
-
-            if (accessStatus == Windows.Devices.Geolocation.GeolocationAccessStatus.Allowed)
-            {
-                var geolocator = new Windows.Devices.Geolocation.Geolocator
-                {
-                    DesiredAccuracy = Windows.Devices.Geolocation.PositionAccuracy.Default
-                };
-
-                var position = await geolocator.GetGeopositionAsync();
-
-                if (position?.Coordinate?.Point?.Position != null)
-                {
-                    return (position.Coordinate.Point.Position.Latitude, position.Coordinate.Point.Position.Longitude);
-                }
-            }
-
-            return await GetLocationByIpAsync();
-        }
-        catch (Exception)
-        {
-            return await GetLocationByIpAsync();
-        }
+        // 直接使用基于 IP 的定位，避免引入 WinRT/Windows SDK 依赖（可显著减小安装包体积）
+        // 精度为城市级，对日出日落计算已足够（每 17km 经度差异约 1 分钟）
+        return await GetLocationByIpAsync();
     }
 
     private async Task<(double Latitude, double Longitude)?> GetLocationByIpAsync()

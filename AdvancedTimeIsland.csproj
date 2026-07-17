@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0-windows10.0.19041.0</TargetFramework>
+        <TargetFramework>net8.0-windows</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -11,6 +11,11 @@
 
     <PropertyGroup>
         <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
     </PropertyGroup>
 
     <ItemGroup>
@@ -50,12 +55,6 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Include="Assets\Images\**\*">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
-      <None Include="Assets\icon\**\*">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
       <None Include="Assets\hanfupage\**\*">
         <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
       </None>
