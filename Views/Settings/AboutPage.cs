@@ -316,7 +316,7 @@ public class AboutPage : SettingsPageBase
 
         var versionText = new TextBlock
         {
-            Text = "版本：1.0.2.0",
+            Text = "版本：1.0.2.1",
             FontSize = 14,
             Foreground = ThemeHelper.GetTextBrush()
         };
