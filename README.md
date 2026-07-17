@@ -179,7 +179,13 @@
 - [ ] 重新设计UI
 - [ ] 新增桌面时间表悬浮窗（置底）
 - [ ] 开发CI 1.7版
-- [ ] 管理启用的功能（issue #1）
+- [X] 管理启用的功能（issue #1）
 - [ ] 就先镇多吧，插件上架后以优化为主，欢迎issue，优化使用体验；一下子吃很多消化不了
+
+# 受[1312333/ClassIsland-TimeOfDayTrigger](https://github.com/1312333/ClassIsland-TimeOfDayTrigger) 启发
+
+- [ ] 多时间点支持：单个触发器可添加任意多个时间点，无需重复创建多条自动化规则
+- [ ] 触发日志统计：完整记录每次触发的时间、状态与详情，支持统计查看、一键清空
+
 
 本项目基于 GNU Lesser General Public License v3.0 获得许可

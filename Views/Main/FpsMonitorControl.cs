@@ -1,5 +1,4 @@
 using System;
-using System.Threading.Tasks;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
@@ -9,7 +8,6 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Rendering;
 using Avalonia.Styling;
-using Avalonia.Threading;
 using Avalonia.VisualTree;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
@@ -41,9 +39,11 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     private double _lastFrameTimestamp;
     private double _currentFps;
     private bool _isEnabled;
-    private bool _isInDialogFlow;
     private TopLevel? _topLevel;
     private IDisposable? _renderTimerSubscription;
+    private double _currentSecondStartTimestamp;
+    private int _currentSecondFrameCount;
+    private int _lastReportedFrameCount;
 
     public FpsMonitorControl()
     {
@@ -181,131 +181,40 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     {
         try
         {
+            _currentSecondFrameCount++;
+
             if (_lastFrameTimestamp > 0)
             {
                 var deltaSeconds = timestamp - _lastFrameTimestamp;
                 if (deltaSeconds > 0)
                 {
                     _currentFps = 1.0 / deltaSeconds;
-                    vm?.UpdateFps(_currentFps);
+
+                    if (_currentSecondStartTimestamp == 0)
+                    {
+                        _currentSecondStartTimestamp = timestamp;
+                    }
+                    else if (timestamp - _currentSecondStartTimestamp >= 1.0)
+                    {
+                        _lastReportedFrameCount = _currentSecondFrameCount;
+                        _currentSecondStartTimestamp = timestamp;
+                        _currentSecondFrameCount = 0;
+                    }
+
+                    vm?.UpdateFps(_currentFps, _lastReportedFrameCount);
                 }
+            }
+            else
+            {
+                _currentSecondStartTimestamp = timestamp;
+                _currentSecondFrameCount = 0;
+                _lastReportedFrameCount = 0;
             }
 
             _lastFrameTimestamp = timestamp;
         }
         catch (Exception)
         {
-        }
-    }
-
-    private async Task<bool> ShowEpilepsyWarningDialogAsync()
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return false;
-
-        var contentPanel = new StackPanel();
-
-        var warningTextBlock = new TextBlock
-        {
-            Text = "有极少数的人在观看一些视觉影像时可能会突然癫痫发作，这些影像包括快速改变的数字或图形。在使用此组件时，这些人可能会出现癫痫症状。甚至连不具有癫痫史的人，也可能在查看此组件时出现类似癫痫症状。\n\n" +
-                   "如果您或您的家人有癫痫史，请在添加此组件之前先与医生咨询。如果您在使用此组件时出现以下症状，包括眼睛疼痛、视觉异常、偏头痛、痉挛或意识障碍（诸如昏迷）等，请立即中止使用，并且请您于再次使用此组件之前咨询您的医生。\n\n" +
-                   "除上述症状外，当您感到头痛、头晕眼花、恶心想吐或类似晕车症状时，以及当身体的某些部位感到不舒服或疼痛时，请立即中止使用。若在中止使用后，症状仍没有减退，请立即寻求医生的诊疗。",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap,
-            Padding = new Thickness(12)
-        };
-        contentPanel.Children.Add(warningTextBlock);
-
-        var countDownTextBlock = new TextBlock
-        {
-            FontSize = 12,
-            Foreground = Brushes.Gray,
-            Margin = new Thickness(0, 8, 0, 0),
-            Text = "请阅读以上内容，确定按钮将在15秒后可用..."
-        };
-        contentPanel.Children.Add(countDownTextBlock);
-
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "警告：使用前详阅");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", contentPanel);
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定（15）");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "IsPrimaryButtonEnabled", false);
-
-        _ = Task.Run(async () =>
-        {
-            for (int i = 15; i >= 0; i--)
-            {
-                await Task.Delay(1000);
-                await Dispatcher.UIThread.InvokeAsync(() =>
-                {
-                    if (i > 0)
-                    {
-                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", $"确定（{i}）");
-                    }
-                    else
-                    {
-                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-                        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "IsPrimaryButtonEnabled", true);
-                    }
-                });
-            }
-        });
-
-        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)!);
-        return FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
-    }
-
-    private async Task<bool> ShowDebugWarningDialogAsync(int count)
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return false;
-
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "警告");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
-        {
-            Text = "此组件仅供调试，严禁用于教学环境！！！",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap,
-            Padding = new Thickness(12)
-        });
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
-
-        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
-        return FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
-    }
-
-    private async void StartEnableFlow()
-    {
-        if (_isInDialogFlow) return;
-        _isInDialogFlow = true;
-
-        try
-        {
-            bool epilepsyAccepted = await ShowEpilepsyWarningDialogAsync();
-            if (!epilepsyAccepted)
-            {
-                Settings.EnableComponent = false;
-                return;
-            }
-
-            for (int i = 0; i < 3; i++)
-            {
-                bool debugAccepted = await ShowDebugWarningDialogAsync(i + 1);
-                if (!debugAccepted)
-                {
-                    Settings.EnableComponent = false;
-                    return;
-                }
-            }
-
-            EnableComponent();
-        }
-        finally
-        {
-            _isInDialogFlow = false;
         }
     }
 
@@ -330,6 +239,9 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
         _topLevel = TopLevel.GetTopLevel(this);
         _lastFrameTimestamp = 0;
+        _currentSecondStartTimestamp = 0;
+        _currentSecondFrameCount = 0;
+        _lastReportedFrameCount = 0;
 
         if (_topLevel != null)
         {
@@ -380,7 +292,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
         if (Settings.EnableComponent)
         {
-            StartEnableFlow();
+            EnableComponent();
         }
 
         Settings.PropertyChanged += OnSettingsPropertyChanged;
@@ -390,9 +302,9 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     {
         if (e.PropertyName == nameof(FpsMonitorSettings.EnableComponent))
         {
-            if (Settings.EnableComponent && !_isEnabled && !_isInDialogFlow)
+            if (Settings.EnableComponent && !_isEnabled)
             {
-                StartEnableFlow();
+                EnableComponent();
             }
             else if (!Settings.EnableComponent && _isEnabled)
             {

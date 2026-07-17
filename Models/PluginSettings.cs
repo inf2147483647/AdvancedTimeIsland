@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -31,15 +31,140 @@ public class PluginSettings : INotifyPropertyChanged
     private string? _lastSyncStatus;
     private string? _lastSyncSource;
     private bool _enableExperimentalFeatures = false;
+    private bool _enableLunarCalendar = true;
+    private bool _enableLocalSolarTime = true;
+    private bool _enableTimeZoneTime = true;
+    private bool _enableXingZuo = true;
+    private bool _enableJieQi = true;
+    private bool _enableDayYiJi = true;
+    private bool _enableShengXiao = true;
+    private bool _enableFestival = true;
 
     /// <summary>
-    /// 是否启用农历功能（始终启用）
+    /// 是否启用农历功能
     /// </summary>
     public bool EnableLunarCalendar
     {
-        get => true;
+        get => _enableLunarCalendar;
         set
         {
+            if (_enableLunarCalendar != value)
+            {
+                _enableLunarCalendar = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用地方时功能
+    /// </summary>
+    public bool EnableLocalSolarTime
+    {
+        get => _enableLocalSolarTime;
+        set
+        {
+            if (_enableLocalSolarTime != value)
+            {
+                _enableLocalSolarTime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用区时功能
+    /// </summary>
+    public bool EnableTimeZoneTime
+    {
+        get => _enableTimeZoneTime;
+        set
+        {
+            if (_enableTimeZoneTime != value)
+            {
+                _enableTimeZoneTime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用星座功能
+    /// </summary>
+    public bool EnableXingZuo
+    {
+        get => _enableXingZuo;
+        set
+        {
+            if (_enableXingZuo != value)
+            {
+                _enableXingZuo = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用节气功能
+    /// </summary>
+    public bool EnableJieQi
+    {
+        get => _enableJieQi;
+        set
+        {
+            if (_enableJieQi != value)
+            {
+                _enableJieQi = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用宜忌功能
+    /// </summary>
+    public bool EnableDayYiJi
+    {
+        get => _enableDayYiJi;
+        set
+        {
+            if (_enableDayYiJi != value)
+            {
+                _enableDayYiJi = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用生肖功能
+    /// </summary>
+    public bool EnableShengXiao
+    {
+        get => _enableShengXiao;
+        set
+        {
+            if (_enableShengXiao != value)
+            {
+                _enableShengXiao = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用节日功能
+    /// </summary>
+    public bool EnableFestival
+    {
+        get => _enableFestival;
+        set
+        {
+            if (_enableFestival != value)
+            {
+                _enableFestival = value;
+                OnPropertyChanged();
+            }
         }
     }
 

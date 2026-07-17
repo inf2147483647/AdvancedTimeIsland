@@ -415,6 +415,27 @@ public static class FluentAvaloniaCompatibilityHelper
         return false;
     }
 
+    public static bool IsContentDialogResultSecondary(object result)
+    {
+        if (result == null)
+            return false;
+
+        var type = result.GetType();
+        var name = type.Name;
+
+        if (name == "FAContentDialogResult" || name == "ContentDialogResult")
+        {
+            var valueField = type.GetField("Secondary", BindingFlags.Public | BindingFlags.Static);
+            if (valueField != null)
+            {
+                var secondaryValue = valueField.GetValue(null);
+                return result.Equals(secondaryValue);
+            }
+        }
+
+        return false;
+    }
+
     public static object GetContentDialogResultPrimary()
     {
         if (IsV3)
@@ -569,6 +590,50 @@ public static class FluentAvaloniaCompatibilityHelper
         }
 
         return 3;
+    }
+
+    public static Control CreateSettingsExpander()
+    {
+        if (IsV3)
+        {
+            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpander, FluentAvalonia");
+            if (type != null)
+            {
+                return (Control)Activator.CreateInstance(type)!;
+            }
+        }
+        else
+        {
+            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpander, FluentAvalonia");
+            if (type != null)
+            {
+                return (Control)Activator.CreateInstance(type)!;
+            }
+        }
+
+        return new Border();
+    }
+
+    public static Control CreateSettingsExpanderItem()
+    {
+        if (IsV3)
+        {
+            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpanderItem, FluentAvalonia");
+            if (type != null)
+            {
+                return (Control)Activator.CreateInstance(type)!;
+            }
+        }
+        else
+        {
+            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpanderItem, FluentAvalonia");
+            if (type != null)
+            {
+                return (Control)Activator.CreateInstance(type)!;
+            }
+        }
+
+        return new Border();
     }
 
     public static void NavigateBack(Control control)

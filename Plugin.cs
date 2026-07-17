@@ -241,24 +241,52 @@ public class Plugin : PluginBase
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
         services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
-        services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
 
-        services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
+        if (Settings.EnableLunarCalendar)
+        {
+            services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
+        }
 
-        services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
+        if (Settings.EnableLocalSolarTime)
+        {
+            services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
+            services.AddComponent<SunriseSunsetControl, SunriseSunsetSettingsControl>();
+        }
 
-        services.AddComponent<SunriseSunsetControl, SunriseSunsetSettingsControl>();
+        if (Settings.EnableTimeZoneTime)
+        {
+            services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
+        }
 
-        services.AddComponent<XingZuoControl, XingZuoSettingsControl>();
-        services.AddComponent<JieQiControl, JieQiSettingsControl>();
-        services.AddComponent<ShengXiaoControl, ShengXiaoSettingsControl>();
-        services.AddComponent<FestivalControl, FestivalSettingsControl>();
-        services.AddComponent<DayYiJiControl, DayYiJiSettingsControl>();
-        services.AddComponent<NextJieQiCountdownControl, NextJieQiCountdownSettingsControl>();
-        services.AddComponent<NextXingZuoCountdownControl, NextXingZuoCountdownSettingsControl>();
-        services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
-        services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
+        if (Settings.EnableXingZuo)
+        {
+            services.AddComponent<XingZuoControl, XingZuoSettingsControl>();
+            services.AddComponent<NextXingZuoCountdownControl, NextXingZuoCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableJieQi)
+        {
+            services.AddComponent<JieQiControl, JieQiSettingsControl>();
+            services.AddComponent<NextJieQiCountdownControl, NextJieQiCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableDayYiJi)
+        {
+            services.AddComponent<DayYiJiControl, DayYiJiSettingsControl>();
+            services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
+        }
+
+        if (Settings.EnableShengXiao)
+        {
+            services.AddComponent<ShengXiaoControl, ShengXiaoSettingsControl>();
+        }
+
+        if (Settings.EnableFestival)
+        {
+            services.AddComponent<FestivalControl, FestivalSettingsControl>();
+            services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
+        }
 
         if (Settings.EnableExperimentalFeatures)
         {
@@ -509,8 +537,10 @@ public class Plugin : PluginBase
 
         // ========== 地方时条件（6个，带经度设置）==========
 
-        // 1. 地方时精确时间在范围
-        services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
+        if (Settings.EnableLocalSolarTime)
+        {
+            // 1. 地方时精确时间在范围
+            services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
             "advancedtimeisland.local_solar_exact_time_range",
             "地方时精确时间在范围",
             "\uecc2",
@@ -802,10 +832,13 @@ public class Plugin : PluginBase
                 return now >= startTimeToday && now <= endTimeToday;
             }
         );
+        }
 
         // ========== 区时条件（5个，带时区设置）==========
 
-        // 7. 区时精确时间在范围
+        if (Settings.EnableTimeZoneTime)
+        {
+            // 7. 区时精确时间在范围
         services.AddRule<TimeZoneExactTimeRuleSettings, TimeZoneExactTimeRuleSettingsControl>(
             "advancedtimeisland.time_zone_exact_time_range",
             "区时精确时间在范围",
@@ -1065,6 +1098,7 @@ public class Plugin : PluginBase
                 return now >= startTimeToday && now <= endTimeToday;
             }
         );
+        }
 
         // ========== 每周规则 ==========
 
@@ -1129,8 +1163,10 @@ public class Plugin : PluginBase
 
         // ========== 新增农历时间范围规则（4个）==========
 
-        // 注册规则：农历精确时间范围
-        services.AddRule<LunarExactTimeRangeRuleSettings, LunarExactTimeRangeRuleSettingsControl>(
+        if (Settings.EnableLunarCalendar)
+        {
+            // 注册规则：农历精确时间范围
+            services.AddRule<LunarExactTimeRangeRuleSettings, LunarExactTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_exact_time_in_range",
             "农历精确时间范围",
             "\uece8",
@@ -1372,6 +1408,7 @@ public class Plugin : PluginBase
                 }
             }
         );
+        }
 
         // 注册规则：绝对时间戳范围
         services.AddRule<UnixTimestampRangeRuleSettings, UnixTimestampRangeRuleSettingsControl>(
@@ -1400,22 +1437,34 @@ public class Plugin : PluginBase
         services.AddTrigger<HourlyTimeTrigger, HourlyTimeTriggerSettingsControl>();
         services.AddTrigger<MinutelyTimeTrigger, MinutelyTimeTriggerSettingsControl>();
         services.AddTrigger<UnixTimestampTrigger, UnixTimestampTriggerSettingsControl>();
-        services.AddTrigger<LunarExactTimeTrigger, LunarExactTimeTriggerSettingsControl>();
-        services.AddTrigger<LunarYearlyTimeTrigger, LunarYearlyTimeTriggerSettingsControl>();
-        services.AddTrigger<LunarMonthlyTimeTrigger, LunarMonthlyTimeTriggerSettingsControl>();
-        services.AddTrigger<LunarLastDayTimeTrigger, LunarLastDayTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarExactTimeTrigger, LocalSolarExactTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarMonthlyTimeTrigger, LocalSolarMonthlyTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarWeeklyTimeTrigger, LocalSolarWeeklyTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarDailyTimeTrigger, LocalSolarDailyTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarHourlyTimeTrigger, LocalSolarHourlyTimeTriggerSettingsControl>();
-        services.AddTrigger<LocalSolarMinutelyTimeTrigger, LocalSolarMinutelyTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneExactTimeTrigger, TimeZoneExactTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneYearlyTimeTrigger, TimeZoneYearlyTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneMonthlyTimeTrigger, TimeZoneMonthlyTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneWeeklyTimeTrigger, TimeZoneWeeklyTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneDailyTimeTrigger, TimeZoneDailyTimeTriggerSettingsControl>();
-        services.AddTrigger<TimeZoneHourlyTimeTrigger, TimeZoneHourlyTimeTriggerSettingsControl>();
+
+        if (Settings.EnableLunarCalendar)
+        {
+            services.AddTrigger<LunarExactTimeTrigger, LunarExactTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarYearlyTimeTrigger, LunarYearlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarMonthlyTimeTrigger, LunarMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarLastDayTimeTrigger, LunarLastDayTimeTriggerSettingsControl>();
+        }
+
+        if (Settings.EnableLocalSolarTime)
+        {
+            services.AddTrigger<LocalSolarExactTimeTrigger, LocalSolarExactTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarMonthlyTimeTrigger, LocalSolarMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarWeeklyTimeTrigger, LocalSolarWeeklyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarDailyTimeTrigger, LocalSolarDailyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarHourlyTimeTrigger, LocalSolarHourlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarMinutelyTimeTrigger, LocalSolarMinutelyTimeTriggerSettingsControl>();
+        }
+
+        if (Settings.EnableTimeZoneTime)
+        {
+            services.AddTrigger<TimeZoneExactTimeTrigger, TimeZoneExactTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneYearlyTimeTrigger, TimeZoneYearlyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneMonthlyTimeTrigger, TimeZoneMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneWeeklyTimeTrigger, TimeZoneWeeklyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneDailyTimeTrigger, TimeZoneDailyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneHourlyTimeTrigger, TimeZoneHourlyTimeTriggerSettingsControl>();
+        }
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();

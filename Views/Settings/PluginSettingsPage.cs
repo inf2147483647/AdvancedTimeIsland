@@ -500,6 +500,7 @@ public class PluginSettingsPage : UserControl
     private bool _isTyping;
     private ToggleSwitch? _experimentalToggle;
     private Border? _experimentalItem;
+    
 
     private TextBlock? _titleTextBlock;
     private TextBlock? _generalSettingsTextBlock;
@@ -547,6 +548,38 @@ public class PluginSettingsPage : UserControl
             Foreground = ThemeHelper.GetTextBrush()
         };
         mainPanel.Children.Add(_titleTextBlock);
+
+        // 管理启用的功能 - 点击后弹出模态对话框
+        var featureManagementButton = new Button
+        {
+            Content = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = "管理启用的功能",
+                        FontSize = 14,
+                        FontWeight = FontWeight.Bold,
+                        Foreground = ThemeHelper.GetTextBrush()
+                    },
+                    new TextBlock
+                    {
+                        Text = "点击管理各类功能的启用状态",
+                        FontSize = 12,
+                        Foreground = ThemeHelper.GetSubTextBrush(),
+                        Margin = new Thickness(0, 4, 0, 0)
+                    }
+                }
+            },
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Left,
+            Margin = new Thickness(0, 8, 0, 0),
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        featureManagementButton.Click += OnManageFeaturesClick;
+        mainPanel.Children.Add(featureManagementButton);
 
         // 通用设置
         _generalSettingsTextBlock = new TextBlock
@@ -841,7 +874,7 @@ public class PluginSettingsPage : UserControl
         {
             IsChecked = isOn
         };
-        toggle.IsCheckedChanged += handler;
+        toggle.Click += handler;
         return toggle;
     }
 
@@ -1431,6 +1464,112 @@ public class PluginSettingsPage : UserControl
     }
 
     public event EventHandler<bool>? EasterEggToggled;
+
+    private async void OnManageFeaturesClick(object? sender, RoutedEventArgs e)
+    {
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "管理启用的功能");
+
+        var contentPanel = new StackPanel { Spacing = 8, MaxHeight = 400 };
+
+        var descTextBlock = new TextBlock
+        {
+            Text = "以下功能相对不常用，可按需开启或关闭。更改后需重启ClassIsland生效。",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+        contentPanel.Children.Add(descTextBlock);
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = new StackPanel { Spacing = 4 },
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+        };
+        var featuresPanel = scrollViewer.Content as StackPanel;
+
+        // 农历开关项
+        var lunarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLunarCalendar ?? true };
+        featuresPanel!.Children.Add(CreateFeatureToggleItem("农历", lunarToggle));
+
+        // 地方时开关项
+        var localSolarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLocalSolarTime ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("地方时", localSolarToggle));
+
+        // 区时开关项
+        var timeZoneToggle = new ToggleSwitch { IsChecked = _settings?.EnableTimeZoneTime ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("区时", timeZoneToggle));
+
+        // 星座开关项
+        var xingZuoToggle = new ToggleSwitch { IsChecked = _settings?.EnableXingZuo ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("星座", xingZuoToggle));
+
+        // 节气开关项
+        var jieQiToggle = new ToggleSwitch { IsChecked = _settings?.EnableJieQi ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("节气", jieQiToggle));
+
+        // 宜忌开关项
+        var dayYiJiToggle = new ToggleSwitch { IsChecked = _settings?.EnableDayYiJi ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("宜忌", dayYiJiToggle));
+
+        // 生肖开关项
+        var shengXiaoToggle = new ToggleSwitch { IsChecked = _settings?.EnableShengXiao ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("生肖", shengXiaoToggle));
+
+        // 节日开关项
+        var festivalToggle = new ToggleSwitch { IsChecked = _settings?.EnableFestival ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("节日", festivalToggle));
+
+        contentPanel.Children.Add(scrollViewer);
+
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", contentPanel);
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定并重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "确定，稍后重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        bool isPrimary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
+        bool isSecondary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultSecondary(result);
+            
+        if (isPrimary || isSecondary)
+        {
+            _settings!.EnableLunarCalendar = lunarToggle.IsChecked == true;
+            _settings.EnableLocalSolarTime = localSolarToggle.IsChecked == true;
+            _settings.EnableTimeZoneTime = timeZoneToggle.IsChecked == true;
+            _settings.EnableXingZuo = xingZuoToggle.IsChecked == true;
+            _settings.EnableJieQi = jieQiToggle.IsChecked == true;
+            _settings.EnableDayYiJi = dayYiJiToggle.IsChecked == true;
+            _settings.EnableShengXiao = shengXiaoToggle.IsChecked == true;
+            _settings.EnableFestival = festivalToggle.IsChecked == true;
+
+            RequestRestartAction?.Invoke();
+
+            if (isPrimary)
+            {
+                ClassIsland.Core.AppBase.Current.Restart();
+            }
+        }
+    }
+
+    private Control CreateFeatureToggleItem(string label, ToggleSwitch toggle)
+    {
+        var itemPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var labelText = new TextBlock
+        {
+            Text = label,
+            FontSize = 13,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        toggle.VerticalAlignment = VerticalAlignment.Center;
+        toggle.HorizontalAlignment = HorizontalAlignment.Right;
+        itemPanel.Children.Add(labelText);
+        itemPanel.Children.Add(toggle);
+        return itemPanel;
+    }
 
     private void OnExperimentalToggleChanged(object? sender, RoutedEventArgs e)
     {
