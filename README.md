@@ -182,6 +182,7 @@
 - [ ] 新增桌面时间表悬浮窗（置底）
 - [ ] 开发CI 1.7版
 - [X] 管理启用的功能（issue #1）
+- [ ] 添加纪念日功能，并在指定节点（3天，1周，1个月，1年等）发出提醒
 - [ ] 就先镇多吧，插件上架后以优化为主，欢迎issue，优化使用体验；一下子吃很多消化不了
 
 # 受[1312333/ClassIsland-TimeOfDayTrigger](https://github.com/1312333/ClassIsland-TimeOfDayTrigger) 启发
