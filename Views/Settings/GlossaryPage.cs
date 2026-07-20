@@ -56,7 +56,7 @@ public class GlossaryPage : UserControl
         mainPanel.Children.Add(new TextBlock
         {
             Text = "专业名词解释",
-            FontSize = 22,
+            FontSize = 28,
             FontWeight = FontWeight.Bold,
             Foreground = GetAccentBrush(),
             HorizontalAlignment = HorizontalAlignment.Center,
@@ -187,7 +187,7 @@ public class GlossaryPage : UserControl
                 var h2 = new TextBlock
                 {
                     Text = line.Substring(3).Trim(),
-                    FontSize = 18,
+                    FontSize = 21,
                     FontWeight = FontWeight.Bold,
                     Foreground = GetAccentBrush(),
                     TextWrapping = TextWrapping.Wrap,
@@ -204,7 +204,7 @@ public class GlossaryPage : UserControl
                 var h3 = new TextBlock
                 {
                     Text = line.Substring(4).Trim(),
-                    FontSize = 15,
+                    FontSize = 16,
                     FontWeight = FontWeight.Bold,
                     Foreground = ThemeHelper.GetLightBlueBrush(),
                     TextWrapping = TextWrapping.Wrap,

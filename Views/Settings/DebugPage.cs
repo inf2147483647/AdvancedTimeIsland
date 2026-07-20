@@ -13,9 +13,10 @@ using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
-
+using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -86,6 +87,14 @@ public class DebugPage : SettingsPageBase
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         mainPanel.Children.Add(tab3Panel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        
+        var hanfuTemplatePanel = CreateSimpleTestPanel(
+            "汉服页面模板",
+            "进入",
+            ButtonHanfuTemplate_OnClick);
+        mainPanel.Children.Add(hanfuTemplatePanel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        
         mainPanel.Children.Add(CreateMemoryLeakTestPanel());
 
         var scrollViewer = new ScrollViewer
@@ -149,6 +158,12 @@ public class DebugPage : SettingsPageBase
     private async void ButtonSelfDestruct_OnClick(object? sender, RoutedEventArgs e)
     {
         await ShowSelfDestructDialog();
+    }
+
+    private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
+    {
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuTemplate?ci_keepHistory=true"));
     }
 
     private async Task ShowForceCrashDialog()

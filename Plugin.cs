@@ -1479,6 +1479,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.QiXiongTopPage>();
             services.AddSettingsPage<Views.Settings.QiXiongJiaoYuQunPage>();
             services.AddSettingsPage<Views.Settings.RuQunPage>();
+            services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         }
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();

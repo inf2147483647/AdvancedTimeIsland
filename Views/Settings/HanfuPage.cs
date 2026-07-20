@@ -406,13 +406,24 @@ public class HanfuPage : SettingsPageBase
         }
     }
 
+    private readonly HashSet<string> _developedFeatures = new HashSet<string>
+    {
+        "马面裙 侧褶 明制",
+        "背子 褙子 宋制",
+        "交窬裙 唐制",
+        "袄 衫 直领 唐制"
+    };
+
     private void UpdateXingZhiButtonStyle(Button button)
     {
         var isDark = ThemeHelper.IsDarkTheme();
         button.Background = isDark
             ? new SolidColorBrush(Color.Parse("#37373D"))
             : new SolidColorBrush(Color.Parse("#E8E8E8"));
-        button.Foreground = ThemeHelper.GetTextBrush();
+        var buttonText = button.Content as string;
+        button.Foreground = _developedFeatures.Contains(buttonText)
+            ? GetAccentBrush()
+            : ThemeHelper.GetTextBrush();
         button.BorderBrush = isDark
             ? new SolidColorBrush(Color.Parse("#444444"))
             : new SolidColorBrush(Color.Parse("#CCCCCC"));

@@ -98,7 +98,7 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "该服饰自战国至唐前期为民间女性主要着装，后逐渐被衫袄替代。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "形制", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "形制", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "襦可分为单襦和复襦，区别在于是否夹里。");
         AddParagraph(panel, "");
@@ -117,7 +117,7 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "大凡衣短则裙长，衣短至腰间，裙长至脚踝骨之下；衣长则裙阔，衣长时，长到臀至膝下，而裙露仅几寸，裙子不必显出特色，襦裙忌讳上下平分秋色，会显得呆板少变化。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "具体分类", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "具体分类", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "按领子的式样不同，可分为交领襦裙和直领襦裙。");
         AddParagraph(panel, "");
@@ -158,10 +158,10 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "【案：襦裙的确有齐胸襦裙，是唐代的，将唐代襦裙称为高腰襦裙有误；高腰襦裙束于胸下。】");
         AddParagraph(panel, "");
 
-        AddSection(panel, "在宋代", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "在宋代", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
 
-        AddSection(panel, "一、整体造型与审美风格", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "一、整体造型与审美风格", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
         AddSection(panel, "1. 腰线回落，廓形修长", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "襦裙腰线从唐代的齐胸、高腰回落至腰部，以齐腰襦裙为绝对主流；整体廓形从唐代的宽博丰腴逐渐转向瘦长修身，裙长多拖地掩足，姿态更显端庄内敛。");
@@ -170,7 +170,7 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "受程朱理学“存天理、灭人欲”的观念影响，服饰摒弃大面积奢华装饰与浓艳配色，追求淡雅恬静的视觉效果，审美偏向内敛、温润。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "二、上襦的形制特征", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "二、上襦的形制特征", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
         AddSection(panel, "1. 衣身短窄，束腰穿着", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "襦为短款上衣，衣长一般仅及腰间，穿着时多将下摆束入裙内，裙外再另系腰带，是典型的“上衣下裳”两截式结构。");
@@ -182,7 +182,7 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "按厚度可分为单襦（薄款，近于衫，春夏穿着）和复襦（夹棉衬里，称夹袄、棉袄，秋冬保暖）；衣身的领口、袖口边缘多做刺绣或拼接缘饰，作为低调点缀。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "三、下裙的形制特征", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "三、下裙的形制特征", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
         AddSection(panel, "1. 褶裙为绝对主流", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "宋代裙装以多褶为标志性特色，时兴“千褶”“百迭”裙（即百迭裙），裙褶排列整齐紧密，是后世百褶裙的雏形；此外还有前后开衩的旋裙、两片式的资裙、鱼尾状的褶裥裙等特色款式。");
@@ -197,12 +197,12 @@ public class RuQunPage : SettingsPageBase
         AddParagraph(panel, "裙腰的飘带上常悬挂一枚玉制圆环，称为“玉环绶”，作用是压住裙幅，避免行走时裙摆随风散开失仪，兼具装饰性与礼仪功能，是宋代襦裙的标志性细节。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "男式襦裙", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "男式襦裙", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "（没做男装...）");
         AddParagraph(panel, "");
 
-        AddSection(panel, "注意事项", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "注意事项", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "襦裙是中国古代服饰中一种上下裙装，但不可将所有上下裙装都称为襦裙。清朝的旗服褂裙也不是襦裙。");
         AddParagraph(panel, "");

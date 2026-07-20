@@ -87,23 +87,23 @@ public class BeiZiPage : SettingsPageBase
             Spacing = 8
         };
 
-        AddSection(panel, "褙子", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "褙子", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "女子褙子为常礼服，需搭配裙子、衫子穿着，合称为“裙褙”，褙子不一定要全缘边，但长度需垂至脚面。");
         AddParagraph(panel, "");
         AddParagraph(panel, "有主张要全缘边才能称为褙子，平台延续沈从文、黄能馥先生之观点，认为衣长至足。《古今图书集成·礼仪典·衣服部》引用《实录》：秦二世诏衫子上朝服加背子，其制袖短於衫，身与衫齐而大袖。今又长与裙齐，而袖才宽于衫。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "褙子与袄衫的差异", 20, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "褙子与袄衫的差异", 28, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
         AddParagraph(panel, "");
 
-        AddSection(panel, "1. 穿着层级与功能定位不同", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "1. 穿着层级与功能定位不同", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "- 褙子：属于外层常礼服，定位类似现代的大衣、外搭开衫，是宋代女性正式场合的外层衣物，具备礼仪属性。它是宋代最具代表性的外穿服饰。");
         AddParagraph(panel, "- 袄衫：属于贴身内搭/基础便服，定位类似现代的T恤、衬衫，是日常贴身穿着的基础上衣。二者的区别在于厚薄：“衫”为单层单衣，适配春夏；“袄”带有里衬或夹棉，适配秋冬。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "2. 形制结构差异", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "2. 形制结构差异", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
 
         AddSection(panel, "衣长区别", 16, FontWeight.Bold, ThemeHelper.GetTextBrush());
@@ -130,7 +130,7 @@ public class BeiZiPage : SettingsPageBase
         AddParagraph(panel, "袄衫领型更丰富，包含对襟、交领等多种样式，可通过系带系合闭合，更贴合身形、保暖性更强。");
         AddParagraph(panel, "");
 
-        AddSection(panel, "3. 穿搭规则不同", 18, FontWeight.Bold, ThemeHelper.GetTextBrush());
+        AddSection(panel, "3. 穿搭规则不同", 21, FontWeight.Bold, ThemeHelper.GetTextBrush());
         AddParagraph(panel, "");
         AddParagraph(panel, "- 褙子遵循“不单穿”的礼仪原则，正式穿搭时内部必须搭配袄、衫、抹胸等内搭，形成“内衫袄+外褙子”的层次，正如图中宋代古画里红褙子内搭白衫子的装束逻辑。");
         AddParagraph(panel, "- 袄衫适配场景更灵活：既可单独作为日常便服穿着，也可作为内搭，配合褙子、大袖等外层礼服使用。");
