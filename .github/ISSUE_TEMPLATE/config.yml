@@ -1,13 +1,5 @@
 blank_issues_enabled: true
 
-issue_templates:
-  - name: Bug 反馈
-    about: 在使用 AdvancedTimeIsland 的过程中遇到了 Bug。
-    file: .github/ISSUE_TEMPLATE/BugReport.yml
-  - name: 功能请求
-    about: 提出一项新的功能。
-    file: .github/ISSUE_TEMPLATE/FeatureRequest.yml
-
 contact_links:
   - name: 项目主页
     url: https://github.com/inf2147483647/AdvancedTimeIsland

@@ -42,6 +42,7 @@ public class EasterEggPage : UserControl
     private List<TextBlock>? _boldTextBlocks;
     private List<Border>? _separatorBorders;
     private Border? _markdownSectionBorder;
+    private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>? _imageLoadInfos;
 
     public EasterEggPage() : this(null)
     {
@@ -127,7 +128,19 @@ public class EasterEggPage : UserControl
 
 ![图片8](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0484.jpg)
 
-![图片9](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0488.jpg)";
+![图片9](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/8X9A0488.jpg)
+
+![图片10](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02568.jpg)
+
+![图片11](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg)
+
+![图片12](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02578.jpg)
+
+![图片13](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC07548.jpg)
+
+![图片14](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC07560.jpg)
+
+![图片15](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02563.jpg)";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
@@ -143,6 +156,7 @@ public class EasterEggPage : UserControl
         _normalTextBlocks = new List<TextBlock>();
         _boldTextBlocks = new List<TextBlock>();
         _separatorBorders = new List<Border>();
+        _imageLoadInfos = new List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>();
 
         var section = new Border
         {
@@ -172,15 +186,30 @@ public class EasterEggPage : UserControl
             if (line.StartsWith("## "))
             {
                 // 二级标题
+                var title = line.Substring(3);
                 content.Children.Add(new TextBlock
                 {
-                    Text = line.Substring(3),
+                    Text = title,
                     FontSize = 18,
                     FontWeight = FontWeight.Bold,
                     Foreground = Brushes.HotPink,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 8, 0, 4)
                 });
+
+                if (title == "图片展示")
+                {
+                    var refreshButton = new Button
+                    {
+                        Content = "刷新",
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        Padding = new Thickness(16, 8),
+                        FontSize = 12,
+                        Margin = new Thickness(0, 4, 0, 8)
+                    };
+                    refreshButton.Click += RefreshButton_Click;
+                    content.Children.Add(refreshButton);
+                }
             }
             else if (line.StartsWith("---"))
             {
@@ -451,6 +480,17 @@ public class EasterEggPage : UserControl
         };
         errorPanel.Children.Add(errorText);
 
+        var errorDetailText = new TextBlock
+        {
+            Text = "",
+            FontSize = 11,
+            Foreground = Brushes.Gray,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 300
+        };
+        errorPanel.Children.Add(errorDetailText);
+
         var retryButton = new Button
         {
             Content = "重试",
@@ -485,17 +525,20 @@ public class EasterEggPage : UserControl
             retryButton.IsEnabled = false;
             retryButton.Content = "加载中...";
             errorPanel.IsVisible = false;
-            await LoadRemoteImageWithRetry(url, image, errorPanel, retryButton);
+            errorDetailText.Text = "";
+            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
         }
 
         retryButton.Click += RetryHandler;
 
-        LoadRemoteImageWithRetry(url, image, errorPanel, retryButton);
+        _imageLoadInfos?.Add((url, image, errorPanel, errorDetailText, retryButton));
+
+        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
 
         return container;
     }
 
-    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, Button retryButton)
+    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)
     {
         try
         {
@@ -531,12 +574,62 @@ public class EasterEggPage : UserControl
                 File.Move(tempPath, cachePath);
             });
         }
-        catch
+        catch (Exception ex)
         {
             imageControl.Source = null;
+            errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
             errorPanel.IsVisible = true;
             retryButton.IsEnabled = true;
             retryButton.Content = "重试";
+        }
+    }
+
+    private async void RefreshButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (sender is not Button button) return;
+        
+        button.IsEnabled = false;
+        button.Content = "刷新中...";
+
+        try
+        {
+            if (_imageLoadInfos == null || _imageLoadInfos.Count == 0)
+                return;
+
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var tasks = new List<Task>();
+
+            foreach (var info in _imageLoadInfos)
+            {
+                var fileName = Path.GetFileName(new Uri(info.url).AbsolutePath);
+                var cachePath = Path.Combine(cacheDir, fileName);
+
+                if (File.Exists(cachePath))
+                {
+                    try
+                    {
+                        File.Delete(cachePath);
+                    }
+                    catch
+                    {
+                    }
+                }
+
+                info.image.Source = null;
+                info.errorPanel.IsVisible = false;
+                info.errorDetailText.Text = "";
+                info.retryButton.IsEnabled = false;
+                info.retryButton.Content = "加载中...";
+
+                tasks.Add(LoadRemoteImageWithRetry(info.url, info.image, info.errorPanel, info.errorDetailText, info.retryButton));
+            }
+
+            await Task.WhenAll(tasks);
+        }
+        finally
+        {
+            button.IsEnabled = true;
+            button.Content = "刷新";
         }
     }
 
