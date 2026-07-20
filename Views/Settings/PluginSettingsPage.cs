@@ -528,196 +528,208 @@ public class PluginSettingsPage : UserControl
 
     private void InitializeComponent()
     {
-        _settingTitleTextBlocks = new List<TextBlock>();
-        _settingDescriptionTextBlocks = new List<TextBlock>();
-        _settingItemBorders = new List<Border>();
-
-        var mainPanel = new StackPanel
+        try
         {
-            Orientation = Orientation.Vertical,
-            Margin = new Avalonia.Thickness(16),
-            Spacing = 16
-        };
+            _settingTitleTextBlocks = new List<TextBlock>();
+            _settingDescriptionTextBlocks = new List<TextBlock>();
+            _settingItemBorders = new List<Border>();
 
-        // 标题
-        _titleTextBlock = new TextBlock
-        {
-            Text = "插件设置",
-            FontSize = 18,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        mainPanel.Children.Add(_titleTextBlock);
-
-        // 管理启用的功能 - 点击后弹出模态对话框
-        var featureManagementButton = new Button
-        {
-            Content = new StackPanel
+            var mainPanel = new StackPanel
             {
                 Orientation = Orientation.Vertical,
-                Children =
+                Margin = new Avalonia.Thickness(16),
+                Spacing = 16
+            };
+
+            // 标题
+            _titleTextBlock = new TextBlock
+            {
+                Text = "插件设置",
+                FontSize = 18,
+                FontWeight = FontWeight.Bold,
+                Foreground = ThemeHelper.GetTextBrush()
+            };
+            mainPanel.Children.Add(_titleTextBlock);
+
+            // 管理启用的功能 - 点击后弹出模态对话框
+            var featureManagementButton = new Button
+            {
+                Content = new StackPanel
                 {
-                    new TextBlock
+                    Orientation = Orientation.Vertical,
+                    Children =
                     {
-                        Text = "管理启用的功能",
-                        FontSize = 14,
-                        FontWeight = FontWeight.Bold,
-                        Foreground = ThemeHelper.GetTextBrush()
-                    },
-                    new TextBlock
-                    {
-                        Text = "点击管理各类功能的启用状态",
-                        FontSize = 12,
-                        Foreground = ThemeHelper.GetSubTextBrush(),
-                        Margin = new Thickness(0, 4, 0, 0)
+                        new TextBlock
+                        {
+                            Text = "管理启用的功能",
+                            FontSize = 14,
+                            FontWeight = FontWeight.Bold,
+                            Foreground = ThemeHelper.GetTextBrush()
+                        },
+                        new TextBlock
+                        {
+                            Text = "点击管理各类功能的启用状态",
+                            FontSize = 12,
+                            Foreground = ThemeHelper.GetSubTextBrush(),
+                            Margin = new Thickness(0, 4, 0, 0)
+                        }
                     }
-                }
-            },
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            Margin = new Thickness(0, 8, 0, 0),
-            Padding = new Thickness(12, 8, 12, 8)
-        };
-        featureManagementButton.Click += OnManageFeaturesClick;
-        mainPanel.Children.Add(featureManagementButton);
+                },
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Left,
+                Margin = new Thickness(0, 8, 0, 0),
+                Padding = new Thickness(12, 8, 12, 8)
+            };
+            featureManagementButton.Click += OnManageFeaturesClick;
+            mainPanel.Children.Add(featureManagementButton);
 
-        // 通用设置
-        _generalSettingsTextBlock = new TextBlock
-        {
-            Text = "通用设置",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush(),
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
-        };
-        mainPanel.Children.Add(_generalSettingsTextBlock);
+            // 通用设置
+            _generalSettingsTextBlock = new TextBlock
+            {
+                Text = "通用设置",
+                FontSize = 14,
+                FontWeight = FontWeight.Bold,
+                Foreground = ThemeHelper.GetTextBrush(),
+                Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            };
+            mainPanel.Children.Add(_generalSettingsTextBlock);
 
-        // 许可证声明
-        _licenseTextBlock = new TextBlock
-        {
-            Text = "本项目基于 GNU Lesser General Public License v3.0 获得许可",
-            FontSize = 12,
-            Foreground = ThemeHelper.GetSubTextBrush(),
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
-        };
-        mainPanel.Children.Add(_licenseTextBlock);
+            // 许可证声明
+            _licenseTextBlock = new TextBlock
+            {
+                Text = "本项目基于 GNU Lesser General Public License v3.0 获得许可",
+                FontSize = 12,
+                Foreground = ThemeHelper.GetSubTextBrush(),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            };
+            mainPanel.Children.Add(_licenseTextBlock);
 
-        // 地方时经度设置
-        mainPanel.Children.Add(CreateSettingItem(
-            "地方时经度",
-            "设置地方时计算使用的经度（范围：-180 到 180）",
-            CreateLongitudePanel(),
-            null
-        ));
-
-        // 经纬度表示方式
-        mainPanel.Children.Add(CreateSettingItem(
-            "经纬度表示方式",
-            "选择经度的显示格式",
-            CreateLongitudeModeComboBox(),
-            null
-        ));
-
-        // 区时时区设置
-        mainPanel.Children.Add(CreateSettingItem(
-            "区时时区",
-            "选择区时显示使用的时区",
-            CreateTimeZoneComboBox(),
-            null
-        ));
-
-        // 插件时间偏移设置（与ClassIsland时间独立）
-        mainPanel.Children.Add(CreateSettingItem(
-            "插件时间偏移",
-            "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
-            CreateTimeOffsetTextBox(),
-            null
-        ));
-
-        // 时间同步相关设置（仅64位显示）
-        if (!PlatformHelper.Is32BitProcess)
-        {
-            // 时间服务器设置
+            // 地方时经度设置
             mainPanel.Children.Add(CreateSettingItem(
-                "时间服务器",
-                "选择用于同步时间的NTP服务器",
-                CreateNtpServerComboBox(),
+                "地方时经度",
+                "设置地方时计算使用的经度（范围：-180 到 180）",
+                CreateLongitudePanel(),
                 null
             ));
 
-            // 同步时间周期设置
+            // 经纬度表示方式
             mainPanel.Children.Add(CreateSettingItem(
-                "同步时间周期",
-                "NTP时间同步周期，单位为分钟",
-                CreateNtpSyncIntervalTextBox(),
+                "经纬度表示方式",
+                "选择经度的显示格式",
+                CreateLongitudeModeComboBox(),
                 null
             ));
+
+            // 区时时区设置
+            mainPanel.Children.Add(CreateSettingItem(
+                "区时时区",
+                "选择区时显示使用的时区",
+                CreateTimeZoneComboBox(),
+                null
+            ));
+
+            // 插件时间偏移设置（与ClassIsland时间独立）
+            mainPanel.Children.Add(CreateSettingItem(
+                "插件时间偏移",
+                "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
+                CreateTimeOffsetTextBox(),
+                null
+            ));
+
+            // 时间同步相关设置（仅64位显示）
+            if (!PlatformHelper.Is32BitProcess)
+            {
+                // 时间服务器设置
+                mainPanel.Children.Add(CreateSettingItem(
+                    "时间服务器",
+                    "选择用于同步时间的NTP服务器",
+                    CreateNtpServerComboBox(),
+                    null
+                ));
+
+                // 同步时间周期设置
+                mainPanel.Children.Add(CreateSettingItem(
+                    "同步时间周期",
+                    "NTP时间同步周期，单位为分钟",
+                    CreateNtpSyncIntervalTextBox(),
+                    null
+                ));
+            }
+            else
+            {
+                // 32位系统显示警告InfoBar
+                var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。");
+                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
+                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
+                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
+                mainPanel.Children.Add(warningBar);
+            }
+
+            // 实验性功能开关
+            var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
+            _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggled);
+            _experimentalItem = CreateSettingItemWithLabel(
+                "启用实验性功能",
+                "启用后可以使用实验性功能，这里有一些相对小众、不那么稳定、以及可能与插件主要目的不相关的功能",
+                _experimentalToggle,
+                "实验性"
+            );
+            mainPanel.Children.Add(_experimentalItem);
+
+            // 女装彩蛋（默认不可见）
+            var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
+            _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggled);
+            _easterEggToggle.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
+            _easterEggItem = CreateSettingItem(
+                "女装",
+                "开启后显示女装彩蛋页面",
+                _easterEggToggle,
+                null
+            );
+            _easterEggItem.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
+            mainPanel.Children.Add(_easterEggItem);
+
+            // 回声洞（实验性功能）
+            _echoHoleButton = new Button
+            {
+                Content = "回声洞",
+                Margin = new Thickness(0, 8, 0, 0),
+                IsVisible = isExperimentalEnabled
+            };
+            _echoHoleButton.Click += OnEchoHoleButtonClick;
+            mainPanel.Children.Add(_echoHoleButton);
+
+            _echoHoleDisplayText = new TextBlock
+            {
+                FontSize = 13,
+                Foreground = ThemeHelper.GetSubTextBrush(),
+                TextWrapping = TextWrapping.Wrap,
+                Margin = new Thickness(0, 4, 0, 0),
+                IsVisible = false
+            };
+            mainPanel.Children.Add(_echoHoleDisplayText);
+
+            var scrollViewer = new ScrollViewer
+            {
+                Content = mainPanel,
+                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            };
+
+            Content = scrollViewer;
         }
-        else
+        catch (Exception ex)
         {
-            // 32位系统显示警告InfoBar
-            var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。");
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
-            mainPanel.Children.Add(warningBar);
+            Content = new TextBlock
+            {
+                Text = $"设置页面初始化失败: {ex.Message}",
+                Foreground = Brushes.Red,
+                Margin = new Thickness(16)
+            };
         }
-
-        // 实验性功能开关
-        var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
-        _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggleChanged);
-        _experimentalItem = CreateSettingItemWithLabel(
-            "启用实验性功能",
-            "启用后可以使用实验性功能，这里有一些相对小众、不那么稳定、以及可能与插件主要目的不相关的功能",
-            _experimentalToggle,
-            "实验性"
-        );
-        mainPanel.Children.Add(_experimentalItem);
-
-        // 女装彩蛋（默认不可见）
-        var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
-        _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggleChanged);
-        _easterEggToggle.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
-        _easterEggItem = CreateSettingItem(
-            "女装",
-            "开启后显示女装彩蛋页面",
-            _easterEggToggle,
-            null
-        );
-        _easterEggItem.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
-        mainPanel.Children.Add(_easterEggItem);
-
-        // 回声洞（实验性功能）
-        _echoHoleButton = new Button
-        {
-            Content = "回声洞",
-            Margin = new Thickness(0, 8, 0, 0),
-            IsVisible = isExperimentalEnabled
-        };
-        _echoHoleButton.Click += OnEchoHoleButtonClick;
-        mainPanel.Children.Add(_echoHoleButton);
-
-        _echoHoleDisplayText = new TextBlock
-        {
-            FontSize = 13,
-            Foreground = ThemeHelper.GetSubTextBrush(),
-            TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 4, 0, 0),
-            IsVisible = false
-        };
-        mainPanel.Children.Add(_echoHoleDisplayText);
-
-        var scrollViewer = new ScrollViewer
-        {
-            Content = mainPanel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
-        };
-
-        Content = scrollViewer;
     }
 
     /// <summary>
@@ -868,13 +880,14 @@ public class PluginSettingsPage : UserControl
     /// <summary>
     /// 创建开关控件
     /// </summary>
-    private ToggleSwitch CreateToggleSwitch(bool isOn, EventHandler<RoutedEventArgs> handler)
+    private ToggleSwitch CreateToggleSwitch(bool isOn, Action<bool> onToggleChanged)
     {
         var toggle = new ToggleSwitch
         {
             IsChecked = isOn
         };
-        toggle.Click += handler;
+        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(toggle, (s, e) => onToggleChanged?.Invoke(true));
+        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(toggle, (s, e) => onToggleChanged?.Invoke(false));
         return toggle;
     }
 
@@ -1060,9 +1073,6 @@ public class PluginSettingsPage : UserControl
 
         comboBox.SelectionChanged += OnNtpServerSelectionChanged;
         panel.Children.Add(comboBox);
-
-        // 启动定时器，每0.1秒刷新时间显示
-        StartNtpTimeDisplayTimer();
 
         return panel;
     }
@@ -1571,210 +1581,203 @@ public class PluginSettingsPage : UserControl
         return itemPanel;
     }
 
-    private void OnExperimentalToggleChanged(object? sender, RoutedEventArgs e)
+    private void OnExperimentalToggled(bool isEnabled)
     {
-        if (sender is ToggleSwitch toggle)
+        _settings!.EnableExperimentalFeatures = isEnabled;
+        if (_echoHoleButton != null)
         {
-            var isEnabled = toggle.IsChecked == true;
-            _settings!.EnableExperimentalFeatures = isEnabled;
-            if (_echoHoleButton != null)
-            {
-                _echoHoleButton.IsVisible = isEnabled;
-            }
-            if (!isEnabled)
-            {
-                _echoHoleCts?.Cancel();
-                _cursorBlinkTimer?.Stop();
-                _cursorBlinkTimer?.Dispose();
-                if (_echoHoleDisplayText != null)
-                {
-                    _echoHoleDisplayText.IsVisible = false;
-                    _echoHoleDisplayText.Text = "";
-                }
-                if (_echoHoleButton != null)
-                {
-                    _echoHoleButton.IsEnabled = true;
-                }
-            }
-
-            RequestRestartAction?.Invoke();
-
-            var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "需要重启");
-            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", "部分功能需在重启后生效。");
-            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "立即重启");
-            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "稍后");
-            FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-            FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)).ContinueWith(task =>
-            {
-                if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(task.Result))
-                {
-                    ClassIsland.Core.AppBase.Current.Restart();
-                }
-            });
+            _echoHoleButton.IsVisible = isEnabled;
         }
-    }
-
-    private void OnEasterEggToggleChanged(object? sender, RoutedEventArgs e)
+        if (!isEnabled)
         {
-            if (sender is ToggleSwitch toggle)
-            {
-                var isEnabled = toggle.IsChecked == true;
-                _settings!.EnableEasterEgg = isEnabled;
-                if (!isEnabled)
-                {
-                    HideEasterEggSetting();
-                }
-                EasterEggToggled?.Invoke(this, isEnabled);
-            }
-        }
-
-        private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)
-        {
-            if (_echoHoleButton == null || _echoHoleDisplayText == null) return;
-
-            _echoHoleButton.IsEnabled = false;
-
             _echoHoleCts?.Cancel();
-            _echoHoleCts = new CancellationTokenSource();
-
             _cursorBlinkTimer?.Stop();
             _cursorBlinkTimer?.Dispose();
-
-            var random = new Random();
-            
-            if (_remainingIndices == null || _remainingIndices.Count == 0)
+            if (_echoHoleDisplayText != null)
             {
-                _remainingIndices = Enumerable.Range(0, EchoHoleTexts.Length).ToList();
-                
-                for (int i = _remainingIndices.Count - 1; i > 0; i--)
-                {
-                    int j = random.Next(i + 1);
-                    (_remainingIndices[i], _remainingIndices[j]) = (_remainingIndices[j], _remainingIndices[i]);
-                }
+                _echoHoleDisplayText.IsVisible = false;
+                _echoHoleDisplayText.Text = "";
             }
-
-            int newIndex = _remainingIndices[0];
-            _remainingIndices.RemoveAt(0);
-            _lastEchoIndex = newIndex;
-
-            var text = EchoHoleTexts[newIndex];
-
-            _echoHoleDisplayText.IsVisible = true;
-            _echoHoleDisplayText.Text = "";
-
-            _isTyping = true;
-            var charDelay = TimeSpan.FromSeconds(1.0 / 20);
-
-            try
+            if (_echoHoleButton != null)
             {
-                for (int i = 0; i < text.Length; i++)
-                {
-                    if (_echoHoleCts.Token.IsCancellationRequested)
-                        break;
-
-                    _echoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
-                    await Task.Delay(charDelay, _echoHoleCts.Token);
-                }
-
-                _echoHoleDisplayText.Text = text + "_";
+                _echoHoleButton.IsEnabled = true;
             }
-            catch (OperationCanceledException)
-            {
-                // ignore
-            }
-
-            _isTyping = false;
-
-            _cursorBlinkTimer = new System.Timers.Timer(500);
-            _cursorBlinkTimer.Elapsed += OnCursorBlink;
-            _cursorBlinkTimer.Start();
-
-            _echoHoleButton.IsEnabled = true;
         }
 
-        private void OnCursorBlink(object? sender, System.Timers.ElapsedEventArgs e)
+        RequestRestartAction?.Invoke();
+
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "需要重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", "部分功能需在重启后生效。");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "立即重启");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "稍后");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)).ContinueWith(task =>
+        {
+            if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(task.Result))
+            {
+                ClassIsland.Core.AppBase.Current.Restart();
+            }
+        });
+    }
+
+    private void OnEasterEggToggled(bool isEnabled)
+    {
+        _settings!.EnableEasterEgg = isEnabled;
+        if (!isEnabled)
+        {
+            HideEasterEggSetting();
+        }
+        EasterEggToggled?.Invoke(this, isEnabled);
+    }
+
+    private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)
+    {
+        if (_echoHoleButton == null || _echoHoleDisplayText == null) return;
+
+        _echoHoleButton.IsEnabled = false;
+
+        _echoHoleCts?.Cancel();
+        _echoHoleCts = new CancellationTokenSource();
+
+        _cursorBlinkTimer?.Stop();
+        _cursorBlinkTimer?.Dispose();
+
+        var random = new Random();
+        
+        if (_remainingIndices == null || _remainingIndices.Count == 0)
+        {
+            _remainingIndices = Enumerable.Range(0, EchoHoleTexts.Length).ToList();
+            
+            for (int i = _remainingIndices.Count - 1; i > 0; i--)
+            {
+                int j = random.Next(i + 1);
+                (_remainingIndices[i], _remainingIndices[j]) = (_remainingIndices[j], _remainingIndices[i]);
+            }
+        }
+
+        int newIndex = _remainingIndices[0];
+        _remainingIndices.RemoveAt(0);
+        _lastEchoIndex = newIndex;
+
+        var text = EchoHoleTexts[newIndex];
+
+        _echoHoleDisplayText.IsVisible = true;
+        _echoHoleDisplayText.Text = "";
+
+        _isTyping = true;
+        var charDelay = TimeSpan.FromSeconds(1.0 / 20);
+
+        try
+        {
+            for (int i = 0; i < text.Length; i++)
+            {
+                if (_echoHoleCts.Token.IsCancellationRequested)
+                    break;
+
+                _echoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
+                await Task.Delay(charDelay, _echoHoleCts.Token);
+            }
+
+            _echoHoleDisplayText.Text = text + "_";
+        }
+        catch (OperationCanceledException)
+        {
+            // ignore
+        }
+
+        _isTyping = false;
+
+        _cursorBlinkTimer = new System.Timers.Timer(500);
+        _cursorBlinkTimer.Elapsed += OnCursorBlink;
+        _cursorBlinkTimer.Start();
+
+        _echoHoleButton.IsEnabled = true;
+    }
+
+    private void OnCursorBlink(object? sender, System.Timers.ElapsedEventArgs e)
+    {
+        if (_echoHoleDisplayText == null || _isTyping) return;
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
         {
             if (_echoHoleDisplayText == null || _isTyping) return;
-
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            
+            var currentText = _echoHoleDisplayText.Text ?? "";
+            if (currentText.EndsWith("_"))
             {
-                if (_echoHoleDisplayText == null || _isTyping) return;
-                
-                var currentText = _echoHoleDisplayText.Text ?? "";
-                if (currentText.EndsWith("_"))
-                {
-                    _echoHoleDisplayText.Text = currentText.Substring(0, currentText.Length - 1);
-                }
-                else
-                {
-                    _echoHoleDisplayText.Text = currentText + "_";
-                }
-            });
-        }
-
-        protected override void OnInitialized()
-        {
-            base.OnInitialized();
-            if (Application.Current != null)
-            {
-                Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+                _echoHoleDisplayText.Text = currentText.Substring(0, currentText.Length - 1);
             }
-        }
-
-        protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-        {
-            base.OnDetachedFromVisualTree(e);
-            if (Application.Current != null)
+            else
             {
-                Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+                _echoHoleDisplayText.Text = currentText + "_";
             }
-        }
-
-        private void OnThemeVariantChanged(object? sender, EventArgs e)
-        {
-            UpdateThemeColors();
-        }
-
-        private void UpdateThemeColors()
-        {
-            if (_titleTextBlock != null)
-                _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-            if (_generalSettingsTextBlock != null)
-                _generalSettingsTextBlock.Foreground = ThemeHelper.GetTextBrush();
-            if (_licenseTextBlock != null)
-                _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-            if (_echoHoleDisplayText != null)
-                _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
-            if (_ntpHintTextBlock != null)
-                _ntpHintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
-
-            if (_settingItemBorders != null)
-            {
-                foreach (var border in _settingItemBorders)
-                {
-                    border.Background = ThemeHelper.GetCardBackgroundBrush();
-                }
-            }
-
-            if (_settingTitleTextBlocks != null)
-            {
-                foreach (var tb in _settingTitleTextBlocks)
-                {
-                    tb.Foreground = ThemeHelper.GetTextBrush();
-                }
-            }
-            if (_settingDescriptionTextBlocks != null)
-            {
-                foreach (var tb in _settingDescriptionTextBlocks)
-                {
-                    tb.Foreground = ThemeHelper.GetSubTextBrush();
-                }
-            }
-        }
-
-        #endregion
+        });
     }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+        StartNtpTimeDisplayTimer();
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        if (_titleTextBlock != null)
+            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        if (_generalSettingsTextBlock != null)
+            _generalSettingsTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        if (_licenseTextBlock != null)
+            _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_echoHoleDisplayText != null)
+            _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
+        if (_ntpHintTextBlock != null)
+            _ntpHintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+
+        if (_settingItemBorders != null)
+        {
+            foreach (var border in _settingItemBorders)
+            {
+                border.Background = ThemeHelper.GetCardBackgroundBrush();
+            }
+        }
+
+        if (_settingTitleTextBlocks != null)
+        {
+            foreach (var tb in _settingTitleTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetTextBrush();
+            }
+        }
+        if (_settingDescriptionTextBlocks != null)
+        {
+            foreach (var tb in _settingDescriptionTextBlocks)
+            {
+                tb.Foreground = ThemeHelper.GetSubTextBrush();
+            }
+        }
+    }
+
+    #endregion
+}
 
 
 

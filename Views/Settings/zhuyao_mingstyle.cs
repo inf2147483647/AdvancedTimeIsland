@@ -73,7 +73,6 @@ public class ZhuYaoMingStylePage : SettingsPageBase
             Text = "‹ 返回上一级",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline,
             Margin = new Thickness(16, 12, 16, 0)
         };
@@ -282,7 +281,7 @@ public class ZhuYaoMingStylePage : SettingsPageBase
     private Control ConvertParagraph(ParagraphBlock paragraph)
     {
         var hasImage = paragraph.Inline is ContainerInline container && container.Any(i => i is LinkInline link && link.IsImage);
-
+        
         if (hasImage)
         {
             var panel = new StackPanel
@@ -622,7 +621,6 @@ public class ZhuYaoMingStylePage : SettingsPageBase
 
                 if (parentTextBlock != null)
                 {
-                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
                     parentTextBlock.PointerPressed += (sender, e) =>
                     {
                         OpenLink(link.Url);

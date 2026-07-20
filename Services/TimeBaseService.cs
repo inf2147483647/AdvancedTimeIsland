@@ -74,7 +74,7 @@ public class TimeBaseService
         }
     }
 
-    private static IExactTimeService? ExactTimeService => GlobalConstants.HostInterfaces.ExactTimeService;
+    private IExactTimeService? ExactTimeService => GlobalConstants.HostInterfaces.ExactTimeService;
 
     public TimeBaseService(PluginSettings settings)
     {

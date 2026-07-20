@@ -64,7 +64,6 @@ public class QiXiongPage : SettingsPageBase
             Text = "‹ 返回上一级",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline,
             Margin = new Thickness(16, 12, 16, 0)
         };

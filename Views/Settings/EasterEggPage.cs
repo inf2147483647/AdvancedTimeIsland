@@ -312,7 +312,6 @@ public class EasterEggPage : UserControl
                 Text = text,
                 FontSize = 13,
                 Foreground = GetAccentBrush(),
-                Cursor = new Cursor(StandardCursorType.Hand),
                 TextDecorations = TextDecorations.Underline
             };
 
@@ -402,7 +401,6 @@ public class EasterEggPage : UserControl
                     Text = linkText,
                     FontSize = 13,
                     Foreground = GetAccentBrush(),
-                    Cursor = new Cursor(StandardCursorType.Hand),
                     TextDecorations = TextDecorations.Underline
                 };
 

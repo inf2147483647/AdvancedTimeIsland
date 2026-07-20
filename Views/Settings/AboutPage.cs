@@ -507,12 +507,7 @@ public class AboutPage : SettingsPageBase
 
         if (_easterEggActive)
         {
-            tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage(_pluginSettings) });
-        }
-
-        if (tabControl.Items.Count > 0 && tabControl.Items[0] is TabItem firstTab && firstTab.Content == null && firstTab.Tag != null)
-        {
-            LoadTabContent(firstTab);
+            tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = "EasterEgg" });
         }
 
         return tabControl;
@@ -545,6 +540,9 @@ public class AboutPage : SettingsPageBase
                     break;
                 case "Glossary":
                     tabItem.Content = new GlossaryPage();
+                    break;
+                case "EasterEgg":
+                    tabItem.Content = new EasterEggPage(_pluginSettings);
                     break;
                 default:
                     tabItem.Content = new TextBlock { Text = "内容加载中...", Foreground = ThemeHelper.GetTextBrush() };

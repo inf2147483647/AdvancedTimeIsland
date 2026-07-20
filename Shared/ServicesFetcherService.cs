@@ -8,7 +8,7 @@ namespace AdvancedTimeIsland.Shared;
 
 public class ServicesFetcherService : IHostedService
 {
-    public ServicesFetcherService(IExactTimeService exactTimeService, ILogger<Plugin> logger)
+    public ServicesFetcherService(IExactTimeService exactTimeService, ILogger<Plugin> logger, Services.TimeBaseService timeBaseService)
     {
         GlobalConstants.HostInterfaces.ExactTimeService = exactTimeService;
         GlobalConstants.HostInterfaces.PluginLogger = logger;

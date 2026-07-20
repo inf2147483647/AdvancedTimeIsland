@@ -77,8 +77,7 @@ public class MamianQunCeZhePage : SettingsPageBase
         {
             Content = "马面裙 - 百度百科",
             FontSize = 12,
-            Padding = new Thickness(0),
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Padding = new Thickness(0)
         };
         actionButton.Click += OnBaiduLinkClick;
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "ActionButton", actionButton);
@@ -90,7 +89,6 @@ public class MamianQunCeZhePage : SettingsPageBase
             Text = "‹ 返回上一级",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline,
             Margin = new Thickness(16, 12, 16, 0)
         };
@@ -192,7 +190,6 @@ public class MamianQunCeZhePage : SettingsPageBase
             Text = "https://www.douyin.com/video/7266267573635845432",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline
         };
         _douyinLinkTextBlock.PointerPressed += OnDouyinLinkClick;
@@ -301,7 +298,6 @@ public class MamianQunCeZhePage : SettingsPageBase
             Text = "[抖音]马面裙9系法，主打抠细节，看一遍就会。",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline,
             TextWrapping = TextWrapping.Wrap
         };

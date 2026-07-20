@@ -835,7 +835,6 @@ public class FpsChartControl : TemplatedControl, IDisposable
             {
                 _lastScreenX = e.GetCurrentPoint(_canvas).Position.X;
             }
-            _canvas.Cursor = new Cursor(StandardCursorType.Hand);
             e.Pointer.Capture(_canvas);
         }
     }
@@ -859,7 +858,6 @@ public class FpsChartControl : TemplatedControl, IDisposable
         if (_isDragging)
         {
             _isDragging = false;
-            _canvas.Cursor = new Cursor(StandardCursorType.Arrow);
             e.Pointer.Capture(null);
         }
     }

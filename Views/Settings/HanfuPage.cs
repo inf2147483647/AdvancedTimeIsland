@@ -155,8 +155,7 @@ public class HanfuPage : SettingsPageBase
             Text = ":(",
             FontSize = 40,
             HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ThemeHelper.GetTextBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Foreground = ThemeHelper.GetTextBrush()
         };
 
         _maleTitleTooltipTextBlock = new TextBlock
@@ -249,7 +248,6 @@ public class HanfuPage : SettingsPageBase
             Text = "汉服怎么穿",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            Cursor = new Cursor(StandardCursorType.Hand),
             TextDecorations = TextDecorations.Underline
         };
         _femaleGuideLinkTextBlock.PointerPressed += (s, e) =>
@@ -409,6 +407,11 @@ public class HanfuPage : SettingsPageBase
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandZhuYaoMingStyle?ci_keepHistory=true"));
         }
+        else if (text == "贴里 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandTieliMingStyle?ci_keepHistory=true"));
+        }
     }
 
     private readonly HashSet<string> _developedFeatures = new HashSet<string>
@@ -417,7 +420,8 @@ public class HanfuPage : SettingsPageBase
         "背子 褙子 宋制",
         "交窬裙 唐制",
         "袄 衫 直领 唐制",
-        "主腰 明制"
+        "主腰 明制",
+        "贴里 明制"
     };
 
     private void UpdateXingZhiButtonStyle(Button button)
