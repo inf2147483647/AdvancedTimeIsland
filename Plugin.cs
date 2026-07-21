@@ -226,8 +226,6 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
 
-        services.Configure<PluginSettings>(context.Configuration.GetSection("AdvancedTimeIsland"));
-
         services.AddSingleton(Settings);
 
         services.AddSingleton<LunarInstallerService>();
