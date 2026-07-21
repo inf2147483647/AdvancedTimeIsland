@@ -8,9 +8,10 @@
 4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)和2.x版本
 5. 新增页面都需要在plugin.cs中注册
 
-
 在汉服页面中
 
 1. 新增页面需要按照hanfu_page_template.cs模板文件套用（不能套用别的文件）
 2. 新增页面后对应的按钮需要变为已开发的状态，更新按钮文本颜色为应用强调色
-3.
+3. 
+
+最后调用AdvisorTool进行vibe review

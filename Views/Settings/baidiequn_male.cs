@@ -24,15 +24,15 @@ using Markdig.Syntax.Inlines;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-[SettingsPageInfo("AdvancedTimeIslandHanfuTemplate", "汉服页面模板", true, SettingsPageCategory.Debug)]
-public class HanfuPageTemplate : SettingsPageBase
+[SettingsPageInfo("AdvancedTimeIslandBaiDieQunMale", "宋制百迭裙（男性款）", true, SettingsPageCategory.Debug)]
+public class BaiDieQunMalePage : SettingsPageBase
 {
     protected Border? _contentBorder;
     protected List<TextBlock>? _paragraphTextBlocks;
     protected List<TextBlock>? _sectionTextBlocks;
     protected TextBlock? _backTextBlock;
 
-    public HanfuPageTemplate()
+    public BaiDieQunMalePage()
     {
         InitializeComponent();
     }
@@ -103,108 +103,106 @@ public class HanfuPageTemplate : SettingsPageBase
 
     protected virtual void BuildContent(StackPanel panel)
     {
-        var markdown = @"**支持的 Markdown 语法：**
+        var markdown = @"# 宋制百迭裙（男性款）
 
-> 本示例魔改自 http://leanote.leanote.com/post/markdown-source-code。
 
-# Welcome to ClassIsland! 欢迎来到ClassIsland!
+## 一、历史沿革
 
-## 1. 排版
+百迭裙并非女性专属，宋代男性同样穿着百迭类裙装，是男性日常服饰体系的组成部分。浙江黄岩南宋赵伯澐墓出土的男性素纱百迭裙实物，直接佐证了南宋时期男性百迭裙的真实存在，墓主为南宋宗室子弟，其裙装形制代表了宋代士族男性的服饰标准。
 
-**粗体** *斜体*
 
-~~这是一段错误的文本。~~
+宋代男性百迭裙多作为内层衬裙或日常便服使用，在士族与平民阶层均有普及，整体风格贴合宋代男性服饰简约内敛的审美特征。
 
-引用:
 
-> 123123123123
+## 二、形制结构
 
-有序列表:
- 1. 支持Vim
- 2. 支持Emacs
+宋制男性百迭裙同为**一片式围合裙**，核心结构与女款同源，均采用""两侧光面、中间打褶""的基础设计，整体风格简约庄重。
 
-无序列表:
 
- - 项目1
- - 项目2
+### 基础构成
 
-## 2. 图片与链接
+- **裙头**：双层加固腰头，两端缝制系带，用于围合系结固定。
 
-网络图片:
-![banner](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg)
+- **光面与褶裥区**：裙身两侧保留平整光面，中间区域打制规整褶裥，褶型以顺褶为主。
 
-WPF 资源图片：
+- **裙身与裙摆**：裙身垂坠感强，形制规整，契合宋代男性服饰的内敛审美。
 
-![1690356161339](pack://application:,,,/ClassIsland;component/Assets/AppLogo.png)
 
-链接:[AdvancedTimeIsland项目主页](https://github.com/inf2147483647/AdvancedTimeIsland)
+### 常见分类
 
-## 3. 标题
+1. **按褶型划分**
 
-以下是各级标题, 最多支持6级标题
+    - **顺褶百迭裙**：目前出土男性实物均为顺褶形制，褶子朝同一方向倒伏，规整简约，是男性百迭裙的主流款式。
 
-# h1：28px一级标题
-## h2：21px二级标题
-### h3：16px三级标题
-#### h4：14px四级标题
-##### h5：12px五级标题
-###### h6：9px六级标题
+2. **按围合方式划分**
 
-## 4. 代码
+    - **合围式百迭裙**：裙头长度适配腰围，围合后前后相接，多作为内层衬裙使用。
 
-示例:
+    - **交叠式百迭裙**：裙身两端重叠围合，包裹性更强，非正式场合可单独外穿。
 
-    function get(key) {
-        return m[key];
-    }
 
-代码高亮示例:
+### 文物参考数据
 
-```javascript
-/**
-* nth element in the fibonacci series.
-* @param n >= 0
-* @return the nth element, >= 0.
-*/
-function fib(n) {
-  var a = 1, b = 1;
-  var tmp;
-  while (--n >= 0) {
-    tmp = a;
-    a += b;
-    b = tmp;
-  }
-  return a;
-}
+以赵伯澐墓出土素纱百迭裙为例：裙长93.5厘米，腰宽41厘米，裙身两端为光面，中间打有13道顺褶，单褶宽约4厘米，面料为素色纱质，无额外装饰。
 
-document.write(fib(10));
-```
 
-```python
-class Employee:
-   empCount = 0
+## 三、应用场景
 
-    def __init__(self, name, salary):
-         self.name = name
-         self.salary = salary
-         Employee.empCount += 1
-```
+### 宋代历史场景
 
-# 5. Markdown 扩展
+1. **内层衬裙**：多穿着于袍、衫之内，作为内衣层次，起到保暖、规整外衣形态的作用，是士族男性日常着装的标配内层。
 
-Markdown 扩展支持:
+2. **日常便服**：居家、非正式出行场景中，可单穿搭配短衫，作为闲适便服使用。
 
-* 表格
+3. **礼仪辅助**：在部分礼仪场合中，作为礼服内层搭配，完善着装层次。
 
-## 5.1 表格
 
-表格示例（简化显示）:
+### 现代应用场景
 
-Hanfu | Photo Count
--------- | ---
-1 | 5
-2 | 4
-3 | 6";
+1. **汉服礼仪穿搭**：搭配宋制圆领袍、交领衫，作为男性宋制汉服的内层下装，还原宋代男性着装层次。
+
+2. **文化活动穿着**：在传统礼仪、汉服文化活动中，作为男性宋制造型的组成部分，体现服饰形制的完整性。
+
+
+## 四、穿戴方法
+
+宋制男性百迭裙以围合系结方式穿着，多作为内搭使用，标准穿戴步骤如下：
+
+1. **定位围合**：将裙腰对齐腰部，一端贴紧腰身，另一端绕身一周覆盖重合。
+
+2. **系带固定**：将两侧系带在腰侧或身后打活结固定，调整松紧使裙身平整垂顺。
+
+3. **外层搭配**：整理裙身褶裥后，外穿袍、衫等上衣，裙身仅下摆部分外露即可。
+
+
+## 五、注意事项
+
+### 形制区分要点
+
+男性百迭裙与女款核心结构一致，差异主要在装饰风格与整体比例：男款风格极简、多为素面无装饰，女款可承载更多纹样与工艺，二者风格定位不同。
+
+
+### 洗护保养
+
+1. 素面罗、纱材质优先选择轻柔手洗或专业干洗，避免强力揉搓损伤面料纤维。
+
+2. 晾晒时自然垂挂，保持褶裥顺直，收纳以悬挂为佳，避免重压导致褶型散乱。
+
+
+### 穿着注意
+
+1. 传统男性百迭裙多为内搭，穿着时需注意与外层袍衫的长度适配，保持着装层次协调。
+
+2. 围合松紧需适度，既保证活动便利，也避免裙身移位影响整体垂坠效果。
+
+
+## 六、参考来源
+
+1. `https://www.zjtz.gov.cn/col/col1229506201/art/2026/art_8a51f8f9ec692c6cbd3de34a67989a24.html` 
+
+2. `https://qjwb.tidenews.com.cn/html/2026-03/29/content_4473673.htm?div=1` 
+
+3. `https://www.click2macao.com/2022/05/04/hfxzjsss/`";
 
         RenderMarkdown(panel, markdown);
     }

@@ -1481,6 +1481,8 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.RuQunPage>();
             services.AddSettingsPage<Views.Settings.ZhuYaoMingStylePage>();
             services.AddSettingsPage<Views.Settings.TieliMingStylePage>();
+            services.AddSettingsPage<Views.Settings.BaiDieQunPage>();
+            services.AddSettingsPage<Views.Settings.BaiDieQunMalePage>();
             services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         }
 

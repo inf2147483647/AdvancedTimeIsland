@@ -1,9 +1,11 @@
 using System;
 using System.Reflection;
+using System.Linq;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
+using Avalonia.VisualTree;
 
 namespace AdvancedTimeIsland.Helpers;
 
@@ -644,44 +646,50 @@ public static class FluentAvaloniaCompatibilityHelper
         try
         {
             var frameType = Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia");
-            if (frameType != null)
-            {
-                var parent = FindVisualParent(control);
-                while (parent != null)
-                {
-                    if (frameType.IsAssignableFrom(parent.GetType()))
-                    {
-                        var canGoBackProp = frameType.GetProperty("CanGoBack");
-                        var canGoBack = (bool?)canGoBackProp?.GetValue(parent) ?? false;
-                        if (canGoBack)
-                        {
-                            var goBackMethod = frameType.GetMethod("GoBack");
-                            goBackMethod?.Invoke(parent, null);
-                        }
-                        return;
-                    }
+            var navigationViewType = Type.GetType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia");
 
-                    parent = FindVisualParent(parent);
-                }
-            }
-            else
+            foreach (var ancestor in control.GetVisualAncestors())
             {
-                var parent = FindVisualParent(control);
-                while (parent != null)
+                var ancestorType = ancestor.GetType();
+                
+                if (frameType != null && frameType.IsAssignableFrom(ancestorType))
                 {
-                    var goBackMethod = parent.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
                     if (goBackMethod != null)
                     {
-                        var canGoBackProp = parent.GetType().GetProperty("CanGoBack");
-                        var canGoBack = (bool?)canGoBackProp?.GetValue(parent) ?? true;
-                        if (canGoBack)
-                        {
-                            goBackMethod.Invoke(parent, null);
-                        }
+                        goBackMethod.Invoke(ancestor, null);
                         return;
                     }
+                }
 
-                    parent = FindVisualParent(parent);
+                if (navigationViewType != null && navigationViewType.IsAssignableFrom(ancestorType))
+                {
+                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
+                    if (goBackMethod != null)
+                    {
+                        goBackMethod.Invoke(ancestor, null);
+                        return;
+                    }
+                }
+            }
+
+            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(control);
+            if (topLevel != null)
+            {
+                var frame = FindVisualChildOfType(topLevel, frameType);
+                if (frame != null)
+                {
+                    var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                    goBackMethod?.Invoke(frame, null);
+                    return;
+                }
+
+                var navView = FindVisualChildOfType(topLevel, navigationViewType);
+                if (navView != null)
+                {
+                    var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                    goBackMethod?.Invoke(navView, null);
+                    return;
                 }
             }
         }
@@ -690,20 +698,23 @@ public static class FluentAvaloniaCompatibilityHelper
         }
     }
 
-    private static Avalonia.Visual? FindVisualParent(Avalonia.Visual visual)
+    private static object? FindVisualChildOfType(Avalonia.Visual visual, Type targetType)
     {
-        if (visual == null)
+        if (visual == null || targetType == null)
             return null;
 
-        var visualParentProperty = visual.GetType().GetProperty("VisualParent");
-        if (visualParentProperty != null)
+        if (targetType.IsAssignableFrom(visual.GetType()))
         {
-            return visualParentProperty.GetValue(visual) as Avalonia.Visual;
+            return visual;
         }
 
-        if (visual is Avalonia.Controls.Control ctrl)
+        foreach (var child in visual.GetVisualChildren())
         {
-            return ctrl.Parent as Avalonia.Visual;
+            var result = FindVisualChildOfType(child, targetType);
+            if (result != null)
+            {
+                return result;
+            }
         }
 
         return null;
