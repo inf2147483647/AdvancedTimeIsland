@@ -74,7 +74,8 @@ public class ZhuYaoMingStylePage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0)
+            Margin = new Thickness(16, 12, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
         mainPanel.Children.Add(_backTextBlock);
@@ -621,6 +622,7 @@ public class ZhuYaoMingStylePage : SettingsPageBase
 
                 if (parentTextBlock != null)
                 {
+                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
                     parentTextBlock.PointerPressed += (sender, e) =>
                     {
                         OpenLink(link.Url);
@@ -748,26 +750,24 @@ public class ZhuYaoMingStylePage : SettingsPageBase
         {
             if (item is ListItemBlock listItem)
             {
-                var itemPanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 8,
-                    VerticalAlignment = VerticalAlignment.Top
-                };
+                var itemGrid = new Grid();
+                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(24) });
+                itemGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
                 var marker = new TextBlock
                 {
                     Text = list.IsOrdered ? $"{listItem.Order}." : "•",
                     FontSize = 16,
                     Foreground = ThemeHelper.GetSubTextBrush(),
-                    VerticalAlignment = VerticalAlignment.Top,
-                    Width = 24
+                    VerticalAlignment = VerticalAlignment.Top
                 };
+                Grid.SetColumn(marker, 0);
 
                 var contentPanel = new StackPanel
                 {
                     Orientation = Orientation.Vertical,
-                    Spacing = 4
+                    Spacing = 4,
+                    Margin = new Thickness(8, 0, 0, 0)
                 };
 
                 foreach (var block in listItem)
@@ -778,10 +778,11 @@ public class ZhuYaoMingStylePage : SettingsPageBase
                         contentPanel.Children.Add(element);
                     }
                 }
+                Grid.SetColumn(contentPanel, 1);
 
-                itemPanel.Children.Add(marker);
-                itemPanel.Children.Add(contentPanel);
-                panel.Children.Add(itemPanel);
+                itemGrid.Children.Add(marker);
+                itemGrid.Children.Add(contentPanel);
+                panel.Children.Add(itemGrid);
             }
         }
 

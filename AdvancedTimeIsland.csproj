@@ -13,10 +13,6 @@
         <DefineConstants>$(DefineConstants);PLATFORM_WINDOWS</DefineConstants>
     </PropertyGroup>
 
-    <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'android-arm64'">
-        <DefineConstants>$(DefineConstants);PLATFORM_ANDROID</DefineConstants>
-    </PropertyGroup>
-
     <PropertyGroup>
         <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
     </PropertyGroup>
@@ -69,21 +65,45 @@
     </ItemGroup>
 
     <ItemGroup>
-      <AvaloniaXaml Remove="Views\Main\AdvancedDateControl.axaml" />
-    </ItemGroup>
-
-    <ItemGroup>
       <Compile Remove="Views\Main\AdvancedDateControl.axaml.cs" />
     </ItemGroup>
 
-    <!-- 排除空的 XAML 文件 -->
-    <ItemGroup>
-      <AvaloniaXaml Remove="Views\Settings\AboutPage.xaml" />
-      <AvaloniaXaml Remove="Views\Settings\TimeConverterPage.xaml" />
-      <AvaloniaXaml Remove="Views\Settings\PluginSettingsPage.xaml" />
-      <AvaloniaXaml Remove="Views\Settings\GlossaryPage.xaml" />
-      <AvaloniaXaml Remove="Views\Settings\EasterEggPage.xaml" />
-      <AvaloniaXaml Remove="Views\Main\CountdownControl.xaml" />
-    </ItemGroup>
+    <Target Name="CreateCipxPackage" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+        <PropertyGroup>
+            <TempPackageDir>$(IntermediateOutputPath)CipxPackage</TempPackageDir>
+            <CipxFileName>$(AssemblyName).cipx</CipxFileName>
+            <CipxFilePath>$(OutputPath)$(CipxFileName)</CipxFilePath>
+            <PackageSourceDir>$(OutputPath)</PackageSourceDir>
+        </PropertyGroup>
+
+        <Message Text="Creating .cipx package..." Importance="high" />
+        <Message Text="Output directory: $(OutputPath)" Importance="high" />
+        <Message Text="Package source: $(PackageSourceDir)" Importance="high" />
+        <Message Text="Package file: $(CipxFilePath)" Importance="high" />
+
+        <RemoveDir Directories="$(TempPackageDir)" />
+        <MakeDir Directories="$(TempPackageDir)" />
+
+        <ItemGroup>
+            <PackageFiles Include="$(PackageSourceDir)*" Exclude="$(PackageSourceDir)*.pdb;$(PackageSourceDir)*.cipx;$(PackageSourceDir)*.zip;$(PackageSourceDir)win-x64\**\*;$(PackageSourceDir)android-arm64\**\*" />
+            <PackageFiles Include="$(PackageSourceDir)Assets\**\*" Exclude="$(PackageSourceDir)Assets\**\*.pdb;$(PackageSourceDir)Assets\**\*.cipx;$(PackageSourceDir)Assets\**\*.zip" />
+            <PackageFiles Include="$(PackageSourceDir)hanfupage\**\*" Exclude="$(PackageSourceDir)hanfupage\**\*.pdb;$(PackageSourceDir)hanfupage\**\*.cipx;$(PackageSourceDir)hanfupage\**\*.zip" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(PackageFiles)" DestinationFiles="@(PackageFiles->'$(TempPackageDir)\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+        <Delete Files="$(TempPackageDir)\*.pdb" />
+        <Delete Files="$(TempPackageDir)\*.cipx" />
+        <Delete Files="$(TempPackageDir)\*.zip" />
+
+        <Delete Files="$(CipxFilePath)" />
+
+        <ZipDirectory SourceDirectory="$(TempPackageDir)" DestinationFile="$(CipxFilePath)" />
+
+        <Message Text="Packaging successful!" Importance="high" />
+        <Message Text="Package location: $(CipxFilePath)" Importance="high" />
+
+        <RemoveDir Directories="$(TempPackageDir)" />
+    </Target>
 
 </Project>

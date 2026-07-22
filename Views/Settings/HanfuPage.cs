@@ -248,7 +248,8 @@ public class HanfuPage : SettingsPageBase
             Text = "汉服怎么穿",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            TextDecorations = TextDecorations.Underline
+            TextDecorations = TextDecorations.Underline,
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _femaleGuideLinkTextBlock.PointerPressed += (s, e) =>
         {
@@ -417,6 +418,16 @@ public class HanfuPage : SettingsPageBase
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandBaiDieQun?ci_keepHistory=true"));
         }
+        else if (text == "短衫 袄 交领 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandDuanShanAoJiaoLing?ci_keepHistory=true"));
+        }
+        else if (text == "短衫 袄 竖领 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandDuanShanAoShuLing?ci_keepHistory=true"));
+        }
     }
 
     private readonly HashSet<string> _developedFeatures = new HashSet<string>
@@ -427,7 +438,9 @@ public class HanfuPage : SettingsPageBase
         "袄 衫 直领 唐制",
         "主腰 明制",
         "贴里 明制",
-        "百迭裙 宋制"
+        "百迭裙 宋制",
+        "短衫 袄 交领 明制",
+        "短衫 袄 竖领 明制"
     };
 
     private void UpdateXingZhiButtonStyle(Button button)

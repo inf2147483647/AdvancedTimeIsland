@@ -1,6 +1,6 @@
 # ClassIsland Plugin Packaging Script
 # Usage: Run after Release build
-# Supports: Windows x64, Android arm64
+# Supports: Windows x64
 
 $ErrorActionPreference = "Stop"
 $ProjectRoot = $PSScriptRoot
@@ -39,6 +39,8 @@ function Create-CipxPackage {
         Copy-Item "$OutputDir\*" $tempDir -Recurse -Force
 
         Remove-Item "$tempDir\*.pdb" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$tempDir\*.cipx" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$tempDir\*.zip" -Force -ErrorAction SilentlyContinue
 
         Write-Host "Creating .cipx package..."
 
@@ -84,11 +86,10 @@ function Build-Platform {
     return Create-CipxPackage -OutputDir $OutputDir -PackageName $PackageName
 }
 
-Write-Host "AdvancedTimeIsland Plugin Multi-Platform Build Script"
-Write-Host "======================================================"
+Write-Host "AdvancedTimeIsland Plugin Build Script"
+Write-Host "======================================"
 
 $windowsSuccess = Build-Platform -RuntimeIdentifier "win-x64" -PackageName "AdvancedTimeIsland.cipx"
-$androidSuccess = Build-Platform -RuntimeIdentifier "android-arm64" -PackageName "AdvancedTimeIsland_Android_arm64.cipx"
 
 $cipxDir = Join-Path $ProjectRoot "cipx"
 if (-not (Test-Path $cipxDir)) {
@@ -101,24 +102,16 @@ if ($windowsSuccess) {
     Write-Host "`nCopied Windows package to $cipxDir"
 }
 
-if ($androidSuccess) {
-    $androidPackage = Join-Path $ProjectRoot "bin\Release\net8.0\android-arm64\AdvancedTimeIsland_Android_arm64.cipx"
-    Copy-Item $androidPackage $cipxDir -Force
-    Write-Host "Copied Android package to $cipxDir"
-}
-
 Write-Host "`n========================================"
 Write-Host "Build Summary"
 Write-Host "========================================"
 Write-Host "Windows x64: $(if ($windowsSuccess) { 'SUCCESS' } else { 'FAILED' })"
-Write-Host "Android arm64: $(if ($androidSuccess) { 'SUCCESS' } else { 'FAILED' })"
 
-if ($windowsSuccess -or $androidSuccess) {
+if ($windowsSuccess) {
     Write-Host "`nHow to use:"
-    Write-Host "1. Copy the appropriate .cipx file to ClassIsland plugins directory"
+    Write-Host "1. Copy the .cipx file to ClassIsland plugins directory"
     Write-Host "   Windows: %APPDATA%\ClassIsland\Plugins\"
-    Write-Host "   Android: Check ClassIsland Android plugin directory"
     Write-Host "2. Restart ClassIsland"
 }
 
-if ($windowsSuccess -and $androidSuccess) { exit 0 } else { exit 1 }
+if ($windowsSuccess) { exit 0 } else { exit 1 }

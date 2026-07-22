@@ -129,7 +129,8 @@ public class AboutPage : SettingsPageBase
             Height = 64,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0)
+            Margin = new Thickness(0, 0, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         var image = new Avalonia.Controls.Image
@@ -316,7 +317,7 @@ public class AboutPage : SettingsPageBase
 
         var versionText = new TextBlock
         {
-            Text = "版本：1.0.2.1",
+            Text = "版本：1.0.2.2",
             FontSize = 14,
             Foreground = ThemeHelper.GetTextBrush()
         };
@@ -325,7 +326,7 @@ public class AboutPage : SettingsPageBase
 
         var descText = new TextBlock
         {
-            Text = "介绍：AdvancedTimeIsland 是 ClassIsland 的高级时间类型插件，提供倒计时、正向计时、高级日期、农历倒计时、地方时和时区时间等多种组件。支持 NTP 服务器时间同步，时间系统独立于本地系统。内置丰富的自动化规则，涵盖精确时间和年/月/日/时/分/秒时间范围触发，以及地方时和时区规则。集成农历服务和地理时间功能，支持多种时间基准选择，全面提升时间管理体验。更多功能开发中，敬请期待。",
+            Text = "AdvancedTimeIsland是一款为ClassIsland打造的高级时间管理插件，旨在弥补原生功能的不足（比如判断是否在某段时间范围内）。它提供丰富的时间相关组件，包括高级日期显示、多例倒计时、正计时、周期性倒计时等核功能。同时支持农历日历、节气、生肖、星座、节日等展示。该插件具备强大的时间自动化能力，支持精确时间、周期性时间（年/月/周/日/时/分）、地方时、区时、农历时间等多种触发条件与规则，满足复杂的时间调度需求。此外还提供时间格式转换工具，支持北京时间、Unix时间戳、农历、区时、地方时之间的相互转换，并附带专业名词解释帮助用户理解时间相关概念。插件界面支持主题自适应，为用户提供更完善的时间管理体验。更多功能开发中，敬请期待。",
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap

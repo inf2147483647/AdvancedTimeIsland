@@ -68,7 +68,8 @@ public class RuQunPage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0)
+            Margin = new Thickness(16, 12, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
         mainPanel.Children.Add(_backTextBlock);
@@ -140,7 +141,8 @@ public class RuQunPage : SettingsPageBase
             Text = "齐胸襦裙",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            TextDecorations = TextDecorations.Underline
+            TextDecorations = TextDecorations.Underline,
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _qiXiongLinkTextBlock.PointerPressed += OnQiXiongLinkClick;
         qiXiongPanel.Children.Add(_qiXiongLinkTextBlock);

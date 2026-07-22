@@ -312,7 +312,8 @@ public class EasterEggPage : UserControl
                 Text = text,
                 FontSize = 13,
                 Foreground = GetAccentBrush(),
-                TextDecorations = TextDecorations.Underline
+                TextDecorations = TextDecorations.Underline,
+                Cursor = new Cursor(StandardCursorType.Hand)
             };
 
             link.PointerPressed += (s, e) =>
@@ -401,7 +402,8 @@ public class EasterEggPage : UserControl
                     Text = linkText,
                     FontSize = 13,
                     Foreground = GetAccentBrush(),
-                    TextDecorations = TextDecorations.Underline
+                    TextDecorations = TextDecorations.Underline,
+                    Cursor = new Cursor(StandardCursorType.Hand)
                 };
 
                 link.PointerPressed += (s, e) =>

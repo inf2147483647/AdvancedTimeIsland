@@ -31,17 +31,14 @@ jobs:
     - name: Build the project
       run: dotnet build $env:Project_Path --configuration Release --no-restore
 
-    - name: Create .cipx package
-      run: .\Build-Package.ps1
-
     - name: Upload build artifacts
       uses: actions/upload-artifact@v4
       with:
         name: Build Output
-        path: bin/Release/net8.0-windows/
+        path: bin/Release/net8.0/
 
     - name: Upload .cipx package
       uses: actions/upload-artifact@v4
       with:
         name: AdvancedTimeIsland.cipx
-        path: bin/Release/net8.0-windows/AdvancedTimeIsland.cipx
+        path: bin/Release/net8.0/AdvancedTimeIsland.cipx

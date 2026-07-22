@@ -14,6 +14,9 @@ using AdvancedTimeIsland.Automation.Triggers;
 using AdvancedTimeIsland.Automation.Conditions;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
+using Avalonia.Controls;
+using Avalonia.Styling;
+using Avalonia.Input;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
@@ -235,6 +238,8 @@ public class Plugin : PluginBase
         services.AddSingleton<TimeBaseService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
+
+        RegisterButtonPointerCursorStyle();
 
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
@@ -1481,6 +1486,8 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.TieliMingStylePage>();
             services.AddSettingsPage<Views.Settings.BaiDieQunPage>();
             services.AddSettingsPage<Views.Settings.BaiDieQunMalePage>();
+            services.AddSettingsPage<Views.Settings.DuanShanAoShuLingPage>();
+            services.AddSettingsPage<Views.Settings.DuanShanAoJiaoLingPage>();
             services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         }
 
@@ -1665,6 +1672,21 @@ public class Plugin : PluginBase
         catch
         {
             return DateTime.MaxValue;
+        }
+    }
+
+    private void RegisterButtonPointerCursorStyle()
+    {
+        if (Avalonia.Application.Current != null)
+        {
+            var buttonStyle = new Style(x => x.OfType<Button>())
+            {
+                Setters =
+                {
+                    new Setter(Control.CursorProperty, new Cursor(StandardCursorType.Hand))
+                }
+            };
+            Avalonia.Application.Current.Styles.Add(buttonStyle);
         }
     }
 }

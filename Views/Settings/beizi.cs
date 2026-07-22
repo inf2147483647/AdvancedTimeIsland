@@ -66,7 +66,8 @@ public class BeiZiPage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0)
+            Margin = new Thickness(16, 12, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
         mainPanel.Children.Add(_backTextBlock);

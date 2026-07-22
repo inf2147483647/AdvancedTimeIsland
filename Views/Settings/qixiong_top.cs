@@ -67,7 +67,8 @@ public class QiXiongTopPage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0)
+            Margin = new Thickness(16, 12, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
         mainPanel.Children.Add(_backTextBlock);
@@ -102,7 +103,8 @@ public class QiXiongTopPage : SettingsPageBase
             FontSize = 20,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(0, 0, 0, 8)
+            Margin = new Thickness(0, 0, 0, 8),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         linkText.PointerPressed += (s, e) =>
         {

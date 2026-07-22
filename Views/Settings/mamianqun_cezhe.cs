@@ -90,7 +90,8 @@ public class MamianQunCeZhePage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0)
+            Margin = new Thickness(16, 12, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
         mainPanel.Children.Add(_backTextBlock);
@@ -190,7 +191,8 @@ public class MamianQunCeZhePage : SettingsPageBase
             Text = "https://www.douyin.com/video/7266267573635845432",
             FontSize = 14,
             Foreground = GetAccentBrush(),
-            TextDecorations = TextDecorations.Underline
+            TextDecorations = TextDecorations.Underline,
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _douyinLinkTextBlock.PointerPressed += OnDouyinLinkClick;
         douyinPanel.Children.Add(_douyinLinkTextBlock);
@@ -299,7 +301,8 @@ public class MamianQunCeZhePage : SettingsPageBase
             FontSize = 14,
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
         _douyinLinkTextBlock2.PointerPressed += OnDouyinLinkClick2;
         panel.Children.Add(_douyinLinkTextBlock2);
