@@ -428,6 +428,11 @@ public class HanfuPage : SettingsPageBase
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandDuanShanAoShuLing?ci_keepHistory=true"));
         }
+        else if (text == "长衫 袄 竖领 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoShuLing?ci_keepHistory=true"));
+        }
     }
 
     private readonly HashSet<string> _developedFeatures = new HashSet<string>
@@ -440,7 +445,8 @@ public class HanfuPage : SettingsPageBase
         "贴里 明制",
         "百迭裙 宋制",
         "短衫 袄 交领 明制",
-        "短衫 袄 竖领 明制"
+        "短衫 袄 竖领 明制",
+        "长衫 袄 竖领 明制"
     };
 
     private void UpdateXingZhiButtonStyle(Button button)

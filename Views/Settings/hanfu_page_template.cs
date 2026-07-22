@@ -438,7 +438,7 @@ Hanfu | Photo Count
                 if (clickTarget != null)
                 {
                     clickTarget.Cursor = new Cursor(StandardCursorType.Hand);
-                    clickTarget.PointerPressed += (sender, e) =>
+                    clickTarget.PointerReleased += (sender, e) =>
                     {
                         OpenLink(link.Url);
                     };
@@ -651,7 +651,7 @@ Hanfu | Photo Count
                 if (parentTextBlock != null)
                 {
                     parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerPressed += (sender, e) =>
+                    parentTextBlock.PointerReleased += (sender, e) =>
                     {
                         OpenLink(codeText);
                     };
@@ -692,7 +692,7 @@ Hanfu | Photo Count
                 if (parentTextBlock != null)
                 {
                     parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerPressed += (sender, e) =>
+                    parentTextBlock.PointerReleased += (sender, e) =>
                     {
                         OpenLink(link.Url);
                     };

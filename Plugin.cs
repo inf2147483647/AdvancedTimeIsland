@@ -1489,6 +1489,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.BaiDieQunMalePage>();
             services.AddSettingsPage<Views.Settings.DuanShanAoShuLingPage>();
             services.AddSettingsPage<Views.Settings.DuanShanAoJiaoLingPage>();
+            services.AddSettingsPage<Views.Settings.ChangShanAoShuLingPage>();
             services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         }
 
