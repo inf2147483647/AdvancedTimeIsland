@@ -15,8 +15,10 @@ using Avalonia.Media;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
+using ClassIsland.Shared;
 using Markdig;
 using Markdig.Extensions.Tables;
 using Markdig.Syntax;
@@ -343,10 +345,10 @@ Hanfu | Photo Count
 
     private void ProcessParagraphInline(Markdig.Syntax.Inlines.Inline? inline, TextBlock textBlock, StackPanel imagePanel)
     {
-        ProcessParagraphInline(inline, textBlock.Inlines, imagePanel);
+        ProcessParagraphInline(inline, textBlock.Inlines, imagePanel, textBlock);
     }
 
-    private void ProcessParagraphInline(Markdig.Syntax.Inlines.Inline? inline, InlineCollection inlines, StackPanel imagePanel)
+    private void ProcessParagraphInline(Markdig.Syntax.Inlines.Inline? inline, InlineCollection inlines, StackPanel imagePanel, TextBlock? clickTarget = null)
     {
         if (inline == null) return;
 
@@ -377,11 +379,11 @@ Hanfu | Photo Count
             {
                 if (styleSpan != null)
                 {
-                    ProcessParagraphInline(child, styleSpan.Inlines, imagePanel);
+                    ProcessParagraphInline(child, styleSpan.Inlines, imagePanel, clickTarget);
                 }
                 else
                 {
-                    ProcessParagraphInline(child, inlines, imagePanel);
+                    ProcessParagraphInline(child, inlines, imagePanel, clickTarget);
                 }
             }
 
@@ -429,9 +431,18 @@ Hanfu | Photo Count
                 var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
                 foreach (var child in link)
                 {
-                    ProcessParagraphInline(child, linkSpan.Inlines, imagePanel);
+                    ProcessParagraphInline(child, linkSpan.Inlines, imagePanel, clickTarget);
                 }
                 inlines.Add(linkSpan);
+                
+                if (clickTarget != null)
+                {
+                    clickTarget.Cursor = new Cursor(StandardCursorType.Hand);
+                    clickTarget.PointerPressed += (sender, e) =>
+                    {
+                        OpenLink(link.Url);
+                    };
+                }
             }
         }
         else if (inline is LineBreakInline)
@@ -442,7 +453,7 @@ Hanfu | Photo Count
         {
             foreach (var child in container)
             {
-                ProcessParagraphInline(child, inlines, imagePanel);
+                ProcessParagraphInline(child, inlines, imagePanel, clickTarget);
             }
         }
         else
@@ -714,12 +725,21 @@ Hanfu | Photo Count
     {
         try
         {
-            var psi = new System.Diagnostics.ProcessStartInfo
+            if (url.StartsWith("route:", StringComparison.OrdinalIgnoreCase))
             {
-                FileName = url,
-                UseShellExecute = true
-            };
-            System.Diagnostics.Process.Start(psi);
+                var routePath = url.Substring("route:".Length);
+                var uri = new Uri($"classisland://app/settings/{routePath}?ci_keepHistory=true");
+                IAppHost.TryGetService<IUriNavigationService>()?.NavigateWrapped(uri);
+            }
+            else
+            {
+                var psi = new System.Diagnostics.ProcessStartInfo
+                {
+                    FileName = url,
+                    UseShellExecute = true
+                };
+                System.Diagnostics.Process.Start(psi);
+            }
         }
         catch
         {

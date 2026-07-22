@@ -427,7 +427,7 @@ public class AboutPage : SettingsPageBase
             {
                 System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
                 {
-                    FileName = "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new",
+                    FileName = "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new/choose",
                     UseShellExecute = true
                 });
             }
