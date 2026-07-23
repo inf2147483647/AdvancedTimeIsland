@@ -44,32 +44,32 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
 
     private void UpdateText1FontColor(string colorStr)
     {
-        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateText1FontSize(double fontSize) { text1Tb.FontSize = fontSize; }
     private void UpdateNameFontColor(string colorStr)
     {
-        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateNameFontSize(double fontSize) { nameTb.FontSize = fontSize; }
     private void UpdateText3FontColor(string colorStr)
     {
-        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateText3FontSize(double fontSize) { text3Tb.FontSize = fontSize; }
     private void UpdateTimeFontColor(string colorStr)
     {
-        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateTimeFontSize(double fontSize) { timeTb.FontSize = fontSize; }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newText1Color = ThemeHelper.GetThemeAwareTextColor();
             Settings.Text1FontColor = newText1Color;

@@ -96,12 +96,12 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize)
     {
         tb.FontSize = fontSize;
-        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.Text1FontColor = newColor;

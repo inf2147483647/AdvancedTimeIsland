@@ -91,7 +91,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
         labelFpsTb.Foreground = brush;
         labelMaxTb.Foreground = brush;
         labelAvgTb.Foreground = brush;
@@ -152,7 +152,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.LabelFontColor = newColor;

@@ -18,7 +18,8 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueColorTextBox;
     private TextBox _valueFontSizeTextBox;
-    private ToggleSwitch _enableCustomToggle;
+    private ToggleSwitch _enableCustomFontSizeToggle;
+    private ToggleSwitch _enableCustomFontColorToggle;
 
     private TextBlock _labelTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
@@ -36,9 +37,13 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
-        sp.Children.Add(_enableCustomToggle);
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
+        sp.Children.Add(_enableCustomFontSizeToggle);
+
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
+        sp.Children.Add(_enableCustomFontColorToggle);
 
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
@@ -113,7 +118,8 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
 
     private void UpdateThemeColors()
     {
-        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -125,7 +131,7 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -142,19 +148,30 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
         _valueColorTextBox.Text = newValueColor;
     }
 
-    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
+    }
+
+    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomFontColor)
+        {
+            UpdateFontColorsForTheme();
+        }
     }
 
     private void UpdateControlsEnabled()
     {
-        var enabled = Settings.EnableCustomColorAndFont;
-        _labelColorTextBox.IsEnabled = enabled;
-        _labelFontSizeTextBox.IsEnabled = enabled;
-        _valueColorTextBox.IsEnabled = enabled;
-        _valueFontSizeTextBox.IsEnabled = enabled;
+        var fontSizeEnabled = Settings.EnableCustomFontSize;
+        var fontColorEnabled = Settings.EnableCustomFontColor;
+        _labelColorTextBox.IsEnabled = fontColorEnabled;
+        _labelFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _valueColorTextBox.IsEnabled = fontColorEnabled;
+        _valueFontSizeTextBox.IsEnabled = fontSizeEnabled;
     }
 
     protected override void OnInitialized()
@@ -165,7 +182,8 @@ public class ShengXiaoSettingsControl : ComponentBase<ShengXiaoSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         UpdateControlsEnabled();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);

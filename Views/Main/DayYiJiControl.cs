@@ -65,7 +65,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
         yiLabelTb.Foreground = brush;
         jiLabelTb.Foreground = brush;
     }
@@ -84,7 +84,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.LabelFontColor = newColor;

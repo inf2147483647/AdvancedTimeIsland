@@ -46,7 +46,7 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
 
     private void UpdateFontColor(string colorStr)
     {
-        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateFontSize(double fontSize)
@@ -56,7 +56,7 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.FontColor = newColor;

@@ -161,16 +161,31 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomColorAndFont = false;
+    private bool _enableCustomFontSize = false;
 
-    public bool EnableCustomColorAndFont
+    public bool EnableCustomFontSize
     {
-        get => _enableCustomColorAndFont;
+        get => _enableCustomFontSize;
         set
         {
-            if (_enableCustomColorAndFont != value)
+            if (_enableCustomFontSize != value)
             {
-                _enableCustomColorAndFont = value;
+                _enableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontColor = false;
+
+    public bool EnableCustomFontColor
+    {
+        get => _enableCustomFontColor;
+        set
+        {
+            if (_enableCustomFontColor != value)
+            {
+                _enableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }
@@ -341,16 +356,31 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomColorAndFont = false;
+    private bool _enableCustomFontSize = false;
 
-    public bool EnableCustomColorAndFont
+    public bool EnableCustomFontSize
     {
-        get => _enableCustomColorAndFont;
+        get => _enableCustomFontSize;
         set
         {
-            if (_enableCustomColorAndFont != value)
+            if (_enableCustomFontSize != value)
             {
-                _enableCustomColorAndFont = value;
+                _enableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontColor = false;
+
+    public bool EnableCustomFontColor
+    {
+        get => _enableCustomFontColor;
+        set
+        {
+            if (_enableCustomFontColor != value)
+            {
+                _enableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }
@@ -563,16 +593,31 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomColorAndFont = false;
+    private bool _enableCustomFontSize = false;
 
-    public bool EnableCustomColorAndFont
+    public bool EnableCustomFontSize
     {
-        get => _enableCustomColorAndFont;
+        get => _enableCustomFontSize;
         set
         {
-            if (_enableCustomColorAndFont != value)
+            if (_enableCustomFontSize != value)
             {
-                _enableCustomColorAndFont = value;
+                _enableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontColor = false;
+
+    public bool EnableCustomFontColor
+    {
+        get => _enableCustomFontColor;
+        set
+        {
+            if (_enableCustomFontColor != value)
+            {
+                _enableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }
@@ -701,16 +746,31 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomColorAndFont = false;
+    private bool _enableCustomFontSize = false;
 
-    public bool EnableCustomColorAndFont
+    public bool EnableCustomFontSize
     {
-        get => _enableCustomColorAndFont;
+        get => _enableCustomFontSize;
         set
         {
-            if (_enableCustomColorAndFont != value)
+            if (_enableCustomFontSize != value)
             {
-                _enableCustomColorAndFont = value;
+                _enableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontColor = false;
+
+    public bool EnableCustomFontColor
+    {
+        get => _enableCustomFontColor;
+        set
+        {
+            if (_enableCustomFontColor != value)
+            {
+                _enableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }

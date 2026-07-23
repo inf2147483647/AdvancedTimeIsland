@@ -10,7 +10,8 @@ public class FpsMonitorSettings : INotifyPropertyChanged
     private double _labelFontSize = 14;
     private string _valueFontColor = "";
     private double _valueFontSize = 14;
-    private bool _enableCustomColorAndFont = false;
+    private bool _enableCustomFontSize = false;
+    private bool _enableCustomFontColor = false;
     private bool _enableComponent = false;
 
     public bool EnableComponent
@@ -78,14 +79,27 @@ public class FpsMonitorSettings : INotifyPropertyChanged
         }
     }
 
-    public bool EnableCustomColorAndFont
+    public bool EnableCustomFontSize
     {
-        get => _enableCustomColorAndFont;
+        get => _enableCustomFontSize;
         set
         {
-            if (_enableCustomColorAndFont != value)
+            if (_enableCustomFontSize != value)
             {
-                _enableCustomColorAndFont = value;
+                _enableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool EnableCustomFontColor
+    {
+        get => _enableCustomFontColor;
+        set
+        {
+            if (_enableCustomFontColor != value)
+            {
+                _enableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }

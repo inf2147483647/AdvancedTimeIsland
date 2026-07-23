@@ -51,14 +51,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void UpdateYiLabelFontColor(string colorStr)
     {
-        yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
     private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
     private void UpdateJiLabelFontColor(string colorStr)
     {
-        jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
@@ -66,7 +66,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.YiLabelFontColor = newColor;

@@ -67,7 +67,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
     private void UpdateFontColor(string colorStr, string elementName)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
         switch (elementName)
         {
             case "sunriseLabel":
@@ -114,7 +114,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.SunriseLabelFontColor = newColor;

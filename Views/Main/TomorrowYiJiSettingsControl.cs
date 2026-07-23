@@ -20,7 +20,8 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private TextBox _jiLabelFontSizeTextBox;
     private TextBox _jiLabelColorTextBox;
     private TextBox _jiValueFontSizeTextBox;
-    private ToggleSwitch _enableCustomToggle;
+    private ToggleSwitch _enableCustomFontSizeToggle;
+    private ToggleSwitch _enableCustomFontColorToggle;
 
     private TextBlock _yiLabelTitle;
     private TextBlock _yiLabelColorLabel;
@@ -131,9 +132,13 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         jiValueFontSizeRow.Children.Add(_jiValueFontSizeTextBox);
         sp.Children.Add(jiValueFontSizeRow);
 
-        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
-        sp.Children.Add(_enableCustomToggle);
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeToggleChanged;
+        sp.Children.Add(_enableCustomFontSizeToggle);
+
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorToggleChanged;
+        sp.Children.Add(_enableCustomFontColorToggle);
 
         var scrollViewer = new ScrollViewer
         {
@@ -163,7 +168,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -180,11 +185,17 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         _jiLabelColorTextBox.Text = newJiLabelColor;
     }
 
-    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeToggleChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomColorAndFont)
+    }
+
+    private void OnEnableCustomFontColorToggleChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -192,13 +203,14 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
 
     private void UpdateControlsEnabled()
     {
-        var isEnabled = Settings.EnableCustomColorAndFont;
-        _yiLabelColorTextBox.IsEnabled = isEnabled;
-        _yiLabelFontSizeTextBox.IsEnabled = isEnabled;
-        _yiValueFontSizeTextBox.IsEnabled = isEnabled;
-        _jiLabelColorTextBox.IsEnabled = isEnabled;
-        _jiLabelFontSizeTextBox.IsEnabled = isEnabled;
-        _jiValueFontSizeTextBox.IsEnabled = isEnabled;
+        var fontSizeEnabled = Settings.EnableCustomFontSize;
+        var fontColorEnabled = Settings.EnableCustomFontColor;
+        _yiLabelColorTextBox.IsEnabled = fontColorEnabled;
+        _yiLabelFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _yiValueFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _jiLabelColorTextBox.IsEnabled = fontColorEnabled;
+        _jiLabelFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _jiValueFontSizeTextBox.IsEnabled = fontSizeEnabled;
     }
 
     protected override void OnInitialized()
@@ -215,7 +227,8 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         _jiLabelColorTextBox.Text = Settings.JiLabelFontColor;
         _jiLabelFontSizeTextBox.Text = Settings.JiLabelFontSize.ToString(CultureInfo.InvariantCulture);
         _jiValueFontSizeTextBox.Text = Settings.JiValueFontSize.ToString(CultureInfo.InvariantCulture);
-        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         UpdateControlsEnabled();
     }
 

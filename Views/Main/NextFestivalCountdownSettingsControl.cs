@@ -27,7 +27,8 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private ToggleSwitch _internationalToggle;
     private ToggleSwitch _traditionalToggle;
     private ToggleSwitch _redToggle;
-    private ToggleSwitch _enableCustomToggle;
+    private ToggleSwitch _enableCustomFontSizeToggle;
+    private ToggleSwitch _enableCustomFontColorToggle;
 
     private TextBlock _formatTitle;
     private TextBlock _formatLabel;
@@ -93,9 +94,13 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _redToggle.IsCheckedChanged += OnRedToggled;
         sp.Children.Add(_redToggle);
 
-        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
-        sp.Children.Add(_enableCustomToggle);
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
+        sp.Children.Add(_enableCustomFontSizeToggle);
+
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
+        sp.Children.Add(_enableCustomFontColorToggle);
 
         _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_text1Title);
@@ -237,7 +242,7 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -262,11 +267,17 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _timeColorTextBox.Text = newTimeColor;
     }
 
-    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomColorAndFont)
+    }
+
+    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -274,15 +285,16 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
 
     private void UpdateControlsEnabled()
     {
-        var isEnabled = Settings.EnableCustomColorAndFont;
-        _text1ColorTextBox.IsEnabled = isEnabled;
-        _text1FontSizeTextBox.IsEnabled = isEnabled;
-        _nameColorTextBox.IsEnabled = isEnabled;
-        _nameFontSizeTextBox.IsEnabled = isEnabled;
-        _text3ColorTextBox.IsEnabled = isEnabled;
-        _text3FontSizeTextBox.IsEnabled = isEnabled;
-        _timeColorTextBox.IsEnabled = isEnabled;
-        _timeFontSizeTextBox.IsEnabled = isEnabled;
+        var fontSizeEnabled = Settings.EnableCustomFontSize;
+        var fontColorEnabled = Settings.EnableCustomFontColor;
+        _text1ColorTextBox.IsEnabled = fontColorEnabled;
+        _text1FontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _nameColorTextBox.IsEnabled = fontColorEnabled;
+        _nameFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _text3ColorTextBox.IsEnabled = fontColorEnabled;
+        _text3FontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _timeColorTextBox.IsEnabled = fontColorEnabled;
+        _timeFontSizeTextBox.IsEnabled = fontSizeEnabled;
     }
 
     protected override void OnInitialized()
@@ -305,7 +317,8 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _internationalToggle.IsChecked = Settings.EnableInternationalFestivals;
         _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
         _redToggle.IsChecked = Settings.EnableRedFestivals;
-        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         UpdateControlsEnabled();
     }
 

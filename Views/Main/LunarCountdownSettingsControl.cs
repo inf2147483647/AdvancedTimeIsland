@@ -21,7 +21,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBox? _timeFormatTextBox;
     private TextBlock? _timeFormatHint;
     private ComboBox? _timeBaseComboBox;
-    private ToggleSwitch? _enableCustomToggle;
+    private ToggleSwitch? _enableCustomFontSizeToggle;
+    private ToggleSwitch? _enableCustomFontColorToggle;
     private ListBox? _countdownListBox;
     private Button? _addButton;
     private Button? _removeButton;
@@ -177,9 +178,13 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         progressDisplayModeGroup.Content = progressDisplayModePanel;
         mainPanel.Children.Add(progressDisplayModeGroup);
 
-        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
-        mainPanel.Children.Add(_enableCustomToggle);
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
+        mainPanel.Children.Add(_enableCustomFontSizeToggle);
+
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
+        mainPanel.Children.Add(_enableCustomFontColorToggle);
 
         _fontGroupHeader = new TextBlock { Text = "字体样式" };
         var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
@@ -426,7 +431,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -463,11 +468,17 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         }
     }
 
-    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomColorAndFont = _enableCustomToggle?.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomColorAndFont)
+    }
+
+    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontColor = _enableCustomFontColorToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -481,17 +492,18 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
     private void UpdateControlsEnabled()
     {
-        var isEnabled = Settings.EnableCustomColorAndFont;
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
-        _nameFontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
-        _nameFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, isEnabled);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, isEnabled);
+        var fontSizeEnabled = Settings.EnableCustomFontSize;
+        var fontColorEnabled = Settings.EnableCustomFontColor;
+        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
+        _text1FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
+        _nameFontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
+        _nameFontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
+        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
+        _text3FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
+        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
+        _timeFontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
+        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
+        _text4FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -536,11 +548,15 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         AttachEventHandlers();
 
-        if (_enableCustomToggle != null)
+        if (_enableCustomFontSizeToggle != null)
         {
-            _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
-            UpdateControlsEnabled();
+            _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         }
+        if (_enableCustomFontColorToggle != null)
+        {
+            _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        }
+        UpdateControlsEnabled();
 
         if (_enableCustomProgressColorToggle != null)
         {

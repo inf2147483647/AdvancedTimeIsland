@@ -51,7 +51,7 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        labelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        labelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -61,12 +61,12 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateValueFontColor(string colorStr)
     {
-        valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomColorAndFont);
+        valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             var newColor = ThemeHelper.GetThemeAwareTextColor();
             Settings.LabelFontColor = newColor;

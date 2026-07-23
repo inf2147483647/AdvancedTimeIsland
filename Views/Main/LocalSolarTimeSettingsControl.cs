@@ -24,7 +24,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private Panel _longitudeDmsPanel;
     private TextBox _colorTextBox;
     private TextBox _fontSizeTextBox;
-    private ToggleSwitch _enableCustomToggle;
+    private ToggleSwitch _enableCustomFontSizeToggle;
+    private ToggleSwitch _enableCustomFontColorToggle;
     private Button _getLocationButton;
     private TextBlock _statusText;
     private readonly PluginSettings? _pluginSettings;
@@ -124,9 +125,13 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _hintTextBlock = new TextBlock { Text = "取值范围为(-180到180]，单位为度，正数为东经，负数为西经", FontSize = 11, TextWrapping = TextWrapping.Wrap };
         sp.Children.Add(_hintTextBlock);
 
-        _enableCustomToggle = new ToggleSwitch { Content = "启用自定义颜色与字体", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomToggle.IsCheckedChanged += OnEnableCustomToggleChanged;
-        sp.Children.Add(_enableCustomToggle);
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
+        sp.Children.Add(_enableCustomFontSizeToggle);
+
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
+        sp.Children.Add(_enableCustomFontColorToggle);
 
         _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_styleTitleTextBlock);
@@ -177,7 +182,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _dmsSecondSymbol.Foreground = ThemeHelper.GetTextBrush();
         _statusText.Foreground = ThemeHelper.GetGrayBrush();
         _hintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
-        _enableCustomToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -186,7 +192,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (Settings.EnableCustomColorAndFont)
+        if (!Settings.EnableCustomFontColor)
         {
             UpdateFontColorsForTheme();
         }
@@ -199,17 +205,28 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _colorTextBox.Text = newColor;
     }
 
-    private void OnEnableCustomToggleChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomColorAndFont = _enableCustomToggle.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
+    }
+
+    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+        if (!Settings.EnableCustomFontColor)
+        {
+            UpdateFontColorsForTheme();
+        }
     }
 
     private void UpdateControlsEnabled()
     {
-        var enabled = Settings.EnableCustomColorAndFont;
-        _colorTextBox.IsEnabled = enabled;
-        _fontSizeTextBox.IsEnabled = enabled;
+        var fontSizeEnabled = Settings.EnableCustomFontSize;
+        var fontColorEnabled = Settings.EnableCustomFontColor;
+        _colorTextBox.IsEnabled = fontColorEnabled;
+        _fontSizeTextBox.IsEnabled = fontSizeEnabled;
     }
 
     protected override void OnInitialized()
@@ -232,7 +249,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
             _longitudeTextBox.IsVisible = true;
             _longitudeDmsPanel.IsVisible = false;
         }
-        _enableCustomToggle.IsChecked = Settings.EnableCustomColorAndFont;
+        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         UpdateControlsEnabled();
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);

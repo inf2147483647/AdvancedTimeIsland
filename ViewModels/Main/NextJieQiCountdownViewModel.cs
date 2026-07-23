@@ -1,4 +1,4 @@
-﻿﻿using System;
+﻿using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -114,7 +114,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private (string Name, int Year, int Month, int Day) GetNextJieQi(DateTime date)
     {
-        for (int i = 0; i < 366; i++)
+        for (int i = 1; i < 366; i++)
         {
             var checkDate = date.AddDays(i);
             var solar = Solar.FromDate(checkDate);
