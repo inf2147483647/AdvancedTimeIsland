@@ -645,30 +645,46 @@ public static class FluentAvaloniaCompatibilityHelper
 
         try
         {
-            var frameType = Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia");
-            var navigationViewType = Type.GetType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia");
+            // 尝试查找 FA 2.x 和 FA 3.0 的 Frame/NavigationView 类型
+            var frameTypes = new[]
+            {
+                Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
+                Type.GetType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
+            };
+
+            var navigationViewTypes = new[]
+            {
+                Type.GetType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
+                Type.GetType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
+            };
 
             foreach (var ancestor in control.GetVisualAncestors())
             {
                 var ancestorType = ancestor.GetType();
                 
-                if (frameType != null && frameType.IsAssignableFrom(ancestorType))
+                foreach (var frameType in frameTypes)
                 {
-                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                    if (goBackMethod != null)
+                    if (frameType != null && frameType.IsAssignableFrom(ancestorType))
                     {
-                        goBackMethod.Invoke(ancestor, null);
-                        return;
+                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
+                        if (goBackMethod != null)
+                        {
+                            goBackMethod.Invoke(ancestor, null);
+                            return;
+                        }
                     }
                 }
 
-                if (navigationViewType != null && navigationViewType.IsAssignableFrom(ancestorType))
+                foreach (var navViewType in navigationViewTypes)
                 {
-                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                    if (goBackMethod != null)
+                    if (navViewType != null && navViewType.IsAssignableFrom(ancestorType))
                     {
-                        goBackMethod.Invoke(ancestor, null);
-                        return;
+                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
+                        if (goBackMethod != null)
+                        {
+                            goBackMethod.Invoke(ancestor, null);
+                            return;
+                        }
                     }
                 }
             }
@@ -676,20 +692,26 @@ public static class FluentAvaloniaCompatibilityHelper
             var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(control);
             if (topLevel != null)
             {
-                var frame = FindVisualChildOfType(topLevel, frameType);
-                if (frame != null)
+                foreach (var frameType in frameTypes)
                 {
-                    var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                    goBackMethod?.Invoke(frame, null);
-                    return;
+                    var frame = FindVisualChildOfType(topLevel, frameType);
+                    if (frame != null)
+                    {
+                        var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                        goBackMethod?.Invoke(frame, null);
+                        return;
+                    }
                 }
 
-                var navView = FindVisualChildOfType(topLevel, navigationViewType);
-                if (navView != null)
+                foreach (var navViewType in navigationViewTypes)
                 {
-                    var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                    goBackMethod?.Invoke(navView, null);
-                    return;
+                    var navView = FindVisualChildOfType(topLevel, navViewType);
+                    if (navView != null)
+                    {
+                        var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                        goBackMethod?.Invoke(navView, null);
+                        return;
+                    }
                 }
             }
         }

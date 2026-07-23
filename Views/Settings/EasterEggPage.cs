@@ -186,7 +186,7 @@ public class EasterEggPage : UserControl
             if (line.StartsWith("## "))
             {
                 // 二级标题
-                var title = line.Substring(3);
+                var title = line.Substring(3).Trim();
                 content.Children.Add(new TextBlock
                 {
                     Text = title,

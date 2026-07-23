@@ -1477,6 +1477,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
             services.AddSettingsPage<Views.Settings.HanfuPage>();
             services.AddSettingsPage<Views.Settings.MamianQunCeZhePage>();
+            services.AddSettingsPage<Views.Settings.MamianQunBaiZhePage>();
             services.AddSettingsPage<Views.Settings.BeiZiPage>();
             services.AddSettingsPage<Views.Settings.QiXiongPage>();
             services.AddSettingsPage<Views.Settings.QiXiongTopPage>();
@@ -1490,6 +1491,8 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.DuanShanAoShuLingPage>();
             services.AddSettingsPage<Views.Settings.DuanShanAoJiaoLingPage>();
             services.AddSettingsPage<Views.Settings.ChangShanAoShuLingPage>();
+            services.AddSettingsPage<Views.Settings.ChangShanAoJiaoLingPage>();
+            services.AddSettingsPage<Views.Settings.HanfuPointNorthPage>();
             services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         }
 

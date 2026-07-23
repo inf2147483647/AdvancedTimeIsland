@@ -5,6 +5,7 @@
 ![demo](demo.png)
 
 图片仅供参考
+[![下载量](https://img.shields.io/github/downloads/inf2147483647/AdvancedTimeIsland/total?style=social&label=下载量&logo=github)](https://github.com/inf2147483647/AdvancedTimeIsland/releases/latest)
 
 > \[!caution]
 >

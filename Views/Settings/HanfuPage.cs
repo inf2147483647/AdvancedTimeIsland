@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -18,8 +19,8 @@ using Markdig;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-[SettingsPageInfo("AdvancedTimeIslandHanfu", "汉服", SettingsPageCategory.Debug)]
-public class HanfuPage : SettingsPageBase
+[SettingsPageInfo("AdvancedTimeIslandHanfu", "汉服百科", true, SettingsPageCategory.Debug)]
+public class HanfuPage : HanfuPageTemplate
 {
     private readonly PluginSettings? _pluginSettings;
 
@@ -35,46 +36,19 @@ public class HanfuPage : SettingsPageBase
     {
     }
 
-    public HanfuPage(PluginSettings? pluginSettings)
+    public HanfuPage(PluginSettings? pluginSettings) : base(true)
     {
         _pluginSettings = pluginSettings;
         InitializeComponent();
     }
 
-    private static IBrush GetAccentBrush()
-    {
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
-        {
-            return new SolidColorBrush(accentColor);
-        }
-        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
-        {
-            return new SolidColorBrush(accentColor2);
-        }
-        return Brushes.DodgerBlue;
-    }
-
     private TabStrip? _tabStrip;
-    private ScrollViewer? _contentScrollViewer;
+    private ContentControl? _contentControl;
     private Control? _maleContent;
     private Control? _femaleContent;
 
-    private void InitializeComponent()
+    protected override void BuildContent(StackPanel panel)
     {
-        _contentScrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(0)
-        };
-
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(0),
-            Spacing = 0
-        };
-
         if (_pluginSettings == null || !_pluginSettings.EnableExperimentalFeatures)
         {
             var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
@@ -82,10 +56,8 @@ public class HanfuPage : SettingsPageBase
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "此页面为实验性功能，需要在插件设置中启用实验性功能才能查看完整内容。");
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
-            mainPanel.Children.Add(warningBar);
-            _contentScrollViewer.Content = mainPanel;
-            Content = _contentScrollViewer;
+            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 8));
+            panel.Children.Add(warningBar);
             return;
         }
 
@@ -110,7 +82,13 @@ public class HanfuPage : SettingsPageBase
         _tabStrip.Items.Add(femaleTab);
 
         _tabStrip.SelectionChanged += OnTabSelectionChanged;
-        _contentScrollViewer.Content = _maleContent;
+
+        _contentControl = new ContentControl
+        {
+            Content = _maleContent,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
 
         var rootGrid = new Grid();
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
@@ -119,23 +97,23 @@ public class HanfuPage : SettingsPageBase
         Grid.SetRow(_tabStrip, 0);
         rootGrid.Children.Add(_tabStrip);
 
-        Grid.SetRow(_contentScrollViewer, 1);
-        rootGrid.Children.Add(_contentScrollViewer);
+        Grid.SetRow(_contentControl, 1);
+        rootGrid.Children.Add(_contentControl);
 
-        Content = rootGrid;
+        panel.Children.Add(rootGrid);
     }
 
     private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_tabStrip != null && _contentScrollViewer != null)
+        if (_tabStrip != null && _contentControl != null)
         {
             if (_tabStrip.SelectedIndex == 0)
             {
-                _contentScrollViewer.Content = _maleContent;
+                _contentControl.Content = _maleContent;
             }
             else
             {
-                _contentScrollViewer.Content = _femaleContent;
+                _contentControl.Content = _femaleContent;
             }
         }
     }
@@ -220,7 +198,7 @@ public class HanfuPage : SettingsPageBase
             Background = ThemeHelper.GetHanfuBackgroundBrush(),
             CornerRadius = new CornerRadius(8),
             Padding = new Thickness(16),
-            Margin = new Thickness(16)
+            Margin = new Thickness(0)
         };
         _femaleContentBorder = border;
 
@@ -388,6 +366,11 @@ public class HanfuPage : SettingsPageBase
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunCeZhe?ci_keepHistory=true"));
         }
+        else if (text == "马面裙 百褶 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunBaiZhe?ci_keepHistory=true"));
+        }
         else if (text == "背子 褙子 宋制")
         {
             IAppHost.TryGetService<IUriNavigationService>()?
@@ -433,11 +416,17 @@ public class HanfuPage : SettingsPageBase
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoShuLing?ci_keepHistory=true"));
         }
+        else if (text == "长衫 袄 交领 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoJiaoLing?ci_keepHistory=true"));
+        }
     }
 
     private readonly HashSet<string> _developedFeatures = new HashSet<string>
     {
         "马面裙 侧褶 明制",
+        "马面裙 百褶 明制",
         "背子 褙子 宋制",
         "交窬裙 唐制",
         "袄 衫 直领 唐制",
@@ -446,7 +435,8 @@ public class HanfuPage : SettingsPageBase
         "百迭裙 宋制",
         "短衫 袄 交领 明制",
         "短衫 袄 竖领 明制",
-        "长衫 袄 竖领 明制"
+        "长衫 袄 竖领 明制",
+        "长衫 袄 交领 明制"
     };
 
     private void UpdateXingZhiButtonStyle(Button button)
@@ -465,31 +455,10 @@ public class HanfuPage : SettingsPageBase
         button.BorderThickness = new Thickness(1);
     }
 
-    protected override void OnInitialized()
+    protected override void UpdateThemeColors()
     {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
-    }
+        base.UpdateThemeColors();
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void UpdateThemeColors()
-    {
         if (_maleTitleTextBlock != null)
             _maleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         if (_maleSubtitleTextBlock != null)

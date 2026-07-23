@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
@@ -39,6 +40,10 @@ public class HanfuPageTemplate : SettingsPageBase
         InitializeComponent();
     }
 
+    protected HanfuPageTemplate(bool delayInitialize)
+    {
+    }
+
     protected static IBrush GetAccentBrush()
     {
         if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
@@ -52,7 +57,7 @@ public class HanfuPageTemplate : SettingsPageBase
         return Brushes.DodgerBlue;
     }
 
-    private void InitializeComponent()
+    protected void InitializeComponent()
     {
         _paragraphTextBlocks = new List<TextBlock>();
         _sectionTextBlocks = new List<TextBlock>();
@@ -207,7 +212,32 @@ Hanfu | Photo Count
 -------- | ---
 1 | 5
 2 | 4
-3 | 6";
+3 | 6
+
+文本样式
+
+<span style='color:#ff0000'>红色</span>
+<span style='font-size:20px'>20号字</span>
+<span style='font-weight:bold'>加粗文字</span>
+<span style=""font-family: 'Microsoft YaHei', '微软雅黑', sans-serif;"">微软雅黑字体</span>
+<span style=""font-family: SimSun, '宋体', serif;"">宋体</span>
+<span style=""font-family: 'PingFang SC', '苹方', 'Helvetica Neue', sans-serif;"">苹方字体 (Mac/iOS)</span>
+<span style=""font-family: Arial, Helvetica, sans-serif;"">Arial</span>
+<span style=""font-family: 'Times New Roman', Times, serif;"">Times New Roman</span>
+<span style='font-style:italic'>斜体</span>
+<span style='text-decoration:underline'>带下划线</span>
+<span style='letter-spacing:2px'>字加宽2px</span>
+<span style='line-height:2'>行高2倍</span>
+<span style='display:inline-block;padding:5px;'>有内边距</span>
+<span style='background-color:#ffff00;'>黄底</span>
+<span style='border:1px solid #000000;'>黑色细边框</span>
+<span style='border-radius:8px;'>圆角</span>
+<span style='opacity:0.5;'>半透明文字</span>
+<span style='text-shadow:1px 1px 2px gray;'>带阴影</span>
+<span style='cursor:pointer'>鼠标变手</span>
+<span style='color:red; font-size:18px; font-weight:bold; background:#fff2f2; padding:4px 8px; border-radius:4px; cursor:pointer;'>红色18px加粗文字，浅红背景圆角变手</span>
+
+";
 
         RenderMarkdown(panel, markdown);
     }
@@ -283,125 +313,213 @@ Hanfu | Photo Count
 
     private Control ConvertParagraph(ParagraphBlock paragraph)
     {
-        var hasImage = paragraph.Inline is ContainerInline container && container.Any(i => i is LinkInline link && link.IsImage);
-        
-        if (hasImage)
+        var segments = new List<ParagraphSegment>();
+        var imagePanel = new StackPanel
         {
-            var panel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Margin = new Thickness(0, 0, 0, 4),
-                Spacing = 4
-            };
+            Orientation = Orientation.Vertical,
+            Spacing = 4
+        };
 
-            var textBlock = new TextBlock
-            {
-                FontSize = 14,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = TextWrapping.Wrap
-            };
+        CollectParagraphSegments(paragraph.Inline, segments, imagePanel);
 
-            var imagePanel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Spacing = 4
-            };
+        var result = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0, 0, 0, 4),
+            Spacing = 0
+        };
 
-            ProcessParagraphInline(paragraph.Inline, textBlock, imagePanel);
+        var currentTextBlock = CreateParagraphTextBlock();
 
-            if (textBlock.Inlines.Count > 0 || !string.IsNullOrEmpty(textBlock.Text))
+        foreach (var segment in segments)
+        {
+            if (segment.Type == ParagraphSegmentType.BlockStyledSpan)
             {
-                panel.Children.Add(textBlock);
-                _paragraphTextBlocks?.Add(textBlock);
+                if (currentTextBlock.Inlines.Count > 0)
+                {
+                    result.Children.Add(currentTextBlock);
+                    _paragraphTextBlocks?.Add(currentTextBlock);
+                    currentTextBlock = CreateParagraphTextBlock();
+                }
+
+                var border = new Border();
+                ParseBorderStyle(segment.StyleText!, border);
+
+                var spanContent = new Span();
+                ApplySpanStyle(spanContent, segment.StyleText!);
+
+                foreach (var inline in segment.Inlines!)
+                {
+                    spanContent.Inlines.Add(inline);
+                }
+
+                var innerTextBlock = new TextBlock
+                    {
+                        Inlines = { spanContent },
+                        Margin = new Thickness(0),
+                        Padding = new Thickness(0),
+                        FontSize = 14,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = ThemeHelper.GetSubTextBrush()
+                    };
+
+                    // 处理 cursor:pointer 和 letter-spacing
+                    if (segment.StyleText!.Contains("cursor:pointer"))
+                    {
+                        innerTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
+                    }
+                    
+                    var letterSpacingMatch = System.Text.RegularExpressions.Regex.Match(segment.StyleText, @"letter-spacing:\s*([\d.]+)(?:px)?", 
+                        System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+                    if (letterSpacingMatch.Success && double.TryParse(letterSpacingMatch.Groups[1].Value, out double letterSpacing))
+                    {
+                        innerTextBlock.LetterSpacing = letterSpacing;
+                    }
+
+                    border.Child = innerTextBlock;
+                    result.Children.Add(border);
             }
-
-            if (imagePanel.Children.Count > 0)
+            else if (segment.Type == ParagraphSegmentType.InlineStyledSpan)
             {
-                panel.Children.Add(imagePanel);
+                var styledSpan = new Span();
+                ApplySpanStyle(styledSpan, segment.StyleText!);
+                foreach (var inline in segment.Inlines!)
+                {
+                    styledSpan.Inlines.Add(inline);
+                }
+                currentTextBlock.Inlines.Add(styledSpan);
             }
-
-            return panel;
+            else if (segment.Type == ParagraphSegmentType.Text)
+            {
+                foreach (var inline in segment.Inlines!)
+                {
+                    currentTextBlock.Inlines.Add(inline);
+                }
+                
+                if (!string.IsNullOrEmpty(segment.LinkUrl))
+                {
+                    // 在TextBlock上设置链接属性
+                    currentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
+                    currentTextBlock.Tag = segment.LinkUrl;
+                    currentTextBlock.PointerReleased += OnTextBlockLinkClicked;
+                }
+            }
         }
 
-        var normalTextBlock = new TextBlock
+        if (currentTextBlock.Inlines.Count > 0 || !string.IsNullOrEmpty(currentTextBlock.Text))
+        {
+            result.Children.Add(currentTextBlock);
+            _paragraphTextBlocks?.Add(currentTextBlock);
+        }
+
+        if (imagePanel.Children.Count > 0)
+        {
+            result.Children.Add(imagePanel);
+        }
+
+        if (result.Children.Count == 1)
+        {
+            var child = result.Children[0];
+            result.Children.Remove(child);
+            return child;
+        }
+
+        return result;
+    }
+
+    private TextBlock CreateParagraphTextBlock()
+    {
+        return new TextBlock
         {
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0, 0, 0, 4)
+            Margin = new Thickness(0)
         };
-
-        if (paragraph.Inline != null)
-        {
-            foreach (var inline in ConvertInline(paragraph.Inline, normalTextBlock))
-            {
-                normalTextBlock.Inlines.Add(inline);
-            }
-        }
-
-        _paragraphTextBlocks?.Add(normalTextBlock);
-        return normalTextBlock;
     }
 
-    private void ProcessParagraphInline(Markdig.Syntax.Inlines.Inline? inline, TextBlock textBlock, StackPanel imagePanel)
+    private enum ParagraphSegmentType
     {
-        ProcessParagraphInline(inline, textBlock.Inlines, imagePanel, textBlock);
+        Text,
+        InlineStyledSpan,
+        BlockStyledSpan
     }
 
-    private void ProcessParagraphInline(Markdig.Syntax.Inlines.Inline? inline, InlineCollection inlines, StackPanel imagePanel, TextBlock? clickTarget = null)
+    private class ParagraphSegment
+    {
+        public ParagraphSegmentType Type { get; set; }
+        public string? StyleText { get; set; }
+        public string? LinkUrl { get; set; }
+        public List<Avalonia.Controls.Documents.Inline>? Inlines { get; set; } = new List<Avalonia.Controls.Documents.Inline>();
+    }
+
+    private void CollectParagraphSegments(Markdig.Syntax.Inlines.Inline? inline, List<ParagraphSegment> segments, StackPanel imagePanel)
     {
         if (inline == null) return;
 
         if (inline is LiteralInline literal)
         {
-            inlines.Add(new Run { Text = literal.Content.ToString() });
+            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+            {
+                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+            }
+            segments[segments.Count - 1].Inlines!.Add(new Run { Text = literal.Content.ToString() });
         }
         else if (inline is EmphasisInline emphasis)
         {
-            Span? styleSpan = null;
+            Span styledSpan = new Span();
             if (emphasis.DelimiterChar == '*')
             {
                 if (emphasis.DelimiterCount == 2)
-                {
-                    styleSpan = new Span { FontWeight = FontWeight.Bold };
-                }
+                    styledSpan.FontWeight = FontWeight.Bold;
                 else
-                {
-                    styleSpan = new Span { FontStyle = FontStyle.Italic };
-                }
+                    styledSpan.FontStyle = FontStyle.Italic;
             }
             else if (emphasis.DelimiterChar == '~')
             {
-                styleSpan = new Span { TextDecorations = TextDecorations.Strikethrough };
+                styledSpan.TextDecorations = TextDecorations.Strikethrough;
             }
 
             foreach (var child in emphasis)
             {
-                if (styleSpan != null)
+                var childSegments = new List<ParagraphSegment>();
+                CollectParagraphSegments(child, childSegments, imagePanel);
+                foreach (var childSegment in childSegments)
                 {
-                    ProcessParagraphInline(child, styleSpan.Inlines, imagePanel, clickTarget);
-                }
-                else
-                {
-                    ProcessParagraphInline(child, inlines, imagePanel, clickTarget);
+                    if (childSegment.Type == ParagraphSegmentType.Text)
+                    {
+                        foreach (var item in childSegment.Inlines!)
+                        {
+                            styledSpan.Inlines.Add(item);
+                        }
+                    }
+                    else
+                    {
+                        segments.Add(childSegment);
+                    }
                 }
             }
 
-            if (styleSpan != null)
+            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
             {
-                inlines.Add(styleSpan);
+                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
             }
+            segments[segments.Count - 1].Inlines!.Add(styledSpan);
         }
         else if (inline is Markdig.Syntax.Inlines.CodeInline code)
         {
             var codeText = code.Content.ToString();
             var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://");
-            
+
             if (isUrl)
             {
                 var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
                 linkSpan.Inlines.Add(new Run { Text = codeText });
-                inlines.Add(linkSpan);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(linkSpan);
             }
             else
             {
@@ -413,7 +531,11 @@ Hanfu | Photo Count
                     FontSize = 13
                 };
                 codeSpan.Inlines.Add(new Run { Text = " " + codeText + " " });
-                inlines.Add(codeSpan);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(codeSpan);
             }
         }
         else if (inline is LinkInline link)
@@ -428,37 +550,111 @@ Hanfu | Photo Count
             }
             else
             {
+                var linkSegment = new ParagraphSegment
+                {
+                    Type = ParagraphSegmentType.Text,
+                    LinkUrl = link.Url
+                };
+                
                 var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
                 foreach (var child in link)
                 {
-                    ProcessParagraphInline(child, linkSpan.Inlines, imagePanel, clickTarget);
-                }
-                inlines.Add(linkSpan);
-                
-                if (clickTarget != null)
-                {
-                    clickTarget.Cursor = new Cursor(StandardCursorType.Hand);
-                    clickTarget.PointerReleased += (sender, e) =>
+                    var childSegments = new List<ParagraphSegment>();
+                    CollectParagraphSegments(child, childSegments, imagePanel);
+                    foreach (var childSegment in childSegments)
                     {
-                        OpenLink(link.Url);
-                    };
+                        if (childSegment.Type == ParagraphSegmentType.Text)
+                        {
+                            foreach (var item in childSegment.Inlines!)
+                            {
+                                linkSpan.Inlines.Add(item);
+                            }
+                        }
+                        else
+                        {
+                            segments.Add(childSegment);
+                        }
+                    }
                 }
+                linkSegment.Inlines!.Add(linkSpan);
+                segments.Add(linkSegment);
             }
         }
         else if (inline is LineBreakInline)
         {
-            inlines.Add(new LineBreak());
+            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+            {
+                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+            }
+            segments[segments.Count - 1].Inlines!.Add(new LineBreak());
         }
         else if (inline is ContainerInline container)
         {
-            foreach (var child in container)
+            var child = container.FirstChild;
+            while (child != null)
             {
-                ProcessParagraphInline(child, inlines, imagePanel, clickTarget);
+                if (child is HtmlInline htmlChild && TryGetSpanStyle(htmlChild, out string styleText))
+                {
+                    var needsBorder = styleText.Contains("padding") ||
+                                     styleText.Contains("border") ||
+                                     styleText.Contains("border-radius") ||
+                                     styleText.Contains("margin") ||
+                                     styleText.Contains("cursor:pointer") ||
+                                     styleText.Contains("letter-spacing");
+
+                    var segment = new ParagraphSegment
+                    {
+                        Type = needsBorder ? ParagraphSegmentType.BlockStyledSpan : ParagraphSegmentType.InlineStyledSpan,
+                        StyleText = styleText
+                    };
+
+                    child = child.NextSibling;
+                    while (child != null && !(child is HtmlInline closing && IsSpanClosingTag(closing)))
+                    {
+                        var childSegments = new List<ParagraphSegment>();
+                        CollectParagraphSegments(child, childSegments, imagePanel);
+                        foreach (var childSegment in childSegments)
+                        {
+                            if (childSegment.Type == ParagraphSegmentType.Text)
+                            {
+                                foreach (var item in childSegment.Inlines!)
+                                {
+                                    segment.Inlines!.Add(item);
+                                }
+                            }
+                            else
+                            {
+                                segments.Add(childSegment);
+                            }
+                        }
+                        child = child.NextSibling;
+                    }
+
+                    segments.Add(segment);
+                    if (child != null) child = child.NextSibling;
+                }
+                else if (child is HtmlInline)
+                {
+                    child = child.NextSibling;
+                }
+                else
+                {
+                    CollectParagraphSegments(child, segments, imagePanel);
+                    child = child.NextSibling;
+                }
             }
+        }
+        else if (inline is HtmlInline)
+        {
+            // Skip standalone HTML tags
         }
         else
         {
-            inlines.Add(new Run { Text = inline.ToString() });
+            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+            {
+                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+            }
+            segments[segments.Count - 1].Inlines!.Add(new Run { Text = inline.ToString() });
         }
     }
 
@@ -707,17 +903,221 @@ Hanfu | Photo Count
         }
         else if (inline is ContainerInline container)
         {
-            foreach (var child in container)
+            var child = container.FirstChild;
+            while (child != null)
             {
-                foreach (var inlineChild in ConvertInline(child, parentTextBlock))
+                if (child is HtmlInline htmlChild && TryGetSpanStyle(htmlChild, out string styleText))
                 {
-                    yield return inlineChild;
+                    var styledSpan = new Span();
+                    ApplySpanStyle(styledSpan, styleText);
+                    child = child.NextSibling;
+                    while (child != null && !(child is HtmlInline closing && IsSpanClosingTag(closing)))
+                    {
+                        foreach (var innerChild in ConvertInline(child, parentTextBlock))
+                        {
+                            styledSpan.Inlines.Add(innerChild);
+                        }
+                        child = child.NextSibling;
+                    }
+                    yield return styledSpan;
+                    if (child != null) child = child.NextSibling;
+                }
+                else if (child is HtmlInline)
+                {
+                    child = child.NextSibling;
+                }
+                else
+                {
+                    foreach (var inlineChild in ConvertInline(child, parentTextBlock))
+                    {
+                        yield return inlineChild;
+                    }
+                    child = child.NextSibling;
                 }
             }
+        }
+        else if (inline is HtmlInline)
+        {
+            // Skip standalone HTML tags
         }
         else
         {
             yield return new Run { Text = $"[{inline.GetType().Name}]" };
+        }
+    }
+
+    private static bool TryGetSpanStyle(HtmlInline htmlInline, out string styleText)
+    {
+        styleText = "";
+        var tag = htmlInline.Tag;
+        if (tag == null || !tag.StartsWith("<span", StringComparison.OrdinalIgnoreCase))
+            return false;
+        
+        // 先尝试匹配双引号包围的style值（内部可以包含单引号）
+        var doubleQuoteMatch = Regex.Match(tag, @"style\s*=\s*""([^""]*)""", RegexOptions.IgnoreCase);
+        if (doubleQuoteMatch.Success)
+        {
+            styleText = doubleQuoteMatch.Groups[1].Value;
+            return true;
+        }
+        
+        // 再尝试匹配单引号包围的style值（内部可以包含双引号）
+        var singleQuoteMatch = Regex.Match(tag, @"style\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+        if (singleQuoteMatch.Success)
+        {
+            styleText = singleQuoteMatch.Groups[1].Value;
+            return true;
+        }
+        
+        // 如果没有找到style属性，仍然返回true（styleText为空），确保内容被处理
+        return true;
+    }
+
+    private static bool IsSpanClosingTag(HtmlInline htmlInline)
+    {
+        var tag = htmlInline.Tag;
+        return tag != null && tag.Trim().Equals("</span>", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void ApplySpanStyle(Span span, string styleText)
+    {
+        if (string.IsNullOrWhiteSpace(styleText)) return;
+        var properties = styleText.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var prop in properties)
+        {
+            var colonIndex = prop.IndexOf(':');
+            if (colonIndex < 0) continue;
+            var name = prop.Substring(0, colonIndex).Trim().ToLowerInvariant();
+            var value = prop.Substring(colonIndex + 1).Trim();
+            switch (name)
+            {
+                case "color":
+                    try { span.Foreground = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    break;
+                case "font-size":
+                    if (TryParsePixelValue(value, out double fontSize))
+                        span.FontSize = fontSize;
+                    break;
+                case "font-weight":
+                    span.FontWeight = ParseFontWeight(value);
+                    break;
+                case "font-family":
+                    // 移除引号并清理字体名
+                    var cleanedFontFamily = value.Replace("'", "").Replace("\"", "").Trim();
+                    span.FontFamily = new FontFamily(cleanedFontFamily);
+                    break;
+                case "font-style":
+                    if (value.Equals("italic", StringComparison.OrdinalIgnoreCase))
+                        span.FontStyle = FontStyle.Italic;
+                    else if (value.Equals("normal", StringComparison.OrdinalIgnoreCase))
+                        span.FontStyle = FontStyle.Normal;
+                    break;
+                case "text-decoration":
+                    if (value.Contains("underline"))
+                        span.TextDecorations = TextDecorations.Underline;
+                    else if (value.Contains("line-through"))
+                        span.TextDecorations = TextDecorations.Strikethrough;
+                    break;
+                case "background-color":
+                case "background":
+                    try { span.Background = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    break;
+            }
+        }
+    }
+
+    private static Thickness ParseThickness(string value)
+    {
+        try
+        {
+            var values = value.Split(new[] { ' ', ',' }, StringSplitOptions.RemoveEmptyEntries);
+            double[] parsed = new double[4];
+            for (int i = 0; i < values.Length && i < 4; i++)
+            {
+                if (TryParsePixelValue(values[i], out parsed[i]))
+                    continue;
+                parsed[i] = 0;
+            }
+
+            if (values.Length == 1)
+                return new Thickness(parsed[0]);
+            else if (values.Length == 2)
+                return new Thickness(parsed[0], parsed[1], parsed[0], parsed[1]);
+            else if (values.Length == 3)
+                return new Thickness(parsed[0], parsed[1], parsed[2], parsed[1]);
+            else
+                return new Thickness(parsed[0], parsed[1], parsed[2], parsed[3]);
+        }
+        catch
+        {
+            return new Thickness(0);
+        }
+    }
+
+    private static void ParseBorderStyle(string styleText, Border border)
+    {
+        if (string.IsNullOrWhiteSpace(styleText)) return;
+        var properties = styleText.Split(';', StringSplitOptions.RemoveEmptyEntries);
+        foreach (var prop in properties)
+        {
+            var colonIndex = prop.IndexOf(':');
+            if (colonIndex < 0) continue;
+            var name = prop.Substring(0, colonIndex).Trim().ToLowerInvariant();
+            var value = prop.Substring(colonIndex + 1).Trim();
+            switch (name)
+            {
+                case "padding":
+                    border.Padding = ParseThickness(value);
+                    break;
+                case "margin":
+                    border.Margin = ParseThickness(value);
+                    break;
+                case "border":
+                    var borderParts = value.Split(new[] { ' ' }, StringSplitOptions.RemoveEmptyEntries);
+                    if (borderParts.Length >= 3)
+                    {
+                        if (TryParsePixelValue(borderParts[0], out double borderWidth))
+                            border.BorderThickness = new Thickness(borderWidth);
+                        try { border.BorderBrush = new SolidColorBrush(Color.Parse(borderParts[2])); } catch { }
+                    }
+                    break;
+                case "border-radius":
+                    if (TryParsePixelValue(value, out double borderRadius))
+                        border.CornerRadius = new CornerRadius(borderRadius);
+                    break;
+                case "background-color":
+                case "background":
+                    try { border.Background = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    break;
+            }
+        }
+    }
+
+    private static bool TryParsePixelValue(string value, out double result)
+    {
+        result = 0;
+        var v = value.Trim().ToLowerInvariant();
+        if (v.EndsWith("px"))
+            v = v.Substring(0, v.Length - 2).Trim();
+        return double.TryParse(v, out result);
+    }
+
+    private static FontWeight ParseFontWeight(string value)
+    {
+        if (value.Equals("bold", StringComparison.OrdinalIgnoreCase))
+            return FontWeight.Bold;
+        if (value.Equals("normal", StringComparison.OrdinalIgnoreCase))
+            return FontWeight.Normal;
+        if (int.TryParse(value, out int num))
+            return (FontWeight)Math.Clamp(num, 100, 900);
+        return FontWeight.Normal;
+    }
+
+    private void OnTextBlockLinkClicked(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
+    {
+        if (sender is TextBlock textBlock && textBlock.Tag is string url)
+        {
+            OpenLink(url);
         }
     }
 
