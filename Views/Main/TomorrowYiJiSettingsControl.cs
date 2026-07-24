@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -15,13 +16,18 @@ namespace AdvancedTimeIsland.Views.Main;
 public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
 {
     private TextBox _yiLabelFontSizeTextBox;
-    private TextBox _yiLabelColorTextBox;
+    private ColorPicker _yiLabelFontColorPicker;
     private TextBox _yiValueFontSizeTextBox;
     private TextBox _jiLabelFontSizeTextBox;
-    private TextBox _jiLabelColorTextBox;
+    private ColorPicker _jiLabelFontColorPicker;
     private TextBox _jiValueFontSizeTextBox;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
+
+    private ToggleSwitch _yiLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch _yiLabelEnableCustomFontColorToggle;
+    private ToggleSwitch _yiValueEnableCustomFontSizeToggle;
+    private ToggleSwitch _jiLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch _jiLabelEnableCustomFontColorToggle;
+    private ToggleSwitch _jiValueEnableCustomFontSizeToggle;
 
     private TextBlock _yiLabelTitle;
     private TextBlock _yiLabelColorLabel;
@@ -44,101 +50,27 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
 
         _yiLabelTitle = new TextBlock { Text = "宜标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_yiLabelTitle);
-
-        var yiLabelColorRow = new Grid();
-        yiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        yiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _yiLabelColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_yiLabelColorLabel, 0);
-        yiLabelColorRow.Children.Add(_yiLabelColorLabel);
-        _yiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_yiLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiLabelColorTextBox, OnYiLabelColorLostFocus);
-        yiLabelColorRow.Children.Add(_yiLabelColorTextBox);
-        sp.Children.Add(yiLabelColorRow);
-
-        var yiLabelFontSizeRow = new Grid();
-        yiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        yiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _yiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_yiLabelFontSizeLabel, 0);
-        yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeLabel);
-        _yiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_yiLabelFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiLabelFontSizeTextBox, OnYiLabelFontSizeLostFocus);
-        yiLabelFontSizeRow.Children.Add(_yiLabelFontSizeTextBox);
-        sp.Children.Add(yiLabelFontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _yiLabelFontSizeLabel, out _yiLabelFontSizeTextBox, out _yiLabelEnableCustomFontSizeToggle, OnYiLabelFontSizeLostFocus, OnYiLabelEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _yiLabelColorLabel, out _yiLabelFontColorPicker, out _yiLabelEnableCustomFontColorToggle, OnYiLabelEnableCustomFontColorChanged));
 
         _yiValueTitle = new TextBlock { Text = "宜内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_yiValueTitle);
 
         _yiValueColorNote = new TextBlock { Text = "颜色：绿色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
         sp.Children.Add(_yiValueColorNote);
-
-        var yiValueFontSizeRow = new Grid();
-        yiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        yiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _yiValueFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_yiValueFontSizeLabel, 0);
-        yiValueFontSizeRow.Children.Add(_yiValueFontSizeLabel);
-        _yiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_yiValueFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_yiValueFontSizeTextBox, OnYiValueFontSizeLostFocus);
-        yiValueFontSizeRow.Children.Add(_yiValueFontSizeTextBox);
-        sp.Children.Add(yiValueFontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _yiValueFontSizeLabel, out _yiValueFontSizeTextBox, out _yiValueEnableCustomFontSizeToggle, OnYiValueFontSizeLostFocus, OnYiValueEnableCustomFontSizeChanged));
 
         _jiLabelTitle = new TextBlock { Text = "忌标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_jiLabelTitle);
-
-        var jiLabelColorRow = new Grid();
-        jiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        jiLabelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _jiLabelColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_jiLabelColorLabel, 0);
-        jiLabelColorRow.Children.Add(_jiLabelColorLabel);
-        _jiLabelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_jiLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiLabelColorTextBox, OnJiLabelColorLostFocus);
-        jiLabelColorRow.Children.Add(_jiLabelColorTextBox);
-        sp.Children.Add(jiLabelColorRow);
-
-        var jiLabelFontSizeRow = new Grid();
-        jiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        jiLabelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _jiLabelFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_jiLabelFontSizeLabel, 0);
-        jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeLabel);
-        _jiLabelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_jiLabelFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiLabelFontSizeTextBox, OnJiLabelFontSizeLostFocus);
-        jiLabelFontSizeRow.Children.Add(_jiLabelFontSizeTextBox);
-        sp.Children.Add(jiLabelFontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _jiLabelFontSizeLabel, out _jiLabelFontSizeTextBox, out _jiLabelEnableCustomFontSizeToggle, OnJiLabelFontSizeLostFocus, OnJiLabelEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _jiLabelColorLabel, out _jiLabelFontColorPicker, out _jiLabelEnableCustomFontColorToggle, OnJiLabelEnableCustomFontColorChanged));
 
         _jiValueTitle = new TextBlock { Text = "忌内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_jiValueTitle);
 
         _jiValueColorNote = new TextBlock { Text = "颜色：红色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
         sp.Children.Add(_jiValueColorNote);
-
-        var jiValueFontSizeRow = new Grid();
-        jiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        jiValueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _jiValueFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_jiValueFontSizeLabel, 0);
-        jiValueFontSizeRow.Children.Add(_jiValueFontSizeLabel);
-        _jiValueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_jiValueFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_jiValueFontSizeTextBox, OnJiValueFontSizeLostFocus);
-        jiValueFontSizeRow.Children.Add(_jiValueFontSizeTextBox);
-        sp.Children.Add(jiValueFontSizeRow);
-
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeToggleChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorToggleChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _jiValueFontSizeLabel, out _jiValueFontSizeTextBox, out _jiValueEnableCustomFontSizeToggle, OnJiValueFontSizeLostFocus, OnJiValueEnableCustomFontSizeChanged));
 
         var scrollViewer = new ScrollViewer
         {
@@ -147,6 +79,55 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
             Content = sp
         };
         Content = scrollViewer;
+    }
+
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 80, Watermark = "14" };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "使用自定义大小" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
+
+        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
     }
 
     private void UpdateThemeColors()
@@ -168,49 +149,52 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnYiLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newYiLabelColor = ThemeHelper.GetSmartContrastColor(Settings.YiLabelFontColor);
-        Settings.YiLabelFontColor = newYiLabelColor;
-        _yiLabelColorTextBox.Text = newYiLabelColor;
-
-        var newJiLabelColor = ThemeHelper.GetSmartContrastColor(Settings.JiLabelFontColor);
-        Settings.JiLabelFontColor = newJiLabelColor;
-        _jiLabelColorTextBox.Text = newJiLabelColor;
-    }
-
-    private void OnEnableCustomFontSizeToggleChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.YiLabelEnableCustomFontSize = _yiLabelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorToggleChanged(object? sender, EventArgs e)
+    private void OnYiLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.YiLabelEnableCustomFontColor = _yiLabelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnYiValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.YiValueEnableCustomFontSize = _yiValueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontSize = _jiLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontColor = _jiLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.JiValueEnableCustomFontSize = _jiValueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        _yiLabelColorTextBox.IsEnabled = fontColorEnabled;
-        _yiLabelFontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _yiValueFontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _jiLabelColorTextBox.IsEnabled = fontColorEnabled;
-        _jiLabelFontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _jiValueFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _yiLabelFontSizeTextBox.IsEnabled = Settings.YiLabelEnableCustomFontSize;
+        _yiLabelFontColorPicker.IsEnabled = Settings.YiLabelEnableCustomFontColor;
+        _yiValueFontSizeTextBox.IsEnabled = Settings.YiValueEnableCustomFontSize;
+        _jiLabelFontSizeTextBox.IsEnabled = Settings.JiLabelEnableCustomFontSize;
+        _jiLabelFontColorPicker.IsEnabled = Settings.JiLabelEnableCustomFontColor;
+        _jiValueFontSizeTextBox.IsEnabled = Settings.JiValueEnableCustomFontSize;
     }
 
     protected override void OnInitialized()
@@ -221,15 +205,25 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _yiLabelColorTextBox.Text = Settings.YiLabelFontColor;
+
         _yiLabelFontSizeTextBox.Text = Settings.YiLabelFontSize.ToString(CultureInfo.InvariantCulture);
+        _yiLabelFontColorPicker.Color = ParseColor(Settings.YiLabelFontColor);
         _yiValueFontSizeTextBox.Text = Settings.YiValueFontSize.ToString(CultureInfo.InvariantCulture);
-        _jiLabelColorTextBox.Text = Settings.JiLabelFontColor;
         _jiLabelFontSizeTextBox.Text = Settings.JiLabelFontSize.ToString(CultureInfo.InvariantCulture);
+        _jiLabelFontColorPicker.Color = ParseColor(Settings.JiLabelFontColor);
         _jiValueFontSizeTextBox.Text = Settings.JiValueFontSize.ToString(CultureInfo.InvariantCulture);
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+
+        _yiLabelEnableCustomFontSizeToggle.IsChecked = Settings.YiLabelEnableCustomFontSize;
+        _yiLabelEnableCustomFontColorToggle.IsChecked = Settings.YiLabelEnableCustomFontColor;
+        _yiValueEnableCustomFontSizeToggle.IsChecked = Settings.YiValueEnableCustomFontSize;
+        _jiLabelEnableCustomFontSizeToggle.IsChecked = Settings.JiLabelEnableCustomFontSize;
+        _jiLabelEnableCustomFontColorToggle.IsChecked = Settings.JiLabelEnableCustomFontColor;
+        _jiValueEnableCustomFontSizeToggle.IsChecked = Settings.JiValueEnableCustomFontSize;
+
         UpdateControlsEnabled();
+
+        _yiLabelFontColorPicker.ColorChanged += (s, e) => Settings.YiLabelFontColor = _yiLabelFontColorPicker.Color.ToString();
+        _jiLabelFontColorPicker.ColorChanged += (s, e) => Settings.JiLabelFontColor = _jiLabelFontColorPicker.Color.ToString();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -241,47 +235,37 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         }
     }
 
-    private void OnYiLabelColorLostFocus(object? sender, EventArgs e)
+    private Color ParseColor(string colorString)
     {
-        var color = _yiLabelColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        try
         {
-            try { Avalonia.Media.Color.Parse(color); Settings.YiLabelFontColor = color; }
-            catch { _yiLabelColorTextBox.Text = Settings.YiLabelFontColor; }
+            return Color.Parse(colorString);
         }
-        else { _yiLabelColorTextBox.Text = Settings.YiLabelFontColor; }
+        catch
+        {
+            return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
+        }
     }
 
-    private void OnYiLabelFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnYiLabelFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_yiLabelFontSizeTextBox.Text, out double size)) { Settings.YiLabelFontSize = size; }
         _yiLabelFontSizeTextBox.Text = Settings.YiLabelFontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnYiValueFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnYiValueFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_yiValueFontSizeTextBox.Text, out double size)) { Settings.YiValueFontSize = size; }
         _yiValueFontSizeTextBox.Text = Settings.YiValueFontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnJiLabelColorLostFocus(object? sender, EventArgs e)
-    {
-        var color = _jiLabelColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try { Avalonia.Media.Color.Parse(color); Settings.JiLabelFontColor = color; }
-            catch { _jiLabelColorTextBox.Text = Settings.JiLabelFontColor; }
-        }
-        else { _jiLabelColorTextBox.Text = Settings.JiLabelFontColor; }
-    }
-
-    private void OnJiLabelFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnJiLabelFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_jiLabelFontSizeTextBox.Text, out double size)) { Settings.JiLabelFontSize = size; }
         _jiLabelFontSizeTextBox.Text = Settings.JiLabelFontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnJiValueFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnJiValueFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_jiValueFontSizeTextBox.Text, out double size)) { Settings.JiValueFontSize = size; }
         _jiValueFontSizeTextBox.Text = Settings.JiValueFontSize.ToString(CultureInfo.InvariantCulture);

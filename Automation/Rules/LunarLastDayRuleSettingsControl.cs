@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -51,7 +52,7 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         monthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -81,7 +82,7 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         daysPanel.Children.Add(new TextBlock
         {
             Text = "倒数第:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -97,7 +98,7 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         daysPanel.Children.Add(new TextBlock
         {
             Text = "天",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -113,13 +114,13 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         timePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _timePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

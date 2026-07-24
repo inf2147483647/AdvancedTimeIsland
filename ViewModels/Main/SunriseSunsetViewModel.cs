@@ -61,37 +61,51 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelFontColor) ||
+            e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelEnableCustomFontColor))
         {
-            case nameof(SunriseSunsetSettings.SunriseLabelFontColor):
-                _updateSunriseLabelColor?.Invoke(_settings.SunriseLabelFontColor, "sunriseLabel");
-                break;
-            case nameof(SunriseSunsetSettings.SunriseLabelFontSize):
-                _updateSunriseLabelSize?.Invoke(_settings.SunriseLabelFontSize, "sunriseLabel");
-                break;
-            case nameof(SunriseSunsetSettings.SunriseTimeFontColor):
-                _updateSunriseTimeColor?.Invoke(_settings.SunriseTimeFontColor, "sunriseTime");
-                break;
-            case nameof(SunriseSunsetSettings.SunriseTimeFontSize):
-                _updateSunriseTimeSize?.Invoke(_settings.SunriseTimeFontSize, "sunriseTime");
-                break;
-            case nameof(SunriseSunsetSettings.SunsetLabelFontColor):
-                _updateSunsetLabelColor?.Invoke(_settings.SunsetLabelFontColor, "sunsetLabel");
-                break;
-            case nameof(SunriseSunsetSettings.SunsetLabelFontSize):
-                _updateSunsetLabelSize?.Invoke(_settings.SunsetLabelFontSize, "sunsetLabel");
-                break;
-            case nameof(SunriseSunsetSettings.SunsetTimeFontColor):
-                _updateSunsetTimeColor?.Invoke(_settings.SunsetTimeFontColor, "sunsetTime");
-                break;
-            case nameof(SunriseSunsetSettings.SunsetTimeFontSize):
-                _updateSunsetTimeSize?.Invoke(_settings.SunsetTimeFontSize, "sunsetTime");
-                break;
-            case nameof(SunriseSunsetSettings.Longitude):
-            case nameof(SunriseSunsetSettings.Latitude):
-            case nameof(SunriseSunsetSettings.TimeZoneId):
-                _ = UpdateTimesAsync();
-                break;
+            _updateSunriseLabelColor?.Invoke(_settings.SunriseLabelFontColor, "sunriseLabel");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelFontSize) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelEnableCustomFontSize))
+        {
+            _updateSunriseLabelSize?.Invoke(_settings.SunriseLabelEnableCustomFontSize ? _settings.SunriseLabelFontSize : 14, "sunriseLabel");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeFontColor) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeEnableCustomFontColor))
+        {
+            _updateSunriseTimeColor?.Invoke(_settings.SunriseTimeFontColor, "sunriseTime");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeFontSize) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeEnableCustomFontSize))
+        {
+            _updateSunriseTimeSize?.Invoke(_settings.SunriseTimeEnableCustomFontSize ? _settings.SunriseTimeFontSize : 14, "sunriseTime");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelFontColor) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelEnableCustomFontColor))
+        {
+            _updateSunsetLabelColor?.Invoke(_settings.SunsetLabelFontColor, "sunsetLabel");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelFontSize) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelEnableCustomFontSize))
+        {
+            _updateSunsetLabelSize?.Invoke(_settings.SunsetLabelEnableCustomFontSize ? _settings.SunsetLabelFontSize : 14, "sunsetLabel");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeFontColor) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeEnableCustomFontColor))
+        {
+            _updateSunsetTimeColor?.Invoke(_settings.SunsetTimeFontColor, "sunsetTime");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeFontSize) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeEnableCustomFontSize))
+        {
+            _updateSunsetTimeSize?.Invoke(_settings.SunsetTimeEnableCustomFontSize ? _settings.SunsetTimeFontSize : 14, "sunsetTime");
+        }
+        if (e.PropertyName == nameof(SunriseSunsetSettings.Longitude) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.Latitude) ||
+                 e.PropertyName == nameof(SunriseSunsetSettings.TimeZoneId))
+        {
+            _ = UpdateTimesAsync();
         }
     }
 

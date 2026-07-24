@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -60,7 +61,7 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = "时区:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -94,13 +95,13 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         var timePicker = new TimePicker
         {
-            Width = 260,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

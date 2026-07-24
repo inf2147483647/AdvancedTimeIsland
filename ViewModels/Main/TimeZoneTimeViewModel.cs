@@ -37,17 +37,19 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TimeZoneTimeSettings.FontColor))
+        if (e.PropertyName == nameof(TimeZoneTimeSettings.FontColor) ||
+            e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontColor))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
-        else if (e.PropertyName == nameof(TimeZoneTimeSettings.TimeZoneId))
+        if (e.PropertyName == nameof(TimeZoneTimeSettings.TimeZoneId))
         {
             UpdateTime();
         }
-        else if (e.PropertyName == nameof(TimeZoneTimeSettings.TextFontSize))
+        if (e.PropertyName == nameof(TimeZoneTimeSettings.TextFontSize) ||
+                 e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontSize))
         {
-            _updateFontSize?.Invoke(_settings.TextFontSize);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
         }
     }
 

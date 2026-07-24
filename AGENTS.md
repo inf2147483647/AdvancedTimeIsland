@@ -8,6 +8,7 @@
 4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)（简称FA3）和2.x版本（简称FA2）
 5. 新增页面都需要在Plugin.cs中注册
 6. 确保所有页面以及组件的Guid两两互异
+7. 尽量不要做出破坏性更改，如果出现破坏性更改，需要明确指出更改了什么，以及有什么影响
 
 在汉服页面中
 

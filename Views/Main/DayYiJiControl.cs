@@ -65,7 +65,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.LabelEnableCustomFontColor);
         yiLabelTb.Foreground = brush;
         jiLabelTb.Foreground = brush;
     }
@@ -84,11 +84,6 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.LabelFontColor = newColor;
-        }
         UpdateLabelFontColor(Settings.LabelFontColor);
         yiValueTb.Foreground = ThemeHelper.GetYiBrush();
         jiValueTb.Foreground = ThemeHelper.GetJiBrush();
@@ -115,8 +110,8 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
             if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
         };
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelFontSize);
-        UpdateValueFontSize(Settings.ValueFontSize);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -51,7 +52,7 @@ public class LunarYearlyRuleSettingsControl : RuleSettingsControlBase<LunarYearl
         monthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -81,7 +82,7 @@ public class LunarYearlyRuleSettingsControl : RuleSettingsControlBase<LunarYearl
         dayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -111,13 +112,13 @@ public class LunarYearlyRuleSettingsControl : RuleSettingsControlBase<LunarYearl
         timePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _timePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

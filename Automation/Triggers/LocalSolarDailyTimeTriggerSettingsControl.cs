@@ -127,7 +127,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         groupPanel.Children.Add(new TextBlock
         {
             Text = "经度:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -205,13 +205,13 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _startTimePicker = new TimePicker
         {
-            Width = 260,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

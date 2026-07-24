@@ -858,7 +858,7 @@ public class TimeConverterPage : UserControl
 
         timePicker = new TimePicker
         {
-            Width = 280,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -66,20 +67,20 @@ public class YearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Yearl
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _datePicker = new DatePicker
         {
-            Width = 260,
+            Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left,
             YearVisible = false
         };
 
         _timePicker = new TimePicker
         {
-            Width = 380,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -88,22 +89,8 @@ public class YearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Yearl
         _datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         _timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        var pickerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
-        pickerRow.Children.Add(_datePicker);
-        pickerRow.Children.Add(_timePicker);
-
-        var scrollViewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = pickerRow
-        };
-
-        groupPanel.Children.Add(scrollViewer);
+        groupPanel.Children.Add(_datePicker);
+        groupPanel.Children.Add(_timePicker);
 
         return groupPanel;
     }

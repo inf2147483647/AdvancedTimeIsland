@@ -61,7 +61,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         yearRangePanel.Children.Add(new TextBlock
         {
             Text = "年份范围:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 60
         });
@@ -90,7 +90,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         tgDzPanel.Children.Add(new TextBlock
         {
             Text = "天干:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -111,7 +111,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         tgDzPanel.Children.Add(new TextBlock
         {
             Text = "地支:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -146,7 +146,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         monthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -186,7 +186,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         dayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -229,7 +229,7 @@ public class LunarTimeRangeRuleSettingsControl : RuleSettingsControlBase<LunarTi
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

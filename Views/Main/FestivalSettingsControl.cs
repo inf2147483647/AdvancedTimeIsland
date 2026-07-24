@@ -18,8 +18,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueColorTextBox;
     private TextBox _valueFontSizeTextBox;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
+    private ToggleSwitch _labelEnableCustomFontSizeToggle;
+    private ToggleSwitch _labelEnableCustomFontColorToggle;
+    private ToggleSwitch _valueEnableCustomFontSizeToggle;
+    private ToggleSwitch _valueEnableCustomFontColorToggle;
 
     private TextBlock _labelTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
@@ -37,14 +39,6 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
-
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
 
@@ -56,11 +50,15 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         Grid.SetColumn(_labelColorLabelTextBlock, 0);
         labelColorRow.Children.Add(_labelColorLabelTextBlock);
 
-        _labelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
+        _labelColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
         Grid.SetColumn(_labelColorTextBox, 1);
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelColorTextBox, OnLabelColorLostFocus);
         labelColorRow.Children.Add(_labelColorTextBox);
         sp.Children.Add(labelColorRow);
+
+        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
+        sp.Children.Add(_labelEnableCustomFontColorToggle);
 
         var labelFontSizeRow = new Grid();
         labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -76,6 +74,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
 
+        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
+        sp.Children.Add(_labelEnableCustomFontSizeToggle);
+
         _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_valueTitleTextBlock);
 
@@ -87,11 +89,15 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         Grid.SetColumn(_valueColorLabelTextBlock, 0);
         valueColorRow.Children.Add(_valueColorLabelTextBlock);
 
-        _valueColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
+        _valueColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
         Grid.SetColumn(_valueColorTextBox, 1);
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueColorTextBox, OnValueColorLostFocus);
         valueColorRow.Children.Add(_valueColorTextBox);
         sp.Children.Add(valueColorRow);
+
+        _valueEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _valueEnableCustomFontColorToggle.IsCheckedChanged += OnValueEnableCustomFontColorChanged;
+        sp.Children.Add(_valueEnableCustomFontColorToggle);
 
         var valueFontSizeRow = new Grid();
         valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -107,6 +113,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
         sp.Children.Add(valueFontSizeRow);
 
+        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
+        sp.Children.Add(_valueEnableCustomFontSizeToggle);
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -118,8 +128,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
 
     private void UpdateThemeColors()
     {
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -131,47 +143,38 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
-        Settings.LabelFontColor = newLabelColor;
-        _labelColorTextBox.Text = newLabelColor;
-
-        var newValueColor = ThemeHelper.GetSmartContrastColor(Settings.ValueFontColor);
-        Settings.ValueFontColor = newValueColor;
-        _valueColorTextBox.Text = newValueColor;
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.LabelEnableCustomFontSize = _labelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.LabelEnableCustomFontColor = _labelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.ValueEnableCustomFontSize = _valueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnValueEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.ValueEnableCustomFontColor = _valueEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        _labelColorTextBox.IsEnabled = fontColorEnabled;
-        _labelFontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _valueColorTextBox.IsEnabled = fontColorEnabled;
-        _valueFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _labelColorTextBox.IsEnabled = Settings.LabelEnableCustomFontColor;
+        _labelFontSizeTextBox.IsEnabled = Settings.LabelEnableCustomFontSize;
+        _valueColorTextBox.IsEnabled = Settings.ValueEnableCustomFontColor;
+        _valueFontSizeTextBox.IsEnabled = Settings.ValueEnableCustomFontSize;
     }
 
     protected override void OnInitialized()
@@ -182,8 +185,10 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
+        _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
+        _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;
+        _valueEnableCustomFontColorToggle.IsChecked = Settings.ValueEnableCustomFontColor;
         UpdateControlsEnabled();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
@@ -202,7 +207,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
 
     private void OnLabelColorLostFocus(object? sender, EventArgs e)
     {
-        var color = _labelColorTextBox.Text ?? "#FFFFFF";
+        var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
         {
             try
@@ -236,7 +241,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
 
     private void OnValueColorLostFocus(object? sender, EventArgs e)
     {
-        var color = _valueColorTextBox.Text ?? "#FFFFFF";
+        var color = _valueColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
         {
             try

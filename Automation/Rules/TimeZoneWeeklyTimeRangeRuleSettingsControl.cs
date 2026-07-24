@@ -4,6 +4,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -89,7 +90,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = "时区:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -123,7 +124,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         panel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 80
         });
@@ -170,7 +171,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

@@ -44,56 +44,35 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
 
     private void UpdateText1FontColor(string colorStr)
     {
-        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text1EnableCustomFontColor);
     }
 
     private void UpdateText1FontSize(double fontSize) { text1Tb.FontSize = fontSize; }
     private void UpdateNameFontColor(string colorStr)
     {
-        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.NameEnableCustomFontColor);
     }
 
     private void UpdateNameFontSize(double fontSize) { nameTb.FontSize = fontSize; }
     private void UpdateText3FontColor(string colorStr)
     {
-        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text3EnableCustomFontColor);
     }
 
     private void UpdateText3FontSize(double fontSize) { text3Tb.FontSize = fontSize; }
     private void UpdateTimeFontColor(string colorStr)
     {
-        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.TimeEnableCustomFontColor);
     }
 
     private void UpdateTimeFontSize(double fontSize) { timeTb.FontSize = fontSize; }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newText1Color = ThemeHelper.GetThemeAwareTextColor();
-            Settings.Text1FontColor = newText1Color;
-            UpdateText1FontColor(newText1Color);
-
-            var newNameColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.NameFontColor = newNameColor;
-            UpdateNameFontColor(newNameColor);
-
-            var newText3Color = ThemeHelper.GetThemeAwareTextColor();
-            Settings.Text3FontColor = newText3Color;
-            UpdateText3FontColor(newText3Color);
-
-            var newTimeColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.TimeFontColor = newTimeColor;
-            UpdateTimeFontColor(newTimeColor);
-        }
-        else
-        {
-            UpdateText1FontColor(Settings.Text1FontColor);
-            UpdateNameFontColor(Settings.NameFontColor);
-            UpdateText3FontColor(Settings.Text3FontColor);
-            UpdateTimeFontColor(Settings.TimeFontColor);
-        }
+        UpdateText1FontColor(Settings.Text1FontColor);
+        UpdateNameFontColor(Settings.NameFontColor);
+        UpdateText3FontColor(Settings.Text3FontColor);
+        UpdateTimeFontColor(Settings.TimeFontColor);
     }
 
     protected override void OnInitialized()
@@ -117,13 +96,13 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
             if (e.PropertyName == nameof(vm.TimeDisplay)) timeTb.Text = vm.TimeDisplay;
         };
         UpdateText1FontColor(Settings.Text1FontColor);
-        UpdateText1FontSize(Settings.Text1FontSize);
+        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
         UpdateNameFontColor(Settings.NameFontColor);
-        UpdateNameFontSize(Settings.NameFontSize);
+        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
         UpdateText3FontColor(Settings.Text3FontColor);
-        UpdateText3FontSize(Settings.Text3FontSize);
+        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
         UpdateTimeFontColor(Settings.TimeFontColor);
-        UpdateTimeFontSize(Settings.TimeFontSize);
+        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -67,7 +68,7 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         panel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 80
         });
@@ -105,13 +106,13 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _startTimePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

@@ -45,21 +45,25 @@ public class XingZuoViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(XingZuoSettings.LabelFontColor))
+        if (e.PropertyName == nameof(XingZuoSettings.LabelFontColor) ||
+            e.PropertyName == nameof(XingZuoSettings.LabelEnableCustomFontColor))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
-        else if (e.PropertyName == nameof(XingZuoSettings.LabelFontSize))
+        if (e.PropertyName == nameof(XingZuoSettings.LabelFontSize) ||
+                 e.PropertyName == nameof(XingZuoSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelFontSize);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
-        else if (e.PropertyName == nameof(XingZuoSettings.ValueFontColor))
+        if (e.PropertyName == nameof(XingZuoSettings.ValueFontColor) ||
+                 e.PropertyName == nameof(XingZuoSettings.ValueEnableCustomFontColor))
         {
             _updateValueFontColor?.Invoke(_settings.ValueFontColor);
         }
-        else if (e.PropertyName == nameof(XingZuoSettings.ValueFontSize))
+        if (e.PropertyName == nameof(XingZuoSettings.ValueFontSize) ||
+                 e.PropertyName == nameof(XingZuoSettings.ValueEnableCustomFontSize))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueFontSize);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }
     }
 

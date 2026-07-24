@@ -75,7 +75,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(_colorLabelTextBlock, 0);
         colorRow.Children.Add(_colorLabelTextBlock);
 
-        _colorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
+        _colorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
         Grid.SetColumn(_colorTextBox, 1);
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_colorTextBox, OnColorLostFocus);
         colorRow.Children.Add(_colorTextBox);
@@ -119,17 +119,6 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
-    }
-
-    private void UpdateFontColorsForTheme()
-    {
-        var newColor = ThemeHelper.GetSmartContrastColor(Settings.FontColor);
-        Settings.FontColor = newColor;
-        _colorTextBox.Text = newColor;
     }
 
     private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
@@ -142,10 +131,6 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     {
         Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
     private void UpdateControlsEnabled()
@@ -188,7 +173,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 
     private void OnColorLostFocus(object? sender, EventArgs e)
     {
-        var color = _colorTextBox.Text ?? "#FFFFFF";
+        var color = _colorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
         {
             try

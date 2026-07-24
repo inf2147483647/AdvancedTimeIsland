@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -46,7 +47,7 @@ public class UnixTimestampTriggerSettingsControl : TriggerSettingsControlBase<Un
         timestampPanel.Children.Add(new TextBlock
         {
             Text = "目标时间戳 (秒):",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

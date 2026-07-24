@@ -1,5 +1,5 @@
 using System;
-using AdvancedTimeIsland.Helpers;using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -64,7 +64,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             FontWeight = FontWeight.Bold
         });
@@ -80,7 +80,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         monthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -142,7 +142,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         dayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -188,7 +188,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         timePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

@@ -262,40 +262,54 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
+        if (e.PropertyName == nameof(CountdownSettings.Text1) ||
+            e.PropertyName == nameof(CountdownSettings.Text2) ||
+            e.PropertyName == nameof(CountdownSettings.Text3) ||
+            e.PropertyName == nameof(CountdownSettings.Text4) ||
+            e.PropertyName == nameof(CountdownSettings.CountdownItems) ||
+            e.PropertyName == nameof(CountdownSettings.TimeBaseType))
         {
-            case nameof(CountdownSettings.Text1):
-            case nameof(CountdownSettings.Text2):
-            case nameof(CountdownSettings.Text3):
-            case nameof(CountdownSettings.Text4):
-            case nameof(CountdownSettings.CountdownItems):
-            case nameof(CountdownSettings.TimeBaseType):
-                UpdateCountdown();
-                break;
-            case nameof(CountdownSettings.TimeFormat):
-                UpdateCountdown();
-                UpdateRefreshMode();
-                break;
-            case nameof(CountdownSettings.Text1FontSize):
-            case nameof(CountdownSettings.Text1FontColor):
-                _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1FontSize);
-                break;
-            case nameof(CountdownSettings.Text2FontSize):
-            case nameof(CountdownSettings.Text2FontColor):
-                _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2FontSize);
-                break;
-            case nameof(CountdownSettings.Text3FontSize):
-            case nameof(CountdownSettings.Text3FontColor):
-                _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3FontSize);
-                break;
-            case nameof(CountdownSettings.TimeFontSize):
-            case nameof(CountdownSettings.TimeFontColor):
-                _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeFontSize);
-                break;
-            case nameof(CountdownSettings.Text4FontSize):
-            case nameof(CountdownSettings.Text4FontColor):
-                _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4FontSize);
-                break;
+            UpdateCountdown();
+        }
+        if (e.PropertyName == nameof(CountdownSettings.TimeFormat))
+        {
+            UpdateCountdown();
+            UpdateRefreshMode();
+        }
+        if (e.PropertyName == nameof(CountdownSettings.Text1FontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1FontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontColor))
+        {
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+        }
+        if (e.PropertyName == nameof(CountdownSettings.Text2FontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2FontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontColor))
+        {
+            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 14);
+        }
+        if (e.PropertyName == nameof(CountdownSettings.Text3FontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3FontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontColor))
+        {
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+        }
+        if (e.PropertyName == nameof(CountdownSettings.TimeFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontColor))
+        {
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+        }
+        if (e.PropertyName == nameof(CountdownSettings.Text4FontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4FontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontSize) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontColor))
+        {
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
         }
     }
 

@@ -57,11 +57,6 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.FontColor = newColor;
-        }
         UpdateFontColor(Settings.FontColor);
     }
 
@@ -80,7 +75,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
             if (e.PropertyName == nameof(vm.DateDisplay)) tb.Text = vm.DateDisplay;
         };
         UpdateFontColor(Settings.FontColor);
-        UpdateFontSize(Settings.DateFontSize);
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

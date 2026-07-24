@@ -17,8 +17,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private TextBox _labelColorTextBox;
     private TextBox _labelFontSizeTextBox;
     private TextBox _valueFontSizeTextBox;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
+    private ToggleSwitch _labelEnableCustomFontSizeToggle;
+    private ToggleSwitch _labelEnableCustomFontColorToggle;
+    private ToggleSwitch _valueEnableCustomFontSizeToggle;
 
     private TextBlock _labelTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
@@ -36,14 +37,6 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeToggleChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorToggleChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
-
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
 
@@ -55,11 +48,15 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         Grid.SetColumn(_labelColorLabelTextBlock, 0);
         labelColorRow.Children.Add(_labelColorLabelTextBlock);
 
-        _labelColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
+        _labelColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
         Grid.SetColumn(_labelColorTextBox, 1);
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelColorTextBox, OnLabelColorLostFocus);
         labelColorRow.Children.Add(_labelColorTextBox);
         sp.Children.Add(labelColorRow);
+
+        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
+        sp.Children.Add(_labelEnableCustomFontColorToggle);
 
         var labelFontSizeRow = new Grid();
         labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -74,6 +71,10 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelFontSizeTextBox, OnLabelFontSizeLostFocus);
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
+
+        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
+        sp.Children.Add(_labelEnableCustomFontSizeToggle);
 
         _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_valueTitleTextBlock);
@@ -95,6 +96,10 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
         sp.Children.Add(valueFontSizeRow);
 
+        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
+        sp.Children.Add(_valueEnableCustomFontSizeToggle);
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -106,8 +111,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateThemeColors()
     {
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -119,40 +125,31 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newLabelColor = ThemeHelper.GetSmartContrastColor(Settings.LabelFontColor);
-        Settings.LabelFontColor = newLabelColor;
-        _labelColorTextBox.Text = newLabelColor;
-    }
-
-    private void OnEnableCustomFontSizeToggleChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.LabelEnableCustomFontSize = _labelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorToggleChanged(object? sender, EventArgs e)
+    private void OnLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.LabelEnableCustomFontColor = _labelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.ValueEnableCustomFontSize = _valueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        _labelColorTextBox.IsEnabled = Settings.EnableCustomFontColor;
-        _labelFontSizeTextBox.IsEnabled = Settings.EnableCustomFontSize;
-        _valueFontSizeTextBox.IsEnabled = Settings.EnableCustomFontSize;
+        _labelColorTextBox.IsEnabled = Settings.LabelEnableCustomFontColor;
+        _labelFontSizeTextBox.IsEnabled = Settings.LabelEnableCustomFontSize;
+        _valueFontSizeTextBox.IsEnabled = Settings.ValueEnableCustomFontSize;
     }
 
     protected override void OnInitialized()
@@ -163,8 +160,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
+        _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
+        _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;
         UpdateControlsEnabled();
         _labelColorTextBox.Text = Settings.LabelFontColor;
         _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
@@ -182,7 +180,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
     private void OnLabelColorLostFocus(object? sender, EventArgs e)
     {
-        var color = _labelColorTextBox.Text ?? "#FFFFFF";
+        var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
         {
             try

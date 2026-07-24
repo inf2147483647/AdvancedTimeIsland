@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -65,13 +66,13 @@ public class DailyTimeRuleSettingsControl : RuleSettingsControlBase<DailyTimeRan
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _startTimePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

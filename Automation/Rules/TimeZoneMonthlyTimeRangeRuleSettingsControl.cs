@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -80,7 +81,7 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         groupPanel.Children.Add(new TextBlock
         {
             Text = "时区:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -114,14 +115,14 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         // 日期选择器（只显示日期）
         var datePicker = new DatePicker
         {
-            Width = 80,
+            Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left,
             YearVisible = false,
             MonthVisible = false
@@ -130,7 +131,7 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 260,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -161,24 +162,8 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        // 水平排列的日期时间选择器
-        var pickerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
-        pickerRow.Children.Add(datePicker);
-        pickerRow.Children.Add(timePicker);
-
-        // 用ScrollViewer包裹，实现水平滚动
-        var scrollViewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = pickerRow
-        };
-
-        groupPanel.Children.Add(scrollViewer);
+        groupPanel.Children.Add(datePicker);
+        groupPanel.Children.Add(timePicker);
 
         return groupPanel;
     }

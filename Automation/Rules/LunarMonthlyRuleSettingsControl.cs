@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -51,7 +52,7 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         dayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -89,7 +90,7 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         timePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

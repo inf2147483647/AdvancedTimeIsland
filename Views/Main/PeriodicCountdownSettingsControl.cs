@@ -6,6 +6,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -21,8 +22,16 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private TextBox? _timeFormatTextBox;
     private TextBlock? _timeFormatHint;
     private ToggleSwitch? _timeCorrectionToggle;
-    private ToggleSwitch? _enableCustomFontSizeToggle;
-    private ToggleSwitch? _enableCustomFontColorToggle;
+    private ToggleSwitch? _text1EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text1EnableCustomFontColorToggle;
+    private ToggleSwitch? _text2EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text2EnableCustomFontColorToggle;
+    private ToggleSwitch? _text3EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text3EnableCustomFontColorToggle;
+    private ToggleSwitch? _timeEnableCustomFontSizeToggle;
+    private ToggleSwitch? _timeEnableCustomFontColorToggle;
+    private ToggleSwitch? _text4EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text4EnableCustomFontColorToggle;
     private ComboBox? _timeBaseComboBox;
     private ListBox? _countdownListBox;
     private Button? _addButton;
@@ -201,42 +210,34 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         progressDisplayModeGroup.Content = progressDisplayModePanel;
         _mainPanel.Children.Add(progressDisplayModeGroup);
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
-        _mainPanel.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
-        _mainPanel.Children.Add(_enableCustomFontColorToggle);
-
         _fontGroupHeader = new TextBlock { Text = "字体样式" };
         var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
         var fontPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text1StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker));
+        fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
 
         _text2StyleTextBlock = new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text2StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text2FontSizeTextBox));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text2FontColorPicker));
+        fontPanel.Children.Add(CreateFontRow("大小:", out _text2FontSizeTextBox, out _text2EnableCustomFontSizeToggle, OnText2EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("颜色:", out _text2FontColorPicker, out _text2EnableCustomFontColorToggle, OnText2EnableCustomFontColorChanged));
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker));
+        fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker));
+        fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker));
+        fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
 
         fontGroup.Content = fontPanel;
         _mainPanel.Children.Add(fontGroup);
@@ -348,11 +349,12 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         return row;
     }
 
-    private Grid CreateFontRow(string label, out TextBox? textBox)
+    private Grid CreateFontRow(string label, out TextBox? textBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -362,6 +364,11 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
         Grid.SetColumn(textBox, 1);
         row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "使用自定义大小" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
 
         return row;
     }
@@ -380,6 +387,30 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
         Grid.SetColumn(colorPicker, 1);
         row.Children.Add(colorPicker);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string label, out ColorPicker? colorPicker, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
+        Grid.SetColumn(lbl, 0);
+        row.Children.Add(lbl);
+
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
+
+        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
 
         return row;
     }
@@ -450,6 +481,17 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (_timeStyleTextBlock != null) _timeStyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
         if (_text4StyleTextBlock != null) _text4StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
 
+        if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text2EnableCustomFontSizeToggle != null) _text2EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text2EnableCustomFontColorToggle != null) _text2EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text3EnableCustomFontSizeToggle != null) _text3EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text3EnableCustomFontColorToggle != null) _text3EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeEnableCustomFontSizeToggle != null) _timeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeEnableCustomFontColorToggle != null) _timeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text4EnableCustomFontSizeToggle != null) _text4EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text4EnableCustomFontColorToggle != null) _text4EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+
         foreach (var tb in _dynamicTextBlocks)
         {
             tb.Foreground = ThemeHelper.GetTextBrush();
@@ -459,57 +501,66 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnText1EnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newColor = ThemeHelper.GetThemeAwareTextColor();
-
-        if (_text1FontColorPicker != null)
-        {
-            Settings.Text1FontColor = newColor;
-            _text1FontColorPicker.Color = ParseColor(newColor);
-        }
-        if (_text2FontColorPicker != null)
-        {
-            Settings.Text2FontColor = newColor;
-            _text2FontColorPicker.Color = ParseColor(newColor);
-        }
-        if (_text3FontColorPicker != null)
-        {
-            Settings.Text3FontColor = newColor;
-            _text3FontColorPicker.Color = ParseColor(newColor);
-        }
-        if (_timeFontColorPicker != null)
-        {
-            Settings.TimeFontColor = newColor;
-            _timeFontColorPicker.Color = ParseColor(newColor);
-        }
-        if (_text4FontColorPicker != null)
-        {
-            Settings.Text4FontColor = newColor;
-            _text4FontColorPicker.Color = ParseColor(newColor);
-        }
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText1EnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnText2EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.Text2EnableCustomFontSize = _text2EnableCustomFontSizeToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText2EnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.Text2EnableCustomFontColor = _text2EnableCustomFontColorToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText4EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.Text4EnableCustomFontSize = _text4EnableCustomFontSizeToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText4EnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.Text4EnableCustomFontColor = _text4EnableCustomFontColorToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void OnEnableCustomProgressColorChanged(object? sender, EventArgs e)
@@ -520,18 +571,16 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
-        _text2FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
-        _text2FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, fontSizeEnabled);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, fontColorEnabled);
+        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
+        _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
+        _text2FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
+        _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
+        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
+        _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
+        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
+        _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
+        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
+        _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -595,14 +644,26 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
         AttachEventHandlers();
 
-        if (_enableCustomFontSizeToggle != null)
-        {
-            _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        }
-        if (_enableCustomFontColorToggle != null)
-        {
-            _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
-        }
+        if (_text1EnableCustomFontSizeToggle != null)
+            _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
+        if (_text1EnableCustomFontColorToggle != null)
+            _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
+        if (_text2EnableCustomFontSizeToggle != null)
+            _text2EnableCustomFontSizeToggle.IsChecked = Settings.Text2EnableCustomFontSize;
+        if (_text2EnableCustomFontColorToggle != null)
+            _text2EnableCustomFontColorToggle.IsChecked = Settings.Text2EnableCustomFontColor;
+        if (_text3EnableCustomFontSizeToggle != null)
+            _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
+        if (_text3EnableCustomFontColorToggle != null)
+            _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
+        if (_timeEnableCustomFontSizeToggle != null)
+            _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
+        if (_timeEnableCustomFontColorToggle != null)
+            _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
+        if (_text4EnableCustomFontSizeToggle != null)
+            _text4EnableCustomFontSizeToggle.IsChecked = Settings.Text4EnableCustomFontSize;
+        if (_text4EnableCustomFontColorToggle != null)
+            _text4EnableCustomFontColorToggle.IsChecked = Settings.Text4EnableCustomFontColor;
         UpdateControlsEnabled();
 
         if (_enableCustomProgressColorToggle != null)

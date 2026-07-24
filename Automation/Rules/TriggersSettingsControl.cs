@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -65,7 +66,7 @@ public class TriggersSettingsControl : UserControl
             Text = "触发器设置",
             FontSize = 18,
             FontWeight = FontWeight.Bold,
-            Foreground = Brushes.White
+            Foreground = ThemeHelper.GetTextBrush()
         });
 
         var typePanel = new StackPanel
@@ -79,7 +80,7 @@ public class TriggersSettingsControl : UserControl
         {
             Text = "触发器类型:",
             FontSize = 14,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

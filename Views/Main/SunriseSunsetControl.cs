@@ -67,7 +67,15 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
     private void UpdateFontColor(string colorStr, string elementName)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        bool enableCustom = elementName switch
+        {
+            "sunriseLabel" => Settings.SunriseLabelEnableCustomFontColor,
+            "sunriseTime" => Settings.SunriseTimeEnableCustomFontColor,
+            "sunsetLabel" => Settings.SunsetLabelEnableCustomFontColor,
+            "sunsetTime" => Settings.SunsetTimeEnableCustomFontColor,
+            _ => false
+        };
+        var brush = ThemeHelper.GetColorBrush(colorStr, enableCustom);
         switch (elementName)
         {
             case "sunriseLabel":
@@ -114,14 +122,6 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.SunriseLabelFontColor = newColor;
-            Settings.SunriseTimeFontColor = newColor;
-            Settings.SunsetLabelFontColor = newColor;
-            Settings.SunsetTimeFontColor = newColor;
-        }
         UpdateAllFontColors();
     }
 
@@ -158,10 +158,10 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         _sunsetTime.Text = vm.SunsetTime;
 
         UpdateAllFontColors();
-        UpdateFontSize(Settings.SunriseLabelFontSize, "sunriseLabel");
-        UpdateFontSize(Settings.SunriseTimeFontSize, "sunriseTime");
-        UpdateFontSize(Settings.SunsetLabelFontSize, "sunsetLabel");
-        UpdateFontSize(Settings.SunsetTimeFontSize, "sunsetTime");
+        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 14, "sunriseLabel");
+        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 14, "sunriseTime");
+        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 14, "sunsetLabel");
+        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 14, "sunsetTime");
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

@@ -91,13 +91,24 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.LabelEnableCustomFontColor);
         labelFpsTb.Foreground = brush;
         labelMaxTb.Foreground = brush;
         labelAvgTb.Foreground = brush;
         labelMinTb.Foreground = brush;
         labelLow1Tb.Foreground = brush;
         labelOneSecondFrameCountTb.Foreground = brush;
+    }
+
+    private void UpdateValueFontColor(string colorStr)
+    {
+        var brush = ThemeHelper.GetColorBrush(colorStr, Settings.ValueEnableCustomFontColor);
+        valueFpsTb.Foreground = brush;
+        valueMaxTb.Foreground = brush;
+        valueAvgTb.Foreground = brush;
+        valueMinTb.Foreground = brush;
+        valueLow1Tb.Foreground = brush;
+        valueOneSecondFrameCountTb.Foreground = brush;
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -122,46 +133,44 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateFpsForeground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueFpsTb.Foreground = brush;
     }
 
     private void UpdateMaxForeground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueMaxTb.Foreground = brush;
     }
 
     private void UpdateAvgForeground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueAvgTb.Foreground = brush;
     }
 
     private void UpdateMinForeground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueMinTb.Foreground = brush;
     }
 
     private void UpdateLow1Foreground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueLow1Tb.Foreground = brush;
     }
 
     private void UpdateOneSecondFrameCountForeground(IBrush brush)
     {
+        if (Settings.ValueEnableCustomFontColor) return;
         valueOneSecondFrameCountTb.Foreground = brush;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.LabelFontColor = newColor;
-            UpdateLabelFontColor(newColor);
-        }
-        else
-        {
-            UpdateLabelFontColor(Settings.LabelFontColor);
-        }
+        UpdateLabelFontColor(Settings.LabelFontColor);
+        UpdateValueFontColor(Settings.ValueFontColor);
     }
 
     private void OnRenderTimerTick(TimeSpan timestamp)
@@ -223,7 +232,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         _isEnabled = true;
         Settings.EnableComponent = true;
 
-        vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateOneSecondFrameCountForeground, UpdateValueFontSize);
+        vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateOneSecondFrameCountForeground, UpdateValueFontSize, UpdateValueFontColor);
         DataContext = vm;
 
         vm.PropertyChanged += (s, e) =>
@@ -287,8 +296,9 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
 
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelFontSize);
-        UpdateValueFontSize(Settings.ValueFontSize);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateValueFontColor(Settings.ValueFontColor);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
 
         if (Settings.EnableComponent)
         {

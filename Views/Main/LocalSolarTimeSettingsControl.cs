@@ -192,17 +192,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
-    }
-
-    private void UpdateFontColorsForTheme()
-    {
-        var newColor = ThemeHelper.GetSmartContrastColor(Settings.FontColor);
-        Settings.FontColor = newColor;
-        _colorTextBox.Text = newColor;
     }
 
     private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
@@ -215,10 +204,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     {
         Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
     private void UpdateControlsEnabled()

@@ -45,17 +45,20 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DayYiJiSettings.LabelFontColor))
+        if (e.PropertyName == nameof(DayYiJiSettings.LabelFontColor) ||
+            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontColor))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
-        else if (e.PropertyName == nameof(DayYiJiSettings.LabelFontSize))
+        if (e.PropertyName == nameof(DayYiJiSettings.LabelFontSize) ||
+                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelFontSize);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
-        else if (e.PropertyName == nameof(DayYiJiSettings.ValueFontSize))
+        if (e.PropertyName == nameof(DayYiJiSettings.ValueFontSize) ||
+                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontSize))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueFontSize);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }
     }
 

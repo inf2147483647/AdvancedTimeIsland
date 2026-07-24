@@ -61,15 +61,47 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text1FontColor)) _updateText1FontColor?.Invoke(_settings.Text1FontColor);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text1FontSize)) _updateText1FontSize?.Invoke(_settings.Text1FontSize);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontColor)) _updateNameFontColor?.Invoke(_settings.NameFontColor);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontSize)) _updateNameFontSize?.Invoke(_settings.NameFontSize);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontColor)) _updateText3FontColor?.Invoke(_settings.Text3FontColor);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontSize)) _updateText3FontSize?.Invoke(_settings.Text3FontSize);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontColor)) _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontSize)) _updateTimeFontSize?.Invoke(_settings.TimeFontSize);
-        else if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3))
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text1FontColor) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.Text1EnableCustomFontColor))
+        {
+            _updateText1FontColor?.Invoke(_settings.Text1FontColor);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text1FontSize) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.Text1EnableCustomFontSize))
+        {
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontColor) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.NameEnableCustomFontColor))
+        {
+            _updateNameFontColor?.Invoke(_settings.NameFontColor);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontSize) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.NameEnableCustomFontSize))
+        {
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontColor) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.Text3EnableCustomFontColor))
+        {
+            _updateText3FontColor?.Invoke(_settings.Text3FontColor);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontSize) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.Text3EnableCustomFontSize))
+        {
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontColor) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.TimeEnableCustomFontColor))
+        {
+            _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontSize) ||
+            e.PropertyName == nameof(NextJieQiCountdownSettings.TimeEnableCustomFontSize))
+        {
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3))
         {
             UpdateDisplay();
         }

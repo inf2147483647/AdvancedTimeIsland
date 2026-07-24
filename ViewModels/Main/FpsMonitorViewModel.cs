@@ -27,6 +27,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private readonly Action<IBrush>? _updateLow1Foreground;
     private readonly Action<IBrush>? _updateOneSecondFrameCountForeground;
     private readonly Action<double>? _updateValueFontSize;
+    private readonly Action<string>? _updateValueFontColor;
     private bool _isDisposed;
     private string _fpsText = "0.0";
     private string _maxText = "0.0";
@@ -50,7 +51,8 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         Action<IBrush>? updateMinForeground = null,
         Action<IBrush>? updateLow1Foreground = null,
         Action<IBrush>? updateOneSecondFrameCountForeground = null,
-        Action<double>? updateValueFontSize = null)
+        Action<double>? updateValueFontSize = null,
+        Action<string>? updateValueFontColor = null)
     {
         _settings = settings;
         _updateLabelFontColor = updateLabelFontColor;
@@ -62,6 +64,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         _updateLow1Foreground = updateLow1Foreground;
         _updateOneSecondFrameCountForeground = updateOneSecondFrameCountForeground;
         _updateValueFontSize = updateValueFontSize;
+        _updateValueFontColor = updateValueFontColor;
 
         _settings.PropertyChanged += OnSettingsChanged;
     }
@@ -173,17 +176,25 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontColor))
+        if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontColor) ||
+            e.PropertyName == nameof(FpsMonitorSettings.LabelEnableCustomFontColor))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
-        else if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontSize))
+        if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontSize) ||
+            e.PropertyName == nameof(FpsMonitorSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelFontSize);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
-        else if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontSize))
+        if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontColor) ||
+            e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontColor))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueFontSize);
+            _updateValueFontColor?.Invoke(_settings.ValueFontColor);
+        }
+        if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontSize) ||
+            e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontSize))
+        {
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }
     }
 

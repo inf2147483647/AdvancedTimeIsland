@@ -1,5 +1,5 @@
 using System;
-using AdvancedTimeIsland.Helpers;using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -55,7 +55,7 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

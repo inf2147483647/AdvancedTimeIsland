@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -61,7 +62,7 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         groupPanel.Children.Add(new TextBlock
         {
             Text = "时区:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -95,20 +96,20 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         var datePicker = new DatePicker
         {
-            Width = 120,
+            Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left,
             YearVisible = false
         };
 
         var timePicker = new TimePicker
         {
-            Width = 260,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -120,22 +121,8 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        var pickerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
-        pickerRow.Children.Add(datePicker);
-        pickerRow.Children.Add(timePicker);
-
-        var scrollViewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = pickerRow
-        };
-
-        groupPanel.Children.Add(scrollViewer);
+        groupPanel.Children.Add(datePicker);
+        groupPanel.Children.Add(timePicker);
 
         groupPanel.Children.Add(new TextBlock
         {

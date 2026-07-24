@@ -37,17 +37,19 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(LocalSolarTimeSettings.FontColor))
+        if (e.PropertyName == nameof(LocalSolarTimeSettings.FontColor) ||
+            e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontColor))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
-        else if (e.PropertyName == nameof(LocalSolarTimeSettings.Longitude))
+        if (e.PropertyName == nameof(LocalSolarTimeSettings.Longitude))
         {
             UpdateTime();
         }
-        else if (e.PropertyName == nameof(LocalSolarTimeSettings.TextFontSize))
+        if (e.PropertyName == nameof(LocalSolarTimeSettings.TextFontSize) ||
+                 e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontSize))
         {
-            _updateFontSize?.Invoke(_settings.TextFontSize);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
         }
     }
 

@@ -141,7 +141,7 @@ public class LocalSolarWeeklyTimeTriggerSettingsControl : TriggerSettingsControl
         groupPanel.Children.Add(new TextBlock
         {
             Text = "经度:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -219,7 +219,7 @@ public class LocalSolarWeeklyTimeTriggerSettingsControl : TriggerSettingsControl
         panel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 80
         });
@@ -259,7 +259,7 @@ public class LocalSolarWeeklyTimeTriggerSettingsControl : TriggerSettingsControl
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

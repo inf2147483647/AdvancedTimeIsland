@@ -51,7 +51,7 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
 
     private void UpdateLabelFontColor(string colorStr)
     {
-        labelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        labelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.LabelEnableCustomFontColor);
     }
 
     private void UpdateLabelFontSize(double fontSize)
@@ -61,17 +61,11 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
 
     private void UpdateValueFontColor(string colorStr)
     {
-        valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.ValueEnableCustomFontColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.LabelFontColor = newColor;
-            Settings.ValueFontColor = newColor;
-        }
         UpdateLabelFontColor(Settings.LabelFontColor);
         UpdateValueFontColor(Settings.ValueFontColor);
     }
@@ -98,9 +92,9 @@ public class XingZuoControl : ComponentBase<XingZuoSettings>
             if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
         };
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelFontSize);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
         UpdateValueFontColor(Settings.ValueFontColor);
-        UpdateValueFontSize(Settings.ValueFontSize);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

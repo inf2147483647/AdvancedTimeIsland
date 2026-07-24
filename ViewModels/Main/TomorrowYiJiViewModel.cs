@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -55,13 +55,37 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontColor)) _updateYiLabelFontColor?.Invoke(_settings.YiLabelFontColor);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontSize)) _updateYiLabelFontSize?.Invoke(_settings.YiLabelFontSize);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontSize)) _updateYiValueFontSize?.Invoke(_settings.YiValueFontSize);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontColor)) _updateJiLabelFontColor?.Invoke(_settings.JiLabelFontColor);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontSize)) _updateJiLabelFontSize?.Invoke(_settings.JiLabelFontSize);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontSize)) _updateJiValueFontSize?.Invoke(_settings.JiValueFontSize);
-        else if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabel) || e.PropertyName == nameof(TomorrowYiJiSettings.JiLabel))
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontColor) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontColor))
+        {
+            _updateYiLabelFontColor?.Invoke(_settings.YiLabelFontColor);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontSize))
+        {
+            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 14);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontSize))
+        {
+            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 14);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontColor) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontColor))
+        {
+            _updateJiLabelFontColor?.Invoke(_settings.JiLabelFontColor);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontSize))
+        {
+            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 14);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontSize))
+        {
+            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 14);
+        }
+        if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabel) || e.PropertyName == nameof(TomorrowYiJiSettings.JiLabel))
         {
             UpdateDisplay();
         }

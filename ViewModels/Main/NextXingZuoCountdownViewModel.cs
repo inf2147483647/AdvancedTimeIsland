@@ -60,15 +60,47 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontColor)) _updateText1FontColor?.Invoke(_settings.Text1FontColor);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontSize)) _updateText1FontSize?.Invoke(_settings.Text1FontSize);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontColor)) _updateNameFontColor?.Invoke(_settings.NameFontColor);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontSize)) _updateNameFontSize?.Invoke(_settings.NameFontSize);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontColor)) _updateText3FontColor?.Invoke(_settings.Text3FontColor);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontSize)) _updateText3FontSize?.Invoke(_settings.Text3FontSize);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontColor)) _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontSize)) _updateTimeFontSize?.Invoke(_settings.TimeFontSize);
-        else if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3))
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontColor) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1EnableCustomFontColor))
+        {
+            _updateText1FontColor?.Invoke(_settings.Text1FontColor);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontSize) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1EnableCustomFontSize))
+        {
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontColor) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontColor))
+        {
+            _updateNameFontColor?.Invoke(_settings.NameFontColor);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontSize) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontSize))
+        {
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontColor) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontColor))
+        {
+            _updateText3FontColor?.Invoke(_settings.Text3FontColor);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontSize) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontSize))
+        {
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontColor) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontColor))
+        {
+            _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontSize) ||
+            e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontSize))
+        {
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3))
         {
             UpdateDisplay();
         }

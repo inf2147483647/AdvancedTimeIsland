@@ -45,21 +45,25 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(FestivalSettings.LabelFontColor))
+        if (e.PropertyName == nameof(FestivalSettings.LabelFontColor) ||
+            e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontColor))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
-        else if (e.PropertyName == nameof(FestivalSettings.LabelFontSize))
+        if (e.PropertyName == nameof(FestivalSettings.LabelFontSize) ||
+                 e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelFontSize);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
-        else if (e.PropertyName == nameof(FestivalSettings.ValueFontColor))
+        if (e.PropertyName == nameof(FestivalSettings.ValueFontColor) ||
+                 e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontColor))
         {
             _updateValueFontColor?.Invoke(_settings.ValueFontColor);
         }
-        else if (e.PropertyName == nameof(FestivalSettings.ValueFontSize))
+        if (e.PropertyName == nameof(FestivalSettings.ValueFontSize) ||
+                 e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontSize))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueFontSize);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }
     }
 

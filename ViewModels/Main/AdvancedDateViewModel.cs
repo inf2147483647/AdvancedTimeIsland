@@ -37,17 +37,19 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(AdvancedDateSettings.FontColor))
+        if (e.PropertyName == nameof(AdvancedDateSettings.FontColor) ||
+            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontColor))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
-        else if (e.PropertyName == nameof(AdvancedDateSettings.ShowWeekDay))
+        if (e.PropertyName == nameof(AdvancedDateSettings.ShowWeekDay))
         {
             UpdateTime();
         }
-        else if (e.PropertyName == nameof(AdvancedDateSettings.DateFontSize))
+        if (e.PropertyName == nameof(AdvancedDateSettings.DateFontSize) ||
+                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontSize))
         {
-            _updateFontSize?.Invoke(_settings.DateFontSize);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 14);
         }
     }
 

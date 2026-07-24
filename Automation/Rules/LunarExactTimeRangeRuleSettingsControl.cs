@@ -82,7 +82,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startYearRangePanel.Children.Add(new TextBlock
         {
             Text = "年份范围:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 60
         });
@@ -112,7 +112,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startTgDzPanel.Children.Add(new TextBlock
         {
             Text = "天干:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -133,7 +133,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startTgDzPanel.Children.Add(new TextBlock
         {
             Text = "地支:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -196,7 +196,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startMonthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -247,7 +247,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startDayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -287,13 +287,13 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         startTimePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _startTimePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -346,7 +346,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endYearRangePanel.Children.Add(new TextBlock
         {
             Text = "年份范围:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 60
         });
@@ -376,7 +376,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endTgDzPanel.Children.Add(new TextBlock
         {
             Text = "天干:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -397,7 +397,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endTgDzPanel.Children.Add(new TextBlock
         {
             Text = "地支:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
             Width = 40
         });
@@ -460,7 +460,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endMonthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -511,7 +511,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endDayPanel.Children.Add(new TextBlock
         {
             Text = "农历日:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -551,13 +551,13 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         endTimePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _endTimePicker = new TimePicker
         {
-            Width = 300,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left

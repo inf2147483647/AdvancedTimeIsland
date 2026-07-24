@@ -6,6 +6,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
@@ -48,7 +49,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         monthPanel.Children.Add(new TextBlock
         {
             Text = "农历月:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -78,7 +79,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         daysPanel.Children.Add(new TextBlock
         {
             Text = "倒数第:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -94,7 +95,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         daysPanel.Children.Add(new TextBlock
         {
             Text = "天",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -110,7 +111,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         timePanel.Children.Add(new TextBlock
         {
             Text = "时间:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

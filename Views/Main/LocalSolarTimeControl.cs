@@ -56,11 +56,6 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.FontColor = newColor;
-        }
         UpdateFontColor(Settings.FontColor);
     }
 
@@ -79,7 +74,7 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
             if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
         };
         UpdateFontColor(Settings.FontColor);
-        UpdateFontSize(Settings.TextFontSize);
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

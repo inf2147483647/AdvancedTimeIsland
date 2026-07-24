@@ -60,15 +60,47 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontColor)) _updateText1FontColor?.Invoke(_settings.Text1FontColor);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontSize)) _updateText1FontSize?.Invoke(_settings.Text1FontSize);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontColor)) _updateNameFontColor?.Invoke(_settings.NameFontColor);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontSize)) _updateNameFontSize?.Invoke(_settings.NameFontSize);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontColor)) _updateText3FontColor?.Invoke(_settings.Text3FontColor);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontSize)) _updateText3FontSize?.Invoke(_settings.Text3FontSize);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontColor)) _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontSize)) _updateTimeFontSize?.Invoke(_settings.TimeFontSize);
-        else if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text1) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text3) ||
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontColor) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.Text1EnableCustomFontColor))
+        {
+            _updateText1FontColor?.Invoke(_settings.Text1FontColor);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontSize) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.Text1EnableCustomFontSize))
+        {
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontColor) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontColor))
+        {
+            _updateNameFontColor?.Invoke(_settings.NameFontColor);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontSize) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontSize))
+        {
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontColor) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontColor))
+        {
+            _updateText3FontColor?.Invoke(_settings.Text3FontColor);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontSize) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontSize))
+        {
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontColor) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontColor))
+        {
+            _updateTimeFontColor?.Invoke(_settings.TimeFontColor);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontSize) ||
+            e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontSize))
+        {
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+        }
+        if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text1) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text3) ||
                  e.PropertyName == nameof(NextFestivalCountdownSettings.EnableInternationalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableChineseTraditionalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableRedFestivals))
         {
             UpdateDisplay();

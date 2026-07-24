@@ -1,4 +1,5 @@
 using System;
+using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -68,21 +69,21 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         // 日期选择器
         var datePicker = new DatePicker
         {
-            Width = 400,
+            Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         // 时间选择器
         var timePicker = new TimePicker
         {
-            Width = 360,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -103,24 +104,8 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        // 水平排列的日期时间选择器
-        var pickerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
-        pickerRow.Children.Add(datePicker);
-        pickerRow.Children.Add(timePicker);
-
-        // 用ScrollViewer包裹，实现水平滚动
-        var scrollViewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = pickerRow
-        };
-
-        groupPanel.Children.Add(scrollViewer);
+        groupPanel.Children.Add(datePicker);
+        groupPanel.Children.Add(timePicker);
 
         return groupPanel;
     }

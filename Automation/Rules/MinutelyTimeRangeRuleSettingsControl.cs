@@ -53,7 +53,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

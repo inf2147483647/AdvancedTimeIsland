@@ -53,8 +53,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
     private Button _getTimeZoneButton;
     private TextBlock _timeZoneLabelTextBlock;
 
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
+    private ToggleSwitch _sunriseLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch _sunriseLabelEnableCustomFontColorToggle;
+    private ToggleSwitch _sunriseTimeEnableCustomFontSizeToggle;
+    private ToggleSwitch _sunriseTimeEnableCustomFontColorToggle;
+    private ToggleSwitch _sunsetLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch _sunsetLabelEnableCustomFontColorToggle;
+    private ToggleSwitch _sunsetTimeEnableCustomFontSizeToggle;
+    private ToggleSwitch _sunsetTimeEnableCustomFontColorToggle;
 
     private TextBlock _styleTitleTextBlock;
 
@@ -240,14 +246,6 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         sp.Children.Add(timeZoneRow);
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
-
         _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_styleTitleTextBlock);
 
@@ -272,6 +270,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunriseLabelRow.Children.Add(_sunriseLabelSizeTextBox);
         sp.Children.Add(sunriseLabelRow);
 
+        _sunriseLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunriseLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontColorChanged;
+        sp.Children.Add(_sunriseLabelEnableCustomFontColorToggle);
+
+        _sunriseLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunriseLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontSizeChanged;
+        sp.Children.Add(_sunriseLabelEnableCustomFontSizeToggle);
+
         var sunriseTimeRow = new Grid();
         sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -292,6 +298,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseTimeSizeTextBox, nameof(Settings.SunriseTimeFontSize)));
         sunriseTimeRow.Children.Add(_sunriseTimeSizeTextBox);
         sp.Children.Add(sunriseTimeRow);
+
+        _sunriseTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunriseTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontColorChanged;
+        sp.Children.Add(_sunriseTimeEnableCustomFontColorToggle);
+
+        _sunriseTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunriseTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontSizeChanged;
+        sp.Children.Add(_sunriseTimeEnableCustomFontSizeToggle);
 
         var sunsetLabelRow = new Grid();
         sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -314,6 +328,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunsetLabelRow.Children.Add(_sunsetLabelSizeTextBox);
         sp.Children.Add(sunsetLabelRow);
 
+        _sunsetLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunsetLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontColorChanged;
+        sp.Children.Add(_sunsetLabelEnableCustomFontColorToggle);
+
+        _sunsetLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunsetLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontSizeChanged;
+        sp.Children.Add(_sunsetLabelEnableCustomFontSizeToggle);
+
         var sunsetTimeRow = new Grid();
         sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -334,6 +356,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetTimeSizeTextBox, nameof(Settings.SunsetTimeFontSize)));
         sunsetTimeRow.Children.Add(_sunsetTimeSizeTextBox);
         sp.Children.Add(sunsetTimeRow);
+
+        _sunsetTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunsetTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontColorChanged;
+        sp.Children.Add(_sunsetTimeEnableCustomFontColorToggle);
+
+        _sunsetTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunsetTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontSizeChanged;
+        sp.Children.Add(_sunsetTimeEnableCustomFontSizeToggle);
 
         var scrollViewer = new ScrollViewer
         {
@@ -360,8 +390,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         _statusText.Foreground = ThemeHelper.GetGrayBrush();
         _timeZoneTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _timeZoneLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _sunriseLabelLabel.Foreground = ThemeHelper.GetTextBrush();
         _sunriseTimeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -372,59 +408,66 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnSunriseLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newColor = ThemeHelper.GetSmartContrastColor(Settings.SunriseLabelFontColor);
-        Settings.SunriseLabelFontColor = newColor;
-        _sunriseLabelColorTextBox.Text = newColor;
-
-        newColor = ThemeHelper.GetSmartContrastColor(Settings.SunriseTimeFontColor);
-        Settings.SunriseTimeFontColor = newColor;
-        _sunriseTimeColorTextBox.Text = newColor;
-
-        newColor = ThemeHelper.GetSmartContrastColor(Settings.SunsetLabelFontColor);
-        Settings.SunsetLabelFontColor = newColor;
-        _sunsetLabelColorTextBox.Text = newColor;
-
-        newColor = ThemeHelper.GetSmartContrastColor(Settings.SunsetTimeFontColor);
-        Settings.SunsetTimeFontColor = newColor;
-        _sunsetTimeColorTextBox.Text = newColor;
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.SunriseLabelEnableCustomFontSize = _sunriseLabelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnSunriseLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.SunriseLabelEnableCustomFontColor = _sunriseLabelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnSunriseTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.SunriseTimeEnableCustomFontSize = _sunriseTimeEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnSunriseTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.SunriseTimeEnableCustomFontColor = _sunriseTimeEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnSunsetLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.SunsetLabelEnableCustomFontSize = _sunsetLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnSunsetLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.SunsetLabelEnableCustomFontColor = _sunsetLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnSunsetTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.SunsetTimeEnableCustomFontSize = _sunsetTimeEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnSunsetTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.SunsetTimeEnableCustomFontColor = _sunsetTimeEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        _sunriseLabelColorTextBox.IsEnabled = fontColorEnabled;
-        _sunriseLabelSizeTextBox.IsEnabled = fontSizeEnabled;
-        _sunriseTimeColorTextBox.IsEnabled = fontColorEnabled;
-        _sunriseTimeSizeTextBox.IsEnabled = fontSizeEnabled;
-        _sunsetLabelColorTextBox.IsEnabled = fontColorEnabled;
-        _sunsetLabelSizeTextBox.IsEnabled = fontSizeEnabled;
-        _sunsetTimeColorTextBox.IsEnabled = fontColorEnabled;
-        _sunsetTimeSizeTextBox.IsEnabled = fontSizeEnabled;
+        _sunriseLabelColorTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontColor;
+        _sunriseLabelSizeTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontSize;
+        _sunriseTimeColorTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontColor;
+        _sunriseTimeSizeTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontSize;
+        _sunsetLabelColorTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontColor;
+        _sunsetLabelSizeTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontSize;
+        _sunsetTimeColorTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontColor;
+        _sunsetTimeSizeTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontSize;
     }
 
     protected override void OnInitialized()
@@ -463,8 +506,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
             }
         }
 
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _sunriseLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunriseLabelEnableCustomFontSize;
+        _sunriseLabelEnableCustomFontColorToggle.IsChecked = Settings.SunriseLabelEnableCustomFontColor;
+        _sunriseTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunriseTimeEnableCustomFontSize;
+        _sunriseTimeEnableCustomFontColorToggle.IsChecked = Settings.SunriseTimeEnableCustomFontColor;
+        _sunsetLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunsetLabelEnableCustomFontSize;
+        _sunsetLabelEnableCustomFontColorToggle.IsChecked = Settings.SunsetLabelEnableCustomFontColor;
+        _sunsetTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunsetTimeEnableCustomFontSize;
+        _sunsetTimeEnableCustomFontColorToggle.IsChecked = Settings.SunsetTimeEnableCustomFontColor;
         UpdateControlsEnabled();
 
         _sunriseLabelColorTextBox.Text = Settings.SunriseLabelFontColor;

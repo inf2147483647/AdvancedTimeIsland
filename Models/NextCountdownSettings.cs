@@ -161,34 +161,60 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomFontSize = false;
-
-    public bool EnableCustomFontSize
+    private bool _text1EnableCustomFontSize = false;
+    public bool Text1EnableCustomFontSize
     {
-        get => _enableCustomFontSize;
-        set
-        {
-            if (_enableCustomFontSize != value)
-            {
-                _enableCustomFontSize = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontSize;
+        set { if (_text1EnableCustomFontSize != value) { _text1EnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
-    private bool _enableCustomFontColor = false;
-
-    public bool EnableCustomFontColor
+    private bool _text1EnableCustomFontColor = false;
+    public bool Text1EnableCustomFontColor
     {
-        get => _enableCustomFontColor;
-        set
-        {
-            if (_enableCustomFontColor != value)
-            {
-                _enableCustomFontColor = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontColor;
+        set { if (_text1EnableCustomFontColor != value) { _text1EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontSize = false;
+    public bool NameEnableCustomFontSize
+    {
+        get => _nameEnableCustomFontSize;
+        set { if (_nameEnableCustomFontSize != value) { _nameEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontColor = false;
+    public bool NameEnableCustomFontColor
+    {
+        get => _nameEnableCustomFontColor;
+        set { if (_nameEnableCustomFontColor != value) { _nameEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontSize = false;
+    public bool Text3EnableCustomFontSize
+    {
+        get => _text3EnableCustomFontSize;
+        set { if (_text3EnableCustomFontSize != value) { _text3EnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontColor = false;
+    public bool Text3EnableCustomFontColor
+    {
+        get => _text3EnableCustomFontColor;
+        set { if (_text3EnableCustomFontColor != value) { _text3EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontSize = false;
+    public bool TimeEnableCustomFontSize
+    {
+        get => _timeEnableCustomFontSize;
+        set { if (_timeEnableCustomFontSize != value) { _timeEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontColor = false;
+    public bool TimeEnableCustomFontColor
+    {
+        get => _timeEnableCustomFontColor;
+        set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -356,34 +382,60 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomFontSize = false;
-
-    public bool EnableCustomFontSize
+    private bool _text1EnableCustomFontSize = false;
+    public bool Text1EnableCustomFontSize
     {
-        get => _enableCustomFontSize;
-        set
-        {
-            if (_enableCustomFontSize != value)
-            {
-                _enableCustomFontSize = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontSize;
+        set { if (_text1EnableCustomFontSize != value) { _text1EnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
-    private bool _enableCustomFontColor = false;
-
-    public bool EnableCustomFontColor
+    private bool _text1EnableCustomFontColor = false;
+    public bool Text1EnableCustomFontColor
     {
-        get => _enableCustomFontColor;
-        set
-        {
-            if (_enableCustomFontColor != value)
-            {
-                _enableCustomFontColor = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontColor;
+        set { if (_text1EnableCustomFontColor != value) { _text1EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontSize = false;
+    public bool NameEnableCustomFontSize
+    {
+        get => _nameEnableCustomFontSize;
+        set { if (_nameEnableCustomFontSize != value) { _nameEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontColor = false;
+    public bool NameEnableCustomFontColor
+    {
+        get => _nameEnableCustomFontColor;
+        set { if (_nameEnableCustomFontColor != value) { _nameEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontSize = false;
+    public bool Text3EnableCustomFontSize
+    {
+        get => _text3EnableCustomFontSize;
+        set { if (_text3EnableCustomFontSize != value) { _text3EnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontColor = false;
+    public bool Text3EnableCustomFontColor
+    {
+        get => _text3EnableCustomFontColor;
+        set { if (_text3EnableCustomFontColor != value) { _text3EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontSize = false;
+    public bool TimeEnableCustomFontSize
+    {
+        get => _timeEnableCustomFontSize;
+        set { if (_timeEnableCustomFontSize != value) { _timeEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontColor = false;
+    public bool TimeEnableCustomFontColor
+    {
+        get => _timeEnableCustomFontColor;
+        set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -593,34 +645,60 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomFontSize = false;
-
-    public bool EnableCustomFontSize
+    private bool _text1EnableCustomFontSize = false;
+    public bool Text1EnableCustomFontSize
     {
-        get => _enableCustomFontSize;
-        set
-        {
-            if (_enableCustomFontSize != value)
-            {
-                _enableCustomFontSize = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontSize;
+        set { if (_text1EnableCustomFontSize != value) { _text1EnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
-    private bool _enableCustomFontColor = false;
-
-    public bool EnableCustomFontColor
+    private bool _text1EnableCustomFontColor = false;
+    public bool Text1EnableCustomFontColor
     {
-        get => _enableCustomFontColor;
-        set
-        {
-            if (_enableCustomFontColor != value)
-            {
-                _enableCustomFontColor = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _text1EnableCustomFontColor;
+        set { if (_text1EnableCustomFontColor != value) { _text1EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontSize = false;
+    public bool NameEnableCustomFontSize
+    {
+        get => _nameEnableCustomFontSize;
+        set { if (_nameEnableCustomFontSize != value) { _nameEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _nameEnableCustomFontColor = false;
+    public bool NameEnableCustomFontColor
+    {
+        get => _nameEnableCustomFontColor;
+        set { if (_nameEnableCustomFontColor != value) { _nameEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontSize = false;
+    public bool Text3EnableCustomFontSize
+    {
+        get => _text3EnableCustomFontSize;
+        set { if (_text3EnableCustomFontSize != value) { _text3EnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _text3EnableCustomFontColor = false;
+    public bool Text3EnableCustomFontColor
+    {
+        get => _text3EnableCustomFontColor;
+        set { if (_text3EnableCustomFontColor != value) { _text3EnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontSize = false;
+    public bool TimeEnableCustomFontSize
+    {
+        get => _timeEnableCustomFontSize;
+        set { if (_timeEnableCustomFontSize != value) { _timeEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _timeEnableCustomFontColor = false;
+    public bool TimeEnableCustomFontColor
+    {
+        get => _timeEnableCustomFontColor;
+        set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -746,34 +824,46 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
         }
     }
 
-    private bool _enableCustomFontSize = false;
-
-    public bool EnableCustomFontSize
+    private bool _yiLabelEnableCustomFontSize = false;
+    public bool YiLabelEnableCustomFontSize
     {
-        get => _enableCustomFontSize;
-        set
-        {
-            if (_enableCustomFontSize != value)
-            {
-                _enableCustomFontSize = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _yiLabelEnableCustomFontSize;
+        set { if (_yiLabelEnableCustomFontSize != value) { _yiLabelEnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
-    private bool _enableCustomFontColor = false;
-
-    public bool EnableCustomFontColor
+    private bool _yiLabelEnableCustomFontColor = false;
+    public bool YiLabelEnableCustomFontColor
     {
-        get => _enableCustomFontColor;
-        set
-        {
-            if (_enableCustomFontColor != value)
-            {
-                _enableCustomFontColor = value;
-                OnPropertyChanged();
-            }
-        }
+        get => _yiLabelEnableCustomFontColor;
+        set { if (_yiLabelEnableCustomFontColor != value) { _yiLabelEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _yiValueEnableCustomFontSize = false;
+    public bool YiValueEnableCustomFontSize
+    {
+        get => _yiValueEnableCustomFontSize;
+        set { if (_yiValueEnableCustomFontSize != value) { _yiValueEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiLabelEnableCustomFontSize = false;
+    public bool JiLabelEnableCustomFontSize
+    {
+        get => _jiLabelEnableCustomFontSize;
+        set { if (_jiLabelEnableCustomFontSize != value) { _jiLabelEnableCustomFontSize = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiLabelEnableCustomFontColor = false;
+    public bool JiLabelEnableCustomFontColor
+    {
+        get => _jiLabelEnableCustomFontColor;
+        set { if (_jiLabelEnableCustomFontColor != value) { _jiLabelEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiValueEnableCustomFontSize = false;
+    public bool JiValueEnableCustomFontSize
+    {
+        get => _jiValueEnableCustomFontSize;
+        set { if (_jiValueEnableCustomFontSize != value) { _jiValueEnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

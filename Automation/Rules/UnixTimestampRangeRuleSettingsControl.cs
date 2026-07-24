@@ -5,6 +5,7 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -44,7 +45,7 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
         startPanel.Children.Add(new TextBlock
         {
             Text = "开始时间戳 (秒):",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -70,7 +71,7 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
         endPanel.Children.Add(new TextBlock
         {
             Text = "结束时间戳 (秒):",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 

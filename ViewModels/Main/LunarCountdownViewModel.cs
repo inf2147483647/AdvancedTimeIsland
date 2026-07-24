@@ -238,39 +238,53 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        switch (e.PropertyName)
+        if (e.PropertyName == nameof(LunarCountdownSettings.Text1) ||
+            e.PropertyName == nameof(LunarCountdownSettings.Text3) ||
+            e.PropertyName == nameof(LunarCountdownSettings.Text4) ||
+            e.PropertyName == nameof(LunarCountdownSettings.CountdownItems) ||
+            e.PropertyName == nameof(LunarCountdownSettings.TimeBaseType))
         {
-            case nameof(LunarCountdownSettings.Text1):
-            case nameof(LunarCountdownSettings.Text3):
-            case nameof(LunarCountdownSettings.Text4):
-            case nameof(LunarCountdownSettings.CountdownItems):
-            case nameof(LunarCountdownSettings.TimeBaseType):
-                UpdateCountdown();
-                break;
-            case nameof(LunarCountdownSettings.TimeFormat):
-                UpdateCountdown();
-                UpdateRefreshMode();
-                break;
-            case nameof(LunarCountdownSettings.Text1FontSize):
-            case nameof(LunarCountdownSettings.Text1FontColor):
-                _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1FontSize);
-                break;
-            case nameof(LunarCountdownSettings.NameFontSize):
-            case nameof(LunarCountdownSettings.NameFontColor):
-                _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameFontSize);
-                break;
-            case nameof(LunarCountdownSettings.Text3FontSize):
-            case nameof(LunarCountdownSettings.Text3FontColor):
-                _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3FontSize);
-                break;
-            case nameof(LunarCountdownSettings.TimeFontSize):
-            case nameof(LunarCountdownSettings.TimeFontColor):
-                _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeFontSize);
-                break;
-            case nameof(LunarCountdownSettings.Text4FontSize):
-            case nameof(LunarCountdownSettings.Text4FontColor):
-                _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4FontSize);
-                break;
+            UpdateCountdown();
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.TimeFormat))
+        {
+            UpdateCountdown();
+            UpdateRefreshMode();
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.Text1FontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text1FontColor) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text1EnableCustomFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text1EnableCustomFontColor))
+        {
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.NameFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.NameFontColor) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.NameEnableCustomFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.NameEnableCustomFontColor))
+        {
+            _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.Text3FontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text3FontColor) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text3EnableCustomFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text3EnableCustomFontColor))
+        {
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.TimeFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.TimeFontColor) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.TimeEnableCustomFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.TimeEnableCustomFontColor))
+        {
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+        }
+        if (e.PropertyName == nameof(LunarCountdownSettings.Text4FontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text4FontColor) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text4EnableCustomFontSize) ||
+                 e.PropertyName == nameof(LunarCountdownSettings.Text4EnableCustomFontColor))
+        {
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
         }
     }
 

@@ -51,14 +51,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void UpdateYiLabelFontColor(string colorStr)
     {
-        yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.YiLabelEnableCustomFontColor);
     }
 
     private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
     private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
     private void UpdateJiLabelFontColor(string colorStr)
     {
-        jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.JiLabelEnableCustomFontColor);
     }
 
     private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
@@ -66,19 +66,8 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.YiLabelFontColor = newColor;
-            Settings.JiLabelFontColor = newColor;
-            UpdateYiLabelFontColor(newColor);
-            UpdateJiLabelFontColor(newColor);
-        }
-        else
-        {
-            UpdateYiLabelFontColor(Settings.YiLabelFontColor);
-            UpdateJiLabelFontColor(Settings.JiLabelFontColor);
-        }
+        UpdateYiLabelFontColor(Settings.YiLabelFontColor);
+        UpdateJiLabelFontColor(Settings.JiLabelFontColor);
         yiValueTb.Foreground = ThemeHelper.GetYiBrush();
         jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }
@@ -104,11 +93,11 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
             if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
         };
         UpdateYiLabelFontColor(Settings.YiLabelFontColor);
-        UpdateYiLabelFontSize(Settings.YiLabelFontSize);
-        UpdateYiValueFontSize(Settings.YiValueFontSize);
+        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 14);
+        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 14);
         UpdateJiLabelFontColor(Settings.JiLabelFontColor);
-        UpdateJiLabelFontSize(Settings.JiLabelFontSize);
-        UpdateJiValueFontSize(Settings.JiValueFontSize);
+        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 14);
+        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 14);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

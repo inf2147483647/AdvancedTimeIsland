@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -16,15 +17,22 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
 {
     private TextBox _formatTextBox;
     private TextBox _text1FontSizeTextBox;
-    private TextBox _text1ColorTextBox;
+    private ColorPicker _text1FontColorPicker;
     private TextBox _nameFontSizeTextBox;
-    private TextBox _nameColorTextBox;
+    private ColorPicker _nameFontColorPicker;
     private TextBox _text3FontSizeTextBox;
-    private TextBox _text3ColorTextBox;
+    private ColorPicker _text3FontColorPicker;
     private TextBox _timeFontSizeTextBox;
-    private TextBox _timeColorTextBox;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
+    private ColorPicker _timeFontColorPicker;
+
+    private ToggleSwitch _text1EnableCustomFontSizeToggle;
+    private ToggleSwitch _text1EnableCustomFontColorToggle;
+    private ToggleSwitch _nameEnableCustomFontSizeToggle;
+    private ToggleSwitch _nameEnableCustomFontColorToggle;
+    private ToggleSwitch _text3EnableCustomFontSizeToggle;
+    private ToggleSwitch _text3EnableCustomFontColorToggle;
+    private ToggleSwitch _timeEnableCustomFontSizeToggle;
+    private ToggleSwitch _timeEnableCustomFontColorToggle;
 
     private TextBlock _formatTitle;
     private TextBlock _formatLabel;
@@ -74,121 +82,25 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         };
         sp.Children.Add(_formatHelpText);
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
-
         _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_text1Title);
-
-        var text1ColorRow = new Grid();
-        text1ColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        text1ColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _text1ColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_text1ColorLabel, 0);
-        text1ColorRow.Children.Add(_text1ColorLabel);
-        _text1ColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_text1ColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text1ColorTextBox, OnText1ColorLostFocus);
-        text1ColorRow.Children.Add(_text1ColorTextBox);
-        sp.Children.Add(text1ColorRow);
-
-        var text1FontSizeRow = new Grid();
-        text1FontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        text1FontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _text1FontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_text1FontSizeLabel, 0);
-        text1FontSizeRow.Children.Add(_text1FontSizeLabel);
-        _text1FontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_text1FontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text1FontSizeTextBox, OnText1FontSizeLostFocus);
-        text1FontSizeRow.Children.Add(_text1FontSizeTextBox);
-        sp.Children.Add(text1FontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _text1FontSizeLabel, out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1FontSizeLostFocus, OnText1EnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _text1ColorLabel, out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
 
         _nameTitle = new TextBlock { Text = "节气名样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_nameTitle);
-
-        var nameColorRow = new Grid();
-        nameColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        nameColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _nameColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_nameColorLabel, 0);
-        nameColorRow.Children.Add(_nameColorLabel);
-        _nameColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_nameColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_nameColorTextBox, OnNameColorLostFocus);
-        nameColorRow.Children.Add(_nameColorTextBox);
-        sp.Children.Add(nameColorRow);
-
-        var nameFontSizeRow = new Grid();
-        nameFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        nameFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _nameFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_nameFontSizeLabel, 0);
-        nameFontSizeRow.Children.Add(_nameFontSizeLabel);
-        _nameFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_nameFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_nameFontSizeTextBox, OnNameFontSizeLostFocus);
-        nameFontSizeRow.Children.Add(_nameFontSizeTextBox);
-        sp.Children.Add(nameFontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _nameFontSizeLabel, out _nameFontSizeTextBox, out _nameEnableCustomFontSizeToggle, OnNameFontSizeLostFocus, OnNameEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _nameColorLabel, out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
 
         _text3Title = new TextBlock { Text = "文本3样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_text3Title);
-
-        var text3ColorRow = new Grid();
-        text3ColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        text3ColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _text3ColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_text3ColorLabel, 0);
-        text3ColorRow.Children.Add(_text3ColorLabel);
-        _text3ColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_text3ColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text3ColorTextBox, OnText3ColorLostFocus);
-        text3ColorRow.Children.Add(_text3ColorTextBox);
-        sp.Children.Add(text3ColorRow);
-
-        var text3FontSizeRow = new Grid();
-        text3FontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        text3FontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _text3FontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_text3FontSizeLabel, 0);
-        text3FontSizeRow.Children.Add(_text3FontSizeLabel);
-        _text3FontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_text3FontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_text3FontSizeTextBox, OnText3FontSizeLostFocus);
-        text3FontSizeRow.Children.Add(_text3FontSizeTextBox);
-        sp.Children.Add(text3FontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _text3FontSizeLabel, out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3FontSizeLostFocus, OnText3EnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _text3ColorLabel, out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
 
         _timeTitle = new TextBlock { Text = "时间样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_timeTitle);
-
-        var timeColorRow = new Grid();
-        timeColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _timeColorLabel = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeColorLabel, 0);
-        timeColorRow.Children.Add(_timeColorLabel);
-        _timeColorTextBox = new TextBox { Width = 120, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_timeColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_timeColorTextBox, OnTimeColorLostFocus);
-        timeColorRow.Children.Add(_timeColorTextBox);
-        sp.Children.Add(timeColorRow);
-
-        var timeFontSizeRow = new Grid();
-        timeFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _timeFontSizeLabel = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeFontSizeLabel, 0);
-        timeFontSizeRow.Children.Add(_timeFontSizeLabel);
-        _timeFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_timeFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_timeFontSizeTextBox, OnTimeFontSizeLostFocus);
-        timeFontSizeRow.Children.Add(_timeFontSizeTextBox);
-        sp.Children.Add(timeFontSizeRow);
+        sp.Children.Add(CreateFontSizeRow("字体大小:", out _timeFontSizeLabel, out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeFontSizeLostFocus, OnTimeEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色:", out _timeColorLabel, out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
 
         var scrollViewer = new ScrollViewer
         {
@@ -199,13 +111,60 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         Content = scrollViewer;
     }
 
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 80, Watermark = "14" };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "使用自定义大小" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
+
+        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
     private void UpdateThemeColors()
     {
         _formatTitle.Foreground = ThemeHelper.GetTextBrush();
         _formatLabel.Foreground = ThemeHelper.GetTextBrush();
         _formatHelpText.Foreground = ThemeHelper.GetGrayBrush();
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _text1Title.Foreground = ThemeHelper.GetTextBrush();
         _text1ColorLabel.Foreground = ThemeHelper.GetTextBrush();
         _text1FontSizeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -223,59 +182,66 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateThemeColors();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
     }
 
-    private void UpdateFontColorsForTheme()
+    private void OnText1EnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        var newText1Color = ThemeHelper.GetSmartContrastColor(Settings.Text1FontColor);
-        Settings.Text1FontColor = newText1Color;
-        _text1ColorTextBox.Text = newText1Color;
-
-        var newNameColor = ThemeHelper.GetSmartContrastColor(Settings.NameFontColor);
-        Settings.NameFontColor = newNameColor;
-        _nameColorTextBox.Text = newNameColor;
-
-        var newText3Color = ThemeHelper.GetSmartContrastColor(Settings.Text3FontColor);
-        Settings.Text3FontColor = newText3Color;
-        _text3ColorTextBox.Text = newText3Color;
-
-        var newTimeColor = ThemeHelper.GetSmartContrastColor(Settings.TimeFontColor);
-        Settings.TimeFontColor = newTimeColor;
-        _timeColorTextBox.Text = newTimeColor;
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText1EnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-        if (!Settings.EnableCustomFontColor)
-        {
-            UpdateFontColorsForTheme();
-        }
+    }
+
+    private void OnNameEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.NameEnableCustomFontSize = _nameEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnNameEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.NameEnableCustomFontColor = _nameEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        _text1ColorTextBox.IsEnabled = fontColorEnabled;
-        _text1FontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _nameColorTextBox.IsEnabled = fontColorEnabled;
-        _nameFontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _text3ColorTextBox.IsEnabled = fontColorEnabled;
-        _text3FontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _timeColorTextBox.IsEnabled = fontColorEnabled;
-        _timeFontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _text1FontSizeTextBox.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
+        _nameFontSizeTextBox.IsEnabled = Settings.NameEnableCustomFontSize;
+        _nameFontColorPicker.IsEnabled = Settings.NameEnableCustomFontColor;
+        _text3FontSizeTextBox.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
+        _timeFontSizeTextBox.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
     }
 
     protected override void OnInitialized()
@@ -287,17 +253,31 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         }
         UpdateThemeColors();
         _formatTextBox.Text = Settings.TimeFormat;
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
-        UpdateControlsEnabled();
-        _text1ColorTextBox.Text = Settings.Text1FontColor;
+
         _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
-        _nameColorTextBox.Text = Settings.NameFontColor;
+        _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
         _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(CultureInfo.InvariantCulture);
-        _text3ColorTextBox.Text = Settings.Text3FontColor;
+        _nameFontColorPicker.Color = ParseColor(Settings.NameFontColor);
         _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
-        _timeColorTextBox.Text = Settings.TimeFontColor;
+        _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
         _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);
+        _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
+
+        _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
+        _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
+        _nameEnableCustomFontSizeToggle.IsChecked = Settings.NameEnableCustomFontSize;
+        _nameEnableCustomFontColorToggle.IsChecked = Settings.NameEnableCustomFontColor;
+        _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
+        _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
+        _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
+        _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
+
+        UpdateControlsEnabled();
+
+        _text1FontColorPicker.ColorChanged += (s, e) => Settings.Text1FontColor = _text1FontColorPicker.Color.ToString();
+        _nameFontColorPicker.ColorChanged += (s, e) => Settings.NameFontColor = _nameFontColorPicker.Color.ToString();
+        _text3FontColorPicker.ColorChanged += (s, e) => Settings.Text3FontColor = _text3FontColorPicker.Color.ToString();
+        _timeFontColorPicker.ColorChanged += (s, e) => Settings.TimeFontColor = _timeFontColorPicker.Color.ToString();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -309,71 +289,39 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         }
     }
 
-    private void OnFormatLostFocus(object? sender, EventArgs e) { Settings.TimeFormat = _formatTextBox.Text ?? "%d天"; }
-
-    private void OnText1ColorLostFocus(object? sender, EventArgs e)
+    private Color ParseColor(string colorString)
     {
-        var color = _text1ColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        try
         {
-            try { Avalonia.Media.Color.Parse(color); Settings.Text1FontColor = color; }
-            catch { _text1ColorTextBox.Text = Settings.Text1FontColor; }
+            return Color.Parse(colorString);
         }
-        else { _text1ColorTextBox.Text = Settings.Text1FontColor; }
+        catch
+        {
+            return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
+        }
     }
 
-    private void OnText1FontSizeLostFocus(object? sender, EventArgs e)
+    private void OnFormatLostFocus(object? sender, RoutedEventArgs e) { Settings.TimeFormat = _formatTextBox.Text ?? "%d天"; }
+
+    private void OnText1FontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_text1FontSizeTextBox.Text, out double size)) { Settings.Text1FontSize = size; }
         _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnNameColorLostFocus(object? sender, EventArgs e)
-    {
-        var color = _nameColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try { Avalonia.Media.Color.Parse(color); Settings.NameFontColor = color; }
-            catch { _nameColorTextBox.Text = Settings.NameFontColor; }
-        }
-        else { _nameColorTextBox.Text = Settings.NameFontColor; }
-    }
-
-    private void OnNameFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnNameFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_nameFontSizeTextBox.Text, out double size)) { Settings.NameFontSize = size; }
         _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnText3ColorLostFocus(object? sender, EventArgs e)
-    {
-        var color = _text3ColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try { Avalonia.Media.Color.Parse(color); Settings.Text3FontColor = color; }
-            catch { _text3ColorTextBox.Text = Settings.Text3FontColor; }
-        }
-        else { _text3ColorTextBox.Text = Settings.Text3FontColor; }
-    }
-
-    private void OnText3FontSizeLostFocus(object? sender, EventArgs e)
+    private void OnText3FontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_text3FontSizeTextBox.Text, out double size)) { Settings.Text3FontSize = size; }
         _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
     }
 
-    private void OnTimeColorLostFocus(object? sender, EventArgs e)
-    {
-        var color = _timeColorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try { Avalonia.Media.Color.Parse(color); Settings.TimeFontColor = color; }
-            catch { _timeColorTextBox.Text = Settings.TimeFontColor; }
-        }
-        else { _timeColorTextBox.Text = Settings.TimeFontColor; }
-    }
-
-    private void OnTimeFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnTimeFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_timeFontSizeTextBox.Text, out double size)) { Settings.TimeFontSize = size; }
         _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);

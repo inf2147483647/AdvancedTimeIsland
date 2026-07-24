@@ -129,51 +129,42 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
 
     private void UpdateText1Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText1, colorStr, fontSize);
+        UpdateTextBlockStyle(tbText1, colorStr, fontSize, Settings.Text1EnableCustomFontColor);
     }
 
     private void UpdateText2Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText2, colorStr, fontSize);
+        UpdateTextBlockStyle(tbText2, colorStr, fontSize, Settings.Text2EnableCustomFontColor);
     }
 
     private void UpdateText3Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText3, colorStr, fontSize);
+        UpdateTextBlockStyle(tbText3, colorStr, fontSize, Settings.Text3EnableCustomFontColor);
     }
 
     private void UpdateTimeStyle(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbTime, colorStr, fontSize);
+        UpdateTextBlockStyle(tbTime, colorStr, fontSize, Settings.TimeEnableCustomFontColor);
     }
 
     private void UpdateText4Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText4, colorStr, fontSize);
+        UpdateTextBlockStyle(tbText4, colorStr, fontSize, Settings.Text4EnableCustomFontColor);
     }
 
-    private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize)
+    private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor)
     {
         tb.FontSize = fontSize;
-        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (!Settings.EnableCustomFontColor)
-        {
-            var newColor = ThemeHelper.GetThemeAwareTextColor();
-            Settings.Text1FontColor = newColor;
-            Settings.Text2FontColor = newColor;
-            Settings.Text3FontColor = newColor;
-            Settings.TimeFontColor = newColor;
-            Settings.Text4FontColor = newColor;
-        }
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1FontSize);
-        UpdateText2Style(Settings.Text2FontColor, Settings.Text2FontSize);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3FontSize);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeFontSize);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4FontSize);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
+        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 14);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
         UpdateProgressColors();
     }
 
@@ -245,11 +236,11 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
 
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1FontSize);
-        UpdateText2Style(Settings.Text2FontColor, Settings.Text2FontSize);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3FontSize);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeFontSize);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4FontSize);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
+        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 14);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
         UpdateProgressDisplayMode();
     }
 

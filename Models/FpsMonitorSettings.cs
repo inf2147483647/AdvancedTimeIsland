@@ -10,8 +10,10 @@ public class FpsMonitorSettings : INotifyPropertyChanged
     private double _labelFontSize = 14;
     private string _valueFontColor = "";
     private double _valueFontSize = 14;
-    private bool _enableCustomFontSize = false;
-    private bool _enableCustomFontColor = false;
+    private bool _labelEnableCustomFontSize = false;
+    private bool _labelEnableCustomFontColor = false;
+    private bool _valueEnableCustomFontSize = false;
+    private bool _valueEnableCustomFontColor = false;
     private bool _enableComponent = false;
 
     public bool EnableComponent
@@ -79,27 +81,53 @@ public class FpsMonitorSettings : INotifyPropertyChanged
         }
     }
 
-    public bool EnableCustomFontSize
+    public bool LabelEnableCustomFontSize
     {
-        get => _enableCustomFontSize;
+        get => _labelEnableCustomFontSize;
         set
         {
-            if (_enableCustomFontSize != value)
+            if (_labelEnableCustomFontSize != value)
             {
-                _enableCustomFontSize = value;
+                _labelEnableCustomFontSize = value;
                 OnPropertyChanged();
             }
         }
     }
 
-    public bool EnableCustomFontColor
+    public bool LabelEnableCustomFontColor
     {
-        get => _enableCustomFontColor;
+        get => _labelEnableCustomFontColor;
         set
         {
-            if (_enableCustomFontColor != value)
+            if (_labelEnableCustomFontColor != value)
             {
-                _enableCustomFontColor = value;
+                _labelEnableCustomFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool ValueEnableCustomFontSize
+    {
+        get => _valueEnableCustomFontSize;
+        set
+        {
+            if (_valueEnableCustomFontSize != value)
+            {
+                _valueEnableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public bool ValueEnableCustomFontColor
+    {
+        get => _valueEnableCustomFontColor;
+        set
+        {
+            if (_valueEnableCustomFontColor != value)
+            {
+                _valueEnableCustomFontColor = value;
                 OnPropertyChanged();
             }
         }

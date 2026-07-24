@@ -155,7 +155,9 @@ public static class ThemeHelper
         {
             try
             {
-                var color = Color.Parse(colorStr);
+                // 使用 GetSmartContrastColor 确保颜色在当前主题下可见
+                var contrastColor = GetSmartContrastColor(colorStr);
+                var color = Color.Parse(contrastColor);
                 return new SolidColorBrush(color);
             }
             catch { }

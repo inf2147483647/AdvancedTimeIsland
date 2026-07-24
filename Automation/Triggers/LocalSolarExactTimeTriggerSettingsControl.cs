@@ -133,7 +133,7 @@ public class LocalSolarExactTimeTriggerSettingsControl : TriggerSettingsControlB
         groupPanel.Children.Add(new TextBlock
         {
             Text = "经度:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -211,19 +211,19 @@ public class LocalSolarExactTimeTriggerSettingsControl : TriggerSettingsControlB
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
         _startDatePicker = new DatePicker
         {
-            Width = 400,
+            Width = 300,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         _startTimePicker = new TimePicker
         {
-            Width = 360,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             HorizontalAlignment = HorizontalAlignment.Left
@@ -232,22 +232,8 @@ public class LocalSolarExactTimeTriggerSettingsControl : TriggerSettingsControlB
         _startDatePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
         _startTimePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
 
-        var pickerRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
-        };
-        pickerRow.Children.Add(_startDatePicker);
-        pickerRow.Children.Add(_startTimePicker);
-
-        var scrollViewer = new ScrollViewer
-        {
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = pickerRow
-        };
-
-        groupPanel.Children.Add(scrollViewer);
+        groupPanel.Children.Add(_startDatePicker);
+        groupPanel.Children.Add(_startTimePicker);
 
         return groupPanel;
     }

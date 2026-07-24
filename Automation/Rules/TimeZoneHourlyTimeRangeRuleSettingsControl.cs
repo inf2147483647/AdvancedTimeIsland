@@ -81,7 +81,7 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = "时区:",
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
@@ -115,7 +115,7 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         groupPanel.Children.Add(new TextBlock
         {
             Text = label,
-            Foreground = Brushes.White,
+            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         });
 
