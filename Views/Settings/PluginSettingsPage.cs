@@ -531,8 +531,9 @@ public class PluginSettingsPage : UserControl
     }
 
     private readonly PluginSettings? _settings;
-    private ToggleSwitch? _easterEggToggle;
-    private Border? _easterEggItem;
+    private TextBlock? _titleTextBlock;
+    private TextBlock? _licenseTextBlock;
+    private TextBlock? _ntpHintTextBlock;
     private TextBox? _longitudeTextBox;
     private TextBox? _dmsDegreesTextBox;
     private TextBox? _dmsMinutesTextBox;
@@ -550,16 +551,8 @@ public class PluginSettingsPage : UserControl
     private List<int>? _remainingIndices;
     private bool _isTyping;
     private ToggleSwitch? _experimentalToggle;
-    private Border? _experimentalItem;
-    
-
-    private TextBlock? _titleTextBlock;
-    private TextBlock? _generalSettingsTextBlock;
-    private TextBlock? _licenseTextBlock;
-    private TextBlock? _ntpHintTextBlock;
-    private List<TextBlock>? _settingTitleTextBlocks;
-    private List<TextBlock>? _settingDescriptionTextBlocks;
-    private List<Border>? _settingItemBorders;
+    private ToggleSwitch? _easterEggToggle;
+    private Control? _easterEggExpander;
 
     public Action? RequestRestartAction { get; set; }
 
@@ -581,10 +574,6 @@ public class PluginSettingsPage : UserControl
     {
         try
         {
-            _settingTitleTextBlocks = new List<TextBlock>();
-            _settingDescriptionTextBlocks = new List<TextBlock>();
-            _settingItemBorders = new List<Border>();
-
             var mainPanel = new StackPanel
             {
                 Orientation = Orientation.Vertical,
@@ -602,48 +591,27 @@ public class PluginSettingsPage : UserControl
             };
             mainPanel.Children.Add(_titleTextBlock);
 
-            // 管理启用的功能 - 点击后弹出模态对话框
-            var featureManagementButton = new Button
-            {
-                Content = new StackPanel
-                {
-                    Orientation = Orientation.Vertical,
-                    Children =
-                    {
-                        new TextBlock
-                        {
-                            Text = "管理启用的功能",
-                            FontSize = 14,
-                            FontWeight = FontWeight.Bold,
-                            Foreground = ThemeHelper.GetTextBrush()
-                        },
-                        new TextBlock
-                        {
-                            Text = "点击管理各类功能的启用状态",
-                            FontSize = 12,
-                            Foreground = ThemeHelper.GetSubTextBrush(),
-                            Margin = new Thickness(0, 4, 0, 0)
-                        }
-                    }
-                },
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                HorizontalContentAlignment = HorizontalAlignment.Left,
-                Margin = new Thickness(0, 8, 0, 0),
-                Padding = new Thickness(12, 8, 12, 8)
-            };
-            featureManagementButton.Click += OnManageFeaturesClick;
-            mainPanel.Children.Add(featureManagementButton);
+            // 管理启用的功能 - 使用 SettingsExpander
+            var featureManagementExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Header", "管理启用的功能");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Description", "点击管理各类功能的启用状态");
 
-            // 通用设置
-            _generalSettingsTextBlock = new TextBlock
+            var featureFooterPanel = new StackPanel
             {
-                Text = "通用设置",
-                FontSize = 14,
-                FontWeight = FontWeight.Bold,
-                Foreground = ThemeHelper.GetTextBrush(),
-                Margin = new Avalonia.Thickness(0, 8, 0, 0)
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
             };
-            mainPanel.Children.Add(_generalSettingsTextBlock);
+            var featureButton = new Button
+            {
+                Content = "管理启用的功能...",
+                Width = 165
+            };
+            featureButton.Click += OnManageFeaturesClick;
+            featureFooterPanel.Children.Add(featureButton);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Footer", featureFooterPanel);
+
+            mainPanel.Children.Add(featureManagementExpander);
 
             // 许可证声明
             _licenseTextBlock = new TextBlock
@@ -656,56 +624,49 @@ public class PluginSettingsPage : UserControl
             };
             mainPanel.Children.Add(_licenseTextBlock);
 
+            // 通用设置 SettingsExpander
+            var generalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Header", "通用设置");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Description", "插件的基本设置");
+
             // 地方时经度设置
-            mainPanel.Children.Add(CreateSettingItem(
+            AddSettingsExpanderItem(generalExpander,
                 "地方时经度",
                 "设置地方时计算使用的经度（范围：-180 到 180）",
-                CreateLongitudePanel(),
-                null
-            ));
+                CreateLongitudePanel());
 
             // 经纬度表示方式
-            mainPanel.Children.Add(CreateSettingItem(
+            AddSettingsExpanderItem(generalExpander,
                 "经纬度表示方式",
                 "选择经度的显示格式",
-                CreateLongitudeModeComboBox(),
-                null
-            ));
+                CreateLongitudeModeComboBox());
 
             // 区时时区设置
-            mainPanel.Children.Add(CreateSettingItem(
+            AddSettingsExpanderItem(generalExpander,
                 "区时时区",
                 "选择区时显示使用的时区",
-                CreateTimeZoneComboBox(),
-                null
-            ));
+                CreateTimeZoneComboBox());
 
             // 插件时间偏移设置（与ClassIsland时间独立）
-            mainPanel.Children.Add(CreateSettingItem(
+            AddSettingsExpanderItem(generalExpander,
                 "插件时间偏移",
                 "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
-                CreateTimeOffsetTextBox(),
-                null
-            ));
+                CreateTimeOffsetTextBox());
 
             // 时间同步相关设置（仅64位显示）
             if (!PlatformHelper.Is32BitProcess)
             {
                 // 时间服务器设置
-                mainPanel.Children.Add(CreateSettingItem(
+                AddSettingsExpanderItem(generalExpander,
                     "时间服务器",
                     "选择用于同步时间的NTP服务器",
-                    CreateNtpServerComboBox(),
-                    null
-                ));
+                    CreateNtpServerComboBox());
 
                 // 同步时间周期设置
-                mainPanel.Children.Add(CreateSettingItem(
+                AddSettingsExpanderItem(generalExpander,
                     "同步时间周期",
                     "NTP时间同步周期，单位为分钟",
-                    CreateNtpSyncIntervalTextBox(),
-                    null
-                ));
+                    CreateNtpSyncIntervalTextBox());
             }
             else
             {
@@ -716,32 +677,51 @@ public class PluginSettingsPage : UserControl
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
-                mainPanel.Children.Add(warningBar);
+                AddChildToSettingsExpander(generalExpander, warningBar);
             }
 
-            // 实验性功能开关
+            mainPanel.Children.Add(generalExpander);
+
+            // 实验性功能开关 - 使用 SettingsExpander
             var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
             _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggled);
-            _experimentalItem = CreateSettingItemWithLabel(
-                "启用实验性功能",
-                "启用后可以使用实验性功能，这里有一些相对小众、不那么稳定、以及可能与插件主要目的不相关的功能",
-                _experimentalToggle,
-                "实验性"
-            );
-            mainPanel.Children.Add(_experimentalItem);
+
+            var experimentalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Header", "实验性功能");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Description", "启用后可以使用实验性功能，不保证其稳定性。");
+
+            var experimentalFooterPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center,
+                Spacing = 8
+            };
+            experimentalFooterPanel.Children.Add(_experimentalToggle);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Footer", experimentalFooterPanel);
+
+            mainPanel.Children.Add(experimentalExpander);
 
             // 女装彩蛋（默认不可见）
             var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
             _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggled);
             _easterEggToggle.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
-            _easterEggItem = CreateSettingItem(
-                "女装",
-                "开启后显示女装彩蛋页面",
-                _easterEggToggle,
-                null
-            );
-            _easterEggItem.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
-            mainPanel.Children.Add(_easterEggItem);
+
+            _easterEggExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Header", "女装");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Description", "开启后显示女装彩蛋页面");
+
+            var easterEggFooterPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            easterEggFooterPanel.Children.Add(_easterEggToggle);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Footer", easterEggFooterPanel);
+
+            _easterEggExpander.IsVisible = isEasterEggEnabled;
+            mainPanel.Children.Add(_easterEggExpander);
 
             // 回声洞（实验性功能）
             _echoHoleButton = new Button
@@ -781,151 +761,6 @@ public class PluginSettingsPage : UserControl
                 Margin = new Thickness(16)
             };
         }
-    }
-
-    /// <summary>
-    /// 创建设置项
-    /// </summary>
-    private Border CreateSettingItem(string title, string description, Control valueControl, Action? onValueChanged)
-    {
-        var itemPanel = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true
-        };
-        _settingItemBorders?.Add(itemPanel);
-
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
-        };
-
-        // 标题行：使用 Grid 让标题左对齐、按钮右对齐且在同一行
-        var titlePanel = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto")
-        };
-
-        var titleText = new TextBlock
-        {
-            Text = title,
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _settingTitleTextBlocks?.Add(titleText);
-        Grid.SetColumn(titleText, 0);
-        titlePanel.Children.Add(titleText);
-
-        if (valueControl != null)
-        {
-            valueControl.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(valueControl, 1);
-            titlePanel.Children.Add(valueControl);
-        }
-
-        content.Children.Add(titlePanel);
-
-        // 描述
-        if (!string.IsNullOrEmpty(description))
-        {
-            var descText = new TextBlock
-            {
-                Text = description,
-                FontSize = 12,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap
-            };
-            _settingDescriptionTextBlocks?.Add(descText);
-            content.Children.Add(descText);
-        }
-
-        itemPanel.Child = content;
-        return itemPanel;
-    }
-
-    private Border CreateSettingItemWithLabel(string title, string description, Control valueControl, string labelText)
-    {
-        var itemPanel = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 12),
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true
-        };
-        _settingItemBorders?.Add(itemPanel);
-
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
-        };
-
-        var titlePanel = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto")
-        };
-
-        var titleText = new TextBlock
-        {
-            Text = title,
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _settingTitleTextBlocks?.Add(titleText);
-        Grid.SetColumn(titleText, 0);
-        titlePanel.Children.Add(titleText);
-
-        var label = new Border
-        {
-            Background = new SolidColorBrush(Color.Parse("#D4A574")),
-            Padding = new Thickness(6, 2, 6, 2),
-            CornerRadius = new CornerRadius(4),
-            VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(8, 0, 8, 0)
-        };
-        label.Child = new TextBlock
-        {
-            Text = labelText,
-            FontSize = 10,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.Black
-        };
-        Grid.SetColumn(label, 1);
-        titlePanel.Children.Add(label);
-
-        if (valueControl != null)
-        {
-            valueControl.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(valueControl, 2);
-            titlePanel.Children.Add(valueControl);
-        }
-
-        content.Children.Add(titlePanel);
-
-        if (!string.IsNullOrEmpty(description))
-        {
-            var descText = new TextBlock
-            {
-                Text = description,
-                FontSize = 12,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap
-            };
-            _settingDescriptionTextBlocks?.Add(descText);
-            content.Children.Add(descText);
-        }
-
-        itemPanel.Child = content;
-        return itemPanel;
     }
 
     /// <summary>
@@ -1402,9 +1237,9 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     public void ShowEasterEggSetting()
     {
-        if (_easterEggItem != null)
+        if (_easterEggExpander != null)
         {
-            _easterEggItem.IsVisible = true;
+            _easterEggExpander.IsVisible = true;
         }
         if (_easterEggToggle != null)
         {
@@ -1418,9 +1253,9 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     public void HideEasterEggSetting()
     {
-        if (_easterEggItem != null)
+        if (_easterEggExpander != null)
         {
-            _easterEggItem.IsVisible = false;
+            _easterEggExpander.IsVisible = false;
         }
         if (_easterEggToggle != null)
         {
@@ -1794,35 +1629,73 @@ public class PluginSettingsPage : UserControl
     {
         if (_titleTextBlock != null)
             _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        if (_generalSettingsTextBlock != null)
-            _generalSettingsTextBlock.Foreground = ThemeHelper.GetTextBrush();
         if (_licenseTextBlock != null)
             _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         if (_echoHoleDisplayText != null)
             _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_ntpHintTextBlock != null)
-            _ntpHintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
+    }
 
-        if (_settingItemBorders != null)
+    private void AddSettingsExpanderItem(Control expander, string content, string description, Control? footerContent)
+    {
+        var item = FluentAvaloniaCompatibilityHelper.CreateSettingsExpanderItem();
+        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Content", content);
+        if (!string.IsNullOrEmpty(description))
         {
-            foreach (var border in _settingItemBorders)
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Description", description);
+        }
+
+        if (footerContent != null)
+        {
+            var footerPanel = new StackPanel
             {
-                border.Background = ThemeHelper.GetCardBackgroundBrush();
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            footerPanel.Children.Add(footerContent);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Footer", footerPanel);
+        }
+
+        AddChildToSettingsExpander(expander, item);
+    }
+
+    private void AddChildToSettingsExpander(Control expander, Control child)
+    {
+        // 尝试通过 Items 属性添加子元素
+        var type = expander.GetType();
+        var itemsProperty = type.GetProperty("Items");
+        if (itemsProperty != null)
+        {
+            var items = itemsProperty.GetValue(expander) as System.Collections.IList;
+            if (items != null)
+            {
+                items.Add(child);
+                return;
             }
         }
 
-        if (_settingTitleTextBlocks != null)
+        // 如果没有 Items 属性，尝试添加到 Children
+        var panel = expander as Panel;
+        if (panel != null)
         {
-            foreach (var tb in _settingTitleTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetTextBrush();
-            }
+            panel.Children.Add(child);
+            return;
         }
-        if (_settingDescriptionTextBlocks != null)
+
+        // 尝试 Content 属性
+        var contentProperty = type.GetProperty("Content");
+        if (contentProperty != null)
         {
-            foreach (var tb in _settingDescriptionTextBlocks)
+            var currentContent = contentProperty.GetValue(expander);
+            if (currentContent is StackPanel stackPanel)
             {
-                tb.Foreground = ThemeHelper.GetSubTextBrush();
+                stackPanel.Children.Add(child);
+            }
+            else if (currentContent == null)
+            {
+                var newPanel = new StackPanel();
+                newPanel.Children.Add(child);
+                contentProperty.SetValue(expander, newPanel);
             }
         }
     }

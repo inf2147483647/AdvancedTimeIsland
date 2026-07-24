@@ -638,6 +638,47 @@ public static class FluentAvaloniaCompatibilityHelper
         return new Border();
     }
 
+    public static void SetSettingsExpanderProperty(Control expander, string propertyName, object value)
+    {
+        if (expander == null)
+            return;
+
+        var type = expander.GetType();
+        var property = type.GetProperty(propertyName);
+        if (property != null)
+        {
+            property.SetValue(expander, value);
+        }
+    }
+
+    public static void SetSettingsExpanderItemProperty(Control item, string propertyName, object value)
+    {
+        if (item == null)
+            return;
+
+        var type = item.GetType();
+        var property = type.GetProperty(propertyName);
+        if (property != null)
+        {
+            property.SetValue(item, value);
+        }
+    }
+
+    public static void AddSettingsExpanderClickHandler(Control expander, EventHandler handler)
+    {
+        if (expander == null)
+            return;
+
+        var type = expander.GetType();
+        var eventInfo = type.GetEvent("Click");
+        if (eventInfo != null)
+        {
+            var delegateType = eventInfo.EventHandlerType;
+            var convertedHandler = ConvertEventHandler(handler, delegateType);
+            eventInfo.AddEventHandler(expander, convertedHandler);
+        }
+    }
+
     public static void NavigateBack(Control control)
     {
         if (control == null)
