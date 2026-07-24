@@ -1,6 +1,6 @@
 id: AdvancedTimeIsland
 name: AdvancedTimeIsland
-version: 1.0.2.2
+version: 1.0.2.3
 apiVersion: 2.0.0.0
 author: inf2147483647
 description: 高级时间管理插件，增强ClassIsland时间功能
@@ -9,5 +9,3 @@ icon: icon.png
 url: https://github.com/inf2147483647/AdvancedTimeIsland
 supportedOSPlatforms:
   - Windows
-  - Linux
-  - OSX
