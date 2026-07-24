@@ -112,7 +112,8 @@ public class AboutPage : SettingsPageBase
         {
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            BringIntoViewOnFocusChange = false
         };
 
         Content = scrollViewer;

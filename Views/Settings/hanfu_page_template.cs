@@ -66,7 +66,8 @@ public class HanfuPageTemplate : SettingsPageBase
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(0)
+            Margin = new Thickness(0),
+            BringIntoViewOnFocusChange = false
         };
 
         var mainPanel = new StackPanel

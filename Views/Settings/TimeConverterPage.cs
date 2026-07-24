@@ -187,7 +187,8 @@ public class TimeConverterPage : UserControl
 
         var scrollViewer = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            BringIntoViewOnFocusChange = false
         };
 
         var mainPanel = new StackPanel

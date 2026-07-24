@@ -591,10 +591,14 @@ public class PluginSettingsPage : UserControl
             };
             mainPanel.Children.Add(_titleTextBlock);
 
-            // 管理启用的功能 - 使用 SettingsExpander
+            // 管理启用的功能 - 使用 SettingsExpander（仿照SystemTools样式）
             var featureManagementExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Header", "管理启用的功能");
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Description", "点击管理各类功能的启用状态");
+
+            // 添加图标（Settings 图标）
+            var iconSource = FluentAvaloniaCompatibilityHelper.CreateSymbolIconSource("Settings");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "IconSource", iconSource);
 
             var featureFooterPanel = new StackPanel
             {
@@ -747,7 +751,8 @@ public class PluginSettingsPage : UserControl
             {
                 Content = mainPanel,
                 HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                BringIntoViewOnFocusChange = false
             };
 
             Content = scrollViewer;

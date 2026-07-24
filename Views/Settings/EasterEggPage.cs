@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net.Http;
 using System.Reflection;
 using System.Threading.Tasks;
@@ -11,6 +12,8 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.Threading;
+using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 
@@ -43,6 +46,10 @@ public class EasterEggPage : UserControl
     private List<Border>? _separatorBorders;
     private Border? _markdownSectionBorder;
     private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>? _imageLoadInfos;
+    private ScrollViewer? _scrollViewer;
+    private Button? _backToTopButton;
+    private OverlayLayer? _overlayLayer;
+    private ScrollViewer? _outerScrollViewer;
 
     public EasterEggPage() : this(null)
     {
@@ -56,9 +63,10 @@ public class EasterEggPage : UserControl
 
     private void InitializeComponent()
     {
-        var scrollViewer = new ScrollViewer
+        _scrollViewer = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            BringIntoViewOnFocusChange = false
         };
 
         var mainPanel = new StackPanel
@@ -144,8 +152,14 @@ public class EasterEggPage : UserControl
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
+        // 在最后一个链接下面添加30px的空白
+        mainPanel.Children.Add(new Border { Height = 30 });
+
+        _scrollViewer.Content = mainPanel;
+        Content = _scrollViewer;
+
+        // 在Loaded事件中初始化返回顶部按钮
+        Loaded += OnLoaded;
     }
 
     /// <summary>
@@ -640,6 +654,8 @@ public class EasterEggPage : UserControl
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        // 监听键盘事件（使用Tunnel策略确保能接收到事件）
+        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -649,6 +665,39 @@ public class EasterEggPage : UserControl
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        // 注意：不移除KeyDown和Loaded订阅，以便切换Tab回来时仍能正常工作
+        // 清理返回顶部按钮（移除OverlayLayer上的按钮和事件订阅）
+        CleanupBackToTopButton();
+    }
+
+    private void CleanupBackToTopButton()
+    {
+        // 移除LayoutUpdated监听
+        if (_overlayLayer != null)
+        {
+            _overlayLayer.LayoutUpdated -= OnLayoutUpdated;
+        }
+
+        if (_outerScrollViewer != null)
+        {
+            _outerScrollViewer.ScrollChanged -= OnScrollChanged;
+            _outerScrollViewer = null;
+        }
+
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel != null)
+        {
+            topLevel.SizeChanged -= OnTopLevelSizeChanged;
+        }
+
+        if (_backToTopButton != null && _overlayLayer != null)
+        {
+            _overlayLayer.Children.Remove(_backToTopButton);
+            _backToTopButton.Click -= BackToTopButton_Click;
+            _backToTopButton = null;
+        }
+
+        _overlayLayer = null;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -680,6 +729,146 @@ public class EasterEggPage : UserControl
             foreach (var border in _separatorBorders)
             {
                 border.Background = ThemeHelper.GetGrayBrush();
+            }
+        }
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        // 先清理旧的按钮（防止切换Tab回来时重复创建）
+        CleanupBackToTopButton();
+
+        // 延迟到布局完成后再初始化，确保OverlayLayer的AvailableSize已正确计算
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                InitializeBackToTopButton();
+            }
+            catch
+            {
+                // 忽略初始化错误
+            }
+        });
+    }
+
+    private void InitializeBackToTopButton()
+    {
+        // 获取OverlayLayer用于放置固定按钮
+        _overlayLayer = OverlayLayer.GetOverlayLayer(this);
+        if (_overlayLayer == null)
+            return;
+
+        // 查找外层的ScrollViewer（实际滚动的那个）
+        _outerScrollViewer = this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+
+        // 创建"返回顶部"按钮
+        _backToTopButton = new Button
+        {
+            Content = "返回顶部",
+            Padding = new Thickness(24, 10),
+            FontSize = 14,
+            IsVisible = false,
+            Background = GetAccentBrush(),
+            Foreground = Brushes.White,
+            CornerRadius = new CornerRadius(20),
+            MinWidth = 100
+        };
+        _backToTopButton.Click += BackToTopButton_Click;
+
+        _overlayLayer.Children.Add(_backToTopButton);
+
+        // 监听LayoutUpdated来更新按钮位置（布局完成时触发）
+        _overlayLayer.LayoutUpdated += OnLayoutUpdated;
+
+        // 初始定位按钮
+        UpdateBackToTopButtonPosition();
+
+        // 监听外层ScrollViewer的滚动事件
+        if (_outerScrollViewer != null)
+        {
+            _outerScrollViewer.ScrollChanged += OnScrollChanged;
+            // 初始检查滚动位置（可能已经滚动过了）
+            UpdateBackToTopButtonVisibility();
+        }
+
+        // 监听窗口大小变化
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel != null)
+        {
+            topLevel.SizeChanged += OnTopLevelSizeChanged;
+        }
+    }
+
+    private void OnLayoutUpdated(object? sender, EventArgs e)
+    {
+        UpdateBackToTopButtonPosition();
+    }
+
+    private void OnTopLevelSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        UpdateBackToTopButtonPosition();
+    }
+
+    private void UpdateBackToTopButtonPosition()
+    {
+        if (_backToTopButton == null || _overlayLayer == null)
+            return;
+
+        var availableSize = _overlayLayer.AvailableSize;
+        // 如果AvailableSize还没准备好（布局未完成），跳过本次定位
+        if (availableSize.Width <= 0 || availableSize.Height <= 0)
+            return;
+
+        // 测量按钮所需大小
+        _backToTopButton.Measure(availableSize);
+        var buttonWidth = _backToTopButton.DesiredSize.Width;
+        var buttonHeight = _backToTopButton.DesiredSize.Height;
+
+        // 水平居中，距底部24px
+        var x = (availableSize.Width - buttonWidth) / 2;
+        var y = availableSize.Height - buttonHeight - 24;
+
+        Canvas.SetLeft(_backToTopButton, x);
+        Canvas.SetTop(_backToTopButton, y);
+
+        // 安排按钮的最终位置和大小
+        _backToTopButton.Arrange(new Rect(x, y, buttonWidth, buttonHeight));
+    }
+
+    private void OnScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        UpdateBackToTopButtonVisibility();
+    }
+
+    private void UpdateBackToTopButtonVisibility()
+    {
+        // 滚动超过250px时显示按钮，否则隐藏
+        if (_backToTopButton != null && _outerScrollViewer != null)
+        {
+            _backToTopButton.IsVisible = _outerScrollViewer.Offset.Y >= 250;
+        }
+    }
+
+    private void BackToTopButton_Click(object? sender, RoutedEventArgs e)
+    {
+        if (_outerScrollViewer != null)
+        {
+            _outerScrollViewer.Offset = new Vector(0, 0);
+        }
+    }
+
+    private void OnKeyDown(object? sender, KeyEventArgs e)
+    {
+        // 按下 Home 键返回顶部，无论滚动到何处都生效
+        if (e.Key == Key.Home)
+        {
+            // 如果外层ScrollViewer未初始化，尝试重新查找
+            _outerScrollViewer ??= this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+            if (_outerScrollViewer != null)
+            {
+                _outerScrollViewer.Offset = new Vector(0, 0);
+                e.Handled = true;
             }
         }
     }

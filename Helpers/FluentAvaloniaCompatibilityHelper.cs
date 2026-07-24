@@ -679,6 +679,75 @@ public static class FluentAvaloniaCompatibilityHelper
         }
     }
 
+    public static object CreateSymbolIconSource(string symbolName)
+    {
+        // 尝试创建 SymbolIconSource (FA 2.x)
+        var iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.SymbolIconSource, FluentAvalonia");
+        if (iconSourceType != null)
+        {
+            var instance = Activator.CreateInstance(iconSourceType);
+            var symbolProperty = iconSourceType.GetProperty("Symbol");
+            if (symbolProperty != null && instance != null)
+            {
+                var symbolType = symbolProperty.PropertyType;
+                if (symbolType.IsEnum)
+                {
+                    // 尝试解析枚举值
+                    try
+                    {
+                        var symbolValue = Enum.Parse(symbolType, symbolName, true);
+                        symbolProperty.SetValue(instance, symbolValue);
+                    }
+                    catch
+                    {
+                        // 如果解析失败，尝试使用索引值
+                        var names = Enum.GetNames(symbolType);
+                        if (names.Length > 0)
+                        {
+                            var defaultValue = Enum.Parse(symbolType, names[0]);
+                            symbolProperty.SetValue(instance, defaultValue);
+                        }
+                    }
+                }
+            }
+            return instance ?? new object();
+        }
+
+        // 尝试创建 FASymbolIconSource (FA 3.0)
+        iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.FASymbolIconSource, FluentAvalonia");
+        if (iconSourceType != null)
+        {
+            var instance = Activator.CreateInstance(iconSourceType);
+            var symbolProperty = iconSourceType.GetProperty("Symbol");
+            if (symbolProperty != null && instance != null)
+            {
+                var symbolType = symbolProperty.PropertyType;
+                if (symbolType.IsEnum)
+                {
+                    // 尝试解析枚举值
+                    try
+                    {
+                        var symbolValue = Enum.Parse(symbolType, symbolName, true);
+                        symbolProperty.SetValue(instance, symbolValue);
+                    }
+                    catch
+                    {
+                        // 如果解析失败，尝试使用索引值
+                        var names = Enum.GetNames(symbolType);
+                        if (names.Length > 0)
+                        {
+                            var defaultValue = Enum.Parse(symbolType, names[0]);
+                            symbolProperty.SetValue(instance, defaultValue);
+                        }
+                    }
+                }
+            }
+            return instance ?? new object();
+        }
+
+        return new object();
+    }
+
     public static void NavigateBack(Control control)
     {
         if (control == null)

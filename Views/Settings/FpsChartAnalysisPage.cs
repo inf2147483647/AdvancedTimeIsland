@@ -103,7 +103,8 @@ public class FpsChartAnalysisPage : SettingsPageBase
         {
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            BringIntoViewOnFocusChange = false
         };
 
         var rootGrid = new Grid();

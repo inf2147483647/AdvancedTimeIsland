@@ -94,7 +94,8 @@ public class TimeCalculatorPage : UserControl
         {
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            BringIntoViewOnFocusChange = false
         };
 
         Content = scrollViewer;
