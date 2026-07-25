@@ -176,7 +176,9 @@ public class EasterEggPage : UserControl
         {
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 16)
+            Margin = new Thickness(0, 0, 0, 16),
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _markdownSectionBorder = section;
 

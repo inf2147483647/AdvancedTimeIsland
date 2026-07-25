@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Globalization;
+using System.Numerics;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
@@ -52,14 +53,14 @@ public class TimeConverterPage : UserControl
     }
 
     // 北京时间转换模块控件
-    private TextBox? _beijingYearTextBox;
+    private NumericUpDown? _beijingYearTextBox;
     private ComboBox? _beijingMonthComboBox;
     private ComboBox? _beijingDayComboBox;
     private TimePicker? _beijingTimePicker;
     private TextBlock? _beijingResultTextBlock;
 
     // 时间戳转换模块控件
-    private TextBox? _unixInputTextBox;
+    private NumericUpDown? _unixInputTextBox;
     private TextBlock? _unixResultTextBlock;
 
     // 农历转换模块控件
@@ -72,7 +73,7 @@ public class TimeConverterPage : UserControl
     private TextBlock? _lunarResultTextBlock;
 
     // 区时转换模块控件
-    private TextBox? _zoneYearTextBox;
+    private NumericUpDown? _zoneYearTextBox;
     private ComboBox? _zoneMonthComboBox;
     private ComboBox? _zoneDayComboBox;
     private TimePicker? _zoneTimePicker;
@@ -80,14 +81,14 @@ public class TimeConverterPage : UserControl
     private TextBlock? _zoneResultTextBlock;
 
     // 地方时转换模块控件
-    private TextBox? _localYearTextBox;
+    private NumericUpDown? _localYearTextBox;
     private ComboBox? _localMonthComboBox;
     private ComboBox? _localDayComboBox;
     private TimePicker? _localTimePicker;
-    private TextBox? _localLongitudeTextBox;
-    private TextBox? _localLongitudeDmsDegreesTextBox;
-    private TextBox? _localLongitudeDmsMinutesTextBox;
-    private TextBox? _localLongitudeDmsSecondsTextBox;
+    private NumericUpDown? _localLongitudeTextBox;
+    private NumericUpDown? _localLongitudeDmsDegreesTextBox;
+    private NumericUpDown? _localLongitudeDmsMinutesTextBox;
+    private NumericUpDown? _localLongitudeDmsSecondsTextBox;
     private ComboBox? _localLongitudeDmsDirectionComboBox;
     private Panel? _localLongitudeDmsPanel;
     private TextBlock? _localResultTextBlock;
@@ -299,10 +300,35 @@ public class TimeConverterPage : UserControl
         var module = CreateModulePanel("时间戳转换模块", "时间戳");
         var content = GetModuleContent(module);
 
-        // 输入框（整数）
-        var inputPanel = CreateInputRow("输入（整数）:", 200);
-        _unixInputTextBox = (TextBox)inputPanel.Children[1];
-        _unixInputTextBox.Watermark = "输入时间戳";
+        // 输入框（BigInteger）
+        var inputPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+        };
+
+        var labelTextBlock = new TextBlock
+        {
+            Text = "输入:",
+            FontSize = 13,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _whiteTextBlocks.Add(labelTextBlock);
+        inputPanel.Children.Add(labelTextBlock);
+
+        _unixInputTextBox = new NumericUpDown
+        {
+            Width = 275,
+            CornerRadius = new CornerRadius(4),
+            Minimum = 0,
+            Maximum = long.MaxValue,
+            Increment = 1,
+            FormatString = "0.###"
+        };
+        inputPanel.Children.Add(_unixInputTextBox);
+
         content.Children.Add(inputPanel);
 
         // 复制按钮
@@ -600,24 +626,32 @@ public class TimeConverterPage : UserControl
 
         var isDms = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
         
-        _localLongitudeTextBox = new TextBox { Width = 100, Watermark = "如：116.4", IsVisible = !isDms };
-        _localLongitudeTextBox.Text = "116.4";
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeTextBox, OnLongitudeTextBoxLostFocus);
+        _localLongitudeTextBox = new NumericUpDown 
+        { 
+            Width = 175, 
+            Minimum = -180, 
+            Maximum = 180, 
+            Increment = 0.1m,
+            Value = 116.4m,
+            IsVisible = !isDms,
+            FormatString = "0.###"
+        };
+        _localLongitudeTextBox.ValueChanged += (s, e) => OnLongitudeTextBoxLostFocus(s, e);
         
         _localLongitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, IsVisible = isDms };
 
-        _localLongitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
+        _localLongitudeDmsDegreesTextBox = new NumericUpDown { Width = 125, Minimum = 0, Maximum = 180, Increment = 1 };
+        _localLongitudeDmsDegreesTextBox.ValueChanged += (s, e) => OnLongitudeDmsValueChanged(s, e);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsDegreesTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _localLongitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
+        _localLongitudeDmsMinutesTextBox = new NumericUpDown { Width = 120, Minimum = 0, Maximum = 59, Increment = 1 };
+        _localLongitudeDmsMinutesTextBox.ValueChanged += (s, e) => OnLongitudeDmsValueChanged(s, e);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsMinutesTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _localLongitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_localLongitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
+        _localLongitudeDmsSecondsTextBox = new NumericUpDown { Width = 120, Minimum = 0, Maximum = 59, Increment = 1 };
+        _localLongitudeDmsSecondsTextBox.ValueChanged += (s, e) => OnLongitudeDmsValueChanged(s, e);
         _localLongitudeDmsPanel.Children.Add(_localLongitudeDmsSecondsTextBox);
         _localLongitudeDmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
 
@@ -692,7 +726,9 @@ public class TimeConverterPage : UserControl
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 16),
             CornerRadius = new CornerRadius(8),
-            ClipToBounds = true
+            ClipToBounds = true,
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _moduleBorders.Add(panel);
 
@@ -768,7 +804,7 @@ public class TimeConverterPage : UserControl
         return panel;
     }
 
-    private StackPanel CreateDatePickerRow(string label, out TextBox yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    private StackPanel CreateDatePickerRow(string label, out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
     {
         var panel = new StackPanel
         {
@@ -793,14 +829,16 @@ public class TimeConverterPage : UserControl
             Spacing = 6
         };
 
-        var ytb = new TextBox
+        var ytb = new NumericUpDown
         {
-            Width = 80,
+            Width = 155,
             CornerRadius = new CornerRadius(4),
-            Watermark = "年"
+            Minimum = 1,
+            Maximum = 9999,
+            Increment = 1,
+            Value = DateTime.Now.Year
         };
         yearTextBox = ytb;
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, OnYearTextBoxLostFocus);
 
         var mcb = new ComboBox
         {
@@ -826,7 +864,7 @@ public class TimeConverterPage : UserControl
         }
         dayComboBox = dcb;
 
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, (s, e) => UpdateDayComboBox(ytb, mcb, dcb));
+        ytb.ValueChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
         mcb.SelectionChanged += (s, e) => UpdateDayComboBox(ytb, mcb, dcb);
 
         datePanel.Children.Add(ytb);
@@ -984,13 +1022,13 @@ public class TimeConverterPage : UserControl
     private void OnClearAllClick(object? sender, RoutedEventArgs e)
     {
         // 清除所有输入框
-        if (_beijingYearTextBox != null) _beijingYearTextBox.Text = "";
+        if (_beijingYearTextBox != null) _beijingYearTextBox.Value = null;
         if (_beijingMonthComboBox != null) _beijingMonthComboBox.SelectedIndex = -1;
         if (_beijingDayComboBox != null) _beijingDayComboBox.SelectedIndex = -1;
         if (_beijingTimePicker != null) _beijingTimePicker.SelectedTime = null;
         if (_beijingResultTextBlock != null) _beijingResultTextBlock.Text = "";
 
-        if (_unixInputTextBox != null) _unixInputTextBox.Text = "";
+        if (_unixInputTextBox != null) _unixInputTextBox.Value = null;
         if (_unixResultTextBlock != null) _unixResultTextBlock.Text = "";
 
         if (_lunarTianganComboBox != null) _lunarTianganComboBox.SelectedIndex = -1;
@@ -1000,18 +1038,18 @@ public class TimeConverterPage : UserControl
         if (_lunarTimePicker != null) _lunarTimePicker.SelectedTime = null;
         if (_lunarResultTextBlock != null) _lunarResultTextBlock.Text = "";
 
-        if (_zoneYearTextBox != null) _zoneYearTextBox.Text = "";
+        if (_zoneYearTextBox != null) _zoneYearTextBox.Value = null;
         if (_zoneMonthComboBox != null) _zoneMonthComboBox.SelectedIndex = -1;
         if (_zoneDayComboBox != null) _zoneDayComboBox.SelectedIndex = -1;
         if (_zoneTimePicker != null) _zoneTimePicker.SelectedTime = null;
         if (_zoneComboBox != null) _zoneComboBox.SelectedIndex = -1;
         if (_zoneResultTextBlock != null) _zoneResultTextBlock.Text = "";
 
-        if (_localYearTextBox != null) _localYearTextBox.Text = "";
+        if (_localYearTextBox != null) _localYearTextBox.Value = null;
         if (_localMonthComboBox != null) _localMonthComboBox.SelectedIndex = -1;
         if (_localDayComboBox != null) _localDayComboBox.SelectedIndex = -1;
         if (_localTimePicker != null) _localTimePicker.SelectedTime = null;
-        if (_localLongitudeTextBox != null) _localLongitudeTextBox.Text = "";
+        if (_localLongitudeTextBox != null) _localLongitudeTextBox.Value = null;
         if (_localResultTextBlock != null) _localResultTextBlock.Text = "";
     }
 
@@ -1020,62 +1058,43 @@ public class TimeConverterPage : UserControl
     /// </summary>
     private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (sender is TextBox textBox)
+        if (sender is NumericUpDown numericUpDown)
         {
-            var text = textBox.Text?.Trim() ?? "";
-            if (string.IsNullOrEmpty(text))
+            if (numericUpDown.Value == null)
             {
-                textBox.Text = "2026";
+                numericUpDown.Value = 2026;
                 return;
             }
 
-            // 尝试解析数字
-            if (double.TryParse(text, out var value))
-            {
-                // 四舍五入到整数
-                var intValue = (int)Math.Round(value);
-                // 限制范围 1-9999
-                if (intValue < 1) intValue = 1;
-                if (intValue > 9999) intValue = 9999;
-                textBox.Text = intValue.ToString();
-            }
-            else
-            {
-                // 无效输入，恢复为2026
-                textBox.Text = "2026";
-            }
+            var intValue = (int)Math.Round(numericUpDown.Value.Value);
+            if (intValue < 1) intValue = 1;
+            if (intValue > 9999) intValue = 9999;
+            numericUpDown.Value = intValue;
         }
     }
 
     private void OnLongitudeTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (sender is TextBox textBox)
+        if (sender is NumericUpDown numericUpDown)
         {
-            var text = textBox.Text?.Trim() ?? "";
-            if (string.IsNullOrEmpty(text))
+            if (numericUpDown.Value == null)
             {
-                textBox.Text = "120";
+                numericUpDown.Value = 120;
                 return;
             }
 
-            if (double.TryParse(text, out var value))
-            {
-                value = Math.Round(value, 4);
-                if (value < -180) value = -180;
-                if (value > 180) value = 180;
-                textBox.Text = value.ToString("F4");
-            }
-            else
-            {
-                textBox.Text = "120";
-            }
+            var value = (double)numericUpDown.Value.Value;
+            value = Math.Round(value, 4);
+            if (value < -180) value = -180;
+            if (value > 180) value = 180;
+            numericUpDown.Value = (decimal)value;
         }
     }
 
     private void OnBeijingCurrentTimeClick(object? sender, RoutedEventArgs e)
     {
         var now = Plugin.GetCurrentTime();
-        _beijingYearTextBox!.Text = now.Year.ToString();
+        _beijingYearTextBox!.Value = now.Year;
         _beijingMonthComboBox!.SelectedItem = $"{now.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{now.Day}日";
         _beijingTimePicker!.SelectedTime = new TimeSpan(now.Hour, now.Minute, now.Second);
@@ -1097,8 +1116,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
-            _unixInputTextBox!.Text = timestamp.ToString();
+            var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampBigInteger(dt);
+            if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
+            {
+                _unixInputTextBox!.Value = (decimal)(long)timestamp;
+            }
+            else
+            {
+                _unixInputTextBox!.Value = null;
+            }
         }
         catch (ArgumentException ex)
         {
@@ -1207,7 +1233,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
-        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
+        _zoneYearTextBox!.Value = zoneTime.Year;
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
@@ -1239,7 +1265,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
-        _localYearTextBox!.Text = localTime.Year.ToString();
+        _localYearTextBox!.Value = localTime.Year;
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
@@ -1247,12 +1273,12 @@ public class TimeConverterPage : UserControl
 
     private void OnUnixCopyClick(object? sender, RoutedEventArgs e)
     {
-        if (_unixInputTextBox?.Text != null)
+        if (_unixInputTextBox?.Value != null)
         {
             try
             {
                 // 复制到剪贴板 - 由于API差异，这里简化处理
-                var text = _unixInputTextBox.Text;
+                var text = _unixInputTextBox.Value.Value.ToString();
                 // 在Avalonia中，可以通过TopLevel获取剪贴板
                 if (TopLevel.GetTopLevel(this) is { } topLevel)
                 {
@@ -1268,15 +1294,16 @@ public class TimeConverterPage : UserControl
 
     private void OnUnixToBeijing(object? sender, RoutedEventArgs e)
     {
-        if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
+        if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
+        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
         DateTime dt;
         try
         {
-            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+            dt = BigIntegerUnixTimeHelper.FromUnixTimestampBigInteger(timestamp);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1285,7 +1312,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
         var safeDay = ValidateAndFixDay(dt.Year, dt.Month, dt.Day);
-        _beijingYearTextBox!.Text = dt.Year.ToString();
+        _beijingYearTextBox!.Value = dt.Year;
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingTimePicker!.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
@@ -1293,15 +1320,16 @@ public class TimeConverterPage : UserControl
 
     private void OnUnixToLunar(object? sender, RoutedEventArgs e)
     {
-        if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
+        if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
+        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
         DateTime dt;
         try
         {
-            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+            dt = BigIntegerUnixTimeHelper.FromUnixTimestampBigInteger(timestamp);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1315,11 +1343,12 @@ public class TimeConverterPage : UserControl
 
     private void OnUnixToZone(object? sender, RoutedEventArgs e)
     {
-        if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
+        if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
+        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
             SetResultText(_unixResultTextBlock, "请先选择时区");
@@ -1331,7 +1360,7 @@ public class TimeConverterPage : UserControl
         DateTime dt;
         try
         {
-            dt = UnixTimeHelper.FromUnixTimestampUtc(timestamp);
+            dt = BigIntegerUnixTimeHelper.FromUnixTimestampUtcBigInteger(timestamp);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1350,7 +1379,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
-        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
+        _zoneYearTextBox!.Value = zoneTime.Year;
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
@@ -1358,11 +1387,12 @@ public class TimeConverterPage : UserControl
 
     private void OnUnixToLocal(object? sender, RoutedEventArgs e)
     {
-        if (!long.TryParse(_unixInputTextBox?.Text, out var timestamp))
+        if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳（整数）");
+            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
+        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
         if (!TryParseLongitude(out var longitude))
         {
             SetResultText(_unixResultTextBlock, "请输入有效的经度");
@@ -1371,7 +1401,7 @@ public class TimeConverterPage : UserControl
         DateTime dt;
         try
         {
-            dt = UnixTimeHelper.FromUnixTimestamp(timestamp);
+            dt = BigIntegerUnixTimeHelper.FromUnixTimestampBigInteger(timestamp);
         }
         catch (ArgumentOutOfRangeException)
         {
@@ -1392,7 +1422,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
-        _localYearTextBox!.Text = localTime.Year.ToString();
+        _localYearTextBox!.Value = localTime.Year;
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
@@ -1407,7 +1437,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
         var safeDay = ValidateAndFixDay(dt.Year, dt.Month, dt.Day);
-        _beijingYearTextBox!.Text = dt.Year.ToString();
+        _beijingYearTextBox!.Value = dt.Year;
         _beijingMonthComboBox!.SelectedItem = $"{dt.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingTimePicker!.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
@@ -1429,8 +1459,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            var timestamp = UnixTimeHelper.ToUnixTimestamp(dt);
-            _unixInputTextBox!.Text = timestamp.ToString();
+            var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampBigInteger(dt);
+            if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
+                {
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                }
+                else
+                {
+                    _unixInputTextBox!.Value = null;
+                }
         }
         catch (ArgumentException ex)
         {
@@ -1465,7 +1502,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
-        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
+        _zoneYearTextBox!.Value = zoneTime.Year;
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
@@ -1497,7 +1534,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
-        _localYearTextBox!.Text = localTime.Year.ToString();
+        _localYearTextBox!.Value = localTime.Year;
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
@@ -1529,7 +1566,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(beijingTime.Year, beijingTime.Month, beijingTime.Day);
-        _beijingYearTextBox!.Text = beijingTime.Year.ToString();
+        _beijingYearTextBox!.Value = beijingTime.Year;
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingTimePicker!.SelectedTime = new TimeSpan(beijingTime.Hour, beijingTime.Minute, beijingTime.Second);
@@ -1561,8 +1598,15 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            var timestamp = UnixTimeHelper.ToUnixTimestamp(utcTime);
-            _unixInputTextBox!.Text = timestamp.ToString();
+            var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampUtcBigInteger(utcTime);
+            if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
+                {
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                }
+                else
+                {
+                    _unixInputTextBox!.Value = null;
+                }
         }
         catch (ArgumentException ex)
         {
@@ -1616,7 +1660,7 @@ public class TimeConverterPage : UserControl
             SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
             return;
         }
-        var longitude = double.Parse(_localLongitudeTextBox!.Text ?? "0");
+        var longitude = (double)(_localLongitudeTextBox!.Value ?? 0);
         var offsetSeconds = (longitude - 120) * 240;
         var localDstOffsetSeconds = (_localDstCheckBox?.IsChecked == true) ? 3600 : 0;
         DateTime localTime;
@@ -1637,7 +1681,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(localTime.Year, localTime.Month, localTime.Day);
-        _localYearTextBox!.Text = localTime.Year.ToString();
+        _localYearTextBox!.Value = localTime.Year;
         _localMonthComboBox!.SelectedItem = $"{localTime.Month}月";
         _localDayComboBox!.SelectedItem = $"{safeDay}日";
         _localTimePicker!.SelectedTime = new TimeSpan(localTime.Hour, localTime.Minute, localTime.Second);
@@ -1664,7 +1708,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(beijingTime.Year, beijingTime.Month, beijingTime.Day);
-        _beijingYearTextBox!.Text = beijingTime.Year.ToString();
+        _beijingYearTextBox!.Value = beijingTime.Year;
         _beijingMonthComboBox!.SelectedItem = $"{beijingTime.Month}月";
         _beijingDayComboBox!.SelectedItem = $"{safeDay}日";
         _beijingTimePicker!.SelectedTime = new TimeSpan(beijingTime.Hour, beijingTime.Minute, beijingTime.Second);
@@ -1698,7 +1742,14 @@ public class TimeConverterPage : UserControl
         try
         {
             var timestamp = UnixTimeHelper.ToUnixTimestamp(beijingTime);
-            _unixInputTextBox!.Text = timestamp.ToString();
+            if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
+                {
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                }
+                else
+                {
+                    _unixInputTextBox!.Value = null;
+                }
         }
         catch (ArgumentException ex)
         {
@@ -1759,7 +1810,7 @@ public class TimeConverterPage : UserControl
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
         var safeDay = ValidateAndFixDay(zoneTime.Year, zoneTime.Month, zoneTime.Day);
-        _zoneYearTextBox!.Text = zoneTime.Year.ToString();
+        _zoneYearTextBox!.Value = zoneTime.Year;
         _zoneMonthComboBox!.SelectedItem = $"{zoneTime.Month}月";
         _zoneDayComboBox!.SelectedItem = $"{safeDay}日";
         _zoneTimePicker!.SelectedTime = new TimeSpan(zoneTime.Hour, zoneTime.Minute, zoneTime.Second);
@@ -1773,14 +1824,13 @@ public class TimeConverterPage : UserControl
     {
         result = DateTime.MinValue;
 
-        if (string.IsNullOrWhiteSpace(_beijingYearTextBox?.Text) ||
+        if (_beijingYearTextBox?.Value == null ||
             _beijingMonthComboBox?.SelectedItem == null ||
             _beijingDayComboBox?.SelectedItem == null ||
             _beijingTimePicker?.SelectedTime == null)
             return false;
 
-        if (!int.TryParse(_beijingYearTextBox.Text, out var year))
-            return false;
+        var year = (int)_beijingYearTextBox.Value.Value;
         if (!int.TryParse(_beijingMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
         if (!int.TryParse(_beijingDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
@@ -1825,14 +1875,13 @@ public class TimeConverterPage : UserControl
         result = DateTime.MinValue;
         offset = 0;
 
-        if (string.IsNullOrWhiteSpace(_zoneYearTextBox?.Text) ||
+        if (_zoneYearTextBox?.Value == null ||
             _zoneMonthComboBox?.SelectedItem == null ||
             _zoneDayComboBox?.SelectedItem == null ||
             _zoneTimePicker?.SelectedTime == null)
             return false;
 
-        if (!int.TryParse(_zoneYearTextBox.Text, out var year))
-            return false;
+        var year = (int)_zoneYearTextBox.Value.Value;
         if (!int.TryParse(_zoneMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
         if (!int.TryParse(_zoneDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
@@ -1880,14 +1929,13 @@ public class TimeConverterPage : UserControl
         result = DateTime.MinValue;
         longitude = 0;
 
-        if (string.IsNullOrWhiteSpace(_localYearTextBox?.Text) ||
+        if (_localYearTextBox?.Value == null ||
             _localMonthComboBox?.SelectedItem == null ||
             _localDayComboBox?.SelectedItem == null ||
             _localTimePicker?.SelectedTime == null)
             return false;
 
-        if (!int.TryParse(_localYearTextBox.Text, out var year))
-            return false;
+        var year = (int)_localYearTextBox.Value.Value;
         if (!int.TryParse(_localMonthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
         if (!int.TryParse(_localDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
@@ -1940,29 +1988,29 @@ public class TimeConverterPage : UserControl
         
         if (_settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
         {
-            if (!int.TryParse(_localLongitudeDmsDegreesTextBox?.Text, out int d)) d = 0;
-            if (!int.TryParse(_localLongitudeDmsMinutesTextBox?.Text, out int m)) m = 0;
-            if (!double.TryParse(_localLongitudeDmsSecondsTextBox?.Text, out double s)) s = 0;
+            var d = (int)(_localLongitudeDmsDegreesTextBox?.Value ?? 0);
+            var m = (int)(_localLongitudeDmsMinutesTextBox?.Value ?? 0);
+            var s = (double)(_localLongitudeDmsSecondsTextBox?.Value ?? 0);
             var isEast = _localLongitudeDmsDirectionComboBox?.SelectedIndex == 0;
             return LongitudeConverter.TryParseDms(d, m, s, isEast, out result);
         }
         else
         {
-            var text = _localLongitudeTextBox?.Text ?? "";
-            if (string.IsNullOrWhiteSpace(text)) return false;
-            return LongitudeConverter.TryParseDecimal(text, out result);
+            if (_localLongitudeTextBox?.Value == null) return false;
+            result = (double)_localLongitudeTextBox.Value.Value;
+            return true;
         }
     }
 
     private void OnLongitudeDmsValueChanged(object? sender, EventArgs e)
     {
-        if (!int.TryParse(_localLongitudeDmsDegreesTextBox?.Text, out int d)) d = 0;
-        if (!int.TryParse(_localLongitudeDmsMinutesTextBox?.Text, out int m)) m = 0;
-        if (!double.TryParse(_localLongitudeDmsSecondsTextBox?.Text, out double s)) s = 0;
+        var d = (int)(_localLongitudeDmsDegreesTextBox?.Value ?? 0);
+        var m = (int)(_localLongitudeDmsMinutesTextBox?.Value ?? 0);
+        var s = (double)(_localLongitudeDmsSecondsTextBox?.Value ?? 0);
         var isEast = _localLongitudeDmsDirectionComboBox?.SelectedIndex == 0;
         if (LongitudeConverter.TryParseDms(d, m, s, isEast, out var lon))
         {
-            _localLongitudeTextBox!.Text = LongitudeConverter.ToDecimalString(lon);
+            _localLongitudeTextBox!.Value = (decimal)lon;
         }
     }
 
@@ -2092,10 +2140,11 @@ public class TimeConverterPage : UserControl
 
     #endregion
 
-    private void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    private void UpdateDayComboBox(NumericUpDown yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
     {
-        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+        if (yearTextBox.Value == null)
             return;
+        var year = (int)yearTextBox.Value.Value;
         if (monthComboBox.SelectedItem == null)
             return;
         if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
@@ -2155,17 +2204,17 @@ public class TimeConverterPage : UserControl
         var currentLongitude = 116.4;
         if (_settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
         {
-            if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out var lon))
-                currentLongitude = lon;
-            else if (TryParseLongitude(out lon))
+            if (_localLongitudeTextBox.Value != null)
+                currentLongitude = (double)_localLongitudeTextBox.Value.Value;
+            else if (TryParseLongitude(out var lon))
                 currentLongitude = lon;
         }
         else
         {
             if (TryParseLongitude(out var lon))
                 currentLongitude = lon;
-            else if (LongitudeConverter.TryParseDecimal(_localLongitudeTextBox.Text ?? "", out lon))
-                currentLongitude = lon;
+            else if (_localLongitudeTextBox.Value != null)
+                currentLongitude = (double)_localLongitudeTextBox.Value.Value;
         }
 
         _localLongitudeTextBox.IsVisible = _settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal;
@@ -2173,14 +2222,14 @@ public class TimeConverterPage : UserControl
 
         if (_settings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
         {
-            _localLongitudeTextBox.Text = LongitudeConverter.ToDecimalString(currentLongitude);
+            _localLongitudeTextBox.Value = (decimal)currentLongitude;
         }
         else
         {
             LongitudeConverter.DecomposeDms(currentLongitude, out int d, out int m, out double s, out bool isEast);
-            _localLongitudeDmsDegreesTextBox!.Text = d.ToString();
-            _localLongitudeDmsMinutesTextBox!.Text = m.ToString();
-            _localLongitudeDmsSecondsTextBox!.Text = s.ToString("F2");
+            _localLongitudeDmsDegreesTextBox!.Value = d;
+            _localLongitudeDmsMinutesTextBox!.Value = m;
+            _localLongitudeDmsSecondsTextBox!.Value = (decimal)s;
             _localLongitudeDmsDirectionComboBox!.SelectedIndex = isEast ? 0 : 1;
         }
     }

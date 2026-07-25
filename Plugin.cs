@@ -1469,6 +1469,48 @@ public class Plugin : PluginBase
             services.AddTrigger<TimeZoneHourlyTimeTrigger, TimeZoneHourlyTimeTriggerSettingsControl>();
         }
 
+        // ========== 实验性功能：时间范围间隔触发触发器 ==========
+        if (Settings.EnableExperimentalFeatures)
+        {
+            // 基础时间范围间隔触发
+            services.AddTrigger<ExactTimeIntervalTrigger, ExactTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<YearlyTimeIntervalTrigger, YearlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<MonthlyTimeIntervalTrigger, MonthlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<DailyTimeIntervalTrigger, DailyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<HourlyTimeIntervalTrigger, HourlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<MinutelyTimeIntervalTrigger, MinutelyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<UnixTimestampIntervalTrigger, UnixTimestampIntervalTriggerSettingsControl>();
+
+            // 地方时时间范围间隔触发
+            if (Settings.EnableLocalSolarTime)
+            {
+                services.AddTrigger<LocalSolarExactTimeIntervalTrigger, LocalSolarExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarYearlyTimeIntervalTrigger, LocalSolarYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarMonthlyTimeIntervalTrigger, LocalSolarMonthlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarDailyTimeIntervalTrigger, LocalSolarDailyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarHourlyTimeIntervalTrigger, LocalSolarHourlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarMinutelyTimeIntervalTrigger, LocalSolarMinutelyTimeIntervalTriggerSettingsControl>();
+            }
+
+            // 区时时间范围间隔触发
+            if (Settings.EnableTimeZoneTime)
+            {
+                services.AddTrigger<TimeZoneExactTimeIntervalTrigger, TimeZoneExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneYearlyTimeIntervalTrigger, TimeZoneYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneMonthlyTimeIntervalTrigger, TimeZoneMonthlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneDailyTimeIntervalTrigger, TimeZoneDailyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneHourlyTimeIntervalTrigger, TimeZoneHourlyTimeIntervalTriggerSettingsControl>();
+            }
+
+            // 农历时间范围间隔触发
+            if (Settings.EnableLunarCalendar)
+            {
+                services.AddTrigger<LunarExactTimeIntervalTrigger, LunarExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LunarYearlyTimeIntervalTrigger, LunarYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LunarMonthlyTimeIntervalTrigger, LunarMonthlyTimeIntervalTriggerSettingsControl>();
+            }
+        }
+
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         if (Settings.EnableExperimentalFeatures)

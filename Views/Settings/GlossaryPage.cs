@@ -146,7 +146,9 @@ public class GlossaryPage : UserControl
         {
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(20),
-            CornerRadius = new CornerRadius(6)
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _markdownSectionBorder = section;
 

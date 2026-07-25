@@ -620,7 +620,7 @@ public class PluginSettingsPage : UserControl
             // 许可证声明
             _licenseTextBlock = new TextBlock
             {
-                Text = "本项目基于 GNU Lesser General Public License v3.0 获得许可",
+                Text = "本项目基于 GNU GENERAL PUBLIC LICENSE v3.0 获得许可",
                 FontSize = 12,
                 Foreground = ThemeHelper.GetSubTextBrush(),
                 TextWrapping = Avalonia.Media.TextWrapping.Wrap,

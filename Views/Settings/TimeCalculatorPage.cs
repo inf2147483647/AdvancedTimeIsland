@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Numerics;
 using System.Text.RegularExpressions;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
@@ -27,7 +28,7 @@ public class TimeCalculatorPage : UserControl
     private List<TextBlock>? _labelTextBlocks;
     private List<Border>? _sectionBorders;
 
-    private TextBox? _minuendYearTextBox;
+    private NumericUpDown? _minuendYearTextBox;
     private ComboBox? _minuendMonthComboBox;
     private ComboBox? _minuendDayComboBox;
     private TimePicker? _minuendTimePicker;
@@ -38,7 +39,7 @@ public class TimeCalculatorPage : UserControl
     private TextBlock? _subtrahendHint;
     private Button? _calculateButton;
 
-    private TextBox? _resultYearTextBox;
+    private NumericUpDown? _resultYearTextBox;
     private ComboBox? _resultMonthComboBox;
     private ComboBox? _resultDayComboBox;
     private TimePicker? _resultTimePicker;
@@ -138,7 +139,9 @@ public class TimeCalculatorPage : UserControl
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
-            Child = panel
+            Child = panel,
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
         return border;
@@ -206,7 +209,9 @@ public class TimeCalculatorPage : UserControl
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
-            Child = panel
+            Child = panel,
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
         return border;
@@ -249,7 +254,9 @@ public class TimeCalculatorPage : UserControl
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
-            Child = panel
+            Child = panel,
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
         return border;
@@ -257,7 +264,7 @@ public class TimeCalculatorPage : UserControl
 
     private void OnClearButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (_minuendYearTextBox != null) _minuendYearTextBox.Text = "";
+        if (_minuendYearTextBox != null) _minuendYearTextBox.Value = null;
         if (_minuendMonthComboBox != null) _minuendMonthComboBox.SelectedIndex = -1;
         if (_minuendDayComboBox != null) _minuendDayComboBox.SelectedIndex = -1;
         if (_minuendTimePicker != null) _minuendTimePicker.SelectedTime = null;
@@ -265,7 +272,7 @@ public class TimeCalculatorPage : UserControl
         if (_subDirectionComboBox != null) _subDirectionComboBox.SelectedIndex = 0;
         if (_subtrahendTextBox != null) _subtrahendTextBox.Text = "";
 
-        if (_resultYearTextBox != null) _resultYearTextBox.Text = "";
+        if (_resultYearTextBox != null) _resultYearTextBox.Value = null;
         if (_resultMonthComboBox != null) _resultMonthComboBox.SelectedIndex = -1;
         if (_resultDayComboBox != null) _resultDayComboBox.SelectedIndex = -1;
         if (_resultTimePicker != null) _resultTimePicker.SelectedTime = null;
@@ -277,26 +284,25 @@ public class TimeCalculatorPage : UserControl
         SetDateTimeToControls(now, _minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker);
     }
 
-    private static void SetDateTimeToControls(DateTime dt, TextBox? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker)
+    private static void SetDateTimeToControls(DateTime dt, NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker)
     {
-        if (yearTextBox != null) yearTextBox.Text = dt.Year.ToString();
+        if (yearTextBox != null) yearTextBox.Value = dt.Year;
         if (monthComboBox != null) monthComboBox.SelectedItem = $"{dt.Month}月";
         if (dayComboBox != null) dayComboBox.SelectedItem = $"{dt.Day}日";
         if (timePicker != null) timePicker.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
-    private static bool TryGetDateTimeFromControls(TextBox? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result)
+    private static bool TryGetDateTimeFromControls(NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result)
     {
         result = DateTime.MinValue;
 
-        if (string.IsNullOrWhiteSpace(yearTextBox?.Text) ||
+        if (yearTextBox?.Value == null ||
             monthComboBox?.SelectedItem == null ||
             dayComboBox?.SelectedItem == null ||
             timePicker?.SelectedTime == null)
             return false;
 
-        if (!int.TryParse(yearTextBox.Text, out var year))
-            return false;
+        var year = (int)yearTextBox.Value.Value;
         if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
             return false;
         if (!int.TryParse(dayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
@@ -333,11 +339,11 @@ public class TimeCalculatorPage : UserControl
             DateTime result;
             if (isForward)
             {
-                result = AddTimeWithGregorianReform(minuend, parsed.Years, parsed.Months, parsed.TimeSpan);
+                result = AddTimeWithGregorianReform(minuend, parsed.Years, parsed.Months, parsed.Milliseconds);
             }
             else
             {
-                result = AddTimeWithGregorianReform(minuend, -parsed.Years, -parsed.Months, -parsed.TimeSpan);
+                result = AddTimeWithGregorianReform(minuend, -parsed.Years, -parsed.Months, -parsed.Milliseconds);
             }
 
             SetDateTimeToControls(result, _resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker);
@@ -384,12 +390,12 @@ public class TimeCalculatorPage : UserControl
     {
         public int Years;
         public int Months;
-        public TimeSpan TimeSpan;
+        public BigInteger Milliseconds;
     }
 
     private static ParsedTime ParseTimeFormat(string input)
     {
-        var result = new ParsedTime { Years = 0, Months = 0, TimeSpan = TimeSpan.Zero };
+        var result = new ParsedTime { Years = 0, Months = 0, Milliseconds = 0 };
 
         if (string.IsNullOrWhiteSpace(input))
             return result;
@@ -428,19 +434,37 @@ public class TimeCalculatorPage : UserControl
             throw new ArgumentException("大写格式符互斥，只能使用一个大写单位");
         }
 
-        double totalMilliseconds = 0;
+        BigInteger totalMilliseconds = 0;
         int years = 0;
         int months = 0;
 
-        var patterns = new (string Pattern, Action<double> Setter)[]
+        // 处理大写单位（支持小数）
+        var upperPatterns = new (string Pattern, Func<decimal, BigInteger> Converter)[]
         {
-            (@"(\d+(?:\.\d+)?)\s*YY(?![a-zA-Z])", v => totalMilliseconds += v * 86400000 * 365),
-            (@"(\d+(?:\.\d+)?)\s*MO(?![a-zA-Z])", v => totalMilliseconds += v * 86400000 * 30),
-            (@"(\d+(?:\.\d+)?)\s*D(?![a-zA-Z])", v => totalMilliseconds += v * 86400000),
-            (@"(\d+(?:\.\d+)?)\s*H(?![a-zA-Z])", v => totalMilliseconds += v * 3600000),
-            (@"(\d+(?:\.\d+)?)\s*M(?![a-zA-Z])", v => totalMilliseconds += v * 60000),
-            (@"(\d+(?:\.\d+)?)\s*S(?![a-zA-Z])", v => totalMilliseconds += v * 1000),
-            (@"(\d+(?:\.\d+)?)\s*X(?![a-zA-Z])", v => totalMilliseconds += v),
+            (@"(\d+(?:\.\d+)?)\s*YY(?![a-zA-Z])", v => (BigInteger)(v * 86400000 * 365)),
+            (@"(\d+(?:\.\d+)?)\s*MO(?![a-zA-Z])", v => (BigInteger)(v * 86400000 * 30)),
+            (@"(\d+(?:\.\d+)?)\s*D(?![a-zA-Z])", v => (BigInteger)(v * 86400000)),
+            (@"(\d+(?:\.\d+)?)\s*H(?![a-zA-Z])", v => (BigInteger)(v * 3600000)),
+            (@"(\d+(?:\.\d+)?)\s*M(?![a-zA-Z])", v => (BigInteger)(v * 60000)),
+            (@"(\d+(?:\.\d+)?)\s*S(?![a-zA-Z])", v => (BigInteger)(v * 1000)),
+            (@"(\d+(?:\.\d+)?)\s*X(?![a-zA-Z])", v => (BigInteger)v),
+        };
+
+        foreach (var (pattern, converter) in upperPatterns)
+        {
+            var match = Regex.Match(input, pattern);
+            if (match.Success)
+            {
+                if (decimal.TryParse(match.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var value))
+                {
+                    totalMilliseconds += converter(value);
+                }
+            }
+        }
+
+        // 处理小写单位（整数）
+        var lowerPatterns = new (string Pattern, Action<BigInteger> Setter)[]
+        {
             (@"(\d+)\s*yy(?![a-zA-Z])", v => years = (int)v),
             (@"(\d+)\s*mo(?![a-zA-Z])", v => months = (int)v),
             (@"(\d+)\s*d(?![a-zA-Z])", v => totalMilliseconds += v * 86400000),
@@ -450,12 +474,12 @@ public class TimeCalculatorPage : UserControl
             (@"(\d+)\s*x(?![a-zA-Z])", v => totalMilliseconds += v),
         };
 
-        foreach (var (pattern, setter) in patterns)
+        foreach (var (pattern, setter) in lowerPatterns)
         {
             var match = Regex.Match(input, pattern);
             if (match.Success)
             {
-                if (double.TryParse(match.Groups[1].Value, NumberStyles.Any, CultureInfo.InvariantCulture, out var value))
+                if (BigInteger.TryParse(match.Groups[1].Value, out var value))
                 {
                     setter(value);
                 }
@@ -464,7 +488,7 @@ public class TimeCalculatorPage : UserControl
 
         result.Years = years;
         result.Months = months;
-        result.TimeSpan = TimeSpan.FromMilliseconds(totalMilliseconds);
+        result.Milliseconds = totalMilliseconds;
 
         return result;
     }
@@ -475,34 +499,29 @@ public class TimeCalculatorPage : UserControl
         var earlier = isForward ? start : end;
         var later = isForward ? end : start;
 
-        var totalSeconds = LunarHelper.DaysBetween(earlier, later) * 86400;
+        // 使用 BigInteger 精确计算时间差（毫秒）
+        var diffMs = BigIntegerUnixTimeHelper.GetTimeDifference(earlier, later);
         
-        var earlierTime = earlier.Hour * 3600 + earlier.Minute * 60 + earlier.Second;
-        var laterTime = later.Hour * 3600 + later.Minute * 60 + later.Second;
-        var timeSeconds = laterTime - earlierTime;
+        // 转换为秒
+        var totalSeconds = diffMs / 1000;
+        var milliseconds = (int)(diffMs % 1000);
         
-        if (timeSeconds < 0)
-        {
-            timeSeconds += 86400;
-            totalSeconds -= 86400;
-        }
+        var totalDays = totalSeconds / 86400;
+        var remainingSeconds = totalSeconds % 86400;
         
-        var totalDays = (int)Math.Floor(totalSeconds / 86400);
-        var remainingSeconds = (int)(totalSeconds % 86400);
-        
-        var hours = remainingSeconds / 3600;
-        var minutes = (remainingSeconds % 3600) / 60;
-        var seconds = remainingSeconds % 60;
+        var hours = (int)(remainingSeconds / 3600);
+        var minutes = (int)((remainingSeconds % 3600) / 60);
+        var seconds = (int)(remainingSeconds % 60);
 
         var years = 0;
         var months = 0;
-        var days = totalDays;
+        var days = (int)totalDays;
 
         var tempDate = earlier;
         while (days >= 365)
         {
             var nextYear = LunarHelper.SolarAddYears(tempDate, 1);
-            var daysInYear = (int)Math.Round(LunarHelper.DaysBetween(tempDate, nextYear));
+            var daysInYear = (int)BigIntegerUnixTimeHelper.DaysBetween(tempDate, nextYear);
             if (days >= daysInYear)
             {
                 days -= daysInYear;
@@ -518,7 +537,7 @@ public class TimeCalculatorPage : UserControl
         while (days >= 28)
         {
             var nextMonth = LunarHelper.SolarAddMonths(tempDate, 1);
-            var daysInMonth = (int)Math.Round(LunarHelper.DaysBetween(tempDate, nextMonth));
+            var daysInMonth = (int)BigIntegerUnixTimeHelper.DaysBetween(tempDate, nextMonth);
             if (days >= daysInMonth)
             {
                 days -= daysInMonth;
@@ -554,7 +573,7 @@ public class TimeCalculatorPage : UserControl
         return date;
     }
 
-    private static DateTime AddTimeWithGregorianReform(DateTime baseDate, int years, int months, TimeSpan timeSpan)
+    private static DateTime AddTimeWithGregorianReform(DateTime baseDate, int years, int months, BigInteger milliseconds)
     {
         var result = baseDate;
 
@@ -568,9 +587,9 @@ public class TimeCalculatorPage : UserControl
             result = LunarHelper.SolarAddMonths(result, months);
         }
 
-        if (timeSpan != TimeSpan.Zero)
+        if (milliseconds != 0)
         {
-            result = LunarHelper.SolarAddTimeSpan(result, timeSpan);
+            result = BigIntegerUnixTimeHelper.AddMilliseconds(result, milliseconds);
         }
 
         return result;
@@ -645,7 +664,7 @@ public class TimeCalculatorPage : UserControl
         }
     }
 
-    private StackPanel CreateDatePickerRow(string label, out TextBox yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    private StackPanel CreateDatePickerRow(string label, out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
     {
         var panel = new StackPanel
         {
@@ -670,11 +689,14 @@ public class TimeCalculatorPage : UserControl
             Spacing = 6
         };
 
-        var ytb = new TextBox
+        var ytb = new NumericUpDown
         {
-            Width = 80,
+            Width = 155,
             CornerRadius = new CornerRadius(4),
-            Watermark = "年"
+            Minimum = 1,
+            Maximum = 9999,
+            Increment = 1,
+            Value = DateTime.Now.Year
         };
         yearTextBox = ytb;
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, OnYearTextBoxLostFocus);
@@ -749,21 +771,23 @@ public class TimeCalculatorPage : UserControl
 
     private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (sender is TextBox textBox)
+        if (sender is NumericUpDown numericUpDown)
         {
-            if (int.TryParse(textBox.Text, out var year))
+            if (numericUpDown.Value != null)
             {
+                var year = (int)Math.Round(numericUpDown.Value.Value);
                 if (year < 1) year = 1;
                 if (year > 9999) year = 9999;
-                textBox.Text = year.ToString();
+                numericUpDown.Value = year;
             }
         }
     }
 
-    private void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    private void UpdateDayComboBox(NumericUpDown yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
     {
-        if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))
+        if (yearTextBox.Value == null)
             return;
+        var year = (int)yearTextBox.Value.Value;
         if (monthComboBox.SelectedItem == null)
             return;
         if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
