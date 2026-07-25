@@ -236,7 +236,7 @@ Hanfu | Photo Count
 <span style='opacity:0.5;'>半透明文字</span>
 <span style='text-shadow:1px 1px 2px gray;'>带阴影</span>
 <span style='cursor:pointer'>鼠标变手</span>
-<span style='color:red; font-size:18px; font-weight:bold; background:#fff2f2; padding:4px 8px; border-radius:4px; cursor:pointer;'>红色18px加粗文字，浅红背景圆角变手</span>
+<span style=""color:red; font-size:18px; font-weight:bold; background:#fff2f2; padding:4px 8px; border-radius:4px; cursor:pointer; font-family: 楷体, '宋体', serif;"">楷体红色18px加粗文字，浅红背景圆角变手</span>
 
 ";
 
