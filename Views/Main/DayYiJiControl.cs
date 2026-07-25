@@ -82,6 +82,34 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         jiValueTb.FontSize = fontSize;
     }
 
+    private void UpdateLabelFontFamily()
+    {
+        var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
+        yiLabelTb.FontFamily = fontFamily;
+        jiLabelTb.FontFamily = fontFamily;
+    }
+
+    private void UpdateLabelFontWeight(string fontWeight)
+    {
+        var fw = Settings.LabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        yiLabelTb.FontWeight = fw;
+        jiLabelTb.FontWeight = fw;
+    }
+
+    private void UpdateValueFontFamily()
+    {
+        var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
+        yiValueTb.FontFamily = fontFamily;
+        jiValueTb.FontFamily = fontFamily;
+    }
+
+    private void UpdateValueFontWeight(string fontWeight)
+    {
+        var fw = Settings.ValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        yiValueTb.FontWeight = fw;
+        jiValueTb.FontWeight = fw;
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateLabelFontColor(Settings.LabelFontColor);
@@ -112,6 +140,35 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         UpdateLabelFontColor(Settings.LabelFontColor);
         UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
         UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateLabelFontFamily();
+        UpdateValueFontFamily();
+        UpdateLabelFontWeight(Settings.LabelFontWeight);
+        UpdateValueFontWeight(Settings.ValueFontWeight);
+        Settings.PropertyChanged += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Settings.LabelFontFamily) ||
+            e.PropertyName == nameof(Settings.LabelEnableCustomFontFamily))
+        {
+            UpdateLabelFontFamily();
+        }
+        if (e.PropertyName == nameof(Settings.ValueFontFamily) ||
+            e.PropertyName == nameof(Settings.ValueEnableCustomFontFamily))
+        {
+            UpdateValueFontFamily();
+        }
+        else if (e.PropertyName == nameof(Settings.LabelFontWeight) ||
+                 e.PropertyName == nameof(Settings.LabelEnableCustomFontWeight))
+        {
+            UpdateLabelFontWeight(Settings.LabelFontWeight);
+        }
+        else if (e.PropertyName == nameof(Settings.ValueFontWeight) ||
+                 e.PropertyName == nameof(Settings.ValueEnableCustomFontWeight))
+        {
+            UpdateValueFontWeight(Settings.ValueFontWeight);
+        }
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -121,6 +178,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        Settings.PropertyChanged -= OnSettingsChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

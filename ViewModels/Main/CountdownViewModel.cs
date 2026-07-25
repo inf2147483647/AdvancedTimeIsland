@@ -279,35 +279,55 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(CountdownSettings.Text1FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text1FontColor) ||
                  e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontSize) ||
-                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontColor))
+                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1FontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1FontWeight) ||
+                 e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontWeight))
         {
             _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text2FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text2FontColor) ||
                  e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontSize) ||
-                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontColor))
+                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2FontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2FontWeight) ||
+                 e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontWeight))
         {
             _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 14);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text3FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text3FontColor) ||
                  e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontSize) ||
-                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontColor))
+                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3FontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3FontWeight) ||
+                 e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontWeight))
         {
             _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
         }
         if (e.PropertyName == nameof(CountdownSettings.TimeFontSize) ||
                  e.PropertyName == nameof(CountdownSettings.TimeFontColor) ||
                  e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontSize) ||
-                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontColor))
+                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeFontWeight) ||
+                 e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontWeight))
         {
             _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text4FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text4FontColor) ||
                  e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontSize) ||
-                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontColor))
+                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontColor) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4FontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4FontWeight) ||
+                 e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontWeight))
         {
             _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
         }

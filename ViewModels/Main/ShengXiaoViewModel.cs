@@ -47,22 +47,34 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(ShengXiaoSettings.LabelFontColor) ||
-            e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontColor))
+            e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontColor) ||
+            e.PropertyName == nameof(ShengXiaoSettings.LabelFontFamily) ||
+            e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontFamily))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
         if (e.PropertyName == nameof(ShengXiaoSettings.LabelFontSize) ||
-                 e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontSize))
+                 e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontSize) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.LabelFontFamily) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.LabelFontWeight) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontWeight))
         {
             _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
         if (e.PropertyName == nameof(ShengXiaoSettings.ValueFontColor) ||
-                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontColor))
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontColor) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueFontFamily) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontFamily))
         {
             _updateValueFontColor?.Invoke(_settings.ValueFontColor);
         }
         if (e.PropertyName == nameof(ShengXiaoSettings.ValueFontSize) ||
-                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontSize))
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontSize) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueFontFamily) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueFontWeight) ||
+                 e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontWeight))
         {
             _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }

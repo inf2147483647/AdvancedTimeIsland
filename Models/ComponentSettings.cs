@@ -484,18 +484,318 @@ public class CountdownSettings : INotifyPropertyChanged
 
     private bool _text4EnableCustomFontColor = false;
 
-    public bool Text4EnableCustomFontColor
-    {
-        get => _text4EnableCustomFontColor;
-        set
+        public bool Text4EnableCustomFontColor
         {
-            if (_text4EnableCustomFontColor != value)
+            get => _text4EnableCustomFontColor;
+            set
             {
-                _text4EnableCustomFontColor = value;
-                OnPropertyChanged();
+                if (_text4EnableCustomFontColor != value)
+                {
+                    _text4EnableCustomFontColor = value;
+                    OnPropertyChanged();
+                }
             }
         }
-    }
+
+        private bool _text1EnableCustomFontFamily = false;
+
+        public bool Text1EnableCustomFontFamily
+        {
+            get => _text1EnableCustomFontFamily;
+            set
+            {
+                if (_text1EnableCustomFontFamily != value)
+                {
+                    _text1EnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text1FontFamily = "";
+
+        public string Text1FontFamily
+        {
+            get => _text1FontFamily;
+            set
+            {
+                if (_text1FontFamily != value)
+                {
+                    _text1FontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text2EnableCustomFontFamily = false;
+
+        public bool Text2EnableCustomFontFamily
+        {
+            get => _text2EnableCustomFontFamily;
+            set
+            {
+                if (_text2EnableCustomFontFamily != value)
+                {
+                    _text2EnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text2FontFamily = "";
+
+        public string Text2FontFamily
+        {
+            get => _text2FontFamily;
+            set
+            {
+                if (_text2FontFamily != value)
+                {
+                    _text2FontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text3EnableCustomFontFamily = false;
+
+        public bool Text3EnableCustomFontFamily
+        {
+            get => _text3EnableCustomFontFamily;
+            set
+            {
+                if (_text3EnableCustomFontFamily != value)
+                {
+                    _text3EnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text3FontFamily = "";
+
+        public string Text3FontFamily
+        {
+            get => _text3FontFamily;
+            set
+            {
+                if (_text3FontFamily != value)
+                {
+                    _text3FontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _timeEnableCustomFontFamily = false;
+
+        public bool TimeEnableCustomFontFamily
+        {
+            get => _timeEnableCustomFontFamily;
+            set
+            {
+                if (_timeEnableCustomFontFamily != value)
+                {
+                    _timeEnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _timeFontFamily = "";
+
+        public string TimeFontFamily
+        {
+            get => _timeFontFamily;
+            set
+            {
+                if (_timeFontFamily != value)
+                {
+                    _timeFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text4EnableCustomFontFamily = false;
+
+        public bool Text4EnableCustomFontFamily
+        {
+            get => _text4EnableCustomFontFamily;
+            set
+            {
+                if (_text4EnableCustomFontFamily != value)
+                {
+                    _text4EnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text4FontFamily = "";
+
+        public string Text4FontFamily
+        {
+            get => _text4FontFamily;
+            set
+            {
+                if (_text4FontFamily != value)
+                {
+                    _text4FontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text1FontWeight = "Normal";
+
+        public string Text1FontWeight
+        {
+            get => _text1FontWeight;
+            set
+            {
+                if (_text1FontWeight != value)
+                {
+                    _text1FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text2FontWeight = "Normal";
+
+        public string Text2FontWeight
+        {
+            get => _text2FontWeight;
+            set
+            {
+                if (_text2FontWeight != value)
+                {
+                    _text2FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text3FontWeight = "Normal";
+
+        public string Text3FontWeight
+        {
+            get => _text3FontWeight;
+            set
+            {
+                if (_text3FontWeight != value)
+                {
+                    _text3FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _timeFontWeight = "Normal";
+
+        public string TimeFontWeight
+        {
+            get => _timeFontWeight;
+            set
+            {
+                if (_timeFontWeight != value)
+                {
+                    _timeFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text4FontWeight = "Normal";
+
+        public string Text4FontWeight
+        {
+            get => _text4FontWeight;
+            set
+            {
+                if (_text4FontWeight != value)
+                {
+                    _text4FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text1EnableCustomFontWeight = false;
+
+        public bool Text1EnableCustomFontWeight
+        {
+            get => _text1EnableCustomFontWeight;
+            set
+            {
+                if (_text1EnableCustomFontWeight != value)
+                {
+                    _text1EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text2EnableCustomFontWeight = false;
+
+        public bool Text2EnableCustomFontWeight
+        {
+            get => _text2EnableCustomFontWeight;
+            set
+            {
+                if (_text2EnableCustomFontWeight != value)
+                {
+                    _text2EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text3EnableCustomFontWeight = false;
+
+        public bool Text3EnableCustomFontWeight
+        {
+            get => _text3EnableCustomFontWeight;
+            set
+            {
+                if (_text3EnableCustomFontWeight != value)
+                {
+                    _text3EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _timeEnableCustomFontWeight = false;
+
+        public bool TimeEnableCustomFontWeight
+        {
+            get => _timeEnableCustomFontWeight;
+            set
+            {
+                if (_timeEnableCustomFontWeight != value)
+                {
+                    _timeEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text4EnableCustomFontWeight = false;
+
+        public bool Text4EnableCustomFontWeight
+        {
+            get => _text4EnableCustomFontWeight;
+            set
+            {
+                if (_text4EnableCustomFontWeight != value)
+                {
+                    _text4EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
 
         private ProgressDisplayMode _progressDisplayMode = ProgressDisplayMode.None;
 
@@ -956,15 +1256,315 @@ public class CountdownSettings : INotifyPropertyChanged
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
+    private bool _text1EnableCustomFontFamily = false;
 
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    public bool Text1EnableCustomFontFamily
     {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        get => _text1EnableCustomFontFamily;
+        set
+        {
+            if (_text1EnableCustomFontFamily != value)
+            {
+                _text1EnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
     }
-}
 
-public class LocalSolarTimeSettings : INotifyPropertyChanged
+    private string _text1FontFamily = "";
+
+    public string Text1FontFamily
+    {
+        get => _text1FontFamily;
+        set
+        {
+            if (_text1FontFamily != value)
+            {
+                _text1FontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _nameEnableCustomFontFamily = false;
+
+    public bool NameEnableCustomFontFamily
+    {
+        get => _nameEnableCustomFontFamily;
+        set
+        {
+            if (_nameEnableCustomFontFamily != value)
+            {
+                _nameEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _nameFontFamily = "";
+
+    public string NameFontFamily
+    {
+        get => _nameFontFamily;
+        set
+        {
+            if (_nameFontFamily != value)
+            {
+                _nameFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _text3EnableCustomFontFamily = false;
+
+    public bool Text3EnableCustomFontFamily
+    {
+        get => _text3EnableCustomFontFamily;
+        set
+        {
+            if (_text3EnableCustomFontFamily != value)
+            {
+                _text3EnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _text3FontFamily = "";
+
+    public string Text3FontFamily
+    {
+        get => _text3FontFamily;
+        set
+        {
+            if (_text3FontFamily != value)
+            {
+                _text3FontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _timeEnableCustomFontFamily = false;
+
+    public bool TimeEnableCustomFontFamily
+    {
+        get => _timeEnableCustomFontFamily;
+        set
+        {
+            if (_timeEnableCustomFontFamily != value)
+            {
+                _timeEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _timeFontFamily = "";
+
+    public string TimeFontFamily
+    {
+        get => _timeFontFamily;
+        set
+        {
+            if (_timeFontFamily != value)
+            {
+                _timeFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _text4EnableCustomFontFamily = false;
+
+    public bool Text4EnableCustomFontFamily
+    {
+        get => _text4EnableCustomFontFamily;
+        set
+        {
+            if (_text4EnableCustomFontFamily != value)
+            {
+                _text4EnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _text4FontFamily = "";
+
+    public string Text4FontFamily
+        {
+            get => _text4FontFamily;
+            set
+            {
+                if (_text4FontFamily != value)
+                {
+                    _text4FontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text1FontWeight = "Normal";
+
+        public string Text1FontWeight
+        {
+            get => _text1FontWeight;
+            set
+            {
+                if (_text1FontWeight != value)
+                {
+                    _text1FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _nameFontWeight = "Normal";
+
+        public string NameFontWeight
+        {
+            get => _nameFontWeight;
+            set
+            {
+                if (_nameFontWeight != value)
+                {
+                    _nameFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text3FontWeight = "Normal";
+
+        public string Text3FontWeight
+        {
+            get => _text3FontWeight;
+            set
+            {
+                if (_text3FontWeight != value)
+                {
+                    _text3FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _timeFontWeight = "Normal";
+
+        public string TimeFontWeight
+        {
+            get => _timeFontWeight;
+            set
+            {
+                if (_timeFontWeight != value)
+                {
+                    _timeFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _text4FontWeight = "Normal";
+
+        public string Text4FontWeight
+        {
+            get => _text4FontWeight;
+            set
+            {
+                if (_text4FontWeight != value)
+                {
+                    _text4FontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text1EnableCustomFontWeight = false;
+
+        public bool Text1EnableCustomFontWeight
+        {
+            get => _text1EnableCustomFontWeight;
+            set
+            {
+                if (_text1EnableCustomFontWeight != value)
+                {
+                    _text1EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _nameEnableCustomFontWeight = false;
+
+        public bool NameEnableCustomFontWeight
+        {
+            get => _nameEnableCustomFontWeight;
+            set
+            {
+                if (_nameEnableCustomFontWeight != value)
+                {
+                    _nameEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text3EnableCustomFontWeight = false;
+
+        public bool Text3EnableCustomFontWeight
+        {
+            get => _text3EnableCustomFontWeight;
+            set
+            {
+                if (_text3EnableCustomFontWeight != value)
+                {
+                    _text3EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _timeEnableCustomFontWeight = false;
+
+        public bool TimeEnableCustomFontWeight
+        {
+            get => _timeEnableCustomFontWeight;
+            set
+            {
+                if (_timeEnableCustomFontWeight != value)
+                {
+                    _timeEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _text4EnableCustomFontWeight = false;
+
+        public bool Text4EnableCustomFontWeight
+        {
+            get => _text4EnableCustomFontWeight;
+            set
+            {
+                if (_text4EnableCustomFontWeight != value)
+                {
+                    _text4EnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        }
+    }
+
+    public class LocalSolarTimeSettings : INotifyPropertyChanged
 {
     private double _longitude = 116.4;
     private string _fontColor = "";
@@ -1034,6 +1634,66 @@ public class LocalSolarTimeSettings : INotifyPropertyChanged
             if (_enableCustomFontColor != value)
             {
                 _enableCustomFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontFamily = false;
+
+    public bool EnableCustomFontFamily
+    {
+        get => _enableCustomFontFamily;
+        set
+        {
+            if (_enableCustomFontFamily != value)
+            {
+                _enableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _fontFamily = "";
+
+    public string FontFamily
+    {
+        get => _fontFamily;
+        set
+        {
+            if (_fontFamily != value)
+            {
+                _fontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _fontWeight = "Normal";
+
+    public string FontWeight
+    {
+        get => _fontWeight;
+        set
+        {
+            if (_fontWeight != value)
+            {
+                _fontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontWeight = false;
+
+    public bool EnableCustomFontWeight
+    {
+        get => _enableCustomFontWeight;
+        set
+        {
+            if (_enableCustomFontWeight != value)
+            {
+                _enableCustomFontWeight = value;
                 OnPropertyChanged();
             }
         }
@@ -1109,28 +1769,88 @@ public class TimeZoneTimeSettings : INotifyPropertyChanged
 
     private bool _enableCustomFontColor = false;
 
-    public bool EnableCustomFontColor
-    {
-        get => _enableCustomFontColor;
-        set
+        public bool EnableCustomFontColor
         {
-            if (_enableCustomFontColor != value)
+            get => _enableCustomFontColor;
+            set
             {
-                _enableCustomFontColor = value;
-                OnPropertyChanged();
+                if (_enableCustomFontColor != value)
+                {
+                    _enableCustomFontColor = value;
+                    OnPropertyChanged();
+                }
             }
+        }
+
+        private bool _enableCustomFontFamily = false;
+
+        public bool EnableCustomFontFamily
+        {
+            get => _enableCustomFontFamily;
+            set
+            {
+                if (_enableCustomFontFamily != value)
+                {
+                    _enableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _fontFamily = "";
+
+        public string FontFamily
+        {
+            get => _fontFamily;
+            set
+            {
+                if (_fontFamily != value)
+                {
+                    _fontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _fontWeight = "Normal";
+
+        public string FontWeight
+        {
+            get => _fontWeight;
+            set
+            {
+                if (_fontWeight != value)
+                {
+                    _fontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _enableCustomFontWeight = false;
+
+        public bool EnableCustomFontWeight
+        {
+            get => _enableCustomFontWeight;
+            set
+            {
+                if (_enableCustomFontWeight != value)
+                {
+                    _enableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-public class AdvancedDateSettings : INotifyPropertyChanged
+    public class AdvancedDateSettings : INotifyPropertyChanged
 {
     private bool _showWeekDay = true;
     private string _fontColor = "";
@@ -1200,6 +1920,66 @@ public class AdvancedDateSettings : INotifyPropertyChanged
             if (_enableCustomFontColor != value)
             {
                 _enableCustomFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontFamily = false;
+
+    public bool EnableCustomFontFamily
+    {
+        get => _enableCustomFontFamily;
+        set
+        {
+            if (_enableCustomFontFamily != value)
+            {
+                _enableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _fontFamily = "";
+
+    public string FontFamily
+    {
+        get => _fontFamily;
+        set
+        {
+            if (_fontFamily != value)
+            {
+                _fontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _fontWeight = "Normal";
+
+    public string FontWeight
+    {
+        get => _fontWeight;
+        set
+        {
+            if (_fontWeight != value)
+            {
+                _fontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _enableCustomFontWeight = false;
+
+    public bool EnableCustomFontWeight
+    {
+        get => _enableCustomFontWeight;
+        set
+        {
+            if (_enableCustomFontWeight != value)
+            {
+                _enableCustomFontWeight = value;
                 OnPropertyChanged();
             }
         }
@@ -1332,6 +2112,126 @@ public class XingZuoSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _labelEnableCustomFontFamily = false;
+
+    public bool LabelEnableCustomFontFamily
+    {
+        get => _labelEnableCustomFontFamily;
+        set
+        {
+            if (_labelEnableCustomFontFamily != value)
+            {
+                _labelEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontFamily = "";
+
+    public string LabelFontFamily
+    {
+        get => _labelFontFamily;
+        set
+        {
+            if (_labelFontFamily != value)
+            {
+                _labelFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontFamily = false;
+
+    public bool ValueEnableCustomFontFamily
+    {
+        get => _valueEnableCustomFontFamily;
+        set
+        {
+            if (_valueEnableCustomFontFamily != value)
+            {
+                _valueEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontFamily = "";
+
+    public string ValueFontFamily
+    {
+        get => _valueFontFamily;
+        set
+        {
+            if (_valueFontFamily != value)
+            {
+                _valueFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontWeight = "Normal";
+
+    public string LabelFontWeight
+    {
+        get => _labelFontWeight;
+        set
+        {
+            if (_labelFontWeight != value)
+            {
+                _labelFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontWeight = "Normal";
+
+    public string ValueFontWeight
+    {
+        get => _valueFontWeight;
+        set
+        {
+            if (_valueFontWeight != value)
+            {
+                _valueFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _labelEnableCustomFontWeight = false;
+
+    public bool LabelEnableCustomFontWeight
+    {
+        get => _labelEnableCustomFontWeight;
+        set
+        {
+            if (_labelEnableCustomFontWeight != value)
+            {
+                _labelEnableCustomFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontWeight = false;
+
+    public bool ValueEnableCustomFontWeight
+    {
+        get => _valueEnableCustomFontWeight;
+        set
+        {
+            if (_valueEnableCustomFontWeight != value)
+            {
+                _valueEnableCustomFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -1446,28 +2346,148 @@ public class JieQiSettings : INotifyPropertyChanged
 
     private bool _valueEnableCustomFontColor = false;
 
-    public bool ValueEnableCustomFontColor
-    {
-        get => _valueEnableCustomFontColor;
-        set
+        public bool ValueEnableCustomFontColor
         {
-            if (_valueEnableCustomFontColor != value)
+            get => _valueEnableCustomFontColor;
+            set
             {
-                _valueEnableCustomFontColor = value;
-                OnPropertyChanged();
+                if (_valueEnableCustomFontColor != value)
+                {
+                    _valueEnableCustomFontColor = value;
+                    OnPropertyChanged();
+                }
             }
+        }
+
+        private bool _labelEnableCustomFontFamily = false;
+
+        public bool LabelEnableCustomFontFamily
+        {
+            get => _labelEnableCustomFontFamily;
+            set
+            {
+                if (_labelEnableCustomFontFamily != value)
+                {
+                    _labelEnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _labelFontFamily = "";
+
+        public string LabelFontFamily
+        {
+            get => _labelFontFamily;
+            set
+            {
+                if (_labelFontFamily != value)
+                {
+                    _labelFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _valueEnableCustomFontFamily = false;
+
+        public bool ValueEnableCustomFontFamily
+        {
+            get => _valueEnableCustomFontFamily;
+            set
+            {
+                if (_valueEnableCustomFontFamily != value)
+                {
+                    _valueEnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _valueFontFamily = "";
+
+        public string ValueFontFamily
+        {
+            get => _valueFontFamily;
+            set
+            {
+                if (_valueFontFamily != value)
+                {
+                    _valueFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _labelFontWeight = "Normal";
+
+        public string LabelFontWeight
+        {
+            get => _labelFontWeight;
+            set
+            {
+                if (_labelFontWeight != value)
+                {
+                    _labelFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _valueFontWeight = "Normal";
+
+        public string ValueFontWeight
+        {
+            get => _valueFontWeight;
+            set
+            {
+                if (_valueFontWeight != value)
+                {
+                    _valueFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _labelEnableCustomFontWeight = false;
+
+        public bool LabelEnableCustomFontWeight
+        {
+            get => _labelEnableCustomFontWeight;
+            set
+            {
+                if (_labelEnableCustomFontWeight != value)
+                {
+                    _labelEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _valueEnableCustomFontWeight = false;
+
+        public bool ValueEnableCustomFontWeight
+        {
+            get => _valueEnableCustomFontWeight;
+            set
+            {
+                if (_valueEnableCustomFontWeight != value)
+                {
+                    _valueEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-public class ShengXiaoSettings : INotifyPropertyChanged
+    public class ShengXiaoSettings : INotifyPropertyChanged
 {
     private string _labelFontColor = "";
     private double _labelFontSize = 14;
@@ -1581,6 +2601,126 @@ public class ShengXiaoSettings : INotifyPropertyChanged
             if (_valueEnableCustomFontColor != value)
             {
                 _valueEnableCustomFontColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _labelEnableCustomFontFamily = false;
+
+    public bool LabelEnableCustomFontFamily
+    {
+        get => _labelEnableCustomFontFamily;
+        set
+        {
+            if (_labelEnableCustomFontFamily != value)
+            {
+                _labelEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontFamily = "";
+
+    public string LabelFontFamily
+    {
+        get => _labelFontFamily;
+        set
+        {
+            if (_labelFontFamily != value)
+            {
+                _labelFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontFamily = false;
+
+    public bool ValueEnableCustomFontFamily
+    {
+        get => _valueEnableCustomFontFamily;
+        set
+        {
+            if (_valueEnableCustomFontFamily != value)
+            {
+                _valueEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontFamily = "";
+
+    public string ValueFontFamily
+    {
+        get => _valueFontFamily;
+        set
+        {
+            if (_valueFontFamily != value)
+            {
+                _valueFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontWeight = "Normal";
+
+    public string LabelFontWeight
+    {
+        get => _labelFontWeight;
+        set
+        {
+            if (_labelFontWeight != value)
+            {
+                _labelFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontWeight = "Normal";
+
+    public string ValueFontWeight
+    {
+        get => _valueFontWeight;
+        set
+        {
+            if (_valueFontWeight != value)
+            {
+                _valueFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _labelEnableCustomFontWeight = false;
+
+    public bool LabelEnableCustomFontWeight
+    {
+        get => _labelEnableCustomFontWeight;
+        set
+        {
+            if (_labelEnableCustomFontWeight != value)
+            {
+                _labelEnableCustomFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontWeight = false;
+
+    public bool ValueEnableCustomFontWeight
+    {
+        get => _valueEnableCustomFontWeight;
+        set
+        {
+            if (_valueEnableCustomFontWeight != value)
+            {
+                _valueEnableCustomFontWeight = value;
                 OnPropertyChanged();
             }
         }
@@ -1700,28 +2840,148 @@ public class FestivalSettings : INotifyPropertyChanged
 
     private bool _valueEnableCustomFontColor = false;
 
-    public bool ValueEnableCustomFontColor
-    {
-        get => _valueEnableCustomFontColor;
-        set
+        public bool ValueEnableCustomFontColor
         {
-            if (_valueEnableCustomFontColor != value)
+            get => _valueEnableCustomFontColor;
+            set
             {
-                _valueEnableCustomFontColor = value;
-                OnPropertyChanged();
+                if (_valueEnableCustomFontColor != value)
+                {
+                    _valueEnableCustomFontColor = value;
+                    OnPropertyChanged();
+                }
             }
+        }
+
+        private bool _labelEnableCustomFontFamily = false;
+
+        public bool LabelEnableCustomFontFamily
+        {
+            get => _labelEnableCustomFontFamily;
+            set
+            {
+                if (_labelEnableCustomFontFamily != value)
+                {
+                    _labelEnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _labelFontFamily = "";
+
+        public string LabelFontFamily
+        {
+            get => _labelFontFamily;
+            set
+            {
+                if (_labelFontFamily != value)
+                {
+                    _labelFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _valueEnableCustomFontFamily = false;
+
+        public bool ValueEnableCustomFontFamily
+        {
+            get => _valueEnableCustomFontFamily;
+            set
+            {
+                if (_valueEnableCustomFontFamily != value)
+                {
+                    _valueEnableCustomFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _valueFontFamily = "";
+
+        public string ValueFontFamily
+        {
+            get => _valueFontFamily;
+            set
+            {
+                if (_valueFontFamily != value)
+                {
+                    _valueFontFamily = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _labelFontWeight = "Normal";
+
+        public string LabelFontWeight
+        {
+            get => _labelFontWeight;
+            set
+            {
+                if (_labelFontWeight != value)
+                {
+                    _labelFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private string _valueFontWeight = "Normal";
+
+        public string ValueFontWeight
+        {
+            get => _valueFontWeight;
+            set
+            {
+                if (_valueFontWeight != value)
+                {
+                    _valueFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _labelEnableCustomFontWeight = false;
+
+        public bool LabelEnableCustomFontWeight
+        {
+            get => _labelEnableCustomFontWeight;
+            set
+            {
+                if (_labelEnableCustomFontWeight != value)
+                {
+                    _labelEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _valueEnableCustomFontWeight = false;
+
+        public bool ValueEnableCustomFontWeight
+        {
+            get => _valueEnableCustomFontWeight;
+            set
+            {
+                if (_valueEnableCustomFontWeight != value)
+                {
+                    _valueEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public event PropertyChangedEventHandler? PropertyChanged;
+
+        protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+        {
+            PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
         }
     }
 
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-}
-
-public class DayYiJiSettings : INotifyPropertyChanged
+    public class DayYiJiSettings : INotifyPropertyChanged
 {
     private string _labelFontColor = "";
     private double _labelFontSize = 14;
@@ -1806,6 +3066,126 @@ public class DayYiJiSettings : INotifyPropertyChanged
             if (_valueEnableCustomFontSize != value)
             {
                 _valueEnableCustomFontSize = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _labelEnableCustomFontFamily = false;
+
+    public bool LabelEnableCustomFontFamily
+    {
+        get => _labelEnableCustomFontFamily;
+        set
+        {
+            if (_labelEnableCustomFontFamily != value)
+            {
+                _labelEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontFamily = "";
+
+    public string LabelFontFamily
+    {
+        get => _labelFontFamily;
+        set
+        {
+            if (_labelFontFamily != value)
+            {
+                _labelFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontFamily = false;
+
+    public bool ValueEnableCustomFontFamily
+    {
+        get => _valueEnableCustomFontFamily;
+        set
+        {
+            if (_valueEnableCustomFontFamily != value)
+            {
+                _valueEnableCustomFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontFamily = "";
+
+    public string ValueFontFamily
+    {
+        get => _valueFontFamily;
+        set
+        {
+            if (_valueFontFamily != value)
+            {
+                _valueFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _labelFontWeight = "Normal";
+
+    public string LabelFontWeight
+    {
+        get => _labelFontWeight;
+        set
+        {
+            if (_labelFontWeight != value)
+            {
+                _labelFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private string _valueFontWeight = "Normal";
+
+    public string ValueFontWeight
+    {
+        get => _valueFontWeight;
+        set
+        {
+            if (_valueFontWeight != value)
+            {
+                _valueFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _labelEnableCustomFontWeight = false;
+
+    public bool LabelEnableCustomFontWeight
+    {
+        get => _labelEnableCustomFontWeight;
+        set
+        {
+            if (_labelEnableCustomFontWeight != value)
+            {
+                _labelEnableCustomFontWeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private bool _valueEnableCustomFontWeight = false;
+
+    public bool ValueEnableCustomFontWeight
+    {
+        get => _valueEnableCustomFontWeight;
+        set
+        {
+            if (_valueEnableCustomFontWeight != value)
+            {
+                _valueEnableCustomFontWeight = value;
                 OnPropertyChanged();
             }
         }

@@ -59,6 +59,16 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         labelTb.FontSize = fontSize;
     }
 
+    private void UpdateLabelFontFamily(string fontFamily)
+    {
+        labelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+    }
+
+    private void UpdateLabelFontWeight(string fontWeight)
+    {
+        labelTb.FontWeight = Settings.LabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+    }
+
     private void UpdateValueFontColor(string colorStr)
     {
         valueTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.ValueEnableCustomFontColor);
@@ -73,6 +83,16 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
     private void UpdateValueFontSize(double fontSize)
     {
         valueTb.FontSize = fontSize;
+    }
+
+    private void UpdateValueFontFamily(string fontFamily)
+    {
+        valueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+    }
+
+    private void UpdateValueFontWeight(string fontWeight)
+    {
+        valueTb.FontWeight = Settings.ValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
     }
 
     protected override void OnInitialized()
@@ -91,10 +111,15 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
             if (e.PropertyName == nameof(vm.LabelText)) labelTb.Text = vm.LabelText;
             if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
         };
+        Settings.PropertyChanged += OnSettingsChanged;
         UpdateLabelFontColor(Settings.LabelFontColor);
         UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateLabelFontFamily(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
+        UpdateLabelFontWeight(Settings.LabelFontWeight);
         UpdateValueFontColor(Settings.ValueFontColor);
         UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateValueFontFamily(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
+        UpdateValueFontWeight(Settings.ValueFontWeight);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -104,6 +129,27 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        Settings.PropertyChanged -= OnSettingsChanged;
         (vm as IDisposable)?.Dispose();
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Settings.LabelFontFamily) || e.PropertyName == nameof(Settings.LabelEnableCustomFontFamily))
+        {
+            UpdateLabelFontFamily(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
+        }
+        else if (e.PropertyName == nameof(Settings.ValueFontFamily) || e.PropertyName == nameof(Settings.ValueEnableCustomFontFamily))
+        {
+            UpdateValueFontFamily(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
+        }
+        else if (e.PropertyName == nameof(Settings.LabelFontWeight) || e.PropertyName == nameof(Settings.LabelEnableCustomFontWeight))
+        {
+            UpdateLabelFontWeight(Settings.LabelFontWeight);
+        }
+        else if (e.PropertyName == nameof(Settings.ValueFontWeight) || e.PropertyName == nameof(Settings.ValueEnableCustomFontWeight))
+        {
+            UpdateValueFontWeight(Settings.ValueFontWeight);
+        }
     }
 }

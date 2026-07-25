@@ -129,33 +129,35 @@ public class CountdownControl : ComponentBase<CountdownSettings>
 
     private void UpdateText1Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText1, colorStr, fontSize, Settings.Text1EnableCustomFontColor);
+        UpdateTextBlockStyle(tbText1, colorStr, fontSize, Settings.Text1EnableCustomFontColor, Settings.Text1FontFamily, Settings.Text1EnableCustomFontFamily, Settings.Text1FontWeight, Settings.Text1EnableCustomFontWeight);
     }
 
     private void UpdateText2Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText2, colorStr, fontSize, Settings.Text2EnableCustomFontColor);
+        UpdateTextBlockStyle(tbText2, colorStr, fontSize, Settings.Text2EnableCustomFontColor, Settings.Text2FontFamily, Settings.Text2EnableCustomFontFamily, Settings.Text2FontWeight, Settings.Text2EnableCustomFontWeight);
     }
 
     private void UpdateText3Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText3, colorStr, fontSize, Settings.Text3EnableCustomFontColor);
+        UpdateTextBlockStyle(tbText3, colorStr, fontSize, Settings.Text3EnableCustomFontColor, Settings.Text3FontFamily, Settings.Text3EnableCustomFontFamily, Settings.Text3FontWeight, Settings.Text3EnableCustomFontWeight);
     }
 
     private void UpdateTimeStyle(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbTime, colorStr, fontSize, Settings.TimeEnableCustomFontColor);
+        UpdateTextBlockStyle(tbTime, colorStr, fontSize, Settings.TimeEnableCustomFontColor, Settings.TimeFontFamily, Settings.TimeEnableCustomFontFamily, Settings.TimeFontWeight, Settings.TimeEnableCustomFontWeight);
     }
 
     private void UpdateText4Style(string colorStr, double fontSize)
     {
-        UpdateTextBlockStyle(tbText4, colorStr, fontSize, Settings.Text4EnableCustomFontColor);
+        UpdateTextBlockStyle(tbText4, colorStr, fontSize, Settings.Text4EnableCustomFontColor, Settings.Text4FontFamily, Settings.Text4EnableCustomFontFamily, Settings.Text4FontWeight, Settings.Text4EnableCustomFontWeight);
     }
 
-    private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor)
+    private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor, string fontFamily = "", bool enableCustomFontFamily = false, string fontWeight = "", bool enableCustomFontWeight = false)
     {
         tb.FontSize = fontSize;
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
+        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(enableCustomFontFamily ? fontFamily : "");
+        tb.FontWeight = enableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

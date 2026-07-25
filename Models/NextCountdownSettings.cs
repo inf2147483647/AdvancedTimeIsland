@@ -866,6 +866,118 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
         set { if (_jiValueEnableCustomFontSize != value) { _jiValueEnableCustomFontSize = value; OnPropertyChanged(); } }
     }
 
+    private bool _yiLabelEnableCustomFontFamily = false;
+    public bool YiLabelEnableCustomFontFamily
+    {
+        get => _yiLabelEnableCustomFontFamily;
+        set { if (_yiLabelEnableCustomFontFamily != value) { _yiLabelEnableCustomFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private string _yiLabelFontFamily = "";
+    public string YiLabelFontFamily
+    {
+        get => _yiLabelFontFamily;
+        set { if (_yiLabelFontFamily != value) { _yiLabelFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private bool _yiValueEnableCustomFontFamily = false;
+    public bool YiValueEnableCustomFontFamily
+    {
+        get => _yiValueEnableCustomFontFamily;
+        set { if (_yiValueEnableCustomFontFamily != value) { _yiValueEnableCustomFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private string _yiValueFontFamily = "";
+    public string YiValueFontFamily
+    {
+        get => _yiValueFontFamily;
+        set { if (_yiValueFontFamily != value) { _yiValueFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiLabelEnableCustomFontFamily = false;
+    public bool JiLabelEnableCustomFontFamily
+    {
+        get => _jiLabelEnableCustomFontFamily;
+        set { if (_jiLabelEnableCustomFontFamily != value) { _jiLabelEnableCustomFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private string _jiLabelFontFamily = "";
+    public string JiLabelFontFamily
+    {
+        get => _jiLabelFontFamily;
+        set { if (_jiLabelFontFamily != value) { _jiLabelFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiValueEnableCustomFontFamily = false;
+    public bool JiValueEnableCustomFontFamily
+    {
+        get => _jiValueEnableCustomFontFamily;
+        set { if (_jiValueEnableCustomFontFamily != value) { _jiValueEnableCustomFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private string _jiValueFontFamily = "";
+    public string JiValueFontFamily
+    {
+        get => _jiValueFontFamily;
+        set { if (_jiValueFontFamily != value) { _jiValueFontFamily = value; OnPropertyChanged(); } }
+    }
+
+    private string _yiLabelFontWeight = "Normal";
+    public string YiLabelFontWeight
+    {
+        get => _yiLabelFontWeight;
+        set { if (_yiLabelFontWeight != value) { _yiLabelFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private string _yiValueFontWeight = "Normal";
+    public string YiValueFontWeight
+    {
+        get => _yiValueFontWeight;
+        set { if (_yiValueFontWeight != value) { _yiValueFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private string _jiLabelFontWeight = "Normal";
+    public string JiLabelFontWeight
+    {
+        get => _jiLabelFontWeight;
+        set { if (_jiLabelFontWeight != value) { _jiLabelFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private string _jiValueFontWeight = "Normal";
+    public string JiValueFontWeight
+    {
+        get => _jiValueFontWeight;
+        set { if (_jiValueFontWeight != value) { _jiValueFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _yiLabelEnableCustomFontWeight = false;
+    public bool YiLabelEnableCustomFontWeight
+    {
+        get => _yiLabelEnableCustomFontWeight;
+        set { if (_yiLabelEnableCustomFontWeight != value) { _yiLabelEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _yiValueEnableCustomFontWeight = false;
+    public bool YiValueEnableCustomFontWeight
+    {
+        get => _yiValueEnableCustomFontWeight;
+        set { if (_yiValueEnableCustomFontWeight != value) { _yiValueEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiLabelEnableCustomFontWeight = false;
+    public bool JiLabelEnableCustomFontWeight
+    {
+        get => _jiLabelEnableCustomFontWeight;
+        set { if (_jiLabelEnableCustomFontWeight != value) { _jiLabelEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _jiValueEnableCustomFontWeight = false;
+    public bool JiValueEnableCustomFontWeight
+    {
+        get => _jiValueEnableCustomFontWeight;
+        set { if (_jiValueEnableCustomFontWeight != value) { _jiValueEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

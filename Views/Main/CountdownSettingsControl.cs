@@ -32,6 +32,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private ToggleSwitch? _timeEnableCustomFontColorToggle;
     private ToggleSwitch? _text4EnableCustomFontSizeToggle;
     private ToggleSwitch? _text4EnableCustomFontColorToggle;
+    private ToggleSwitch? _text1EnableCustomFontFamilyToggle;
+    private ToggleSwitch? _text2EnableCustomFontFamilyToggle;
+    private ToggleSwitch? _text3EnableCustomFontFamilyToggle;
+    private ToggleSwitch? _timeEnableCustomFontFamilyToggle;
+    private ToggleSwitch? _text4EnableCustomFontFamilyToggle;
+    private ToggleSwitch? _text1EnableCustomFontWeightToggle;
+    private ToggleSwitch? _text2EnableCustomFontWeightToggle;
+    private ToggleSwitch? _text3EnableCustomFontWeightToggle;
+    private ToggleSwitch? _timeEnableCustomFontWeightToggle;
+    private ToggleSwitch? _text4EnableCustomFontWeightToggle;
     private ComboBox? _timeBaseComboBox;
     private ListBox? _countdownListBox;
     private Button? _addButton;
@@ -51,6 +61,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private ColorPicker? _timeFontColorPicker;
     private TextBox? _text4FontSizeTextBox;
     private ColorPicker? _text4FontColorPicker;
+    private ComboBox? _text1FontFamilyComboBox;
+    private ComboBox? _text2FontFamilyComboBox;
+    private ComboBox? _text3FontFamilyComboBox;
+    private ComboBox? _timeFontFamilyComboBox;
+    private ComboBox? _text4FontFamilyComboBox;
+    private ComboBox? _text1FontWeightComboBox;
+    private ComboBox? _text2FontWeightComboBox;
+    private ComboBox? _text3FontWeightComboBox;
+    private ComboBox? _timeFontWeightComboBox;
+    private ComboBox? _text4FontWeightComboBox;
 
     private TextBox? _startYearTextBox;
     private ComboBox? _startMonthComboBox;
@@ -301,26 +321,36 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         fontPanel.Children.Add(_text1StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
 
         _text2StyleTextBlock = new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text2StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text2FontSizeTextBox, out _text2EnableCustomFontSizeToggle, OnText2EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text2FontColorPicker, out _text2EnableCustomFontColorToggle, OnText2EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text2FontFamilyComboBox, out _text2EnableCustomFontFamilyToggle, OnText2EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text2FontWeightComboBox, out _text2EnableCustomFontWeightToggle, OnText2EnableCustomFontWeightChanged));
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
         fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
 
         fontGroup.Content = fontPanel;
         mainPanel.Children.Add(fontGroup);
@@ -486,6 +516,62 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         return row;
     }
 
+    private Grid CreateFontFamilyRow(string label, out ComboBox? comboBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
+        Grid.SetColumn(lbl, 0);
+        row.Children.Add(lbl);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
+        {
+            comboBox.Items.Add(font);
+        }
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字体" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateFontWeightRow(string label, out ComboBox? comboBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(lbl);
+        Grid.SetColumn(lbl, 0);
+        row.Children.Add(lbl);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var weight in FontFamilyHelper.GetFontWeights())
+        {
+            comboBox.Items.Add(weight);
+        }
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
     private Grid CreateNumberRow(string label, string watermark, out TextBox? textBox)
     {
         var row = new Grid();
@@ -584,6 +670,11 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_timeEnableCustomFontColorToggle != null) _timeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text4EnableCustomFontSizeToggle != null) _text4EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text4EnableCustomFontColorToggle != null) _text4EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text1EnableCustomFontWeightToggle != null) _text1EnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text2EnableCustomFontWeightToggle != null) _text2EnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text3EnableCustomFontWeightToggle != null) _text3EnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_timeEnableCustomFontWeightToggle != null) _timeEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        if (_text4EnableCustomFontWeightToggle != null) _text4EnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
 
         foreach (var tb in _dynamicTextBlocks)
         {
@@ -656,6 +747,66 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         UpdateControlsEnabled();
     }
 
+    private void OnText1EnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.Text1EnableCustomFontFamily = _text1EnableCustomFontFamilyToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText2EnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.Text2EnableCustomFontFamily = _text2EnableCustomFontFamilyToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontFamily = _text3EnableCustomFontFamilyToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontFamily = _timeEnableCustomFontFamilyToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText4EnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.Text4EnableCustomFontFamily = _text4EnableCustomFontFamilyToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText1EnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.Text1EnableCustomFontWeight = _text1EnableCustomFontWeightToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText2EnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.Text2EnableCustomFontWeight = _text2EnableCustomFontWeightToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText3EnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.Text3EnableCustomFontWeight = _text3EnableCustomFontWeightToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnTimeEnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.TimeEnableCustomFontWeight = _timeEnableCustomFontWeightToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnText4EnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.Text4EnableCustomFontWeight = _text4EnableCustomFontWeightToggle?.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
     private void OnEnableCustomProgressColorChanged(object? sender, EventArgs e)
     {
         Settings.EnableCustomProgressColor = _enableCustomProgressColorToggle?.IsChecked ?? false;
@@ -666,14 +817,24 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     {
         _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
         _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
+        _text1FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontFamily);
+        _text1FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontWeight);
         _text2FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
         _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
+        _text2FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontFamily);
+        _text2FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontWeight);
         _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
         _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
+        _text3FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontFamily);
+        _text3FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontWeight);
         _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
         _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
+        _timeFontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontFamily);
+        _timeFontWeightComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontWeight);
         _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
         _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
+        _text4FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontFamily);
+        _text4FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontWeight);
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -715,6 +876,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_timeFontColorPicker != null) _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
         if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
+        if (_text1FontFamilyComboBox != null) _text1FontFamilyComboBox.SelectedItem = Settings.Text1FontFamily;
+        if (_text2FontFamilyComboBox != null) _text2FontFamilyComboBox.SelectedItem = Settings.Text2FontFamily;
+        if (_text3FontFamilyComboBox != null) _text3FontFamilyComboBox.SelectedItem = Settings.Text3FontFamily;
+        if (_timeFontFamilyComboBox != null) _timeFontFamilyComboBox.SelectedItem = Settings.TimeFontFamily;
+        if (_text4FontFamilyComboBox != null) _text4FontFamilyComboBox.SelectedItem = Settings.Text4FontFamily;
+        if (_text1FontWeightComboBox != null) _text1FontWeightComboBox.SelectedItem = Settings.Text1FontWeight;
+        if (_text2FontWeightComboBox != null) _text2FontWeightComboBox.SelectedItem = Settings.Text2FontWeight;
+        if (_text3FontWeightComboBox != null) _text3FontWeightComboBox.SelectedItem = Settings.Text3FontWeight;
+        if (_timeFontWeightComboBox != null) _timeFontWeightComboBox.SelectedItem = Settings.TimeFontWeight;
+        if (_text4FontWeightComboBox != null) _text4FontWeightComboBox.SelectedItem = Settings.Text4FontWeight;
 
         if (_startYearTextBox != null && _startMonthComboBox != null && _startDayComboBox != null && _startHourComboBox != null && _startMinuteComboBox != null && _startSecondComboBox != null)
         {
@@ -751,6 +922,26 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             _text4EnableCustomFontSizeToggle.IsChecked = Settings.Text4EnableCustomFontSize;
         if (_text4EnableCustomFontColorToggle != null)
             _text4EnableCustomFontColorToggle.IsChecked = Settings.Text4EnableCustomFontColor;
+        if (_text1EnableCustomFontFamilyToggle != null)
+            _text1EnableCustomFontFamilyToggle.IsChecked = Settings.Text1EnableCustomFontFamily;
+        if (_text2EnableCustomFontFamilyToggle != null)
+            _text2EnableCustomFontFamilyToggle.IsChecked = Settings.Text2EnableCustomFontFamily;
+        if (_text3EnableCustomFontFamilyToggle != null)
+            _text3EnableCustomFontFamilyToggle.IsChecked = Settings.Text3EnableCustomFontFamily;
+        if (_timeEnableCustomFontFamilyToggle != null)
+            _timeEnableCustomFontFamilyToggle.IsChecked = Settings.TimeEnableCustomFontFamily;
+        if (_text4EnableCustomFontFamilyToggle != null)
+            _text4EnableCustomFontFamilyToggle.IsChecked = Settings.Text4EnableCustomFontFamily;
+        if (_text1EnableCustomFontWeightToggle != null)
+            _text1EnableCustomFontWeightToggle.IsChecked = Settings.Text1EnableCustomFontWeight;
+        if (_text2EnableCustomFontWeightToggle != null)
+            _text2EnableCustomFontWeightToggle.IsChecked = Settings.Text2EnableCustomFontWeight;
+        if (_text3EnableCustomFontWeightToggle != null)
+            _text3EnableCustomFontWeightToggle.IsChecked = Settings.Text3EnableCustomFontWeight;
+        if (_timeEnableCustomFontWeightToggle != null)
+            _timeEnableCustomFontWeightToggle.IsChecked = Settings.TimeEnableCustomFontWeight;
+        if (_text4EnableCustomFontWeightToggle != null)
+            _text4EnableCustomFontWeightToggle.IsChecked = Settings.Text4EnableCustomFontWeight;
         UpdateControlsEnabled();
 
         if (_enableCustomProgressColorToggle != null)
@@ -811,6 +1002,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
         AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
         AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
+        AttachFontFamilyHandler(_text1FontFamilyComboBox, v => Settings.Text1FontFamily = v);
+        AttachFontFamilyHandler(_text2FontFamilyComboBox, v => Settings.Text2FontFamily = v);
+        AttachFontFamilyHandler(_text3FontFamilyComboBox, v => Settings.Text3FontFamily = v);
+        AttachFontFamilyHandler(_timeFontFamilyComboBox, v => Settings.TimeFontFamily = v);
+        AttachFontFamilyHandler(_text4FontFamilyComboBox, v => Settings.Text4FontFamily = v);
+        AttachFontWeightHandler(_text1FontWeightComboBox, v => Settings.Text1FontWeight = v);
+        AttachFontWeightHandler(_text2FontWeightComboBox, v => Settings.Text2FontWeight = v);
+        AttachFontWeightHandler(_text3FontWeightComboBox, v => Settings.Text3FontWeight = v);
+        AttachFontWeightHandler(_timeFontWeightComboBox, v => Settings.TimeFontWeight = v);
+        AttachFontWeightHandler(_text4FontWeightComboBox, v => Settings.Text4FontWeight = v);
 
         AttachColorPickerHandler(_progressBarColorPicker, v => Settings.ProgressBarColor = v);
         AttachColorPickerHandler(_progressRingColorPicker, v => Settings.ProgressRingColor = v);
@@ -892,6 +1093,30 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     {
         if (colorPicker == null) return;
         colorPicker.ColorChanged += (s, e) => setter(colorPicker.Color.ToString());
+    }
+
+    private void AttachFontFamilyHandler(ComboBox? comboBox, Action<string> setter)
+    {
+        if (comboBox == null) return;
+        comboBox.SelectionChanged += (s, e) =>
+        {
+            if (comboBox.SelectedItem != null)
+            {
+                setter(comboBox.SelectedItem.ToString() ?? "");
+            }
+        };
+    }
+
+    private void AttachFontWeightHandler(ComboBox? comboBox, Action<string> setter)
+    {
+        if (comboBox == null) return;
+        comboBox.SelectionChanged += (s, e) =>
+        {
+            if (comboBox.SelectedItem != null)
+            {
+                setter(comboBox.SelectedItem.ToString() ?? "");
+            }
+        };
     }
 
     private Color ParseColor(string colorString)

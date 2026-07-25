@@ -55,6 +55,16 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         tb.FontSize = fontSize;
     }
 
+    private void UpdateFontFamily()
+    {
+        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
+    }
+
+    private void UpdateFontWeight()
+    {
+        tb.FontWeight = Settings.EnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight) : FontWeight.Normal;
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateFontColor(Settings.FontColor);
@@ -76,6 +86,23 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         };
         UpdateFontColor(Settings.FontColor);
         UpdateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
+        UpdateFontFamily();
+        UpdateFontWeight();
+        Settings.PropertyChanged += OnSettingsChanged;
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Settings.FontFamily) ||
+            e.PropertyName == nameof(Settings.EnableCustomFontFamily))
+        {
+            UpdateFontFamily();
+        }
+        else if (e.PropertyName == nameof(Settings.FontWeight) ||
+                 e.PropertyName == nameof(Settings.EnableCustomFontWeight))
+        {
+            UpdateFontWeight();
+        }
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -85,6 +112,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        Settings.PropertyChanged -= OnSettingsChanged;
         (vm as IDisposable)?.Dispose();
         _isDisposed = true;
     }

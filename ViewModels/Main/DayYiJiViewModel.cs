@@ -46,17 +46,27 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(DayYiJiSettings.LabelFontColor) ||
-            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontColor))
+            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontColor) ||
+            e.PropertyName == nameof(DayYiJiSettings.LabelFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontFamily))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
         if (e.PropertyName == nameof(DayYiJiSettings.LabelFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontSize))
+                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontSize) ||
+                 e.PropertyName == nameof(DayYiJiSettings.LabelFontFamily) ||
+                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(DayYiJiSettings.LabelFontWeight) ||
+                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontWeight))
         {
             _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
         if (e.PropertyName == nameof(DayYiJiSettings.ValueFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontSize))
+                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontSize) ||
+                 e.PropertyName == nameof(DayYiJiSettings.ValueFontFamily) ||
+                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(DayYiJiSettings.ValueFontWeight) ||
+                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontWeight))
         {
             _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }

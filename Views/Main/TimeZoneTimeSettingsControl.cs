@@ -16,8 +16,12 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
     private ComboBox _timeZoneComboBox;
     private ToggleSwitch _enableCustomFontSizeToggle;
     private ToggleSwitch _enableCustomFontColorToggle;
+    private ToggleSwitch _enableCustomFontFamilyToggle;
+    private ToggleSwitch _enableCustomFontWeightToggle;
     private TextBox _colorTextBox;
     private TextBox _fontSizeTextBox;
+    private ComboBox _fontFamilyComboBox;
+    private ComboBox _fontWeightComboBox;
 
     private TextBlock _titleTextBlock;
     private TextBlock _descTextBlock;
@@ -85,6 +89,52 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         fontSizeRow.Children.Add(_fontSizeTextBox);
         sp.Children.Add(fontSizeRow);
 
+        var fontFamilyRow = new Grid();
+        fontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var fontFamilyLabel = new TextBlock { Text = "字体:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(fontFamilyLabel, 0);
+        fontFamilyRow.Children.Add(fontFamilyLabel);
+
+        _fontFamilyComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
+        {
+            _fontFamilyComboBox.Items.Add(font);
+        }
+        _fontFamilyComboBox.SelectionChanged += OnFontFamilyChanged;
+        Grid.SetColumn(_fontFamilyComboBox, 1);
+        fontFamilyRow.Children.Add(_fontFamilyComboBox);
+        sp.Children.Add(fontFamilyRow);
+
+        var fontWeightRow = new Grid();
+        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var fontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(fontWeightLabel, 0);
+        fontWeightRow.Children.Add(fontWeightLabel);
+
+        _fontWeightComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var weight in FontFamilyHelper.GetFontWeights())
+        {
+            _fontWeightComboBox.Items.Add(weight);
+        }
+        _fontWeightComboBox.SelectionChanged += OnFontWeightChanged;
+        Grid.SetColumn(_fontWeightComboBox, 1);
+        fontWeightRow.Children.Add(_fontWeightComboBox);
+
+        _enableCustomFontWeightToggle = new ToggleSwitch { Content = "启用自定义字重" };
+        _enableCustomFontWeightToggle.IsCheckedChanged += OnEnableCustomFontWeightChanged;
+        Grid.SetColumn(_enableCustomFontWeightToggle, 2);
+        fontWeightRow.Children.Add(_enableCustomFontWeightToggle);
+        sp.Children.Add(fontWeightRow);
+
+        _enableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontFamilyToggle.IsCheckedChanged += OnEnableCustomFontFamilyChanged;
+        sp.Children.Add(_enableCustomFontFamilyToggle);
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -100,6 +150,7 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -122,12 +173,44 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         UpdateControlsEnabled();
     }
 
+    private void OnEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontFamily = _enableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnEnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.EnableCustomFontWeight = _enableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnFontFamilyChanged(object? sender, EventArgs e)
+    {
+        if (_fontFamilyComboBox.SelectedItem != null)
+        {
+            Settings.FontFamily = _fontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnFontWeightChanged(object? sender, EventArgs e)
+    {
+        if (_fontWeightComboBox.SelectedItem != null)
+        {
+            Settings.FontWeight = _fontWeightComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
     private void UpdateControlsEnabled()
     {
         var fontSizeEnabled = Settings.EnableCustomFontSize;
         var fontColorEnabled = Settings.EnableCustomFontColor;
+        var fontFamilyEnabled = Settings.EnableCustomFontFamily;
+        var fontWeightEnabled = Settings.EnableCustomFontWeight;
         _colorTextBox.IsEnabled = fontColorEnabled;
         _fontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _fontFamilyComboBox.IsEnabled = fontFamilyEnabled;
+        _fontWeightComboBox.IsEnabled = fontWeightEnabled;
     }
 
     protected override void OnInitialized()
@@ -148,9 +231,13 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         }
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
+        _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
         UpdateControlsEnabled();
         _colorTextBox.Text = Settings.FontColor;
         _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
+        _fontWeightComboBox.SelectedItem = Settings.FontWeight;
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

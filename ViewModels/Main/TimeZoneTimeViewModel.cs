@@ -38,7 +38,9 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TimeZoneTimeSettings.FontColor) ||
-            e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontColor))
+            e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontColor) ||
+            e.PropertyName == nameof(TimeZoneTimeSettings.FontFamily) ||
+            e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontFamily))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
@@ -47,7 +49,11 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
             UpdateTime();
         }
         if (e.PropertyName == nameof(TimeZoneTimeSettings.TextFontSize) ||
-                 e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontSize))
+                 e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontSize) ||
+                 e.PropertyName == nameof(TimeZoneTimeSettings.FontFamily) ||
+                 e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(TimeZoneTimeSettings.FontWeight) ||
+                 e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontWeight))
         {
             _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
         }

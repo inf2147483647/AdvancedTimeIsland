@@ -38,7 +38,9 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(LocalSolarTimeSettings.FontColor) ||
-            e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontColor))
+            e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontColor) ||
+            e.PropertyName == nameof(LocalSolarTimeSettings.FontFamily) ||
+            e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontFamily))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
@@ -47,7 +49,11 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
             UpdateTime();
         }
         if (e.PropertyName == nameof(LocalSolarTimeSettings.TextFontSize) ||
-                 e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontSize))
+                 e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontSize) ||
+                 e.PropertyName == nameof(LocalSolarTimeSettings.FontFamily) ||
+                 e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(LocalSolarTimeSettings.FontWeight) ||
+                 e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontWeight))
         {
             _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
         }

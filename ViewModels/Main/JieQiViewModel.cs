@@ -49,22 +49,34 @@ public class JieQiViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(JieQiSettings.LabelFontColor) ||
-            e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontColor))
+            e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontColor) ||
+            e.PropertyName == nameof(JieQiSettings.LabelFontFamily) ||
+            e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontFamily))
         {
             _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
         }
         if (e.PropertyName == nameof(JieQiSettings.LabelFontSize) ||
-                 e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontSize))
+                 e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontSize) ||
+                 e.PropertyName == nameof(JieQiSettings.LabelFontFamily) ||
+                 e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(JieQiSettings.LabelFontWeight) ||
+                 e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontWeight))
         {
             _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
         }
         if (e.PropertyName == nameof(JieQiSettings.ValueFontColor) ||
-                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontColor))
+                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontColor) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueFontFamily) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontFamily))
         {
             _updateValueFontColor?.Invoke(_settings.ValueFontColor);
         }
         if (e.PropertyName == nameof(JieQiSettings.ValueFontSize) ||
-                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontSize))
+                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontSize) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueFontFamily) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueFontWeight) ||
+                 e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontWeight))
         {
             _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
         }

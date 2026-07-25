@@ -298,7 +298,7 @@ Hanfu | Photo Count
 
         if (heading.Inline != null)
         {
-            foreach (var inline in ConvertInline(heading.Inline))
+            foreach (var inline in ConvertInline(heading.Inline, textBlock))
             {
                 textBlock.Inlines.Add(inline);
             }
@@ -514,13 +514,15 @@ Hanfu | Photo Count
 
             if (isUrl)
             {
+                var linkSegment = new ParagraphSegment
+                {
+                    Type = ParagraphSegmentType.Text,
+                    LinkUrl = codeText
+                };
                 var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
                 linkSpan.Inlines.Add(new Run { Text = codeText });
-                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
-                {
-                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
-                }
-                segments[segments.Count - 1].Inlines!.Add(linkSpan);
+                linkSegment.Inlines!.Add(linkSpan);
+                segments.Add(linkSegment);
             }
             else
             {
@@ -1142,8 +1144,9 @@ Hanfu | Photo Count
                 System.Diagnostics.Process.Start(psi);
             }
         }
-        catch
+        catch (Exception ex)
         {
+            System.Diagnostics.Debug.WriteLine($"HanfuPageTemplate.OpenLink failed for url: {url}, error: {ex.Message}");
         }
     }
 

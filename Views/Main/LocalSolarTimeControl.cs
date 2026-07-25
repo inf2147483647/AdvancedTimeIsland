@@ -54,6 +54,16 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         tb.FontSize = fontSize;
     }
 
+    private void UpdateFontFamily(string fontFamily)
+    {
+        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+    }
+
+    private void UpdateFontWeight(string fontWeight)
+    {
+        tb.FontWeight = Settings.EnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateFontColor(Settings.FontColor);
@@ -73,8 +83,11 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         {
             if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
         };
+        Settings.PropertyChanged += OnSettingsChanged;
         UpdateFontColor(Settings.FontColor);
         UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 14);
+        UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
+        UpdateFontWeight(Settings.FontWeight);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -84,6 +97,19 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        Settings.PropertyChanged -= OnSettingsChanged;
         (vm as IDisposable)?.Dispose();
+    }
+
+    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(Settings.FontFamily) || e.PropertyName == nameof(Settings.EnableCustomFontFamily))
+        {
+            UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
+        }
+        else if (e.PropertyName == nameof(Settings.FontWeight) || e.PropertyName == nameof(Settings.EnableCustomFontWeight))
+        {
+            UpdateFontWeight(Settings.FontWeight);
+        }
     }
 }

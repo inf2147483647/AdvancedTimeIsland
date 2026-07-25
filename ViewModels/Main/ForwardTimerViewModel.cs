@@ -201,35 +201,55 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(ForwardTimerSettings.Text1FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text1FontColor) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontSize) ||
-                 e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontColor))
+                 e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontColor) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text1FontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text1FontWeight) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontWeight))
         {
             _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.NameFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameFontColor) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontSize) ||
-                 e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontColor))
+                 e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontColor) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.NameFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.NameFontWeight) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontWeight))
         {
             _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text3FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3FontColor) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontSize) ||
-                 e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontColor))
+                 e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontColor) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text3FontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text3FontWeight) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontWeight))
         {
             _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.TimeFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeFontColor) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontSize) ||
-                 e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontColor))
+                 e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontColor) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.TimeFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.TimeFontWeight) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontWeight))
         {
             _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text4FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4FontColor) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontSize) ||
-                 e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontColor))
+                 e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontColor) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text4FontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text4FontWeight) ||
+                 e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontWeight))
         {
             _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
         }

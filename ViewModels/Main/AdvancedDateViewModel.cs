@@ -38,7 +38,9 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AdvancedDateSettings.FontColor) ||
-            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontColor))
+            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontColor) ||
+            e.PropertyName == nameof(AdvancedDateSettings.FontFamily) ||
+            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontFamily))
         {
             _updateFontColor?.Invoke(_settings.FontColor);
         }
@@ -47,7 +49,11 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
             UpdateTime();
         }
         if (e.PropertyName == nameof(AdvancedDateSettings.DateFontSize) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontSize))
+                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontSize) ||
+                 e.PropertyName == nameof(AdvancedDateSettings.FontFamily) ||
+                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontFamily) ||
+                 e.PropertyName == nameof(AdvancedDateSettings.FontWeight) ||
+                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontWeight))
         {
             _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 14);
         }

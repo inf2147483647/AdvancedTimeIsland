@@ -56,32 +56,52 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontColor) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontColor))
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontColor) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontFamily))
         {
             _updateYiLabelFontColor?.Invoke(_settings.YiLabelFontColor);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontSize) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontSize))
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontWeight) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontWeight))
         {
             _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 14);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontSize) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontSize))
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontWeight) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontWeight))
         {
             _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 14);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontColor) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontColor))
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontColor) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontFamily))
         {
             _updateJiLabelFontColor?.Invoke(_settings.JiLabelFontColor);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontSize) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontSize))
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontWeight) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontWeight))
         {
             _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 14);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontSize) ||
-            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontSize))
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontSize) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontFamily) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontWeight) ||
+            e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontWeight))
         {
             _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 14);
         }
