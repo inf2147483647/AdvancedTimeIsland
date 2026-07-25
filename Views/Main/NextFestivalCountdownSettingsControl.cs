@@ -89,15 +89,15 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _festivalTypeTitle = new TextBlock { Text = "节日类型", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_festivalTypeTitle);
 
-        _internationalToggle = new ToggleSwitch { Content = "国际节日", OffContent = "", OnContent = "" };
+        _internationalToggle = new ToggleSwitch { Content = "国际节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
         _internationalToggle.IsCheckedChanged += OnInternationalToggled;
         sp.Children.Add(_internationalToggle);
 
-        _traditionalToggle = new ToggleSwitch { Content = "中国传统节日", OffContent = "", OnContent = "" };
+        _traditionalToggle = new ToggleSwitch { Content = "中国传统节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
         _traditionalToggle.IsCheckedChanged += OnTraditionalToggled;
         sp.Children.Add(_traditionalToggle);
 
-        _redToggle = new ToggleSwitch { Content = "红色节日", OffContent = "", OnContent = "" };
+        _redToggle = new ToggleSwitch { Content = "红色节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
         _redToggle.IsCheckedChanged += OnRedToggled;
         sp.Children.Add(_redToggle);
 
@@ -135,8 +135,9 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);
@@ -160,8 +161,9 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);

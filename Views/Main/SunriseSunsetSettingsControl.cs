@@ -270,11 +270,11 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunriseLabelRow.Children.Add(_sunriseLabelSizeTextBox);
         sp.Children.Add(sunriseLabelRow);
 
-        _sunriseLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunriseLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _sunriseLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontColorChanged;
         sp.Children.Add(_sunriseLabelEnableCustomFontColorToggle);
 
-        _sunriseLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunriseLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _sunriseLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontSizeChanged;
         sp.Children.Add(_sunriseLabelEnableCustomFontSizeToggle);
 
@@ -299,11 +299,11 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunriseTimeRow.Children.Add(_sunriseTimeSizeTextBox);
         sp.Children.Add(sunriseTimeRow);
 
-        _sunriseTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunriseTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _sunriseTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontColorChanged;
         sp.Children.Add(_sunriseTimeEnableCustomFontColorToggle);
 
-        _sunriseTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunriseTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _sunriseTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontSizeChanged;
         sp.Children.Add(_sunriseTimeEnableCustomFontSizeToggle);
 
@@ -328,11 +328,11 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunsetLabelRow.Children.Add(_sunsetLabelSizeTextBox);
         sp.Children.Add(sunsetLabelRow);
 
-        _sunsetLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunsetLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _sunsetLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontColorChanged;
         sp.Children.Add(_sunsetLabelEnableCustomFontColorToggle);
 
-        _sunsetLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunsetLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _sunsetLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontSizeChanged;
         sp.Children.Add(_sunsetLabelEnableCustomFontSizeToggle);
 
@@ -357,11 +357,11 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         sunsetTimeRow.Children.Add(_sunsetTimeSizeTextBox);
         sp.Children.Add(sunsetTimeRow);
 
-        _sunsetTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _sunsetTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _sunsetTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontColorChanged;
         sp.Children.Add(_sunsetTimeEnableCustomFontColorToggle);
 
-        _sunsetTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _sunsetTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _sunsetTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontSizeChanged;
         sp.Children.Add(_sunsetTimeEnableCustomFontSizeToggle);
 

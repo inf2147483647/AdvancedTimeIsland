@@ -62,7 +62,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         labelColorRow.Children.Add(_labelColorTextBox);
         sp.Children.Add(labelColorRow);
 
-        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
         sp.Children.Add(_labelEnableCustomFontColorToggle);
 
@@ -80,7 +80,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
 
-        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
         sp.Children.Add(_labelEnableCustomFontSizeToggle);
 
@@ -104,8 +104,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
         var labelFontWeightRow = new Grid();
         labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var labelFontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(labelFontWeightLabel, 0);
@@ -126,7 +127,16 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         labelFontWeightRow.Children.Add(_labelEnableCustomFontWeightToggle);
         sp.Children.Add(labelFontWeightRow);
 
-        _labelEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体" };
+        sp.Children.Add(new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        });
+
+        _labelEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", HorizontalAlignment = HorizontalAlignment.Left };
         _labelEnableCustomFontFamilyToggle.IsCheckedChanged += OnLabelEnableCustomFontFamilyChanged;
         sp.Children.Add(_labelEnableCustomFontFamilyToggle);
 
@@ -150,7 +160,7 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
         sp.Children.Add(valueFontSizeRow);
 
-        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
         sp.Children.Add(_valueEnableCustomFontSizeToggle);
 
@@ -174,8 +184,9 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 
         var valueFontWeightRow = new Grid();
         valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var valueFontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(valueFontWeightLabel, 0);
@@ -196,7 +207,16 @@ public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
         valueFontWeightRow.Children.Add(_valueEnableCustomFontWeightToggle);
         sp.Children.Add(valueFontWeightRow);
 
-        _valueEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体" };
+        sp.Children.Add(new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        });
+
+        _valueEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", HorizontalAlignment = HorizontalAlignment.Left };
         _valueEnableCustomFontFamilyToggle.IsCheckedChanged += OnValueEnableCustomFontFamilyChanged;
         sp.Children.Add(_valueEnableCustomFontFamilyToggle);
 

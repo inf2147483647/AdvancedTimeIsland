@@ -233,6 +233,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _nameStyleTextBlock = new TextBlock { Text = "正向计时器名称样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_nameStyleTextBlock);
@@ -240,6 +241,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         fontPanel.Children.Add(CreateColorRow("颜色:", out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _nameFontFamilyComboBox, out _nameEnableCustomFontFamilyToggle, OnNameEnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重:", out _nameFontWeightComboBox, out _nameEnableCustomFontWeightToggle, OnNameEnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
@@ -247,6 +249,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
@@ -254,6 +257,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重:", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
@@ -261,6 +265,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         fontGroup.Content = fontPanel;
         mainPanel.Children.Add(fontGroup);
@@ -296,8 +301,9 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -320,8 +326,9 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -344,8 +351,9 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -372,8 +380,9 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -394,6 +403,18 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         row.Children.Add(toggle);
 
         return row;
+    }
+
+    private TextBlock CreateFontWeightHintTextBlock()
+    {
+        return new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
     }
 
     private void UpdateThemeColors()

@@ -105,7 +105,7 @@ if ($windowsSuccess) {
 Write-Host "`n========================================"
 Write-Host "Build Summary"
 Write-Host "========================================"
-Write-Host "Windows x64: $(if ($windowsSuccess) { 'SUCCESS' } else { 'FAILED' })"
+Write-Host "Windows x64: $(if ($windowsSuccess) { 'OVERCAGE' } else { 'FAILED' })"
 
 if ($windowsSuccess) {
     Write-Host "`nHow to use:"

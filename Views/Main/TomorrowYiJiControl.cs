@@ -55,22 +55,22 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     }
 
     private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
-    private void UpdateYiLabelFontFamily(string fontFamily) { yiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
-    private void UpdateYiLabelFontWeight(string fontWeight) { yiLabelTb.FontWeight = Settings.YiLabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal; }
+    private void UpdateYiLabelFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) yiLabelTb.ClearValue(TextBlock.FontFamilyProperty); else yiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
+    private void UpdateYiLabelFontWeight(string fontWeight) { if (Settings.YiLabelEnableCustomFontWeight) yiLabelTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else yiLabelTb.ClearValue(TextBlock.FontWeightProperty); }
     private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
-    private void UpdateYiValueFontFamily(string fontFamily) { yiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
-    private void UpdateYiValueFontWeight(string fontWeight) { yiValueTb.FontWeight = Settings.YiValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal; }
+    private void UpdateYiValueFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) yiValueTb.ClearValue(TextBlock.FontFamilyProperty); else yiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
+    private void UpdateYiValueFontWeight(string fontWeight) { if (Settings.YiValueEnableCustomFontWeight) yiValueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else yiValueTb.ClearValue(TextBlock.FontWeightProperty); }
     private void UpdateJiLabelFontColor(string colorStr)
     {
         jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.JiLabelEnableCustomFontColor);
     }
 
     private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
-    private void UpdateJiLabelFontFamily(string fontFamily) { jiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
-    private void UpdateJiLabelFontWeight(string fontWeight) { jiLabelTb.FontWeight = Settings.JiLabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal; }
+    private void UpdateJiLabelFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) jiLabelTb.ClearValue(TextBlock.FontFamilyProperty); else jiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
+    private void UpdateJiLabelFontWeight(string fontWeight) { if (Settings.JiLabelEnableCustomFontWeight) jiLabelTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else jiLabelTb.ClearValue(TextBlock.FontWeightProperty); }
     private void UpdateJiValueFontSize(double fontSize) { jiValueTb.FontSize = fontSize; }
-    private void UpdateJiValueFontFamily(string fontFamily) { jiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
-    private void UpdateJiValueFontWeight(string fontWeight) { jiValueTb.FontWeight = Settings.JiValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal; }
+    private void UpdateJiValueFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) jiValueTb.ClearValue(TextBlock.FontFamilyProperty); else jiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
+    private void UpdateJiValueFontWeight(string fontWeight) { if (Settings.JiValueEnableCustomFontWeight) jiValueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else jiValueTb.ClearValue(TextBlock.FontWeightProperty); }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {

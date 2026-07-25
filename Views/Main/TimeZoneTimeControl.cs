@@ -56,12 +56,18 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
 
     private void UpdateFontFamily(string fontFamily)
     {
-        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+        if (string.IsNullOrEmpty(fontFamily))
+            tb.ClearValue(TextBlock.FontFamilyProperty);
+        else
+            tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
     }
 
     private void UpdateFontWeight(string fontWeight)
     {
-        tb.FontWeight = Settings.EnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        if (Settings.EnableCustomFontWeight)
+            tb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+        else
+            tb.ClearValue(TextBlock.FontWeightProperty);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

@@ -60,11 +60,11 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 
         sp.Children.Add(row);
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0) };
+        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
         sp.Children.Add(_enableCustomFontSizeToggle);
 
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0) };
+        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
         sp.Children.Add(_enableCustomFontColorToggle);
 
@@ -119,8 +119,9 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 
         var fontWeightRow = new Grid();
         fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var fontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(fontWeightLabel, 0);
@@ -141,7 +142,16 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         fontWeightRow.Children.Add(_enableCustomFontWeightToggle);
         sp.Children.Add(fontWeightRow);
 
-        _enableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", Margin = new Thickness(0, 4, 0, 0) };
+        sp.Children.Add(new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        });
+
+        _enableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableCustomFontFamilyToggle.IsCheckedChanged += OnEnableCustomFontFamilyChanged;
         sp.Children.Add(_enableCustomFontFamilyToggle);
 

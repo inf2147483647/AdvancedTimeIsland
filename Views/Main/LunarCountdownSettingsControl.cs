@@ -174,7 +174,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         progressDisplayModePanel.Children.Add(progressDisplayModeRow);
 
-        _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0) };
+        _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableCustomProgressColorToggle.IsCheckedChanged += OnEnableCustomProgressColorChanged;
         progressDisplayModePanel.Children.Add(_enableCustomProgressColorToggle);
 
@@ -328,8 +328,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);
@@ -370,8 +371,9 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(lbl);

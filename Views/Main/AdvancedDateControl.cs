@@ -57,12 +57,18 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 
     private void UpdateFontFamily()
     {
-        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
+        if (Settings.EnableCustomFontFamily)
+            tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.FontFamily);
+        else
+            tb.ClearValue(TextBlock.FontFamilyProperty);
     }
 
     private void UpdateFontWeight()
     {
-        tb.FontWeight = Settings.EnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight) : FontWeight.Normal;
+        if (Settings.EnableCustomFontWeight)
+            tb.FontWeight = FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight);
+        else
+            tb.ClearValue(TextBlock.FontWeightProperty);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

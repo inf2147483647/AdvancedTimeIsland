@@ -45,7 +45,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
-        _enableComponentToggle = new ToggleSwitch { Content = "启用此组件", Margin = new Thickness(0, 10, 0, 0) };
+        _enableComponentToggle = new ToggleSwitch { Content = "启用此组件", Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableComponentToggle.IsCheckedChanged += OnEnableComponentToggleChanged;
         sp.Children.Add(_enableComponentToggle);
 
@@ -66,7 +66,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
         labelColorRow.Children.Add(_labelColorTextBox);
         sp.Children.Add(labelColorRow);
 
-        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
         sp.Children.Add(_labelEnableCustomFontColorToggle);
 
@@ -84,7 +84,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
         labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
         sp.Children.Add(labelFontSizeRow);
 
-        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
         sp.Children.Add(_labelEnableCustomFontSizeToggle);
 
@@ -108,7 +108,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
         valueColorRow.Children.Add(_valueColorTextBox);
         sp.Children.Add(valueColorRow);
 
-        _valueEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        _valueEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
         _valueEnableCustomFontColorToggle.IsCheckedChanged += OnValueEnableCustomFontColorChanged;
         sp.Children.Add(_valueEnableCustomFontColorToggle);
 
@@ -126,7 +126,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
         valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
         sp.Children.Add(valueFontSizeRow);
 
-        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小" };
+        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
         _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
         sp.Children.Add(_valueEnableCustomFontSizeToggle);
 

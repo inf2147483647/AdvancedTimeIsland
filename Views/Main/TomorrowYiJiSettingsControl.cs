@@ -70,6 +70,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         sp.Children.Add(CreateColorRow("颜色:", out _yiLabelColorLabel, out _yiLabelFontColorPicker, out _yiLabelEnableCustomFontColorToggle, OnYiLabelEnableCustomFontColorChanged));
         sp.Children.Add(CreateFontFamilyRow("字体:", out _yiLabelFontFamilyComboBox, out _yiLabelEnableCustomFontFamilyToggle, OnYiLabelEnableCustomFontFamilyChanged, OnYiLabelFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重:", out _yiLabelFontWeightComboBox, out _yiLabelEnableCustomFontWeightToggle, OnYiLabelEnableCustomFontWeightChanged, OnYiLabelFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         _yiValueTitle = new TextBlock { Text = "宜内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_yiValueTitle);
@@ -79,6 +80,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         sp.Children.Add(CreateFontSizeRow("字体大小:", out _yiValueFontSizeLabel, out _yiValueFontSizeTextBox, out _yiValueEnableCustomFontSizeToggle, OnYiValueFontSizeLostFocus, OnYiValueEnableCustomFontSizeChanged));
         sp.Children.Add(CreateFontFamilyRow("字体:", out _yiValueFontFamilyComboBox, out _yiValueEnableCustomFontFamilyToggle, OnYiValueEnableCustomFontFamilyChanged, OnYiValueFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重:", out _yiValueFontWeightComboBox, out _yiValueEnableCustomFontWeightToggle, OnYiValueEnableCustomFontWeightChanged, OnYiValueFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         _jiLabelTitle = new TextBlock { Text = "忌标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_jiLabelTitle);
@@ -86,6 +88,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         sp.Children.Add(CreateColorRow("颜色:", out _jiLabelColorLabel, out _jiLabelFontColorPicker, out _jiLabelEnableCustomFontColorToggle, OnJiLabelEnableCustomFontColorChanged));
         sp.Children.Add(CreateFontFamilyRow("字体:", out _jiLabelFontFamilyComboBox, out _jiLabelEnableCustomFontFamilyToggle, OnJiLabelEnableCustomFontFamilyChanged, OnJiLabelFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重:", out _jiLabelFontWeightComboBox, out _jiLabelEnableCustomFontWeightToggle, OnJiLabelEnableCustomFontWeightChanged, OnJiLabelFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         _jiValueTitle = new TextBlock { Text = "忌内容样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_jiValueTitle);
@@ -95,6 +98,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         sp.Children.Add(CreateFontSizeRow("字体大小:", out _jiValueFontSizeLabel, out _jiValueFontSizeTextBox, out _jiValueEnableCustomFontSizeToggle, OnJiValueFontSizeLostFocus, OnJiValueEnableCustomFontSizeChanged));
         sp.Children.Add(CreateFontFamilyRow("字体:", out _jiValueFontFamilyComboBox, out _jiValueEnableCustomFontFamilyToggle, OnJiValueEnableCustomFontFamilyChanged, OnJiValueFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重:", out _jiValueFontWeightComboBox, out _jiValueEnableCustomFontWeightToggle, OnJiValueEnableCustomFontWeightChanged, OnJiValueFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         var scrollViewer = new ScrollViewer
         {
@@ -110,8 +114,9 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);
@@ -135,8 +140,9 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);
@@ -159,8 +165,9 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);
@@ -188,8 +195,9 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(label, 0);
@@ -210,6 +218,18 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         row.Children.Add(toggle);
 
         return row;
+    }
+
+    private TextBlock CreateFontWeightHintTextBlock()
+    {
+        return new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
     }
 
     private void UpdateThemeColors()

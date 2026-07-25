@@ -97,8 +97,14 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
     {
         tb.FontSize = fontSize;
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
-        tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(enableCustomFontFamily ? fontFamily : "");
-        tb.FontWeight = enableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        if (enableCustomFontFamily)
+            tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+        else
+            tb.ClearValue(TextBlock.FontFamilyProperty);
+        if (enableCustomFontWeight)
+            tb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+        else
+            tb.ClearValue(TextBlock.FontWeightProperty);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

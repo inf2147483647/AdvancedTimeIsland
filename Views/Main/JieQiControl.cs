@@ -61,12 +61,18 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateLabelFontFamily(string fontFamily)
     {
-        labelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+        if (string.IsNullOrEmpty(fontFamily))
+            labelTb.ClearValue(TextBlock.FontFamilyProperty);
+        else
+            labelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
     }
 
     private void UpdateLabelFontWeight(string fontWeight)
     {
-        labelTb.FontWeight = Settings.LabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        if (Settings.LabelEnableCustomFontWeight)
+            labelTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+        else
+            labelTb.ClearValue(TextBlock.FontWeightProperty);
     }
 
     private void UpdateValueFontColor(string colorStr)
@@ -87,12 +93,18 @@ public class JieQiControl : ComponentBase<JieQiSettings>
 
     private void UpdateValueFontFamily(string fontFamily)
     {
-        valueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
+        if (string.IsNullOrEmpty(fontFamily))
+            valueTb.ClearValue(TextBlock.FontFamilyProperty);
+        else
+            valueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
     }
 
     private void UpdateValueFontWeight(string fontWeight)
     {
-        valueTb.FontWeight = Settings.ValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
+        if (Settings.ValueEnableCustomFontWeight)
+            valueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+        else
+            valueTb.ClearValue(TextBlock.FontWeightProperty);
     }
 
     protected override void OnInitialized()

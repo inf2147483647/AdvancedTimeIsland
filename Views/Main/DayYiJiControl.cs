@@ -84,30 +84,62 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateLabelFontFamily()
     {
-        var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
-        yiLabelTb.FontFamily = fontFamily;
-        jiLabelTb.FontFamily = fontFamily;
+        if (Settings.LabelEnableCustomFontFamily)
+        {
+            var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.LabelFontFamily);
+            yiLabelTb.FontFamily = fontFamily;
+            jiLabelTb.FontFamily = fontFamily;
+        }
+        else
+        {
+            yiLabelTb.ClearValue(TextBlock.FontFamilyProperty);
+            jiLabelTb.ClearValue(TextBlock.FontFamilyProperty);
+        }
     }
 
     private void UpdateLabelFontWeight(string fontWeight)
     {
-        var fw = Settings.LabelEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
-        yiLabelTb.FontWeight = fw;
-        jiLabelTb.FontWeight = fw;
+        if (Settings.LabelEnableCustomFontWeight)
+        {
+            var fw = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+            yiLabelTb.FontWeight = fw;
+            jiLabelTb.FontWeight = fw;
+        }
+        else
+        {
+            yiLabelTb.ClearValue(TextBlock.FontWeightProperty);
+            jiLabelTb.ClearValue(TextBlock.FontWeightProperty);
+        }
     }
 
     private void UpdateValueFontFamily()
     {
-        var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
-        yiValueTb.FontFamily = fontFamily;
-        jiValueTb.FontFamily = fontFamily;
+        if (Settings.ValueEnableCustomFontFamily)
+        {
+            var fontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.ValueFontFamily);
+            yiValueTb.FontFamily = fontFamily;
+            jiValueTb.FontFamily = fontFamily;
+        }
+        else
+        {
+            yiValueTb.ClearValue(TextBlock.FontFamilyProperty);
+            jiValueTb.ClearValue(TextBlock.FontFamilyProperty);
+        }
     }
 
     private void UpdateValueFontWeight(string fontWeight)
     {
-        var fw = Settings.ValueEnableCustomFontWeight ? FontFamilyHelper.GetFontWeightFromString(fontWeight) : FontWeight.Normal;
-        yiValueTb.FontWeight = fw;
-        jiValueTb.FontWeight = fw;
+        if (Settings.ValueEnableCustomFontWeight)
+        {
+            var fw = FontFamilyHelper.GetFontWeightFromString(fontWeight);
+            yiValueTb.FontWeight = fw;
+            jiValueTb.FontWeight = fw;
+        }
+        else
+        {
+            yiValueTb.ClearValue(TextBlock.FontWeightProperty);
+            jiValueTb.ClearValue(TextBlock.FontWeightProperty);
+        }
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
