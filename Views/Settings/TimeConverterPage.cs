@@ -322,9 +322,9 @@ public class TimeConverterPage : UserControl
         {
             Width = 275,
             CornerRadius = new CornerRadius(4),
-            Minimum = 0,
+            Minimum = long.MinValue,
             Maximum = long.MaxValue,
-            Increment = 0.001m,
+            Increment = 1m,
             FormatString = "0.###"
         };
         inputPanel.Children.Add(_unixInputTextBox);
