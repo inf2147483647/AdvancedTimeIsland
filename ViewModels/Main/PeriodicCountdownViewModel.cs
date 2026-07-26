@@ -15,8 +15,7 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly PeriodicCountdownSettings _settings;
-    private DispatcherTimer? _updateTimer;
-    private DispatcherTimer? _highFrequencyTimer;
+    private IDisposable? _subscription;
     private readonly Action<string, double> _updateText1Style;
     private readonly Action<string, double> _updateText2Style;
     private readonly Action<string, double> _updateText3Style;
@@ -25,8 +24,6 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
     private bool _isDisposed;
     private bool _isFirstUpdate = true;
     private bool _requiresHighFrequencyRefresh;
-    private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
-    private TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
 
     private string _text1Display = string.Empty;
     private string _text2Display = string.Empty;
@@ -176,33 +173,15 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         UpdateCountdown();
         _isFirstUpdate = false;
 
-        _highFrequencyInterval = DisplayHelper.CalculateHighFrequencyInterval();
-
         _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
-
-        InitializeTimers();
+        SubscribeToClock();
     }
 
-    private void InitializeTimers()
+    private void SubscribeToClock()
     {
-        _updateTimer = new DispatcherTimer
-        {
-            Interval = _normalInterval
-        };
-        _updateTimer.Tick += OnTimerElapsed;
-        _updateTimer.Start();
-
-        _highFrequencyTimer = new DispatcherTimer
-        {
-            Interval = _highFrequencyInterval
-        };
-        _highFrequencyTimer.Tick += OnHighFrequencyTimerElapsed;
-
-        if (_requiresHighFrequencyRefresh)
-        {
-            _updateTimer.Stop();
-            _highFrequencyTimer.Start();
-        }
+        _subscription?.Dispose();
+        _subscription = SharedRenderClockService.Instance.Subscribe(OnClockTick, _requiresHighFrequencyRefresh);
+        SharedRenderClockService.Instance.EnsureStarted();
     }
 
     private static bool RequiresHighFrequencyRefresh(string? timeFormat)
@@ -223,17 +202,7 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (_requiresHighFrequencyRefresh != newRequiresHighFrequency)
         {
             _requiresHighFrequencyRefresh = newRequiresHighFrequency;
-
-            if (_requiresHighFrequencyRefresh)
-            {
-                _updateTimer?.Stop();
-                _highFrequencyTimer?.Start();
-            }
-            else
-            {
-                _highFrequencyTimer?.Stop();
-                _updateTimer?.Start();
-            }
+            SubscribeToClock();
         }
     }
 
@@ -298,14 +267,9 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void OnTimerElapsed(object? sender, EventArgs e)
+    private void OnClockTick(DateTime now)
     {
-        _ = UpdateCountdownAsync();
-    }
-
-    private void OnHighFrequencyTimerElapsed(object? sender, EventArgs e)
-    {
-        _ = UpdateCountdownAsync();
+        _ = UpdateCountdownAsync(now);
     }
 
     private void UpdateCountdown()
@@ -320,11 +284,11 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async System.Threading.Tasks.Task UpdateCountdownAsync()
+    private async System.Threading.Tasks.Task UpdateCountdownAsync(DateTime? clockTime = null)
     {
         try
         {
-            var now = await GetCurrentTimeAsync().ConfigureAwait(false);
+            var now = clockTime ?? await GetCurrentTimeAsync().ConfigureAwait(false);
 
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -490,138 +454,7 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private string FormatTime(string format, long secondsLeft, double millisecondsLeft, DateTime now, DateTime targetDate, long targetTime, bool enableTimeCorrection)
     {
-        var totalSeconds = secondsLeft;
-        var totalMilliseconds = millisecondsLeft;
-        var totalMinutes = Math.Ceiling(totalSeconds / 60.0);
-        var totalHours = Math.Ceiling(totalSeconds / 3600.0);
-        var totalDays = Math.Ceiling(totalSeconds / 86400.0);
-
-        var days = (int)(totalSeconds / 86400);
-        var remainingSeconds = totalSeconds % 86400;
-        var hours = (int)(remainingSeconds / 3600);
-        remainingSeconds %= 3600;
-        var minutes = (int)(remainingSeconds / 60);
-        var seconds = (int)(remainingSeconds % 60);
-        var milliseconds = (int)(totalMilliseconds % 1000);
-
-        bool hasMillisecond = format.Contains("%x") || format.Contains("%X");
-        if (enableTimeCorrection && !hasMillisecond && secondsLeft > 0)
-        {
-            bool hasSeconds = format.Contains("%s") || format.Contains("%S");
-            bool hasMinutes = format.Contains("%m") || format.Contains("%M");
-            bool hasHours = format.Contains("%h") || format.Contains("%H");
-            bool hasDays = format.Contains("%d") || format.Contains("%D");
-
-            if (hasSeconds)
-            {
-                seconds++;
-                if (seconds >= 60)
-                {
-                    seconds = 0;
-                    minutes++;
-                    if (minutes >= 60)
-                    {
-                        minutes = 0;
-                        hours++;
-                        if (hours >= 24)
-                        {
-                            hours = 0;
-                            days++;
-                        }
-                    }
-                }
-            }
-            else if (hasMinutes)
-            {
-                minutes++;
-                if (minutes >= 60)
-                {
-                    minutes = 0;
-                    hours++;
-                    if (hours >= 24)
-                    {
-                        hours = 0;
-                        days++;
-                    }
-                }
-            }
-            else if (hasHours)
-            {
-                hours++;
-                if (hours >= 24)
-                {
-                    hours = 0;
-                    days++;
-                }
-            }
-            else if (hasDays)
-            {
-                days++;
-            }
-        }
-
-        bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
-        bool hasYear = format.Contains("%yy") || format.Contains("%YY");
-
-        int displayYears = 0;
-        int displayMonths = 0;
-        int displayDays = days;
-
-        if (hasYear || hasMonth)
-        {
-            var tempDate = now;
-            displayYears = 0;
-
-            while (tempDate.AddYears(1) <= targetDate)
-            {
-                tempDate = tempDate.AddYears(1);
-                displayYears++;
-            }
-
-            if (hasMonth)
-            {
-                displayMonths = 0;
-                while (tempDate.AddMonths(1) <= targetDate)
-                {
-                    tempDate = tempDate.AddMonths(1);
-                    displayMonths++;
-                }
-
-                var dayDiff = (targetDate - tempDate).Days;
-                displayDays = Math.Max(0, dayDiff);
-            }
-            else
-            {
-                var dayDiff = (targetDate - tempDate).Days;
-                displayDays = Math.Max(0, dayDiff);
-            }
-        }
-
-        var yy = displayYears.ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
-        var result = format
-            .Replace("%D", ((int)totalDays).ToString())
-            .Replace("%H", ((int)totalHours).ToString())
-            .Replace("%M", ((int)totalMinutes).ToString())
-            .Replace("%S", totalSeconds.ToString())
-            .Replace("%X", ((int)totalMilliseconds).ToString())
-            .Replace("%L", "0")
-            .Replace("%P", "0")
-            .Replace("%p", "0.00")
-            .Replace("%yy", yy)
-            .Replace("%YY", YY)
-            .Replace("%mo", displayMonths.ToString())
-            .Replace("%MO", displayMonths.ToString())
-            .Replace("%d", displayDays.ToString())
-            .Replace("%h", hours.ToString())
-            .Replace("%m", minutes.ToString("D2"))
-            .Replace("%s", seconds.ToString("D2"))
-            .Replace("%x", milliseconds.ToString("D3"));
-
-        return result;
+        return OptimizedTimeFormatter.FormatPeriodicCountdownTime(format, secondsLeft, millisecondsLeft, now, targetDate, enableTimeCorrection);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -637,8 +470,7 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
 
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
-        _updateTimer?.Stop();
-        _highFrequencyTimer?.Stop();
+        _subscription?.Dispose();
     }
 
     private class PeriodicCountdownDisplayData

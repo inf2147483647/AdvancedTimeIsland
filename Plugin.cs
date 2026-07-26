@@ -231,13 +231,11 @@ public class Plugin : PluginBase
 
         services.AddSingleton(Settings);
 
-        services.AddSingleton<LunarInstallerService>();
-
-        LunarInstallerService.AutoInstallAsync();
-
         services.AddSingleton<TimeBaseService>();
+        services.AddSingleton<SharedRenderClockService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
+        services.AddHostedService<StartupDelayService>();
 
         RegisterButtonPointerCursorStyle();
 

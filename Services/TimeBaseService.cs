@@ -81,7 +81,10 @@ public class TimeBaseService
         _settings = settings;
         Instance = this;
         _settings.PropertyChanged += OnSettingsChanged;
+    }
 
+    public void StartTimers()
+    {
         try
         {
             StartTimeJumpCheckTimer();
@@ -98,15 +101,6 @@ public class TimeBaseService
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 启动定时同步定时器失败: {ex.Message}");
-        }
-
-        try
-        {
-            _ = SyncTimeAsync(isStartup: true);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 启动时同步时间失败: {ex.Message}");
         }
     }
 

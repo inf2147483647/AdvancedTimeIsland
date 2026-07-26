@@ -18,15 +18,15 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 {
     private const int WindowSeconds = 10;
     private const int RetryDelayMs = 100;
-    private const int FpsReportIntervalMs = 10;
+    private const int FpsReportIntervalMs = 50;
 
     private readonly ILogger<FpsBackgroundCollectorService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _waitForTopLevelTask;
     private Task? _reportTask;
     private double _currentFps;
-    private readonly List<(DateTime Time, double Fps)> _fpsSamples = new();
-    private readonly List<double> _rawSamplesBuffer = new(3);
+    private readonly Queue<(DateTime Time, double Fps)> _fpsSamples = new();
+    private readonly Queue<double> _rawSamplesBuffer = new();
     private bool _isDisposed;
     private bool _isRunning;
     private bool _isPaused;
@@ -226,23 +226,25 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
     {
         if (fps <= 0 || double.IsNaN(fps) || double.IsInfinity(fps)) return;
 
-        _rawSamplesBuffer.Add(fps);
+        _rawSamplesBuffer.Enqueue(fps);
 
         if (_rawSamplesBuffer.Count < 3)
             return;
 
-        var avgFps = _rawSamplesBuffer.Average();
-        _currentFps = avgFps;
+        var samples = _rawSamplesBuffer.ToArray();
         _rawSamplesBuffer.Clear();
+
+        var avgFps = samples.Average();
+        _currentFps = avgFps;
 
         var now = DateTime.Now;
 
-        _fpsSamples.Add((now, avgFps));
+        _fpsSamples.Enqueue((now, avgFps));
 
         var windowStart = now - TimeSpan.FromSeconds(WindowSeconds);
-        while (_fpsSamples.Count > 0 && _fpsSamples[0].Time < windowStart)
+        while (_fpsSamples.Count > 0 && _fpsSamples.Peek().Time < windowStart)
         {
-            _fpsSamples.RemoveAt(0);
+            _fpsSamples.Dequeue();
         }
 
         var currentSamples = _fpsSamples.Select(s => s.Fps).ToList();

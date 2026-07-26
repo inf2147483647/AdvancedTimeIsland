@@ -9,7 +9,7 @@ using Avalonia.Media;
 using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using AdvancedTimeIsland.Services;
+
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -46,7 +46,6 @@ public class AboutPage : SettingsPageBase
     private Border _iconBorder = null!;
     private TabControl? _tabControl;
     private bool _easterEggActive;
-    private readonly LunarInstallerService? _lunarInstaller;
     private readonly PluginSettings? _pluginSettings;
 
     private TextBlock? _nameTextBlock;
@@ -55,17 +54,12 @@ public class AboutPage : SettingsPageBase
     private List<TextBlock>? _infoRowLabelTextBlocks;
     private List<TextBlock>? _infoRowValueTextBlocks;
 
-    public AboutPage() : this(null, null)
+    public AboutPage() : this(null)
     {
     }
 
-    public AboutPage(LunarInstallerService? lunarInstaller = null) : this(lunarInstaller, null)
+    public AboutPage(PluginSettings? pluginSettings = null)
     {
-    }
-
-    public AboutPage(LunarInstallerService? lunarInstaller = null, PluginSettings? pluginSettings = null)
-    {
-        _lunarInstaller = lunarInstaller;
         _pluginSettings = pluginSettings;
         _easterEggActive = pluginSettings?.EnableEasterEgg ?? false;
         _easterEggDetector = new EasterEggDetector(11, 5);
@@ -531,7 +525,7 @@ public class AboutPage : SettingsPageBase
                     tabItem.Content = new TimeCalculatorPage(_pluginSettings);
                     break;
                 case "PluginSettings":
-                    var pluginSettings = new PluginSettingsPage(_pluginSettings, _lunarInstaller);
+                    var pluginSettings = new PluginSettingsPage(_pluginSettings);
                     pluginSettings.RequestRestartAction = ShowRestartButton;
                     if (_easterEggActive)
                     {

@@ -556,15 +556,11 @@ public class PluginSettingsPage : UserControl
 
     public Action? RequestRestartAction { get; set; }
 
-    public PluginSettingsPage() : this(null, null)
+    public PluginSettingsPage() : this(null)
     {
     }
 
-    public PluginSettingsPage(PluginSettings? settings) : this(settings, null)
-    {
-    }
-
-    public PluginSettingsPage(PluginSettings? settings, LunarInstallerService? lunarInstaller)
+    public PluginSettingsPage(PluginSettings? settings)
     {
         _settings = settings;
         InitializeComponent();
