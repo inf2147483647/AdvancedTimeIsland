@@ -140,7 +140,7 @@ public class HanfuPage : HanfuPageTemplate
 
         _maleTitleTooltipTextBlock = new TextBlock
         {
-            Text = "目前这个页面开发意义不大，因为在汉服运动中，女生占比约80%（在开发者所在地——开封，可能超过95%），所以需要先满足大多数用户的使用需求，等到插件主要功能完善后在开发这个页面。你也可以反馈插件问题，帮助开发者进行完善功能。<delete_line>尽管作者也属于那5%的群体[大雾]</delete_line>",
+            Text = "目前这个页面开发意义不大，因为在汉服运动中，女生占比约80%（在开发者所在地——开封，可能超过95%），所以需要先满足大多数用户的使用需求，等到插件主要功能完善后在开发这个页面。你也可以反馈插件问题，帮助开发者进行完善功能。<delete_line>尽管作者也属于那5%的群体[大雾]</delete_line>", // 根据观测，样本还是太少了
             FontSize = 12,
             Foreground = ThemeHelper.GetTextBrush(),
             TextWrapping = TextWrapping.Wrap,

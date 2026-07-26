@@ -5,6 +5,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -50,192 +51,20 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
 
-        var labelColorRow = new Grid();
-        labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _labelColorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_labelColorLabelTextBlock, 0);
-        labelColorRow.Children.Add(_labelColorLabelTextBlock);
-
-        _labelColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
-        Grid.SetColumn(_labelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelColorTextBox, OnLabelColorLostFocus);
-        labelColorRow.Children.Add(_labelColorTextBox);
-        sp.Children.Add(labelColorRow);
-
-        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_labelEnableCustomFontColorToggle);
-
-        var labelFontSizeRow = new Grid();
-        labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _labelFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_labelFontSizeLabelTextBlock, 0);
-        labelFontSizeRow.Children.Add(_labelFontSizeLabelTextBlock);
-
-        _labelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_labelFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelFontSizeTextBox, OnLabelFontSizeLostFocus);
-        labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
-        sp.Children.Add(labelFontSizeRow);
-
-        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_labelEnableCustomFontSizeToggle);
-
-        var labelFontFamilyRow = new Grid();
-        labelFontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var labelFontFamilyLabel = new TextBlock { Text = "字体:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(labelFontFamilyLabel, 0);
-        labelFontFamilyRow.Children.Add(labelFontFamilyLabel);
-
-        _labelFontFamilyComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
-        {
-            _labelFontFamilyComboBox.Items.Add(font);
-        }
-        _labelFontFamilyComboBox.SelectionChanged += OnLabelFontFamilyChanged;
-        Grid.SetColumn(_labelFontFamilyComboBox, 1);
-        labelFontFamilyRow.Children.Add(_labelFontFamilyComboBox);
-        sp.Children.Add(labelFontFamilyRow);
-
-        var labelFontWeightRow = new Grid();
-        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var labelFontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(labelFontWeightLabel, 0);
-        labelFontWeightRow.Children.Add(labelFontWeightLabel);
-
-        _labelFontWeightComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var weight in FontFamilyHelper.GetFontWeights())
-        {
-            _labelFontWeightComboBox.Items.Add(weight);
-        }
-        _labelFontWeightComboBox.SelectionChanged += OnLabelFontWeightChanged;
-        Grid.SetColumn(_labelFontWeightComboBox, 1);
-        labelFontWeightRow.Children.Add(_labelFontWeightComboBox);
-
-        _labelEnableCustomFontWeightToggle = new ToggleSwitch { Content = "启用自定义字重" };
-        _labelEnableCustomFontWeightToggle.IsCheckedChanged += OnLabelEnableCustomFontWeightChanged;
-        Grid.SetColumn(_labelEnableCustomFontWeightToggle, 2);
-        labelFontWeightRow.Children.Add(_labelEnableCustomFontWeightToggle);
-        sp.Children.Add(labelFontWeightRow);
-
-        sp.Children.Add(new TextBlock
-        {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        });
-
-        _labelEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", HorizontalAlignment = HorizontalAlignment.Left };
-        _labelEnableCustomFontFamilyToggle.IsCheckedChanged += OnLabelEnableCustomFontFamilyChanged;
-        sp.Children.Add(_labelEnableCustomFontFamilyToggle);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _labelFontSizeLabelTextBlock, out _labelFontSizeTextBox, out _labelEnableCustomFontSizeToggle, OnLabelFontSizeLostFocus, OnLabelEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _labelColorLabelTextBlock, out _labelColorTextBox, out _labelEnableCustomFontColorToggle, OnLabelColorLostFocus, OnLabelEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontFamilyRow("字体样式", out _labelFontFamilyComboBox, out _labelEnableCustomFontFamilyToggle, OnLabelEnableCustomFontFamilyChanged, OnLabelFontFamilyChanged));
+        sp.Children.Add(CreateFontWeightRow("字重", out _labelFontWeightComboBox, out _labelEnableCustomFontWeightToggle, OnLabelEnableCustomFontWeightChanged, OnLabelFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_valueTitleTextBlock);
 
-        var valueColorRow = new Grid();
-        valueColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _valueColorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_valueColorLabelTextBlock, 0);
-        valueColorRow.Children.Add(_valueColorLabelTextBlock);
-
-        _valueColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
-        Grid.SetColumn(_valueColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueColorTextBox, OnValueColorLostFocus);
-        valueColorRow.Children.Add(_valueColorTextBox);
-        sp.Children.Add(valueColorRow);
-
-        _valueEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _valueEnableCustomFontColorToggle.IsCheckedChanged += OnValueEnableCustomFontColorChanged;
-        sp.Children.Add(_valueEnableCustomFontColorToggle);
-
-        var valueFontSizeRow = new Grid();
-        valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _valueFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_valueFontSizeLabelTextBlock, 0);
-        valueFontSizeRow.Children.Add(_valueFontSizeLabelTextBlock);
-
-        _valueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_valueFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueFontSizeTextBox, OnValueFontSizeLostFocus);
-        valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
-        sp.Children.Add(valueFontSizeRow);
-
-        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
-        sp.Children.Add(_valueEnableCustomFontSizeToggle);
-
-        var valueFontFamilyRow = new Grid();
-        valueFontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var valueFontFamilyLabel = new TextBlock { Text = "字体:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(valueFontFamilyLabel, 0);
-        valueFontFamilyRow.Children.Add(valueFontFamilyLabel);
-
-        _valueFontFamilyComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
-        {
-            _valueFontFamilyComboBox.Items.Add(font);
-        }
-        _valueFontFamilyComboBox.SelectionChanged += OnValueFontFamilyChanged;
-        Grid.SetColumn(_valueFontFamilyComboBox, 1);
-        valueFontFamilyRow.Children.Add(_valueFontFamilyComboBox);
-        sp.Children.Add(valueFontFamilyRow);
-
-        var valueFontWeightRow = new Grid();
-        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var valueFontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(valueFontWeightLabel, 0);
-        valueFontWeightRow.Children.Add(valueFontWeightLabel);
-
-        _valueFontWeightComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var weight in FontFamilyHelper.GetFontWeights())
-        {
-            _valueFontWeightComboBox.Items.Add(weight);
-        }
-        _valueFontWeightComboBox.SelectionChanged += OnValueFontWeightChanged;
-        Grid.SetColumn(_valueFontWeightComboBox, 1);
-        valueFontWeightRow.Children.Add(_valueFontWeightComboBox);
-
-        _valueEnableCustomFontWeightToggle = new ToggleSwitch { Content = "启用自定义字重" };
-        _valueEnableCustomFontWeightToggle.IsCheckedChanged += OnValueEnableCustomFontWeightChanged;
-        Grid.SetColumn(_valueEnableCustomFontWeightToggle, 2);
-        valueFontWeightRow.Children.Add(_valueEnableCustomFontWeightToggle);
-        sp.Children.Add(valueFontWeightRow);
-
-        sp.Children.Add(new TextBlock
-        {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        });
-
-        _valueEnableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", HorizontalAlignment = HorizontalAlignment.Left };
-        _valueEnableCustomFontFamilyToggle.IsCheckedChanged += OnValueEnableCustomFontFamilyChanged;
-        sp.Children.Add(_valueEnableCustomFontFamilyToggle);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _valueFontSizeLabelTextBlock, out _valueFontSizeTextBox, out _valueEnableCustomFontSizeToggle, OnValueFontSizeLostFocus, OnValueEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _valueColorLabelTextBlock, out _valueColorTextBox, out _valueEnableCustomFontColorToggle, OnValueColorLostFocus, OnValueEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontFamilyRow("字体样式", out _valueFontFamilyComboBox, out _valueEnableCustomFontFamilyToggle, OnValueEnableCustomFontFamilyChanged, OnValueFontFamilyChanged));
+        sp.Children.Add(CreateFontWeightRow("字重", out _valueFontWeightComboBox, out _valueEnableCustomFontWeightToggle, OnValueEnableCustomFontWeightChanged, OnValueFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         var scrollViewer = new ScrollViewer
         {
@@ -244,6 +73,130 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
             Content = sp
         };
         Content = scrollViewer;
+    }
+
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
+        {
+            comboBox.Items.Add(font);
+        }
+        comboBox.SelectionChanged += selectionChangedHandler;
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var weight in FontFamilyHelper.GetFontWeights())
+        {
+            comboBox.Items.Add(weight);
+        }
+        comboBox.SelectionChanged += selectionChangedHandler;
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private TextBlock CreateFontWeightHintTextBlock()
+    {
+        return new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
     }
 
     private void UpdateThemeColors()
@@ -395,7 +348,7 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         }
     }
 
-    private void OnLabelColorLostFocus(object? sender, EventArgs e)
+    private void OnLabelColorLostFocus(object? sender, RoutedEventArgs e)
     {
         var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
@@ -416,7 +369,7 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         }
     }
 
-    private void OnLabelFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnLabelFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_labelFontSizeTextBox.Text, out double size))
         {
@@ -429,7 +382,7 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         }
     }
 
-    private void OnValueColorLostFocus(object? sender, EventArgs e)
+    private void OnValueColorLostFocus(object? sender, RoutedEventArgs e)
     {
         var color = _valueColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
@@ -450,7 +403,7 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         }
     }
 
-    private void OnValueFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnValueFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_valueFontSizeTextBox.Text, out double size))
         {

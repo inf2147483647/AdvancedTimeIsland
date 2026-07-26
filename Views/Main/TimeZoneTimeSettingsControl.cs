@@ -4,6 +4,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -44,106 +45,20 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         _descTextBlock = new TextBlock { Text = "选择时区", FontSize = 12, TextWrapping = TextWrapping.Wrap };
         sp.Children.Add(_descTextBlock);
 
-        _timeZoneComboBox = new ComboBox { Width = 250 };
+        _timeZoneComboBox = new ComboBox { Width = 250, HorizontalAlignment = HorizontalAlignment.Left };
         var tzs = TimeZoneInfo.GetSystemTimeZones();
         foreach (var tz in tzs) _timeZoneComboBox.Items.Add(tz);
         _timeZoneComboBox.SelectionChanged += OnTimeZoneSelectionChanged;
         sp.Children.Add(_timeZoneComboBox);
 
-        _enableCustomFontSizeToggle = new ToggleSwitch { Content = "启用自定义字体大小", Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        _enableCustomFontSizeToggle.IsCheckedChanged += OnEnableCustomFontSizeChanged;
-        sp.Children.Add(_enableCustomFontSizeToggle);
-
-        _enableCustomFontColorToggle = new ToggleSwitch { Content = "启用自定义字体颜色", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        _enableCustomFontColorToggle.IsCheckedChanged += OnEnableCustomFontColorChanged;
-        sp.Children.Add(_enableCustomFontColorToggle);
-
         _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
         sp.Children.Add(_styleTitleTextBlock);
 
-        var colorRow = new Grid();
-        colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        colorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _colorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_colorLabelTextBlock, 0);
-        colorRow.Children.Add(_colorLabelTextBlock);
-
-        _colorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
-        Grid.SetColumn(_colorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_colorTextBox, OnColorLostFocus);
-        colorRow.Children.Add(_colorTextBox);
-        sp.Children.Add(colorRow);
-
-        var fontSizeRow = new Grid();
-        fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _fontSizeLabelTextBlock = new TextBlock { Text = "文本大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_fontSizeLabelTextBlock, 0);
-        fontSizeRow.Children.Add(_fontSizeLabelTextBlock);
-
-        _fontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_fontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_fontSizeTextBox, OnFontSizeLostFocus);
-        fontSizeRow.Children.Add(_fontSizeTextBox);
-        sp.Children.Add(fontSizeRow);
-
-        var fontFamilyRow = new Grid();
-        fontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontFamilyRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var fontFamilyLabel = new TextBlock { Text = "字体:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(fontFamilyLabel, 0);
-        fontFamilyRow.Children.Add(fontFamilyLabel);
-
-        _fontFamilyComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
-        {
-            _fontFamilyComboBox.Items.Add(font);
-        }
-        _fontFamilyComboBox.SelectionChanged += OnFontFamilyChanged;
-        Grid.SetColumn(_fontFamilyComboBox, 1);
-        fontFamilyRow.Children.Add(_fontFamilyComboBox);
-        sp.Children.Add(fontFamilyRow);
-
-        var fontWeightRow = new Grid();
-        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        fontWeightRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var fontWeightLabel = new TextBlock { Text = "字重:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(fontWeightLabel, 0);
-        fontWeightRow.Children.Add(fontWeightLabel);
-
-        _fontWeightComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
-        foreach (var weight in FontFamilyHelper.GetFontWeights())
-        {
-            _fontWeightComboBox.Items.Add(weight);
-        }
-        _fontWeightComboBox.SelectionChanged += OnFontWeightChanged;
-        Grid.SetColumn(_fontWeightComboBox, 1);
-        fontWeightRow.Children.Add(_fontWeightComboBox);
-
-        _enableCustomFontWeightToggle = new ToggleSwitch { Content = "启用自定义字重" };
-        _enableCustomFontWeightToggle.IsCheckedChanged += OnEnableCustomFontWeightChanged;
-        Grid.SetColumn(_enableCustomFontWeightToggle, 2);
-        fontWeightRow.Children.Add(_enableCustomFontWeightToggle);
-        sp.Children.Add(fontWeightRow);
-
-        sp.Children.Add(new TextBlock
-        {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        });
-
-        _enableCustomFontFamilyToggle = new ToggleSwitch { Content = "启用自定义字体", Margin = new Thickness(0, 4, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        _enableCustomFontFamilyToggle.IsCheckedChanged += OnEnableCustomFontFamilyChanged;
-        sp.Children.Add(_enableCustomFontFamilyToggle);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _fontSizeLabelTextBlock, out _fontSizeTextBox, out _enableCustomFontSizeToggle, OnFontSizeLostFocus, OnEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _colorLabelTextBlock, out _colorTextBox, out _enableCustomFontColorToggle, OnColorLostFocus, OnEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontFamilyRow("字体样式", out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
+        sp.Children.Add(CreateFontWeightRow("字重", out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
 
         var scrollViewer = new ScrollViewer
         {
@@ -152,6 +67,130 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
             Content = sp
         };
         Content = scrollViewer;
+    }
+
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
+        Grid.SetColumn(textBox, 1);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
+        row.Children.Add(textBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
+        {
+            comboBox.Items.Add(font);
+        }
+        comboBox.SelectionChanged += selectionChangedHandler;
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var weight in FontFamilyHelper.GetFontWeights())
+        {
+            comboBox.Items.Add(weight);
+        }
+        comboBox.SelectionChanged += selectionChangedHandler;
+        Grid.SetColumn(comboBox, 1);
+        row.Children.Add(comboBox);
+
+        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        Grid.SetColumn(toggle, 2);
+        toggle.IsCheckedChanged += toggleHandler;
+        row.Children.Add(toggle);
+
+        return row;
+    }
+
+    private TextBlock CreateFontWeightHintTextBlock()
+    {
+        return new TextBlock
+        {
+            Text = "需要对应字体支持所选字重",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = Avalonia.Media.Brushes.Orange,
+            Margin = new Thickness(0, 2, 0, 0)
+        };
     }
 
     private void UpdateThemeColors()
@@ -264,7 +303,7 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         if (_timeZoneComboBox.SelectedItem is TimeZoneInfo tz) Settings.TimeZoneId = tz.Id;
     }
 
-    private void OnColorLostFocus(object? sender, EventArgs e)
+    private void OnColorLostFocus(object? sender, RoutedEventArgs e)
     {
         var color = _colorTextBox.Text ?? ThemeHelper.GetTextColorHex();
         if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
@@ -285,7 +324,7 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         }
     }
 
-    private void OnFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnFontSizeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (double.TryParse(_fontSizeTextBox.Text, out double size))
         {

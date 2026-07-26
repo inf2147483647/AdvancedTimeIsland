@@ -229,42 +229,42 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text1StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
-        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
-        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("文本颜色", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
         fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _nameStyleTextBlock = new TextBlock { Text = "正向计时器名称样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_nameStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _nameFontSizeTextBox, out _nameEnableCustomFontSizeToggle, OnNameEnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
-        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _nameFontFamilyComboBox, out _nameEnableCustomFontFamilyToggle, OnNameEnableCustomFontFamilyChanged));
-        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _nameFontWeightComboBox, out _nameEnableCustomFontWeightToggle, OnNameEnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _nameFontSizeTextBox, out _nameEnableCustomFontSizeToggle, OnNameEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("文本颜色", out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _nameFontFamilyComboBox, out _nameEnableCustomFontFamilyToggle, OnNameEnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重", out _nameFontWeightComboBox, out _nameEnableCustomFontWeightToggle, OnNameEnableCustomFontWeightChanged));
         fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
-        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
-        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("文本颜色", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
         fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
-        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
-        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("文本颜色", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
         fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
-        fontPanel.Children.Add(CreateFontFamilyRow("字体:", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
-        fontPanel.Children.Add(CreateFontWeightRow("字重:", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateColorRow("文本颜色", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
+        fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
+        fontPanel.Children.Add(CreateFontWeightRow("字重", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
         fontPanel.Children.Add(CreateFontWeightHintTextBlock());
 
         fontGroup.Content = fontPanel;
@@ -300,12 +300,12 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private Grid CreateFontRow(string label, out TextBox? textBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
@@ -314,7 +314,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(textBox, 1);
         row.Children.Add(textBox);
 
-        toggle = new ToggleSwitch { Content = "使用自定义大小" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -325,12 +325,12 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private Grid CreateColorRow(string label, out ColorPicker? colorPicker, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
@@ -339,7 +339,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(colorPicker, 1);
         row.Children.Add(colorPicker);
 
-        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -350,12 +350,12 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private Grid CreateFontFamilyRow(string label, out ComboBox? comboBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
@@ -368,7 +368,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字体" };
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -379,12 +379,12 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private Grid CreateFontWeightRow(string label, out ComboBox? comboBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
+        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         _dynamicTextBlocks.Add(lbl);
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);

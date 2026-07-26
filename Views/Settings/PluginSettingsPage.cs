@@ -948,7 +948,7 @@ public class PluginSettingsPage : UserControl
         };
 
         comboBox.Items.Add("ntp.aliyun.com");
-        comboBox.Items.Add("1ntp.aliyun.com");
+        comboBox.Items.Add("ntp.tencent.com");
         comboBox.Items.Add("cn.ntp.org.cn");
         comboBox.Items.Add("pool.ntp.org");
         comboBox.Items.Add("time.windows.com");
