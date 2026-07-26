@@ -205,34 +205,7 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
         UpdateDisplays();
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            switch (e.PropertyName)
-            {
-                case nameof(vm.Text1Display):
-                    tbText1.Text = vm.Text1Display;
-                    break;
-                case nameof(vm.NameDisplay):
-                    tbName.Text = vm.NameDisplay;
-                    break;
-                case nameof(vm.Text3Display):
-                    tbText3.Text = vm.Text3Display;
-                    break;
-                case nameof(vm.TimeDisplay):
-                    tbTime.Text = vm.TimeDisplay;
-                    break;
-                case nameof(vm.Text4Display):
-                    tbText4.Text = vm.Text4Display;
-                    break;
-                case nameof(vm.Percent):
-                    UpdateProgressDisplay();
-                    break;
-                case nameof(vm.IsAllCompleted):
-                case nameof(vm.IsEmpty):
-                    UpdateDisplays();
-                    break;
-            }
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         Settings.PropertyChanged += OnSettingsChanged;
 
@@ -364,6 +337,35 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         }
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(vm.Text1Display):
+                tbText1.Text = vm.Text1Display;
+                break;
+            case nameof(vm.NameDisplay):
+                tbName.Text = vm.NameDisplay;
+                break;
+            case nameof(vm.Text3Display):
+                tbText3.Text = vm.Text3Display;
+                break;
+            case nameof(vm.TimeDisplay):
+                tbTime.Text = vm.TimeDisplay;
+                break;
+            case nameof(vm.Text4Display):
+                tbText4.Text = vm.Text4Display;
+                break;
+            case nameof(vm.Percent):
+                UpdateProgressDisplay();
+                break;
+            case nameof(vm.IsAllCompleted):
+            case nameof(vm.IsEmpty):
+                UpdateDisplays();
+                break;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -372,6 +374,7 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

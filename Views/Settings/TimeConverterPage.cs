@@ -324,7 +324,7 @@ public class TimeConverterPage : UserControl
             CornerRadius = new CornerRadius(4),
             Minimum = 0,
             Maximum = long.MaxValue,
-            Increment = 1,
+            Increment = 0.001m,
             FormatString = "0.###"
         };
         inputPanel.Children.Add(_unixInputTextBox);
@@ -1119,7 +1119,7 @@ public class TimeConverterPage : UserControl
             var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampBigInteger(dt);
             if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
             {
-                _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                _unixInputTextBox!.Value = (decimal)(long)timestamp / 1000m;
             }
             else
             {
@@ -1277,8 +1277,8 @@ public class TimeConverterPage : UserControl
         {
             try
             {
-                // 复制到剪贴板 - 由于API差异，这里简化处理
-                var text = _unixInputTextBox.Value.Value.ToString();
+                // 复制到剪贴板 - 显示秒级时间戳（精确到0.001）
+                var text = _unixInputTextBox.Value.Value.ToString("0.###");
                 // 在Avalonia中，可以通过TopLevel获取剪贴板
                 if (TopLevel.GetTopLevel(this) is { } topLevel)
                 {
@@ -1299,7 +1299,7 @@ public class TimeConverterPage : UserControl
             SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
-        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
+        var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         DateTime dt;
         try
         {
@@ -1325,7 +1325,7 @@ public class TimeConverterPage : UserControl
             SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
-        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
+        var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         DateTime dt;
         try
         {
@@ -1348,7 +1348,7 @@ public class TimeConverterPage : UserControl
             SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
-        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
+        var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
             SetResultText(_unixResultTextBlock, "请先选择时区");
@@ -1392,7 +1392,7 @@ public class TimeConverterPage : UserControl
             SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
             return;
         }
-        var timestamp = (BigInteger)_unixInputTextBox.Value.Value;
+        var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         if (!TryParseLongitude(out var longitude))
         {
             SetResultText(_unixResultTextBlock, "请输入有效的经度");
@@ -1462,7 +1462,7 @@ public class TimeConverterPage : UserControl
             var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampBigInteger(dt);
             if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
                 {
-                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp / 1000m;
                 }
                 else
                 {
@@ -1601,7 +1601,7 @@ public class TimeConverterPage : UserControl
             var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampUtcBigInteger(utcTime);
             if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
                 {
-                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp / 1000m;
                 }
                 else
                 {
@@ -1741,10 +1741,10 @@ public class TimeConverterPage : UserControl
 
         try
         {
-            var timestamp = UnixTimeHelper.ToUnixTimestamp(beijingTime);
+            var timestamp = BigIntegerUnixTimeHelper.ToUnixTimestampBigInteger(beijingTime);
             if (timestamp <= long.MaxValue && timestamp >= long.MinValue)
                 {
-                    _unixInputTextBox!.Value = (decimal)(long)timestamp;
+                    _unixInputTextBox!.Value = (decimal)(long)timestamp / 1000m;
                 }
                 else
                 {
@@ -2246,6 +2246,12 @@ public class TimeConverterPage : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        foreach (var timer in _resultTimers.Values)
+        {
+            timer.Stop();
+            timer.Dispose();
+        }
+        _resultTimers.Clear();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;

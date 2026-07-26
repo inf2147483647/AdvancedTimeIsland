@@ -85,15 +85,17 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         vm = new LocalSolarTimeViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.FullDisplay;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateFontColor(Settings.FontColor);
         UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 14);
         UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
         UpdateFontWeight(Settings.FontWeight);
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -104,6 +106,7 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 

@@ -973,6 +973,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        _hintTimer?.Stop();
+        _hintTimer?.Dispose();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;

@@ -148,11 +148,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.SunriseTime)) _sunriseTime.Text = vm.SunriseTime;
-            if (e.PropertyName == nameof(vm.SunsetTime)) _sunsetTime.Text = vm.SunsetTime;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         _sunriseTime.Text = vm.SunriseTime;
         _sunsetTime.Text = vm.SunsetTime;
@@ -164,6 +160,12 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 14, "sunsetTime");
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.SunriseTime)) _sunriseTime.Text = vm.SunriseTime;
+        if (e.PropertyName == nameof(vm.SunsetTime)) _sunsetTime.Text = vm.SunsetTime;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -171,6 +173,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
         _isDisposed = true;
     }

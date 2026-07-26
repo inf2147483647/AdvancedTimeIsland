@@ -86,10 +86,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         vm = new AdvancedDateViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.DateDisplay;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.DateDisplay)) tb.Text = vm.DateDisplay;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         UpdateFontColor(Settings.FontColor);
         UpdateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
         UpdateFontFamily();
@@ -111,6 +108,11 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         }
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.DateDisplay)) tb.Text = vm.DateDisplay;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -119,6 +121,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
         _isDisposed = true;
     }

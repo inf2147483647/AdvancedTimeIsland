@@ -93,13 +93,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         yiValueTb.Text = vm.YiValueText;
         jiLabelTb.Text = vm.JiLabelText;
         jiValueTb.Text = vm.JiValueText;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.YiLabelText)) yiLabelTb.Text = vm.YiLabelText;
-            if (e.PropertyName == nameof(vm.YiValueText)) yiValueTb.Text = vm.YiValueText;
-            if (e.PropertyName == nameof(vm.JiLabelText)) jiLabelTb.Text = vm.JiLabelText;
-            if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateYiLabelFontColor(Settings.YiLabelFontColor);
         UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 14);
@@ -117,6 +111,14 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         UpdateJiValueFontWeight(Settings.JiValueFontWeight);
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.YiLabelText)) yiLabelTb.Text = vm.YiLabelText;
+        if (e.PropertyName == nameof(vm.YiValueText)) yiValueTb.Text = vm.YiValueText;
+        if (e.PropertyName == nameof(vm.JiLabelText)) jiLabelTb.Text = vm.JiLabelText;
+        if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -125,6 +127,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 

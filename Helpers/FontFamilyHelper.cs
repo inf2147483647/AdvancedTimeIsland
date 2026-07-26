@@ -6,12 +6,18 @@ namespace AdvancedTimeIsland.Helpers;
 
 public static class FontFamilyHelper
 {
+    private static List<string>? _cachedSystemFontFamilies;
+
     public static List<string> GetSystemFontFamilies()
     {
-        return FontManager.Current.SystemFonts
+        if (_cachedSystemFontFamilies != null)
+            return _cachedSystemFontFamilies;
+
+        _cachedSystemFontFamilies = FontManager.Current.SystemFonts
             .Select(f => f.Name)
             .OrderBy(f => f)
             .ToList();
+        return _cachedSystemFontFamilies;
     }
     
     public static FontFamily GetFontFamilyOrDefault(string fontFamilyName)

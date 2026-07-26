@@ -118,11 +118,7 @@ public class FestivalControl : ComponentBase<FestivalSettings>
         DataContext = vm;
         labelTb.Text = vm.LabelText;
         valueTb.Text = vm.ValueText;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.LabelText)) labelTb.Text = vm.LabelText;
-            if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateLabelFontColor(Settings.LabelFontColor);
         UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
@@ -134,6 +130,12 @@ public class FestivalControl : ComponentBase<FestivalSettings>
         UpdateValueFontWeight(Settings.ValueFontWeight);
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.LabelText)) labelTb.Text = vm.LabelText;
+        if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -142,6 +144,7 @@ public class FestivalControl : ComponentBase<FestivalSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 

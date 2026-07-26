@@ -88,13 +88,7 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
         nameTb.Text = vm.NameDisplay;
         text3Tb.Text = vm.Text3Display;
         timeTb.Text = vm.TimeDisplay;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.Text1Display)) text1Tb.Text = vm.Text1Display;
-            if (e.PropertyName == nameof(vm.NameDisplay)) nameTb.Text = vm.NameDisplay;
-            if (e.PropertyName == nameof(vm.Text3Display)) text3Tb.Text = vm.Text3Display;
-            if (e.PropertyName == nameof(vm.TimeDisplay)) timeTb.Text = vm.TimeDisplay;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         UpdateText1FontColor(Settings.Text1FontColor);
         UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
         UpdateNameFontColor(Settings.NameFontColor);
@@ -105,6 +99,14 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
         UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.Text1Display)) text1Tb.Text = vm.Text1Display;
+        if (e.PropertyName == nameof(vm.NameDisplay)) nameTb.Text = vm.NameDisplay;
+        if (e.PropertyName == nameof(vm.Text3Display)) text3Tb.Text = vm.Text3Display;
+        if (e.PropertyName == nameof(vm.TimeDisplay)) timeTb.Text = vm.TimeDisplay;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -112,6 +114,7 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

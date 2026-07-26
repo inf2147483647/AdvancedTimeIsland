@@ -127,37 +127,7 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
             UpdateText1Style, UpdateNameStyle, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            switch (e.PropertyName)
-            {
-                case nameof(vm.Text1Display):
-                    tbText1.Text = vm.Text1Display;
-                    break;
-                case nameof(vm.NameDisplay):
-                    tbName.Text = vm.NameDisplay;
-                    break;
-                case nameof(vm.Text3Display):
-                    tbText3.Text = vm.Text3Display;
-                    break;
-                case nameof(vm.TimeDisplay):
-                    tbTime.Text = vm.TimeDisplay;
-                    break;
-                case nameof(vm.Text4Display):
-                    tbText4.Text = vm.Text4Display;
-                    break;
-                case nameof(vm.IsNotStarted):
-                    if (vm.IsNotStarted)
-                    {
-                        tbText1.Text = "";
-                        tbName.Text = "";
-                        tbText3.Text = "正向计时器未开始";
-                        tbTime.Text = "";
-                        tbText4.Text = "";
-                    }
-                    break;
-            }
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         Settings.PropertyChanged += OnSettingsChanged;
 
@@ -195,6 +165,38 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         }
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        switch (e.PropertyName)
+        {
+            case nameof(vm.Text1Display):
+                tbText1.Text = vm.Text1Display;
+                break;
+            case nameof(vm.NameDisplay):
+                tbName.Text = vm.NameDisplay;
+                break;
+            case nameof(vm.Text3Display):
+                tbText3.Text = vm.Text3Display;
+                break;
+            case nameof(vm.TimeDisplay):
+                tbTime.Text = vm.TimeDisplay;
+                break;
+            case nameof(vm.Text4Display):
+                tbText4.Text = vm.Text4Display;
+                break;
+            case nameof(vm.IsNotStarted):
+                if (vm.IsNotStarted)
+                {
+                    tbText1.Text = "";
+                    tbName.Text = "";
+                    tbText3.Text = "正向计时器未开始";
+                    tbTime.Text = "";
+                    tbText4.Text = "";
+                }
+                break;
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -202,6 +204,8 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

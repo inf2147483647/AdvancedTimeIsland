@@ -235,16 +235,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateOneSecondFrameCountForeground, UpdateValueFontSize, UpdateValueFontColor);
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (!_isEnabled) return;
-            if (e.PropertyName == nameof(vm.FpsText)) valueFpsTb.Text = vm.FpsText;
-            if (e.PropertyName == nameof(vm.MaxText)) valueMaxTb.Text = vm.MaxText;
-            if (e.PropertyName == nameof(vm.AvgText)) valueAvgTb.Text = vm.AvgText;
-            if (e.PropertyName == nameof(vm.MinText)) valueMinTb.Text = vm.MinText;
-            if (e.PropertyName == nameof(vm.Low1Text)) valueLow1Tb.Text = vm.Low1Text;
-            if (e.PropertyName == nameof(vm.OneSecondFrameCountText)) valueOneSecondFrameCountTb.Text = vm.OneSecondFrameCountText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         _topLevel = TopLevel.GetTopLevel(this);
         _lastFrameTimestamp = 0;
@@ -340,6 +331,17 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
     }
 
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (!_isEnabled || vm == null) return;
+        if (e.PropertyName == nameof(vm.FpsText)) valueFpsTb.Text = vm.FpsText;
+        if (e.PropertyName == nameof(vm.MaxText)) valueMaxTb.Text = vm.MaxText;
+        if (e.PropertyName == nameof(vm.AvgText)) valueAvgTb.Text = vm.AvgText;
+        if (e.PropertyName == nameof(vm.MinText)) valueMinTb.Text = vm.MinText;
+        if (e.PropertyName == nameof(vm.Low1Text)) valueLow1Tb.Text = vm.Low1Text;
+        if (e.PropertyName == nameof(vm.OneSecondFrameCountText)) valueOneSecondFrameCountTb.Text = vm.OneSecondFrameCountText;
+    }
+
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -353,6 +355,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         _renderTimerSubscription = null;
         _topLevel = null;
         _isEnabled = false;
+        if (vm != null) vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }
