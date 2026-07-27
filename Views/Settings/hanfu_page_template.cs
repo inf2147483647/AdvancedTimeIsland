@@ -238,6 +238,88 @@ Hanfu | Photo Count
 <span style='cursor:pointer'>鼠标变手</span>
 <span style=""color:red; font-size:18px; font-weight:bold; background:#fff2f2; padding:4px 8px; border-radius:4px; cursor:pointer; font-family: 楷体, '宋体', serif;"">楷体红色18px加粗文字，浅红背景圆角变手</span>
 
+> [!tip]
+This is a tip
+
+```
+> [!tip]
+This is a tip
+```
+or  
+```
+> [!tip]
+> This is a tip
+```
+
+---
+> [!note]
+This is a note
+
+```
+> [!note]
+This is a note
+```
+or  
+```
+> [!note]
+> This is a note
+```
+
+---
+> [!warning]
+This is a warning
+
+```
+> [!warning]
+This is a warning
+```
+or  
+```
+> [!warning]
+> This is a warning
+```
+
+---
+> [!caution]
+This is a caution
+
+```
+> [!caution]
+This is a caution
+```
+or  
+```
+> [!caution]
+> This is a caution
+```
+
+---
+> [!tip]
+How to end a tip
+
+Leave one blank line in between
+
+```
+> [!tip]
+How to end a tip
+<!-- One blank line left -->
+Leave one blank line in between
+```
+
+---
+> [a normal info]
+This is a normal info
+
+```
+> [a normal info]
+This is a normal info
+```
+or  
+```
+> [a normal info]
+> This is a normal info
+```
+
 ";
 
         RenderMarkdown(panel, markdown);
@@ -245,6 +327,9 @@ Hanfu | Photo Count
 
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
+        markdown = StripHtmlComments(markdown);
+        markdown = PreprocessAlertBlocks(markdown);
+        
         var pipeline = new Markdig.MarkdownPipelineBuilder()
             .UseEmphasisExtras()
             .UsePipeTables()
@@ -260,6 +345,81 @@ Hanfu | Photo Count
         }
     }
 
+    private string PreprocessAlertBlocks(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inAlert = false;
+        int alertStartLine = -1;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart();
+
+            if (trimmed.StartsWith("> [!tip]") || trimmed.StartsWith("> [!note]") ||
+                trimmed.StartsWith("> [!warning]") || trimmed.StartsWith("> [!caution]") ||
+                Regex.IsMatch(trimmed, @"^>\s*\[[^\]!]+\]\s*$"))
+            {
+                inAlert = true;
+                alertStartLine = i;
+                result.Add(line);
+            }
+            else if (inAlert)
+            {
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    inAlert = false;
+                    result.Add(line);
+                }
+                else if (!trimmed.StartsWith(">"))
+                {
+                    var spaces = line.Length - line.TrimStart().Length;
+                    result.Add(new string(' ', spaces) + "> " + trimmed);
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string StripHtmlComments(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processedLine = Regex.Replace(line, @"<!--[\s\S]*?-->", "", RegexOptions.Singleline);
+            result.Add(processedLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
     private Control? ConvertMarkdownBlock(MarkdownObject block)
     {
         return block switch
@@ -270,7 +430,18 @@ Hanfu | Photo Count
             QuoteBlock quote => ConvertQuoteBlock(quote),
             ListBlock list => ConvertListBlock(list),
             Markdig.Extensions.Tables.Table table => ConvertTableBlock(table),
+            ThematicBreakBlock => ConvertThematicBreak(),
             _ => null
+        };
+    }
+
+    private Control ConvertThematicBreak()
+    {
+        return new Border
+        {
+            Background = ThemeHelper.GetSeparatorBrush(),
+            Height = 1,
+            Margin = new Thickness(0, 8, 0, 8)
         };
     }
 
@@ -1182,8 +1353,217 @@ Hanfu | Photo Count
         return border;
     }
 
+    private enum AlertType
+    {
+        None,
+        Tip,
+        Note,
+        Warning,
+        Caution,
+        Custom
+    }
+
+    private (AlertType Type, string CustomTitle) DetectAlertType(QuoteBlock quote)
+    {
+        foreach (var block in quote)
+        {
+            if (block is ParagraphBlock paragraph)
+            {
+                var text = paragraph.Inline?.ToString() ?? "";
+                var specificMatch = Regex.Match(text, @"^\[!(tip|note|warning|caution)\]", RegexOptions.IgnoreCase);
+                if (specificMatch.Success)
+                {
+                    return specificMatch.Groups[1].Value.ToLowerInvariant() switch
+                    {
+                        "tip" => (AlertType.Tip, ""),
+                        "note" => (AlertType.Note, ""),
+                        "warning" => (AlertType.Warning, ""),
+                        "caution" => (AlertType.Caution, ""),
+                        _ => (AlertType.None, "")
+                    };
+                }
+                
+                var customMatch = Regex.Match(text, @"^\[([^\]!]+)\]", RegexOptions.IgnoreCase);
+                if (customMatch.Success)
+                {
+                    return (AlertType.Custom, customMatch.Groups[1].Value.Trim());
+                }
+                
+                break;
+            }
+        }
+        return (AlertType.None, "");
+    }
+
+    private ParagraphBlock? StripAlertMarker(ParagraphBlock paragraph, AlertType alertType)
+    {
+        var text = paragraph.Inline?.ToString() ?? "";
+        var specificMatch = Regex.Match(text, @"^\[!(tip|note|warning|caution)\]\s*", RegexOptions.IgnoreCase);
+        var customMatch = Regex.Match(text, @"^\[[^\]!]+\]\s*", RegexOptions.IgnoreCase);
+        
+        var match = specificMatch.Success ? specificMatch : (customMatch.Success ? customMatch : null);
+        
+        if (match == null)
+        {
+            return paragraph;
+        }
+
+        var markerLength = match.Value.Length;
+        
+        var remainingText = text.Substring(markerLength).Trim();
+        if (string.IsNullOrWhiteSpace(remainingText))
+        {
+            return null;
+        }
+        
+        var newParagraph = new ParagraphBlock(paragraph.Parser);
+        var container = new ContainerInline();
+        container.AppendChild(new LiteralInline(remainingText));
+        newParagraph.Inline = container;
+        return newParagraph;
+    }
+
+    private Control ConvertAlertBlock(QuoteBlock quote, AlertType alertType, string customTitle = "")
+    {
+        var isDark = ThemeHelper.IsDarkTheme();
+        
+        IBrush borderColor, titleColor, bgColor;
+        switch (alertType)
+        {
+            case AlertType.Tip:
+                borderColor = new SolidColorBrush(Color.Parse(isDark ? "#00B368" : "#007D4B"));
+                titleColor = new SolidColorBrush(Color.Parse(isDark ? "#67E8A4" : "#005A36"));
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#0D2A1C" : "#F0FAF5"));
+                break;
+            case AlertType.Note:
+                borderColor = new SolidColorBrush(Color.Parse(isDark ? "#3B82F6" : "#1D4ED8"));
+                titleColor = new SolidColorBrush(Color.Parse(isDark ? "#60A5FA" : "#1E40AF"));
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#0E1F3D" : "#EFF6FF"));
+                break;
+            case AlertType.Warning:
+                borderColor = ThemeHelper.GetOrangeBrush();
+                titleColor = ThemeHelper.GetOrangeBrush();
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#332905" : "#FFFBEB"));
+                break;
+            case AlertType.Caution:
+                borderColor = Brushes.Red;
+                titleColor = Brushes.Red;
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#330505" : "#FEF2F2"));
+                break;
+            case AlertType.Custom:
+                borderColor = GetAccentBrush();
+                titleColor = GetAccentBrush();
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#1E2A3D" : "#F3F4F6"));
+                break;
+            default:
+                borderColor = GetAccentBrush();
+                titleColor = GetAccentBrush();
+                bgColor = Brushes.Transparent;
+                break;
+        }
+
+        var (icon, titleText) = alertType switch
+        {
+            AlertType.Tip => ("💡", "Tip"),
+            AlertType.Note => ("📝", "Note"),
+            AlertType.Warning => ("⚠️", "Warning"),
+            AlertType.Caution => ("⛔", "Caution"),
+            AlertType.Custom => ("📌", customTitle),
+            _ => ("", "")
+        };
+
+        var grid = new Grid
+        {
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var leftBorder = new Border
+        {
+            Background = borderColor
+        };
+        Grid.SetColumn(leftBorder, 0);
+        grid.Children.Add(leftBorder);
+
+        var contentBorder = new Border
+        {
+            Background = bgColor,
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        Grid.SetColumn(contentBorder, 1);
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4
+        };
+
+        var titlePanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var iconText = new TextBlock
+        {
+            Text = icon,
+            FontSize = 14
+        };
+        titlePanel.Children.Add(iconText);
+
+        var titleTextBlock = new TextBlock
+        {
+            Text = titleText,
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = titleColor
+        };
+        titlePanel.Children.Add(titleTextBlock);
+
+        panel.Children.Add(titlePanel);
+
+        var isFirst = true;
+        foreach (var block in quote)
+        {
+            if (block is ParagraphBlock paragraph && isFirst)
+            {
+                isFirst = false;
+                var cleanedParagraph = StripAlertMarker(paragraph, alertType);
+                if (cleanedParagraph != null)
+                {
+                    var element = ConvertParagraph(cleanedParagraph);
+                    if (element != null)
+                    {
+                        panel.Children.Add(element);
+                    }
+                }
+                continue;
+            }
+
+            isFirst = false;
+            var blockElement = ConvertMarkdownBlock(block);
+            if (blockElement != null)
+            {
+                panel.Children.Add(blockElement);
+            }
+        }
+
+        contentBorder.Child = panel;
+        grid.Children.Add(contentBorder);
+
+        return grid;
+    }
+
     private Control ConvertQuoteBlock(QuoteBlock quote)
     {
+        var (alertType, customTitle) = DetectAlertType(quote);
+        if (alertType != AlertType.None)
+        {
+            return ConvertAlertBlock(quote, alertType, customTitle);
+        }
+
         var grid = new Grid
         {
             Margin = new Thickness(0, 4, 0, 4)
