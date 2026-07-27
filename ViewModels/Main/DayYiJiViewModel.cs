@@ -14,9 +14,12 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
     private readonly TimeBaseService _timeBaseService;
     private readonly DayYiJiSettings _settings;
     private readonly System.Timers.Timer _updateTimer;
-    private readonly Action<string> _updateLabelFontColor;
-    private readonly Action<double> _updateLabelFontSize;
-    private readonly Action<double> _updateValueFontSize;
+    private readonly Action<string> _updateYiLabelFontColor;
+    private readonly Action<string> _updateJiLabelFontColor;
+    private readonly Action<double> _updateYiLabelFontSize;
+    private readonly Action<double> _updateYiValueFontSize;
+    private readonly Action<double> _updateJiLabelFontSize;
+    private readonly Action<double> _updateJiValueFontSize;
     private string _yiLabelText = string.Empty;
     private string _yiValueText = string.Empty;
     private string _jiLabelText = string.Empty;
@@ -24,14 +27,18 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
     private bool _isDisposed;
 
     public DayYiJiViewModel(TimeBaseService timeBaseService, DayYiJiSettings settings, 
-        Action<string> updateLabelFontColor = null, Action<double> updateLabelFontSize = null,
-        Action<double> updateValueFontSize = null)
+        Action<string> updateYiLabelFontColor = null, Action<string> updateJiLabelFontColor = null,
+        Action<double> updateYiLabelFontSize = null, Action<double> updateYiValueFontSize = null,
+        Action<double> updateJiLabelFontSize = null, Action<double> updateJiValueFontSize = null)
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
-        _updateLabelFontColor = updateLabelFontColor;
-        _updateLabelFontSize = updateLabelFontSize;
-        _updateValueFontSize = updateValueFontSize;
+        _updateYiLabelFontColor = updateYiLabelFontColor;
+        _updateJiLabelFontColor = updateJiLabelFontColor;
+        _updateYiLabelFontSize = updateYiLabelFontSize;
+        _updateYiValueFontSize = updateYiValueFontSize;
+        _updateJiLabelFontSize = updateJiLabelFontSize;
+        _updateJiValueFontSize = updateJiValueFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
         
@@ -45,30 +52,51 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(DayYiJiSettings.LabelFontColor) ||
-            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontColor) ||
-            e.PropertyName == nameof(DayYiJiSettings.LabelFontFamily) ||
-            e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontFamily))
+        if (e.PropertyName == nameof(DayYiJiSettings.YiLabelFontColor) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelEnableCustomFontColor))
         {
-            _updateLabelFontColor?.Invoke(_settings.LabelFontColor);
+            _updateYiLabelFontColor?.Invoke(_settings.YiLabelFontColor);
         }
-        if (e.PropertyName == nameof(DayYiJiSettings.LabelFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelFontFamily) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontFamily) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelFontWeight) ||
-                 e.PropertyName == nameof(DayYiJiSettings.LabelEnableCustomFontWeight))
+        if (e.PropertyName == nameof(DayYiJiSettings.JiLabelFontColor) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontColor))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateJiLabelFontColor?.Invoke(_settings.JiLabelFontColor);
         }
-        if (e.PropertyName == nameof(DayYiJiSettings.ValueFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontSize) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueFontFamily) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontFamily) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueFontWeight) ||
-                 e.PropertyName == nameof(DayYiJiSettings.ValueEnableCustomFontWeight))
+        if (e.PropertyName == nameof(DayYiJiSettings.YiLabelFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelEnableCustomFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelEnableCustomFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelFontWeight) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiLabelEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 14);
+        }
+        if (e.PropertyName == nameof(DayYiJiSettings.YiValueFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiValueEnableCustomFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiValueFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiValueEnableCustomFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiValueFontWeight) ||
+            e.PropertyName == nameof(DayYiJiSettings.YiValueEnableCustomFontWeight))
+        {
+            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 14);
+        }
+        if (e.PropertyName == nameof(DayYiJiSettings.JiLabelFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelFontWeight) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontWeight))
+        {
+            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 14);
+        }
+        if (e.PropertyName == nameof(DayYiJiSettings.JiValueFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiValueEnableCustomFontSize) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiValueFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiValueEnableCustomFontFamily) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiValueFontWeight) ||
+            e.PropertyName == nameof(DayYiJiSettings.JiValueEnableCustomFontWeight))
+        {
+            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 14);
         }
     }
 

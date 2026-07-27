@@ -16,26 +16,26 @@ namespace AdvancedTimeIsland.Views.Main;
 public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCountdownSettings>
 {
     private TextBox _formatTextBox;
-    private TextBox _text1FontSizeTextBox;
+    private NumericUpDown _text1FontSizeNumericUpDown;
     private ColorPicker _text1FontColorPicker;
-    private TextBox _nameFontSizeTextBox;
+    private NumericUpDown _nameFontSizeNumericUpDown;
     private ColorPicker _nameFontColorPicker;
-    private TextBox _text3FontSizeTextBox;
+    private NumericUpDown _text3FontSizeNumericUpDown;
     private ColorPicker _text3FontColorPicker;
-    private TextBox _timeFontSizeTextBox;
+    private NumericUpDown _timeFontSizeNumericUpDown;
     private ColorPicker _timeFontColorPicker;
     private ToggleSwitch _internationalToggle;
     private ToggleSwitch _traditionalToggle;
     private ToggleSwitch _redToggle;
 
-    private ToggleSwitch _text1EnableCustomFontSizeToggle;
-    private ToggleSwitch _text1EnableCustomFontColorToggle;
-    private ToggleSwitch _nameEnableCustomFontSizeToggle;
-    private ToggleSwitch _nameEnableCustomFontColorToggle;
-    private ToggleSwitch _text3EnableCustomFontSizeToggle;
-    private ToggleSwitch _text3EnableCustomFontColorToggle;
-    private ToggleSwitch _timeEnableCustomFontSizeToggle;
-    private ToggleSwitch _timeEnableCustomFontColorToggle;
+    private ToggleSwitch? _text1EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text1EnableCustomFontColorToggle;
+    private ToggleSwitch? _nameEnableCustomFontSizeToggle;
+    private ToggleSwitch? _nameEnableCustomFontColorToggle;
+    private ToggleSwitch? _text3EnableCustomFontSizeToggle;
+    private ToggleSwitch? _text3EnableCustomFontColorToggle;
+    private ToggleSwitch? _timeEnableCustomFontSizeToggle;
+    private ToggleSwitch? _timeEnableCustomFontColorToggle;
 
     private TextBlock _formatTitle;
     private TextBlock _formatLabel;
@@ -101,25 +101,41 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _redToggle.IsCheckedChanged += OnRedToggled;
         sp.Children.Add(_redToggle);
 
-        _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_text1Title);
-        sp.Children.Add(CreateFontSizeRow("字体大小:", out _text1FontSizeLabel, out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1FontSizeLostFocus, OnText1EnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("颜色:", out _text1ColorLabel, out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
+        _text1Title = new TextBlock { Text = "文本1样式", FontSize = 14, FontWeight = FontWeight.Bold };
+        var text1TitleRow = CreateTitleRow(_text1Title, out _text1EnableCustomFontSizeToggle, out _text1EnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnText1EnableCustomFontSizeChanged, OnText1EnableCustomFontColorChanged, null, null);
+        text1TitleRow.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(text1TitleRow);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _text1FontSizeLabel, out _text1FontSizeNumericUpDown, OnText1FontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _text1ColorLabel, out _text1FontColorPicker, OnText1ColorChanged));
 
-        _nameTitle = new TextBlock { Text = "节日名样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_nameTitle);
-        sp.Children.Add(CreateFontSizeRow("字体大小:", out _nameFontSizeLabel, out _nameFontSizeTextBox, out _nameEnableCustomFontSizeToggle, OnNameFontSizeLostFocus, OnNameEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("颜色:", out _nameColorLabel, out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
+        _nameTitle = new TextBlock { Text = "节日名样式", FontSize = 14, FontWeight = FontWeight.Bold };
+        var nameTitleRow = CreateTitleRow(_nameTitle, out _nameEnableCustomFontSizeToggle, out _nameEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnNameEnableCustomFontSizeChanged, OnNameEnableCustomFontColorChanged, null, null);
+        nameTitleRow.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(nameTitleRow);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _nameFontSizeLabel, out _nameFontSizeNumericUpDown, OnNameFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _nameColorLabel, out _nameFontColorPicker, OnNameColorChanged));
 
-        _text3Title = new TextBlock { Text = "文本3样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_text3Title);
-        sp.Children.Add(CreateFontSizeRow("字体大小:", out _text3FontSizeLabel, out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3FontSizeLostFocus, OnText3EnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("颜色:", out _text3ColorLabel, out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
+        _text3Title = new TextBlock { Text = "文本3样式", FontSize = 14, FontWeight = FontWeight.Bold };
+        var text3TitleRow = CreateTitleRow(_text3Title, out _text3EnableCustomFontSizeToggle, out _text3EnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnText3EnableCustomFontSizeChanged, OnText3EnableCustomFontColorChanged, null, null);
+        text3TitleRow.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(text3TitleRow);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _text3FontSizeLabel, out _text3FontSizeNumericUpDown, OnText3FontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _text3ColorLabel, out _text3FontColorPicker, OnText3ColorChanged));
 
-        _timeTitle = new TextBlock { Text = "时间样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_timeTitle);
-        sp.Children.Add(CreateFontSizeRow("字体大小:", out _timeFontSizeLabel, out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeFontSizeLostFocus, OnTimeEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("颜色:", out _timeColorLabel, out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
+        _timeTitle = new TextBlock { Text = "时间样式", FontSize = 14, FontWeight = FontWeight.Bold };
+        var timeTitleRow = CreateTitleRow(_timeTitle, out _timeEnableCustomFontSizeToggle, out _timeEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnTimeEnableCustomFontSizeChanged, OnTimeEnableCustomFontColorChanged, null, null);
+        timeTitleRow.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(timeTitleRow);
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _timeFontSizeLabel, out _timeFontSizeNumericUpDown, OnTimeFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _timeColorLabel, out _timeFontColorPicker, OnTimeColorChanged));
 
         var scrollViewer = new ScrollViewer
         {
@@ -130,11 +146,81 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         Content = scrollViewer;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateTitleRow(TextBlock title, out ToggleSwitch? toggle1, out ToggleSwitch? toggle2, out ToggleSwitch? toggle3, out ToggleSwitch? toggle4,
+        string? content1, string? content2, string? content3, string? content4,
+        EventHandler<RoutedEventArgs>? handler1, EventHandler<RoutedEventArgs>? handler2, EventHandler<RoutedEventArgs>? handler3, EventHandler<RoutedEventArgs>? handler4)
     {
         var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(title, 0);
+        row.Children.Add(title);
+
+        int col = 1;
+
+        if (content1 != null)
+        {
+            toggle1 = new ToggleSwitch { Content = content1, VerticalAlignment = VerticalAlignment.Center };
+            if (handler1 != null)
+                toggle1.IsCheckedChanged += handler1;
+            Grid.SetColumn(toggle1, col++);
+            row.Children.Add(toggle1);
+        }
+        else
+        {
+            toggle1 = null;
+        }
+
+        if (content2 != null)
+        {
+            toggle2 = new ToggleSwitch { Content = content2, VerticalAlignment = VerticalAlignment.Center };
+            if (handler2 != null)
+                toggle2.IsCheckedChanged += handler2;
+            Grid.SetColumn(toggle2, col++);
+            row.Children.Add(toggle2);
+        }
+        else
+        {
+            toggle2 = null;
+        }
+
+        if (content3 != null)
+        {
+            toggle3 = new ToggleSwitch { Content = content3, VerticalAlignment = VerticalAlignment.Center };
+            if (handler3 != null)
+                toggle3.IsCheckedChanged += handler3;
+            Grid.SetColumn(toggle3, col++);
+            row.Children.Add(toggle3);
+        }
+        else
+        {
+            toggle3 = null;
+        }
+
+        if (content4 != null)
+        {
+            toggle4 = new ToggleSwitch { Content = content4, VerticalAlignment = VerticalAlignment.Center };
+            if (handler4 != null)
+                toggle4.IsCheckedChanged += handler4;
+            Grid.SetColumn(toggle4, col);
+            row.Children.Add(toggle4);
+        }
+        else
+        {
+            toggle4 = null;
+        }
+
+        return row;
+    }
+
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown,
+        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    {
+        var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -143,24 +229,26 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
-        textBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "使用自定义大小" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        numericUpDown.ValueChanged += valueChangedHandler;
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
 
         return row;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker,
+        EventHandler<ColorChangedEventArgs> colorChangedHandler)
     {
         var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
@@ -170,13 +258,9 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         row.Children.Add(label);
 
         colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        colorPicker.ColorChanged += colorChangedHandler;
         Grid.SetColumn(colorPicker, 1);
         row.Children.Add(colorPicker);
-
-        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
 
         return row;
     }
@@ -208,61 +292,61 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
 
     private void OnText1EnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnText1EnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnNameEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.NameEnableCustomFontSize = _nameEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.NameEnableCustomFontSize = _nameEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnNameEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.NameEnableCustomFontColor = _nameEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.NameEnableCustomFontColor = _nameEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnText3EnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnText3EnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeTextBox.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontSizeNumericUpDown.IsEnabled = Settings.Text1EnableCustomFontSize;
         _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
-        _nameFontSizeTextBox.IsEnabled = Settings.NameEnableCustomFontSize;
+        _nameFontSizeNumericUpDown.IsEnabled = Settings.NameEnableCustomFontSize;
         _nameFontColorPicker.IsEnabled = Settings.NameEnableCustomFontColor;
-        _text3FontSizeTextBox.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontSizeNumericUpDown.IsEnabled = Settings.Text3EnableCustomFontSize;
         _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
-        _timeFontSizeTextBox.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontSizeNumericUpDown.IsEnabled = Settings.TimeEnableCustomFontSize;
         _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
     }
 
@@ -276,34 +360,29 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         UpdateThemeColors();
         _formatTextBox.Text = Settings.TimeFormat;
 
-        _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
+        _text1FontSizeNumericUpDown.Value = (decimal)Settings.Text1FontSize;
         _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
-        _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(CultureInfo.InvariantCulture);
+        _nameFontSizeNumericUpDown.Value = (decimal)Settings.NameFontSize;
         _nameFontColorPicker.Color = ParseColor(Settings.NameFontColor);
-        _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
+        _text3FontSizeNumericUpDown.Value = (decimal)Settings.Text3FontSize;
         _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
-        _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);
+        _timeFontSizeNumericUpDown.Value = (decimal)Settings.TimeFontSize;
         _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
 
         _internationalToggle.IsChecked = Settings.EnableInternationalFestivals;
         _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
         _redToggle.IsChecked = Settings.EnableRedFestivals;
 
-        _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
-        _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
-        _nameEnableCustomFontSizeToggle.IsChecked = Settings.NameEnableCustomFontSize;
-        _nameEnableCustomFontColorToggle.IsChecked = Settings.NameEnableCustomFontColor;
-        _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
-        _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
-        _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
-        _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
+        _text1EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontSize);
+        _text1EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontColor);
+        _nameEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontSize);
+        _nameEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontColor);
+        _text3EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontSize);
+        _text3EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontColor);
+        _timeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontSize);
+        _timeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontColor);
 
         UpdateControlsEnabled();
-
-        _text1FontColorPicker.ColorChanged += (s, e) => Settings.Text1FontColor = _text1FontColorPicker.Color.ToString();
-        _nameFontColorPicker.ColorChanged += (s, e) => Settings.NameFontColor = _nameFontColorPicker.Color.ToString();
-        _text3FontColorPicker.ColorChanged += (s, e) => Settings.Text3FontColor = _text3FontColorPicker.Color.ToString();
-        _timeFontColorPicker.ColorChanged += (s, e) => Settings.TimeFontColor = _timeFontColorPicker.Color.ToString();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -329,28 +408,56 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
 
     private void OnFormatLostFocus(object? sender, RoutedEventArgs e) { Settings.TimeFormat = _formatTextBox.Text ?? "%d天"; }
 
-    private void OnText1FontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnText1FontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_text1FontSizeTextBox.Text, out double size)) { Settings.Text1FontSize = size; }
-        _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
+        if (_text1FontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.Text1FontSize = (double)_text1FontSizeNumericUpDown.Value.Value;
+        }
     }
 
-    private void OnNameFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnNameFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_nameFontSizeTextBox.Text, out double size)) { Settings.NameFontSize = size; }
-        _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(CultureInfo.InvariantCulture);
+        if (_nameFontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.NameFontSize = (double)_nameFontSizeNumericUpDown.Value.Value;
+        }
     }
 
-    private void OnText3FontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnText3FontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_text3FontSizeTextBox.Text, out double size)) { Settings.Text3FontSize = size; }
-        _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
+        if (_text3FontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.Text3FontSize = (double)_text3FontSizeNumericUpDown.Value.Value;
+        }
     }
 
-    private void OnTimeFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnTimeFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_timeFontSizeTextBox.Text, out double size)) { Settings.TimeFontSize = size; }
-        _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);
+        if (_timeFontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.TimeFontSize = (double)_timeFontSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnText1ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text1FontColor = _text1FontColorPicker.Color.ToString();
+    }
+
+    private void OnNameColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.NameFontColor = _nameFontColorPicker.Color.ToString();
+    }
+
+    private void OnText3ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text3FontColor = _text3FontColorPicker.Color.ToString();
+    }
+
+    private void OnTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.TimeFontColor = _timeFontColorPicker.Color.ToString();
     }
 
     private void OnInternationalToggled(object? sender, EventArgs e) => Settings.EnableInternationalFestivals = _internationalToggle.IsChecked ?? true;

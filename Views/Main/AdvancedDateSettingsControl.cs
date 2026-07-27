@@ -15,21 +15,34 @@ namespace AdvancedTimeIsland.Views.Main;
 public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 {
     private ToggleSwitch _showWeekDayToggle;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
-    private ToggleSwitch _enableCustomFontFamilyToggle;
-    private ToggleSwitch _enableCustomFontWeightToggle;
-    private TextBox _colorTextBox;
-    private TextBox _fontSizeTextBox;
-    private ComboBox _fontFamilyComboBox;
-    private ComboBox _fontWeightComboBox;
+
+    private ToggleSwitch _dateEnableCustomFontSizeToggle;
+    private ToggleSwitch _dateEnableCustomFontColorToggle;
+    private ToggleSwitch _dateEnableCustomFontFamilyToggle;
+    private ToggleSwitch _dateEnableCustomFontWeightToggle;
+    private ColorPicker _dateColorPicker;
+    private NumericUpDown _dateFontSizeNumericUpDown;
+    private ComboBox _dateFontFamilyComboBox;
+    private ComboBox _dateFontWeightComboBox;
+
+    private ToggleSwitch _weekDayEnableCustomFontSizeToggle;
+    private ToggleSwitch _weekDayEnableCustomFontColorToggle;
+    private ToggleSwitch _weekDayEnableCustomFontFamilyToggle;
+    private ToggleSwitch _weekDayEnableCustomFontWeightToggle;
+    private ColorPicker _weekDayColorPicker;
+    private NumericUpDown _weekDayFontSizeNumericUpDown;
+    private ComboBox _weekDayFontFamilyComboBox;
+    private ComboBox _weekDayFontWeightComboBox;
 
     private TextBlock _titleTextBlock;
     private TextBlock _descTextBlock;
     private TextBlock _labelTextBlock;
-    private TextBlock _styleTitleTextBlock;
-    private TextBlock _colorLabelTextBlock;
-    private TextBlock _fontSizeLabelTextBlock;
+    private TextBlock _dateTitleTextBlock;
+    private TextBlock _dateColorLabelTextBlock;
+    private TextBlock _dateFontSizeLabelTextBlock;
+    private TextBlock _weekDayTitleTextBlock;
+    private TextBlock _weekDayColorLabelTextBlock;
+    private TextBlock _weekDayFontSizeLabelTextBlock;
 
     public AdvancedDateSettingsControl()
     {
@@ -61,13 +74,22 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 
         sp.Children.Add(row);
 
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
+        _dateTitleTextBlock = new TextBlock { Text = "日期样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_dateTitleTextBlock);
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _fontSizeLabelTextBlock, out _fontSizeTextBox, out _enableCustomFontSizeToggle, OnFontSizeLostFocus, OnEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _colorLabelTextBlock, out _colorTextBox, out _enableCustomFontColorToggle, OnColorLostFocus, OnEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _dateFontSizeLabelTextBlock, out _dateFontSizeNumericUpDown, out _dateEnableCustomFontSizeToggle, OnDateFontSizeChanged, OnDateEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _dateColorLabelTextBlock, out _dateColorPicker, out _dateEnableCustomFontColorToggle, OnDateColorChanged, OnDateEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontFamilyRow("字体样式", out _dateFontFamilyComboBox, out _dateEnableCustomFontFamilyToggle, OnDateEnableCustomFontFamilyChanged, OnDateFontFamilyChanged));
+        sp.Children.Add(CreateFontWeightRow("字重", out _dateFontWeightComboBox, out _dateEnableCustomFontWeightToggle, OnDateEnableCustomFontWeightChanged, OnDateFontWeightChanged));
+        sp.Children.Add(CreateFontWeightHintTextBlock());
+
+        _weekDayTitleTextBlock = new TextBlock { Text = "星期样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        sp.Children.Add(_weekDayTitleTextBlock);
+
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _weekDayFontSizeLabelTextBlock, out _weekDayFontSizeNumericUpDown, out _weekDayEnableCustomFontSizeToggle, OnWeekDayFontSizeChanged, OnWeekDayEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _weekDayColorLabelTextBlock, out _weekDayColorPicker, out _weekDayEnableCustomFontColorToggle, OnWeekDayColorChanged, OnWeekDayEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontFamilyRow("字体样式", out _weekDayFontFamilyComboBox, out _weekDayEnableCustomFontFamilyToggle, OnWeekDayEnableCustomFontFamilyChanged, OnWeekDayFontFamilyChanged));
+        sp.Children.Add(CreateFontWeightRow("字重", out _weekDayFontWeightComboBox, out _weekDayEnableCustomFontWeightToggle, OnWeekDayEnableCustomFontWeightChanged, OnWeekDayFontWeightChanged));
         sp.Children.Add(CreateFontWeightHintTextBlock());
 
         var scrollViewer = new ScrollViewer
@@ -79,8 +101,8 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Content = scrollViewer;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown, out ToggleSwitch toggle,
+        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -92,12 +114,20 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        numericUpDown.ValueChanged += valueChangedHandler;
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -105,8 +135,8 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         return row;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
+        EventHandler<ColorChangedEventArgs> colorChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -118,12 +148,12 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
-        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        colorPicker.ColorChanged += colorChangedHandler;
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -153,7 +183,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -183,7 +213,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -208,12 +238,18 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         _labelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _dateEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _dateEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _dateEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        _dateTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _dateColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _dateFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -221,56 +257,110 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         UpdateThemeColors();
     }
 
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnDateEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.EnableCustomFontSize = _dateEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnDateEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        Settings.EnableCustomFontColor = _dateEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    private void OnDateEnableCustomFontFamilyChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontFamily = _enableCustomFontFamilyToggle.IsChecked ?? false;
+        Settings.EnableCustomFontFamily = _dateEnableCustomFontFamilyToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontWeightChanged(object? sender, EventArgs e)
+    private void OnDateEnableCustomFontWeightChanged(object? sender, EventArgs e)
     {
-        Settings.EnableCustomFontWeight = _enableCustomFontWeightToggle.IsChecked ?? false;
+        Settings.EnableCustomFontWeight = _dateEnableCustomFontWeightToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnFontFamilyChanged(object? sender, EventArgs e)
+    private void OnWeekDayEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        if (_fontFamilyComboBox.SelectedItem != null)
+        Settings.WeekDayEnableCustomFontSize = _weekDayEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontColorChanged(object? sender, EventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontColor = _weekDayEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontFamily = _weekDayEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontWeightChanged(object? sender, EventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontWeight = _weekDayEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnDateFontFamilyChanged(object? sender, EventArgs e)
+    {
+        if (_dateFontFamilyComboBox.SelectedItem != null)
         {
-            Settings.FontFamily = _fontFamilyComboBox.SelectedItem.ToString() ?? "";
+            Settings.FontFamily = _dateFontFamilyComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
-    private void OnFontWeightChanged(object? sender, EventArgs e)
+    private void OnDateFontWeightChanged(object? sender, EventArgs e)
     {
-        if (_fontWeightComboBox.SelectedItem != null)
+        if (_dateFontWeightComboBox.SelectedItem != null)
         {
-            Settings.FontWeight = _fontWeightComboBox.SelectedItem.ToString() ?? "";
+            Settings.FontWeight = _dateFontWeightComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnWeekDayFontFamilyChanged(object? sender, EventArgs e)
+    {
+        if (_weekDayFontFamilyComboBox.SelectedItem != null)
+        {
+            Settings.WeekDayFontFamily = _weekDayFontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnWeekDayFontWeightChanged(object? sender, EventArgs e)
+    {
+        if (_weekDayFontWeightComboBox.SelectedItem != null)
+        {
+            Settings.WeekDayFontWeight = _weekDayFontWeightComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        var fontFamilyEnabled = Settings.EnableCustomFontFamily;
-        var fontWeightEnabled = Settings.EnableCustomFontWeight;
-        _colorTextBox.IsEnabled = fontColorEnabled;
-        _fontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _fontFamilyComboBox.IsEnabled = fontFamilyEnabled;
-        _fontWeightComboBox.IsEnabled = fontWeightEnabled;
+        var dateFontSizeEnabled = Settings.EnableCustomFontSize;
+        var dateFontColorEnabled = Settings.EnableCustomFontColor;
+        var dateFontFamilyEnabled = Settings.EnableCustomFontFamily;
+        var dateFontWeightEnabled = Settings.EnableCustomFontWeight;
+        _dateColorPicker.IsEnabled = dateFontColorEnabled;
+        _dateFontSizeNumericUpDown.IsEnabled = dateFontSizeEnabled;
+        _dateFontFamilyComboBox.IsEnabled = dateFontFamilyEnabled;
+        _dateFontWeightComboBox.IsEnabled = dateFontWeightEnabled;
+
+        var weekDayEnabled = Settings.ShowWeekDay;
+        var weekDayFontSizeEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontSize;
+        var weekDayFontColorEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontColor;
+        var weekDayFontFamilyEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontFamily;
+        var weekDayFontWeightEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontWeight;
+        _weekDayColorPicker.IsEnabled = weekDayFontColorEnabled;
+        _weekDayFontSizeNumericUpDown.IsEnabled = weekDayFontSizeEnabled;
+        _weekDayFontFamilyComboBox.IsEnabled = weekDayFontFamilyEnabled;
+        _weekDayFontWeightComboBox.IsEnabled = weekDayFontWeightEnabled;
+        _weekDayEnableCustomFontSizeToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontColorToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontFamilyToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontWeightToggle.IsEnabled = weekDayEnabled;
     }
 
     protected override void OnInitialized()
@@ -282,15 +372,23 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         }
         UpdateThemeColors();
         _showWeekDayToggle.IsChecked = Settings.ShowWeekDay;
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
-        _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
-        _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
+        _dateEnableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _dateEnableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _dateEnableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
+        _dateEnableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
+        _weekDayEnableCustomFontSizeToggle.IsChecked = Settings.WeekDayEnableCustomFontSize;
+        _weekDayEnableCustomFontColorToggle.IsChecked = Settings.WeekDayEnableCustomFontColor;
+        _weekDayEnableCustomFontFamilyToggle.IsChecked = Settings.WeekDayEnableCustomFontFamily;
+        _weekDayEnableCustomFontWeightToggle.IsChecked = Settings.WeekDayEnableCustomFontWeight;
         UpdateControlsEnabled();
-        _colorTextBox.Text = Settings.FontColor;
-        _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
-        _fontWeightComboBox.SelectedItem = Settings.FontWeight;
+        _dateColorPicker.Color = Avalonia.Media.Color.Parse(Settings.FontColor);
+        _dateFontSizeNumericUpDown.Value = (decimal)Settings.DateFontSize;
+        _dateFontFamilyComboBox.SelectedItem = Settings.FontFamily;
+        _dateFontWeightComboBox.SelectedItem = Settings.FontWeight;
+        _weekDayColorPicker.Color = Avalonia.Media.Color.Parse(Settings.WeekDayFontColor);
+        _weekDayFontSizeNumericUpDown.Value = (decimal)Settings.WeekDayFontSize;
+        _weekDayFontFamilyComboBox.SelectedItem = Settings.WeekDayFontFamily;
+        _weekDayFontWeightComboBox.SelectedItem = Settings.WeekDayFontWeight;
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -305,39 +403,32 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private void OnShowWeekDayChanged(object? sender, EventArgs e)
     {
         Settings.ShowWeekDay = _showWeekDayToggle.IsChecked == true;
+        UpdateControlsEnabled();
     }
 
-    private void OnColorLostFocus(object? sender, RoutedEventArgs e)
+    private void OnDateColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        var color = _colorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        Settings.FontColor = _dateColorPicker.Color.ToString();
+    }
+
+    private void OnDateFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_dateFontSizeNumericUpDown.Value.HasValue)
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.FontColor = color;
-            }
-            catch
-            {
-                _colorTextBox.Text = Settings.FontColor;
-            }
-        }
-        else
-        {
-            _colorTextBox.Text = Settings.FontColor;
+            Settings.DateFontSize = (double)_dateFontSizeNumericUpDown.Value.Value;
         }
     }
 
-    private void OnFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnWeekDayColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        if (double.TryParse(_fontSizeTextBox.Text, out double size))
+        Settings.WeekDayFontColor = _weekDayColorPicker.Color.ToString();
+    }
+
+    private void OnWeekDayFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_weekDayFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.DateFontSize = size;
-            _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Settings.WeekDayFontSize = (double)_weekDayFontSizeNumericUpDown.Value.Value;
         }
     }
 }

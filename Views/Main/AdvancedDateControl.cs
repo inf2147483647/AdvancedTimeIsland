@@ -22,7 +22,8 @@ namespace AdvancedTimeIsland.Views.Main;
 public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 {
     private AdvancedDateViewModel vm;
-    private TextBlock tb;
+    private TextBlock _dateTextBlock;
+    private TextBlock _weekDayTextBlock;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
     private bool _isDisposed;
@@ -40,40 +41,71 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
-        tb = new TextBlock { Text = "Loading..." };
-        rootBorder.Child = tb;
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
+        _dateTextBlock = new TextBlock { Text = "Loading..." };
+        _weekDayTextBlock = new TextBlock { Text = "" };
+        sp.Children.Add(_dateTextBlock);
+        sp.Children.Add(_weekDayTextBlock);
+        rootBorder.Child = sp;
         Content = rootBorder;
     }
 
-    private void UpdateFontColor(string colorStr)
+    private void UpdateDateFontColor(string colorStr)
     {
-        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
+        _dateTextBlock.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
     }
 
-    private void UpdateFontSize(double fontSize)
+    private void UpdateWeekDayFontColor(string colorStr)
     {
-        tb.FontSize = fontSize;
+        _weekDayTextBlock.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.WeekDayEnableCustomFontColor);
     }
 
-    private void UpdateFontFamily()
+    private void UpdateDateFontSize(double fontSize)
+    {
+        _dateTextBlock.FontSize = fontSize;
+    }
+
+    private void UpdateWeekDayFontSize(double fontSize)
+    {
+        _weekDayTextBlock.FontSize = fontSize;
+    }
+
+    private void UpdateDateFontFamily()
     {
         if (Settings.EnableCustomFontFamily)
-            tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.FontFamily);
+            _dateTextBlock.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.FontFamily);
         else
-            tb.ClearValue(TextBlock.FontFamilyProperty);
+            _dateTextBlock.ClearValue(TextBlock.FontFamilyProperty);
     }
 
-    private void UpdateFontWeight()
+    private void UpdateWeekDayFontFamily()
+    {
+        if (Settings.WeekDayEnableCustomFontFamily)
+            _weekDayTextBlock.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.WeekDayFontFamily);
+        else
+            _weekDayTextBlock.ClearValue(TextBlock.FontFamilyProperty);
+    }
+
+    private void UpdateDateFontWeight()
     {
         if (Settings.EnableCustomFontWeight)
-            tb.FontWeight = FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight);
+            _dateTextBlock.FontWeight = FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight);
         else
-            tb.ClearValue(TextBlock.FontWeightProperty);
+            _dateTextBlock.ClearValue(TextBlock.FontWeightProperty);
+    }
+
+    private void UpdateWeekDayFontWeight()
+    {
+        if (Settings.WeekDayEnableCustomFontWeight)
+            _weekDayTextBlock.FontWeight = FontFamilyHelper.GetFontWeightFromString(Settings.WeekDayFontWeight);
+        else
+            _weekDayTextBlock.ClearValue(TextBlock.FontWeightProperty);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateFontColor(Settings.FontColor);
+        UpdateDateFontColor(Settings.FontColor);
+        UpdateWeekDayFontColor(Settings.WeekDayFontColor);
     }
 
     protected override void OnInitialized()
@@ -83,14 +115,22 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
-        vm = new AdvancedDateViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
+        vm = new AdvancedDateViewModel(_timeBaseService, Settings, 
+            UpdateDateFontColor, UpdateDateFontSize,
+            UpdateWeekDayFontColor, UpdateWeekDayFontSize);
         DataContext = vm;
-        tb.Text = vm.DateDisplay;
+        _dateTextBlock.Text = vm.DatePart;
+        _weekDayTextBlock.Text = vm.WeekDayPart;
+        _weekDayTextBlock.IsVisible = Settings.ShowWeekDay;
         vm.PropertyChanged += OnVmPropertyChanged;
-        UpdateFontColor(Settings.FontColor);
-        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
-        UpdateFontFamily();
-        UpdateFontWeight();
+        UpdateDateFontColor(Settings.FontColor);
+        UpdateDateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
+        UpdateDateFontFamily();
+        UpdateDateFontWeight();
+        UpdateWeekDayFontColor(Settings.WeekDayFontColor);
+        UpdateWeekDayFontSize(Settings.WeekDayEnableCustomFontSize ? Settings.WeekDayFontSize : 14);
+        UpdateWeekDayFontFamily();
+        UpdateWeekDayFontWeight();
         Settings.PropertyChanged += OnSettingsChanged;
     }
 
@@ -99,18 +139,33 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         if (e.PropertyName == nameof(Settings.FontFamily) ||
             e.PropertyName == nameof(Settings.EnableCustomFontFamily))
         {
-            UpdateFontFamily();
+            UpdateDateFontFamily();
         }
         else if (e.PropertyName == nameof(Settings.FontWeight) ||
                  e.PropertyName == nameof(Settings.EnableCustomFontWeight))
         {
-            UpdateFontWeight();
+            UpdateDateFontWeight();
+        }
+        else if (e.PropertyName == nameof(Settings.WeekDayFontFamily) ||
+                 e.PropertyName == nameof(Settings.WeekDayEnableCustomFontFamily))
+        {
+            UpdateWeekDayFontFamily();
+        }
+        else if (e.PropertyName == nameof(Settings.WeekDayFontWeight) ||
+                 e.PropertyName == nameof(Settings.WeekDayEnableCustomFontWeight))
+        {
+            UpdateWeekDayFontWeight();
+        }
+        else if (e.PropertyName == nameof(Settings.ShowWeekDay))
+        {
+            _weekDayTextBlock.IsVisible = Settings.ShowWeekDay;
         }
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(vm.DateDisplay)) tb.Text = vm.DateDisplay;
+        if (e.PropertyName == nameof(vm.DatePart)) _dateTextBlock.Text = vm.DatePart;
+        if (e.PropertyName == nameof(vm.WeekDayPart)) _weekDayTextBlock.Text = vm.WeekDayPart;
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

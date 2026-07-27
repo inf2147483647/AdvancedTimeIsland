@@ -22,6 +22,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     private TextBlock jiLabelTb;
     private TextBlock jiValueTb;
     private Border rootBorder;
+    private StackPanel mainSp;
     private readonly TimeBaseService _timeBaseService;
 
     public TomorrowYiJiControl(TimeBaseService tbs) { _timeBaseService = tbs; InitializeComponent(); }
@@ -29,7 +30,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     private void InitializeComponent()
     {
         rootBorder = new Border { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        var mainSp = new StackPanel { Orientation = Orientation.Vertical };
+        mainSp = new StackPanel { Orientation = Orientation.Vertical };
         
         var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
         yiLabelTb = new TextBlock();
@@ -72,6 +73,12 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     private void UpdateJiValueFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) jiValueTb.ClearValue(TextBlock.FontFamilyProperty); else jiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
     private void UpdateJiValueFontWeight(string fontWeight) { if (Settings.JiValueEnableCustomFontWeight) jiValueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else jiValueTb.ClearValue(TextBlock.FontWeightProperty); }
 
+    private void UpdateDisplayMode()
+    {
+        mainSp.Orientation = Settings.DisplayMode == 0 ? Orientation.Horizontal : Orientation.Vertical;
+        mainSp.Spacing = Settings.DisplayMode == 0 ? 16 : 0;
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateYiLabelFontColor(Settings.YiLabelFontColor);
@@ -109,6 +116,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 14);
         UpdateJiValueFontFamily(Settings.JiValueEnableCustomFontFamily ? Settings.JiValueFontFamily : "");
         UpdateJiValueFontWeight(Settings.JiValueFontWeight);
+        UpdateDisplayMode();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -164,6 +172,10 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         else if (e.PropertyName == nameof(Settings.JiValueFontWeight) || e.PropertyName == nameof(Settings.JiValueEnableCustomFontWeight))
         {
             UpdateJiValueFontWeight(Settings.JiValueFontWeight);
+        }
+        else if (e.PropertyName == nameof(Settings.DisplayMode))
+        {
+            UpdateDisplayMode();
         }
     }
 }

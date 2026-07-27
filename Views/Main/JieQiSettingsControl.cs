@@ -1,5 +1,4 @@
 using System;
-using System.Globalization;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
@@ -15,10 +14,10 @@ namespace AdvancedTimeIsland.Views.Main;
 
 public class JieQiSettingsControl : ComponentBase<JieQiSettings>
 {
-    private TextBox _labelColorTextBox;
-    private TextBox _labelFontSizeTextBox;
-    private TextBox _valueColorTextBox;
-    private TextBox _valueFontSizeTextBox;
+    private ColorPicker _labelColorPicker;
+    private NumericUpDown _labelFontSizeNumericUpDown;
+    private ColorPicker _valueColorPicker;
+    private NumericUpDown _valueFontSizeNumericUpDown;
     private ToggleSwitch _labelEnableCustomFontSizeToggle;
     private ToggleSwitch _labelEnableCustomFontColorToggle;
     private ToggleSwitch _valueEnableCustomFontSizeToggle;
@@ -51,8 +50,8 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _labelFontSizeLabelTextBlock, out _labelFontSizeTextBox, out _labelEnableCustomFontSizeToggle, OnLabelFontSizeLostFocus, OnLabelEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _labelColorLabelTextBlock, out _labelColorTextBox, out _labelEnableCustomFontColorToggle, OnLabelColorLostFocus, OnLabelEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _labelFontSizeLabelTextBlock, out _labelFontSizeNumericUpDown, out _labelEnableCustomFontSizeToggle, OnLabelFontSizeChanged, OnLabelEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _labelColorLabelTextBlock, out _labelColorPicker, out _labelEnableCustomFontColorToggle, OnLabelColorChanged, OnLabelEnableCustomFontColorChanged));
         sp.Children.Add(CreateFontFamilyRow("字体样式", out _labelFontFamilyComboBox, out _labelEnableCustomFontFamilyToggle, OnLabelEnableCustomFontFamilyChanged, OnLabelFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重", out _labelFontWeightComboBox, out _labelEnableCustomFontWeightToggle, OnLabelEnableCustomFontWeightChanged, OnLabelFontWeightChanged));
         sp.Children.Add(CreateFontWeightHintTextBlock());
@@ -60,8 +59,8 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_valueTitleTextBlock);
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _valueFontSizeLabelTextBlock, out _valueFontSizeTextBox, out _valueEnableCustomFontSizeToggle, OnValueFontSizeLostFocus, OnValueEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _valueColorLabelTextBlock, out _valueColorTextBox, out _valueEnableCustomFontColorToggle, OnValueColorLostFocus, OnValueEnableCustomFontColorChanged));
+        sp.Children.Add(CreateFontSizeRow("文本大小", out _valueFontSizeLabelTextBlock, out _valueFontSizeNumericUpDown, out _valueEnableCustomFontSizeToggle, OnValueFontSizeChanged, OnValueEnableCustomFontSizeChanged));
+        sp.Children.Add(CreateColorRow("文本颜色", out _valueColorLabelTextBlock, out _valueColorPicker, out _valueEnableCustomFontColorToggle, OnValueColorChanged, OnValueEnableCustomFontColorChanged));
         sp.Children.Add(CreateFontFamilyRow("字体样式", out _valueFontFamilyComboBox, out _valueEnableCustomFontFamilyToggle, OnValueEnableCustomFontFamilyChanged, OnValueFontFamilyChanged));
         sp.Children.Add(CreateFontWeightRow("字重", out _valueFontWeightComboBox, out _valueEnableCustomFontWeightToggle, OnValueEnableCustomFontWeightChanged, OnValueFontWeightChanged));
         sp.Children.Add(CreateFontWeightHintTextBlock());
@@ -75,8 +74,8 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         Content = scrollViewer;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown, out ToggleSwitch toggle,
+        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -88,12 +87,20 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        numericUpDown.ValueChanged += valueChangedHandler;
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -101,8 +108,8 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         return row;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
+        EventHandler<ColorChangedEventArgs> colorChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -114,12 +121,12 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         Grid.SetColumn(label, 0);
         row.Children.Add(label);
 
-        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        colorPicker.ColorChanged += colorChangedHandler;
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -149,7 +156,7 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -179,7 +186,7 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -302,12 +309,12 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
 
     private void UpdateControlsEnabled()
     {
-        _labelColorTextBox.IsEnabled = Settings.LabelEnableCustomFontColor;
-        _labelFontSizeTextBox.IsEnabled = Settings.LabelEnableCustomFontSize;
+        _labelColorPicker.IsEnabled = Settings.LabelEnableCustomFontColor;
+        _labelFontSizeNumericUpDown.IsEnabled = Settings.LabelEnableCustomFontSize;
         _labelFontFamilyComboBox.IsEnabled = Settings.LabelEnableCustomFontFamily;
         _labelFontWeightComboBox.IsEnabled = Settings.LabelEnableCustomFontWeight;
-        _valueColorTextBox.IsEnabled = Settings.ValueEnableCustomFontColor;
-        _valueFontSizeTextBox.IsEnabled = Settings.ValueEnableCustomFontSize;
+        _valueColorPicker.IsEnabled = Settings.ValueEnableCustomFontColor;
+        _valueFontSizeNumericUpDown.IsEnabled = Settings.ValueEnableCustomFontSize;
         _valueFontFamilyComboBox.IsEnabled = Settings.ValueEnableCustomFontFamily;
         _valueFontWeightComboBox.IsEnabled = Settings.ValueEnableCustomFontWeight;
     }
@@ -329,10 +336,10 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         _labelEnableCustomFontWeightToggle.IsChecked = Settings.LabelEnableCustomFontWeight;
         _valueEnableCustomFontWeightToggle.IsChecked = Settings.ValueEnableCustomFontWeight;
         UpdateControlsEnabled();
-        _labelColorTextBox.Text = Settings.LabelFontColor;
-        _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        _valueColorTextBox.Text = Settings.ValueFontColor;
-        _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+        _labelColorPicker.Color = Avalonia.Media.Color.Parse(Settings.LabelFontColor);
+        _labelFontSizeNumericUpDown.Value = (decimal)Settings.LabelFontSize;
+        _valueColorPicker.Color = Avalonia.Media.Color.Parse(Settings.ValueFontColor);
+        _valueFontSizeNumericUpDown.Value = (decimal)Settings.ValueFontSize;
         _labelFontFamilyComboBox.SelectedItem = Settings.LabelFontFamily;
         _valueFontFamilyComboBox.SelectedItem = Settings.ValueFontFamily;
         _labelFontWeightComboBox.SelectedItem = Settings.LabelFontWeight;
@@ -348,71 +355,29 @@ public class JieQiSettingsControl : ComponentBase<JieQiSettings>
         }
     }
 
-    private void OnLabelColorLostFocus(object? sender, RoutedEventArgs e)
+    private void OnLabelColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        Settings.LabelFontColor = _labelColorPicker.Color.ToString();
+    }
+
+    private void OnLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_labelFontSizeNumericUpDown.Value.HasValue)
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.LabelFontColor = color;
-            }
-            catch
-            {
-                _labelColorTextBox.Text = Settings.LabelFontColor;
-            }
-        }
-        else
-        {
-            _labelColorTextBox.Text = Settings.LabelFontColor;
+            Settings.LabelFontSize = (double)_labelFontSizeNumericUpDown.Value.Value;
         }
     }
 
-    private void OnLabelFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnValueColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        if (double.TryParse(_labelFontSizeTextBox.Text, out double size))
-        {
-            Settings.LabelFontSize = size;
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        }
+        Settings.ValueFontColor = _valueColorPicker.Color.ToString();
     }
 
-    private void OnValueColorLostFocus(object? sender, RoutedEventArgs e)
+    private void OnValueFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        var color = _valueColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        if (_valueFontSizeNumericUpDown.Value.HasValue)
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.ValueFontColor = color;
-            }
-            catch
-            {
-                _valueColorTextBox.Text = Settings.ValueFontColor;
-            }
-        }
-        else
-        {
-            _valueColorTextBox.Text = Settings.ValueFontColor;
-        }
-    }
-
-    private void OnValueFontSizeLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (double.TryParse(_valueFontSizeTextBox.Text, out double size))
-        {
-            Settings.ValueFontSize = size;
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.ValueFontSize = (double)_valueFontSizeNumericUpDown.Value.Value;
         }
     }
 }

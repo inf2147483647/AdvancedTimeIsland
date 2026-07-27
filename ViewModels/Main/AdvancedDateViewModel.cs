@@ -13,17 +13,24 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
     private readonly TimeBaseService _timeBaseService;
     private readonly AdvancedDateSettings _settings;
     private readonly System.Timers.Timer _updateTimer;
-    private readonly Action<string> _updateFontColor;
-    private readonly Action<double> _updateFontSize;
-    private string _dateDisplay = string.Empty;
+    private readonly Action<string> _updateDateFontColor;
+    private readonly Action<double> _updateDateFontSize;
+    private readonly Action<string> _updateWeekDayFontColor;
+    private readonly Action<double> _updateWeekDayFontSize;
+    private string _datePart = string.Empty;
+    private string _weekDayPart = string.Empty;
     private bool _isDisposed;
 
-    public AdvancedDateViewModel(TimeBaseService timeBaseService, AdvancedDateSettings settings, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
+    public AdvancedDateViewModel(TimeBaseService timeBaseService, AdvancedDateSettings settings, 
+        Action<string> updateDateFontColor = null, Action<double> updateDateFontSize = null,
+        Action<string> updateWeekDayFontColor = null, Action<double> updateWeekDayFontSize = null)
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
-        _updateFontColor = updateFontColor;
-        _updateFontSize = updateFontSize;
+        _updateDateFontColor = updateDateFontColor;
+        _updateDateFontSize = updateDateFontSize;
+        _updateWeekDayFontColor = updateWeekDayFontColor;
+        _updateWeekDayFontSize = updateWeekDayFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
         
@@ -38,35 +45,60 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(AdvancedDateSettings.FontColor) ||
-            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontColor) ||
-            e.PropertyName == nameof(AdvancedDateSettings.FontFamily) ||
-            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontFamily))
+            e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontColor))
         {
-            _updateFontColor?.Invoke(_settings.FontColor);
+            _updateDateFontColor?.Invoke(_settings.FontColor);
+        }
+        if (e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontColor) ||
+            e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontColor))
+        {
+            _updateWeekDayFontColor?.Invoke(_settings.WeekDayFontColor);
         }
         if (e.PropertyName == nameof(AdvancedDateSettings.ShowWeekDay))
         {
             UpdateTime();
         }
         if (e.PropertyName == nameof(AdvancedDateSettings.DateFontSize) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontSize) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.FontFamily) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontFamily) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.FontWeight) ||
-                 e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontWeight))
+             e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontSize) ||
+             e.PropertyName == nameof(AdvancedDateSettings.FontFamily) ||
+             e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontFamily) ||
+             e.PropertyName == nameof(AdvancedDateSettings.FontWeight) ||
+             e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontWeight))
         {
-            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 14);
+            _updateDateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 14);
+        }
+        if (e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontSize) ||
+             e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontSize) ||
+             e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontFamily) ||
+             e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontFamily) ||
+             e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontWeight) ||
+             e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontWeight))
+        {
+            _updateWeekDayFontSize?.Invoke(_settings.WeekDayEnableCustomFontSize ? _settings.WeekDayFontSize : 14);
         }
     }
 
-    public string DateDisplay
+    public string DatePart
     {
-        get => _dateDisplay;
+        get => _datePart;
         private set
         {
-            if (_dateDisplay != value)
+            if (_datePart != value)
             {
-                _dateDisplay = value;
+                _datePart = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public string WeekDayPart
+    {
+        get => _weekDayPart;
+        private set
+        {
+            if (_weekDayPart != value)
+            {
+                _weekDayPart = value;
                 OnPropertyChanged();
             }
         }
@@ -82,7 +114,24 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = _timeBaseService.GetCurrentTime();
-            DateDisplay = FormatDateFull(now);
+            var datePart = $"{now.Year}-{now.Month:D2}-{now.Day:D2}";
+            var weekDayPart = "";
+            if (_settings.ShowWeekDay)
+            {
+                weekDayPart = now.DayOfWeek switch
+                {
+                    DayOfWeek.Sunday => "周日",
+                    DayOfWeek.Monday => "周一",
+                    DayOfWeek.Tuesday => "周二",
+                    DayOfWeek.Wednesday => "周三",
+                    DayOfWeek.Thursday => "周四",
+                    DayOfWeek.Friday => "周五",
+                    DayOfWeek.Saturday => "周六",
+                    _ => ""
+                };
+            }
+            DatePart = datePart;
+            WeekDayPart = weekDayPart;
         }
         catch (Exception)
         {
@@ -94,34 +143,32 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            var display = FormatDateFull(now);
+            var datePart = $"{now.Year}-{now.Month:D2}-{now.Day:D2}";
+            var weekDayPart = "";
+            if (_settings.ShowWeekDay)
+            {
+                weekDayPart = now.DayOfWeek switch
+                {
+                    DayOfWeek.Sunday => "周日",
+                    DayOfWeek.Monday => "周一",
+                    DayOfWeek.Tuesday => "周二",
+                    DayOfWeek.Wednesday => "周三",
+                    DayOfWeek.Thursday => "周四",
+                    DayOfWeek.Friday => "周五",
+                    DayOfWeek.Saturday => "周六",
+                    _ => ""
+                };
+            }
             
-            await Dispatcher.UIThread.InvokeAsync(() => { DateDisplay = display; });
+            await Dispatcher.UIThread.InvokeAsync(() => 
+            { 
+                DatePart = datePart;
+                WeekDayPart = weekDayPart;
+            });
         }
         catch (Exception)
         {
         }
-    }
-
-    private string FormatDateFull(DateTime dateTime)
-    {
-        string weekDay = "";
-        if (_settings.ShowWeekDay)
-        {
-            weekDay = dateTime.DayOfWeek switch
-            {
-                DayOfWeek.Sunday => "周日",
-                DayOfWeek.Monday => "周一",
-                DayOfWeek.Tuesday => "周二",
-                DayOfWeek.Wednesday => "周三",
-                DayOfWeek.Thursday => "周四",
-                DayOfWeek.Friday => "周五",
-                DayOfWeek.Saturday => "周六",
-                _ => ""
-            };
-        }
-        
-        return $"{dateTime.Year}-{dateTime.Month:D2}-{dateTime.Day:D2}" + (string.IsNullOrEmpty(weekDay) ? "" : $" {weekDay}");
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -141,6 +188,3 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         _updateTimer?.Dispose();
     }
 }
-
-
-

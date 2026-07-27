@@ -51,15 +51,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBlock? _selectionHintTextBlock;
     private System.Timers.Timer? _hintTimer;
 
-    private TextBox? _text1FontSizeTextBox;
+    private NumericUpDown? _text1FontSizeNumericUpDown;
     private ColorPicker? _text1FontColorPicker;
-    private TextBox? _text2FontSizeTextBox;
+    private NumericUpDown? _text2FontSizeNumericUpDown;
     private ColorPicker? _text2FontColorPicker;
-    private TextBox? _text3FontSizeTextBox;
+    private NumericUpDown? _text3FontSizeNumericUpDown;
     private ColorPicker? _text3FontColorPicker;
-    private TextBox? _timeFontSizeTextBox;
+    private NumericUpDown? _timeFontSizeNumericUpDown;
     private ColorPicker? _timeFontColorPicker;
-    private TextBox? _text4FontSizeTextBox;
+    private NumericUpDown? _text4FontSizeNumericUpDown;
     private ColorPicker? _text4FontColorPicker;
     private ComboBox? _text1FontFamilyComboBox;
     private ComboBox? _text2FontFamilyComboBox;
@@ -320,35 +320,35 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text1StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text1FontSizeNumericUpDown, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
 
         _text2StyleTextBlock = new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text2StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text2FontSizeTextBox, out _text2EnableCustomFontSizeToggle, OnText2EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text2FontSizeNumericUpDown, out _text2EnableCustomFontSizeToggle, OnText2EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text2FontColorPicker, out _text2EnableCustomFontColorToggle, OnText2EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text2FontFamilyComboBox, out _text2EnableCustomFontFamilyToggle, OnText2EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text2FontWeightComboBox, out _text2EnableCustomFontWeightToggle, OnText2EnableCustomFontWeightChanged));
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text3FontSizeNumericUpDown, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _timeFontSizeNumericUpDown, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text4FontSizeNumericUpDown, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
@@ -451,7 +451,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         return row;
     }
 
-    private Grid CreateFontRow(string label, out TextBox? textBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateFontRow(string label, out NumericUpDown? numericUpDown, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
@@ -464,11 +464,19 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        row.Children.Add(textBox);
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -511,7 +519,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetColumn(colorPicker, 1);
         row.Children.Add(colorPicker);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -540,7 +548,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -569,7 +577,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -832,23 +840,23 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
+        _text1FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
         _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
         _text1FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontFamily);
         _text1FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontWeight);
-        _text2FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
+        _text2FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
         _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
         _text2FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontFamily);
         _text2FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontWeight);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
+        _text3FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
         _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
         _text3FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontFamily);
         _text3FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontWeight);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
+        _timeFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
         _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
         _timeFontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontFamily);
         _timeFontWeightComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontWeight);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
+        _text4FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
         _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
         _text4FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontFamily);
         _text4FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontWeight);
@@ -883,15 +891,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
 
-        if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_text1FontSizeNumericUpDown != null) _text1FontSizeNumericUpDown.Value = (decimal)Settings.Text1FontSize;
         if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
-        if (_text2FontSizeTextBox != null) _text2FontSizeTextBox.Text = Settings.Text2FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_text2FontSizeNumericUpDown != null) _text2FontSizeNumericUpDown.Value = (decimal)Settings.Text2FontSize;
         if (_text2FontColorPicker != null) _text2FontColorPicker.Color = ParseColor(Settings.Text2FontColor);
-        if (_text3FontSizeTextBox != null) _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_text3FontSizeNumericUpDown != null) _text3FontSizeNumericUpDown.Value = (decimal)Settings.Text3FontSize;
         if (_text3FontColorPicker != null) _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
-        if (_timeFontSizeTextBox != null) _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_timeFontSizeNumericUpDown != null) _timeFontSizeNumericUpDown.Value = (decimal)Settings.TimeFontSize;
         if (_timeFontColorPicker != null) _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
-        if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        if (_text4FontSizeNumericUpDown != null) _text4FontSizeNumericUpDown.Value = (decimal)Settings.Text4FontSize;
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
         if (_text1FontFamilyComboBox != null) _text1FontFamilyComboBox.SelectedItem = Settings.Text1FontFamily;
         if (_text2FontFamilyComboBox != null) _text2FontFamilyComboBox.SelectedItem = Settings.Text2FontFamily;
@@ -1011,15 +1019,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             };
         }
 
-        AttachFontSizeHandler(_text1FontSizeTextBox, v => Settings.Text1FontSize = v);
+        AttachNumericUpDownHandler(_text1FontSizeNumericUpDown, v => Settings.Text1FontSize = v);
         AttachColorPickerHandler(_text1FontColorPicker, v => Settings.Text1FontColor = v);
-        AttachFontSizeHandler(_text2FontSizeTextBox, v => Settings.Text2FontSize = v);
+        AttachNumericUpDownHandler(_text2FontSizeNumericUpDown, v => Settings.Text2FontSize = v);
         AttachColorPickerHandler(_text2FontColorPicker, v => Settings.Text2FontColor = v);
-        AttachFontSizeHandler(_text3FontSizeTextBox, v => Settings.Text3FontSize = v);
+        AttachNumericUpDownHandler(_text3FontSizeNumericUpDown, v => Settings.Text3FontSize = v);
         AttachColorPickerHandler(_text3FontColorPicker, v => Settings.Text3FontColor = v);
-        AttachFontSizeHandler(_timeFontSizeTextBox, v => Settings.TimeFontSize = v);
+        AttachNumericUpDownHandler(_timeFontSizeNumericUpDown, v => Settings.TimeFontSize = v);
         AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
-        AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
+        AttachNumericUpDownHandler(_text4FontSizeNumericUpDown, v => Settings.Text4FontSize = v);
         AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
         AttachFontFamilyHandler(_text1FontFamilyComboBox, v => Settings.Text1FontFamily = v);
         AttachFontFamilyHandler(_text2FontFamilyComboBox, v => Settings.Text2FontFamily = v);
@@ -1102,10 +1110,16 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => setter(textBox.Text));
     }
 
-    private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
+    private void AttachNumericUpDownHandler(NumericUpDown? numericUpDown, Action<double> setter)
     {
-        if (textBox == null) return;
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetFontSize(textBox, setter));
+        if (numericUpDown == null) return;
+        numericUpDown.ValueChanged += (s, e) =>
+        {
+            if (numericUpDown.Value.HasValue)
+            {
+                setter((double)numericUpDown.Value.Value);
+            }
+        };
     }
 
     private void AttachColorPickerHandler(ColorPicker? colorPicker, Action<string> setter)
@@ -1147,25 +1161,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         catch
         {
             return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
-        }
-    }
-
-    private void AttachNumberHandler(TextBox? textBox, Action<int> setter)
-    {
-        if (textBox == null) return;
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetNumber(textBox, setter));
-    }
-
-    private void ParseAndSetFontSize(TextBox textBox, Action<double> setter)
-    {
-        if (double.TryParse(textBox.Text, out double size))
-        {
-            setter(size);
-            textBox.Text = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            textBox.Text = "14";
         }
     }
 

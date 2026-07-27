@@ -719,6 +719,7 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
     private double _jiValueFontSize = 14;
     private string _yiLabelFontColor = "";
     private string _jiLabelFontColor = "";
+    private int _displayMode = 1;
 
     public string YiLabel
     {
@@ -744,6 +745,12 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
                 OnPropertyChanged();
             }
         }
+    }
+
+    public int DisplayMode
+    {
+        get => _displayMode;
+        set { if (_displayMode != value) { _displayMode = value; OnPropertyChanged(); } }
     }
 
     public double YiLabelFontSize

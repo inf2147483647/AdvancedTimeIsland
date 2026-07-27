@@ -6,6 +6,7 @@ using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
@@ -53,32 +54,32 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
     private Button _getTimeZoneButton;
     private TextBlock _timeZoneLabelTextBlock;
 
-    private ToggleSwitch _sunriseLabelEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunriseLabelEnableCustomFontColorToggle;
-    private ToggleSwitch _sunriseTimeEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunriseTimeEnableCustomFontColorToggle;
-    private ToggleSwitch _sunsetLabelEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunsetLabelEnableCustomFontColorToggle;
-    private ToggleSwitch _sunsetTimeEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunsetTimeEnableCustomFontColorToggle;
+    private ToggleSwitch? _sunriseLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch? _sunriseLabelEnableCustomFontColorToggle;
+    private ToggleSwitch? _sunriseTimeEnableCustomFontSizeToggle;
+    private ToggleSwitch? _sunriseTimeEnableCustomFontColorToggle;
+    private ToggleSwitch? _sunsetLabelEnableCustomFontSizeToggle;
+    private ToggleSwitch? _sunsetLabelEnableCustomFontColorToggle;
+    private ToggleSwitch? _sunsetTimeEnableCustomFontSizeToggle;
+    private ToggleSwitch? _sunsetTimeEnableCustomFontColorToggle;
 
     private TextBlock _styleTitleTextBlock;
 
     private TextBlock _sunriseLabelLabel;
-    private TextBox _sunriseLabelColorTextBox;
-    private TextBox _sunriseLabelSizeTextBox;
+    private ColorPicker _sunriseLabelColorPicker;
+    private NumericUpDown _sunriseLabelSizeNumericUpDown;
 
     private TextBlock _sunriseTimeLabel;
-    private TextBox _sunriseTimeColorTextBox;
-    private TextBox _sunriseTimeSizeTextBox;
+    private ColorPicker _sunriseTimeColorPicker;
+    private NumericUpDown _sunriseTimeSizeNumericUpDown;
 
     private TextBlock _sunsetLabelLabel;
-    private TextBox _sunsetLabelColorTextBox;
-    private TextBox _sunsetLabelSizeTextBox;
+    private ColorPicker _sunsetLabelColorPicker;
+    private NumericUpDown _sunsetLabelSizeNumericUpDown;
 
     private TextBlock _sunsetTimeLabel;
-    private TextBox _sunsetTimeColorTextBox;
-    private TextBox _sunsetTimeSizeTextBox;
+    private ColorPicker _sunsetTimeColorPicker;
+    private NumericUpDown _sunsetTimeSizeNumericUpDown;
 
     public SunriseSunsetSettingsControl() : this(null)
     {
@@ -246,124 +247,42 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         sp.Children.Add(timeZoneRow);
 
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
+        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold };
+        var styleTitleRow = CreateTitleRow(_styleTitleTextBlock, out _, out _, out _, out _, null, null, null, null, null, null, null, null);
+        styleTitleRow.Margin = new Thickness(0, 10, 0, 0);
+        sp.Children.Add(styleTitleRow);
 
-        var sunriseLabelRow = new Grid();
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var sunriseLabelTitle = new TextBlock { Text = "日出标签样式", FontSize = 12 };
+        var sunriseLabelTitleRow = CreateTitleRow(sunriseLabelTitle, out _sunriseLabelEnableCustomFontSizeToggle, out _sunriseLabelEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnSunriseLabelEnableCustomFontSizeChanged, OnSunriseLabelEnableCustomFontColorChanged, null, null);
+        sp.Children.Add(sunriseLabelTitleRow);
+        sp.Children.Add(CreateFontSizeRow("大小", out _sunriseLabelLabel, out _sunriseLabelSizeNumericUpDown, OnSunriseLabelFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色", out _, out _sunriseLabelColorPicker, OnSunriseLabelColorChanged));
 
-        _sunriseLabelLabel = new TextBlock { Text = "日出标签:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunriseLabelLabel, 0);
-        sunriseLabelRow.Children.Add(_sunriseLabelLabel);
+        var sunriseTimeTitle = new TextBlock { Text = "日出时间样式", FontSize = 12 };
+        var sunriseTimeTitleRow = CreateTitleRow(sunriseTimeTitle, out _sunriseTimeEnableCustomFontSizeToggle, out _sunriseTimeEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnSunriseTimeEnableCustomFontSizeChanged, OnSunriseTimeEnableCustomFontColorChanged, null, null);
+        sp.Children.Add(sunriseTimeTitleRow);
+        sp.Children.Add(CreateFontSizeRow("大小", out _sunriseTimeLabel, out _sunriseTimeSizeNumericUpDown, OnSunriseTimeFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色", out _, out _sunriseTimeColorPicker, OnSunriseTimeColorChanged));
 
-        _sunriseLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunriseLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelColorTextBox, (s, e) => OnColorLostFocus(_sunriseLabelColorTextBox, nameof(Settings.SunriseLabelFontColor)));
-        sunriseLabelRow.Children.Add(_sunriseLabelColorTextBox);
+        var sunsetLabelTitle = new TextBlock { Text = "日落标签样式", FontSize = 12 };
+        var sunsetLabelTitleRow = CreateTitleRow(sunsetLabelTitle, out _sunsetLabelEnableCustomFontSizeToggle, out _sunsetLabelEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnSunsetLabelEnableCustomFontSizeChanged, OnSunsetLabelEnableCustomFontColorChanged, null, null);
+        sp.Children.Add(sunsetLabelTitleRow);
+        sp.Children.Add(CreateFontSizeRow("大小", out _sunsetLabelLabel, out _sunsetLabelSizeNumericUpDown, OnSunsetLabelFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色", out _, out _sunsetLabelColorPicker, OnSunsetLabelColorChanged));
 
-        _sunriseLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunriseLabelSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseLabelSizeTextBox, nameof(Settings.SunriseLabelFontSize)));
-        sunriseLabelRow.Children.Add(_sunriseLabelSizeTextBox);
-        sp.Children.Add(sunriseLabelRow);
-
-        _sunriseLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_sunriseLabelEnableCustomFontColorToggle);
-
-        _sunriseLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunriseLabelEnableCustomFontSizeToggle);
-
-        var sunriseTimeRow = new Grid();
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunriseTimeLabel = new TextBlock { Text = "日出时间:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunriseTimeLabel, 0);
-        sunriseTimeRow.Children.Add(_sunriseTimeLabel);
-
-        _sunriseTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunriseTimeColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeColorTextBox, (s, e) => OnColorLostFocus(_sunriseTimeColorTextBox, nameof(Settings.SunriseTimeFontColor)));
-        sunriseTimeRow.Children.Add(_sunriseTimeColorTextBox);
-
-        _sunriseTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunriseTimeSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseTimeSizeTextBox, nameof(Settings.SunriseTimeFontSize)));
-        sunriseTimeRow.Children.Add(_sunriseTimeSizeTextBox);
-        sp.Children.Add(sunriseTimeRow);
-
-        _sunriseTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontColorChanged;
-        sp.Children.Add(_sunriseTimeEnableCustomFontColorToggle);
-
-        _sunriseTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunriseTimeEnableCustomFontSizeToggle);
-
-        var sunsetLabelRow = new Grid();
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunsetLabelLabel = new TextBlock { Text = "日落标签:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunsetLabelLabel, 0);
-        sunsetLabelRow.Children.Add(_sunsetLabelLabel);
-
-        _sunsetLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunsetLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelColorTextBox, (s, e) => OnColorLostFocus(_sunsetLabelColorTextBox, nameof(Settings.SunsetLabelFontColor)));
-        sunsetLabelRow.Children.Add(_sunsetLabelColorTextBox);
-
-        _sunsetLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunsetLabelSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetLabelSizeTextBox, nameof(Settings.SunsetLabelFontSize)));
-        sunsetLabelRow.Children.Add(_sunsetLabelSizeTextBox);
-        sp.Children.Add(sunsetLabelRow);
-
-        _sunsetLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_sunsetLabelEnableCustomFontColorToggle);
-
-        _sunsetLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunsetLabelEnableCustomFontSizeToggle);
-
-        var sunsetTimeRow = new Grid();
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunsetTimeLabel = new TextBlock { Text = "日落时间:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunsetTimeLabel, 0);
-        sunsetTimeRow.Children.Add(_sunsetTimeLabel);
-
-        _sunsetTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunsetTimeColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeColorTextBox, (s, e) => OnColorLostFocus(_sunsetTimeColorTextBox, nameof(Settings.SunsetTimeFontColor)));
-        sunsetTimeRow.Children.Add(_sunsetTimeColorTextBox);
-
-        _sunsetTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunsetTimeSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetTimeSizeTextBox, nameof(Settings.SunsetTimeFontSize)));
-        sunsetTimeRow.Children.Add(_sunsetTimeSizeTextBox);
-        sp.Children.Add(sunsetTimeRow);
-
-        _sunsetTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontColorChanged;
-        sp.Children.Add(_sunsetTimeEnableCustomFontColorToggle);
-
-        _sunsetTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunsetTimeEnableCustomFontSizeToggle);
+        var sunsetTimeTitle = new TextBlock { Text = "日落时间样式", FontSize = 12 };
+        var sunsetTimeTitleRow = CreateTitleRow(sunsetTimeTitle, out _sunsetTimeEnableCustomFontSizeToggle, out _sunsetTimeEnableCustomFontColorToggle, out _, out _,
+            "启用自定义大小", "启用自定义颜色", null, null,
+            OnSunsetTimeEnableCustomFontSizeChanged, OnSunsetTimeEnableCustomFontColorChanged, null, null);
+        sp.Children.Add(sunsetTimeTitleRow);
+        sp.Children.Add(CreateFontSizeRow("大小", out _sunsetTimeLabel, out _sunsetTimeSizeNumericUpDown, OnSunsetTimeFontSizeChanged));
+        sp.Children.Add(CreateColorRow("颜色", out _, out _sunsetTimeColorPicker, OnSunsetTimeColorChanged));
 
         var scrollViewer = new ScrollViewer
         {
@@ -390,14 +309,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         _statusText.Foreground = ThemeHelper.GetGrayBrush();
         _timeZoneTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _timeZoneLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseLabelEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunriseLabelEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunriseTimeEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunriseTimeEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunsetLabelEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunsetLabelEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunsetTimeEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunsetTimeEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _sunriseLabelLabel.Foreground = ThemeHelper.GetTextBrush();
         _sunriseTimeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -412,62 +331,181 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
     private void OnSunriseLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.SunriseLabelEnableCustomFontSize = _sunriseLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.SunriseLabelEnableCustomFontSize = _sunriseLabelEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunriseLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.SunriseLabelEnableCustomFontColor = _sunriseLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.SunriseLabelEnableCustomFontColor = _sunriseLabelEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunriseTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.SunriseTimeEnableCustomFontSize = _sunriseTimeEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.SunriseTimeEnableCustomFontSize = _sunriseTimeEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunriseTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.SunriseTimeEnableCustomFontColor = _sunriseTimeEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.SunriseTimeEnableCustomFontColor = _sunriseTimeEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunsetLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.SunsetLabelEnableCustomFontSize = _sunsetLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.SunsetLabelEnableCustomFontSize = _sunsetLabelEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunsetLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.SunsetLabelEnableCustomFontColor = _sunsetLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.SunsetLabelEnableCustomFontColor = _sunsetLabelEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunsetTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
     {
-        Settings.SunsetTimeEnableCustomFontSize = _sunsetTimeEnableCustomFontSizeToggle.IsChecked ?? false;
+        Settings.SunsetTimeEnableCustomFontSize = _sunsetTimeEnableCustomFontSizeToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
     private void OnSunsetTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
     {
-        Settings.SunsetTimeEnableCustomFontColor = _sunsetTimeEnableCustomFontColorToggle.IsChecked ?? false;
+        Settings.SunsetTimeEnableCustomFontColor = _sunsetTimeEnableCustomFontColorToggle?.IsChecked ?? false;
         UpdateControlsEnabled();
+    }
+
+    private Grid CreateTitleRow(TextBlock title, out ToggleSwitch? toggle1, out ToggleSwitch? toggle2, out ToggleSwitch? toggle3, out ToggleSwitch? toggle4,
+        string? content1, string? content2, string? content3, string? content4,
+        EventHandler<RoutedEventArgs>? handler1, EventHandler<RoutedEventArgs>? handler2, EventHandler<RoutedEventArgs>? handler3, EventHandler<RoutedEventArgs>? handler4)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        Grid.SetColumn(title, 0);
+        row.Children.Add(title);
+
+        int col = 1;
+
+        if (content1 != null)
+        {
+            toggle1 = new ToggleSwitch { Content = content1, VerticalAlignment = VerticalAlignment.Center };
+            if (handler1 != null)
+                toggle1.IsCheckedChanged += handler1;
+            Grid.SetColumn(toggle1, col++);
+            row.Children.Add(toggle1);
+        }
+        else
+        {
+            toggle1 = null;
+        }
+
+        if (content2 != null)
+        {
+            toggle2 = new ToggleSwitch { Content = content2, VerticalAlignment = VerticalAlignment.Center };
+            if (handler2 != null)
+                toggle2.IsCheckedChanged += handler2;
+            Grid.SetColumn(toggle2, col++);
+            row.Children.Add(toggle2);
+        }
+        else
+        {
+            toggle2 = null;
+        }
+
+        if (content3 != null)
+        {
+            toggle3 = new ToggleSwitch { Content = content3, VerticalAlignment = VerticalAlignment.Center };
+            if (handler3 != null)
+                toggle3.IsCheckedChanged += handler3;
+            Grid.SetColumn(toggle3, col++);
+            row.Children.Add(toggle3);
+        }
+        else
+        {
+            toggle3 = null;
+        }
+
+        if (content4 != null)
+        {
+            toggle4 = new ToggleSwitch { Content = content4, VerticalAlignment = VerticalAlignment.Center };
+            if (handler4 != null)
+                toggle4.IsCheckedChanged += handler4;
+            Grid.SetColumn(toggle4, col);
+            row.Children.Add(toggle4);
+        }
+        else
+        {
+            toggle4 = null;
+        }
+
+        return row;
+    }
+
+    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown,
+        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        numericUpDown.ValueChanged += valueChangedHandler;
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
+
+        return row;
+    }
+
+    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker,
+        EventHandler<ColorChangedEventArgs> colorChangedHandler)
+    {
+        var row = new Grid();
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        colorPicker.ColorChanged += colorChangedHandler;
+        Grid.SetColumn(colorPicker, 1);
+        row.Children.Add(colorPicker);
+
+        return row;
     }
 
     private void UpdateControlsEnabled()
     {
-        _sunriseLabelColorTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontColor;
-        _sunriseLabelSizeTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontSize;
-        _sunriseTimeColorTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontColor;
-        _sunriseTimeSizeTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontSize;
-        _sunsetLabelColorTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontColor;
-        _sunsetLabelSizeTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontSize;
-        _sunsetTimeColorTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontColor;
-        _sunsetTimeSizeTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontSize;
+        _sunriseLabelColorPicker.IsEnabled = Settings.SunriseLabelEnableCustomFontColor;
+        _sunriseLabelSizeNumericUpDown.IsEnabled = Settings.SunriseLabelEnableCustomFontSize;
+        _sunriseTimeColorPicker.IsEnabled = Settings.SunriseTimeEnableCustomFontColor;
+        _sunriseTimeSizeNumericUpDown.IsEnabled = Settings.SunriseTimeEnableCustomFontSize;
+        _sunsetLabelColorPicker.IsEnabled = Settings.SunsetLabelEnableCustomFontColor;
+        _sunsetLabelSizeNumericUpDown.IsEnabled = Settings.SunsetLabelEnableCustomFontSize;
+        _sunsetTimeColorPicker.IsEnabled = Settings.SunsetTimeEnableCustomFontColor;
+        _sunsetTimeSizeNumericUpDown.IsEnabled = Settings.SunsetTimeEnableCustomFontSize;
     }
 
     protected override void OnInitialized()
@@ -506,24 +544,88 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
             }
         }
 
-        _sunriseLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunriseLabelEnableCustomFontSize;
-        _sunriseLabelEnableCustomFontColorToggle.IsChecked = Settings.SunriseLabelEnableCustomFontColor;
-        _sunriseTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunriseTimeEnableCustomFontSize;
-        _sunriseTimeEnableCustomFontColorToggle.IsChecked = Settings.SunriseTimeEnableCustomFontColor;
-        _sunsetLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunsetLabelEnableCustomFontSize;
-        _sunsetLabelEnableCustomFontColorToggle.IsChecked = Settings.SunsetLabelEnableCustomFontColor;
-        _sunsetTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunsetTimeEnableCustomFontSize;
-        _sunsetTimeEnableCustomFontColorToggle.IsChecked = Settings.SunsetTimeEnableCustomFontColor;
+        _sunriseLabelEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseLabelEnableCustomFontSize);
+        _sunriseLabelEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseLabelEnableCustomFontColor);
+        _sunriseTimeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseTimeEnableCustomFontSize);
+        _sunriseTimeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseTimeEnableCustomFontColor);
+        _sunsetLabelEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetLabelEnableCustomFontSize);
+        _sunsetLabelEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetLabelEnableCustomFontColor);
+        _sunsetTimeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetTimeEnableCustomFontSize);
+        _sunsetTimeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetTimeEnableCustomFontColor);
         UpdateControlsEnabled();
 
-        _sunriseLabelColorTextBox.Text = Settings.SunriseLabelFontColor;
-        _sunriseLabelSizeTextBox.Text = Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunriseTimeColorTextBox.Text = Settings.SunriseTimeFontColor;
-        _sunriseTimeSizeTextBox.Text = Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunsetLabelColorTextBox.Text = Settings.SunsetLabelFontColor;
-        _sunsetLabelSizeTextBox.Text = Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunsetTimeColorTextBox.Text = Settings.SunsetTimeFontColor;
-        _sunsetTimeSizeTextBox.Text = Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _sunriseLabelColorPicker.Color = ParseColor(Settings.SunriseLabelFontColor);
+        _sunriseLabelSizeNumericUpDown.Value = (decimal)Settings.SunriseLabelFontSize;
+        _sunriseTimeColorPicker.Color = ParseColor(Settings.SunriseTimeFontColor);
+        _sunriseTimeSizeNumericUpDown.Value = (decimal)Settings.SunriseTimeFontSize;
+        _sunsetLabelColorPicker.Color = ParseColor(Settings.SunsetLabelFontColor);
+        _sunsetLabelSizeNumericUpDown.Value = (decimal)Settings.SunsetLabelFontSize;
+        _sunsetTimeColorPicker.Color = ParseColor(Settings.SunsetTimeFontColor);
+        _sunsetTimeSizeNumericUpDown.Value = (decimal)Settings.SunsetTimeFontSize;
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
+        {
+            return Color.Parse(colorString);
+        }
+        catch
+        {
+            return Colors.White;
+        }
+    }
+
+    private void OnSunriseLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunriseLabelSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunriseLabelFontSize = (double)_sunriseLabelSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunriseTimeFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunriseTimeSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunriseTimeFontSize = (double)_sunriseTimeSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunsetLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunsetLabelSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunsetLabelFontSize = (double)_sunsetLabelSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunsetTimeFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunsetTimeSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunsetTimeFontSize = (double)_sunsetTimeSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunriseLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunriseLabelFontColor = _sunriseLabelColorPicker.Color.ToString();
+    }
+
+    private void OnSunriseTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunriseTimeFontColor = _sunriseTimeColorPicker.Color.ToString();
+    }
+
+    private void OnSunsetLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunsetLabelFontColor = _sunsetLabelColorPicker.Color.ToString();
+    }
+
+    private void OnSunsetTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunsetTimeFontColor = _sunsetTimeColorPicker.Color.ToString();
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
@@ -791,104 +893,7 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         }
     }
 
-    private void OnColorLostFocus(TextBox textBox, string propertyName)
-    {
-        var color = textBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                switch (propertyName)
-                {
-                    case nameof(Settings.SunriseLabelFontColor):
-                        Settings.SunriseLabelFontColor = color;
-                        break;
-                    case nameof(Settings.SunriseTimeFontColor):
-                        Settings.SunriseTimeFontColor = color;
-                        break;
-                    case nameof(Settings.SunsetLabelFontColor):
-                        Settings.SunsetLabelFontColor = color;
-                        break;
-                    case nameof(Settings.SunsetTimeFontColor):
-                        Settings.SunsetTimeFontColor = color;
-                        break;
-                }
-            }
-            catch
-            {
-                textBox.Text = GetColorPropertyValue(propertyName);
-            }
-        }
-        else
-        {
-            textBox.Text = GetColorPropertyValue(propertyName);
-        }
-    }
-
-    private string GetColorPropertyValue(string propertyName)
-    {
-        switch (propertyName)
-        {
-            case nameof(Settings.SunriseLabelFontColor):
-                return Settings.SunriseLabelFontColor;
-            case nameof(Settings.SunriseTimeFontColor):
-                return Settings.SunriseTimeFontColor;
-            case nameof(Settings.SunsetLabelFontColor):
-                return Settings.SunsetLabelFontColor;
-            case nameof(Settings.SunsetTimeFontColor):
-                return Settings.SunsetTimeFontColor;
-            default:
-                return "#FFFFFF";
-        }
-    }
-
-    private void OnFontSizeLostFocus(TextBox textBox, string propertyName)
-    {
-        if (double.TryParse(textBox.Text, out double size))
-        {
-            switch (propertyName)
-            {
-                case nameof(Settings.SunriseLabelFontSize):
-                    Settings.SunriseLabelFontSize = size;
-                    textBox.Text = Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunriseTimeFontSize):
-                    Settings.SunriseTimeFontSize = size;
-                    textBox.Text = Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunsetLabelFontSize):
-                    Settings.SunsetLabelFontSize = size;
-                    textBox.Text = Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunsetTimeFontSize):
-                    Settings.SunsetTimeFontSize = size;
-                    textBox.Text = Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-            }
-        }
-        else
-        {
-            textBox.Text = GetFontSizePropertyValue(propertyName);
-        }
-    }
-
-    private string GetFontSizePropertyValue(string propertyName)
-    {
-        switch (propertyName)
-        {
-            case nameof(Settings.SunriseLabelFontSize):
-                return Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunriseTimeFontSize):
-                return Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunsetLabelFontSize):
-                return Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunsetTimeFontSize):
-                return Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            default:
-                return "14";
-        }
-    }
+    
 
     private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {

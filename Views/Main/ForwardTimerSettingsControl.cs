@@ -1,6 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
@@ -49,15 +48,15 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private ComboBox? _startHourComboBox;
     private ComboBox? _startMinuteComboBox;
     private ComboBox? _startSecondComboBox;
-    private TextBox? _text1FontSizeTextBox;
+    private NumericUpDown? _text1FontSizeNumericUpDown;
     private ColorPicker? _text1FontColorPicker;
-    private TextBox? _nameFontSizeTextBox;
+    private NumericUpDown? _nameFontSizeNumericUpDown;
     private ColorPicker? _nameFontColorPicker;
-    private TextBox? _text3FontSizeTextBox;
+    private NumericUpDown? _text3FontSizeNumericUpDown;
     private ColorPicker? _text3FontColorPicker;
-    private TextBox? _timeFontSizeTextBox;
+    private NumericUpDown? _timeFontSizeNumericUpDown;
     private ColorPicker? _timeFontColorPicker;
-    private TextBox? _text4FontSizeTextBox;
+    private NumericUpDown? _text4FontSizeNumericUpDown;
     private ColorPicker? _text4FontColorPicker;
     private ComboBox? _text1FontFamilyComboBox;
     private ComboBox? _nameFontFamilyComboBox;
@@ -229,7 +228,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text1StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text1FontSizeNumericUpDown, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text1FontFamilyComboBox, out _text1EnableCustomFontFamilyToggle, OnText1EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text1FontWeightComboBox, out _text1EnableCustomFontWeightToggle, OnText1EnableCustomFontWeightChanged));
@@ -237,7 +236,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _nameStyleTextBlock = new TextBlock { Text = "正向计时器名称样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_nameStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _nameFontSizeTextBox, out _nameEnableCustomFontSizeToggle, OnNameEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _nameFontSizeNumericUpDown, out _nameEnableCustomFontSizeToggle, OnNameEnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _nameFontColorPicker, out _nameEnableCustomFontColorToggle, OnNameEnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _nameFontFamilyComboBox, out _nameEnableCustomFontFamilyToggle, OnNameEnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _nameFontWeightComboBox, out _nameEnableCustomFontWeightToggle, OnNameEnableCustomFontWeightChanged));
@@ -245,7 +244,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text3StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text3FontSizeNumericUpDown, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text3FontFamilyComboBox, out _text3EnableCustomFontFamilyToggle, OnText3EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text3FontWeightComboBox, out _text3EnableCustomFontWeightToggle, OnText3EnableCustomFontWeightChanged));
@@ -253,7 +252,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_timeStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _timeFontSizeNumericUpDown, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _timeFontFamilyComboBox, out _timeEnableCustomFontFamilyToggle, OnTimeEnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _timeFontWeightComboBox, out _timeEnableCustomFontWeightToggle, OnTimeEnableCustomFontWeightChanged));
@@ -261,7 +260,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
         fontPanel.Children.Add(_text4StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("文本大小", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
+        fontPanel.Children.Add(CreateFontRow("文本大小", out _text4FontSizeNumericUpDown, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
         fontPanel.Children.Add(CreateColorRow("文本颜色", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
         fontPanel.Children.Add(CreateFontFamilyRow("字体样式", out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
         fontPanel.Children.Add(CreateFontWeightRow("字重", out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
@@ -297,7 +296,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         return row;
     }
 
-    private Grid CreateFontRow(string label, out TextBox? textBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
+    private Grid CreateFontRow(string label, out NumericUpDown? numericUpDown, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
     {
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -310,11 +309,19 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(lbl, 0);
         row.Children.Add(lbl);
 
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        row.Children.Add(textBox);
+        numericUpDown = new NumericUpDown
+        {
+            Width = 155,
+            Minimum = 1,
+            Maximum = 100,
+            Increment = 1m,
+            FormatString = "0.00",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        Grid.SetColumn(numericUpDown, 1);
+        row.Children.Add(numericUpDown);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -339,7 +346,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(colorPicker, 1);
         row.Children.Add(colorPicker);
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
+        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -368,7 +375,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
+        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -397,7 +404,7 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         Grid.SetColumn(comboBox, 1);
         row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
+        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
         Grid.SetColumn(toggle, 2);
         toggle.IsCheckedChanged += toggleHandler;
         row.Children.Add(toggle);
@@ -588,23 +595,23 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
+        _text1FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
         _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
         _text1FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontFamily);
         _text1FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontWeight);
-        _nameFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontSize);
+        _nameFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontSize);
         _nameFontColorPicker?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontColor);
         _nameFontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontFamily);
         _nameFontWeightComboBox?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontWeight);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
+        _text3FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
         _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
         _text3FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontFamily);
         _text3FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontWeight);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
+        _timeFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
         _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
         _timeFontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontFamily);
         _timeFontWeightComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontWeight);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
+        _text4FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
         _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
         _text4FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontFamily);
         _text4FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontWeight);
@@ -634,15 +641,15 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         if (_startMinuteComboBox != null) _startMinuteComboBox.SelectedIndex = startTime.Minute;
         if (_startSecondComboBox != null) _startSecondComboBox.SelectedIndex = startTime.Second;
 
-        if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
+        if (_text1FontSizeNumericUpDown != null) _text1FontSizeNumericUpDown.Value = (decimal)Settings.Text1FontSize;
         if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
-        if (_nameFontSizeTextBox != null) _nameFontSizeTextBox.Text = Settings.NameFontSize.ToString(CultureInfo.InvariantCulture);
+        if (_nameFontSizeNumericUpDown != null) _nameFontSizeNumericUpDown.Value = (decimal)Settings.NameFontSize;
         if (_nameFontColorPicker != null) _nameFontColorPicker.Color = ParseColor(Settings.NameFontColor);
-        if (_text3FontSizeTextBox != null) _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
+        if (_text3FontSizeNumericUpDown != null) _text3FontSizeNumericUpDown.Value = (decimal)Settings.Text3FontSize;
         if (_text3FontColorPicker != null) _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
-        if (_timeFontSizeTextBox != null) _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);
+        if (_timeFontSizeNumericUpDown != null) _timeFontSizeNumericUpDown.Value = (decimal)Settings.TimeFontSize;
         if (_timeFontColorPicker != null) _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
-        if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(CultureInfo.InvariantCulture);
+        if (_text4FontSizeNumericUpDown != null) _text4FontSizeNumericUpDown.Value = (decimal)Settings.Text4FontSize;
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
         if (_text1FontFamilyComboBox != null) _text1FontFamilyComboBox.SelectedItem = Settings.Text1FontFamily;
         if (_nameFontFamilyComboBox != null) _nameFontFamilyComboBox.SelectedItem = Settings.NameFontFamily;
@@ -671,11 +678,11 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
 
         AttachDateTimeHandlers();
 
-        AttachFontHandlers(_text1FontSizeTextBox, _text1FontColorPicker, (fs, fc) => { Settings.Text1FontSize = fs; Settings.Text1FontColor = fc; });
-        AttachFontHandlers(_nameFontSizeTextBox, _nameFontColorPicker, (fs, fc) => { Settings.NameFontSize = fs; Settings.NameFontColor = fc; });
-        AttachFontHandlers(_text3FontSizeTextBox, _text3FontColorPicker, (fs, fc) => { Settings.Text3FontSize = fs; Settings.Text3FontColor = fc; });
-        AttachFontHandlers(_timeFontSizeTextBox, _timeFontColorPicker, (fs, fc) => { Settings.TimeFontSize = fs; Settings.TimeFontColor = fc; });
-        AttachFontHandlers(_text4FontSizeTextBox, _text4FontColorPicker, (fs, fc) => { Settings.Text4FontSize = fs; Settings.Text4FontColor = fc; });
+        AttachFontHandlers(_text1FontSizeNumericUpDown, _text1FontColorPicker, (fs, fc) => { Settings.Text1FontSize = fs; Settings.Text1FontColor = fc; });
+        AttachFontHandlers(_nameFontSizeNumericUpDown, _nameFontColorPicker, (fs, fc) => { Settings.NameFontSize = fs; Settings.NameFontColor = fc; });
+        AttachFontHandlers(_text3FontSizeNumericUpDown, _text3FontColorPicker, (fs, fc) => { Settings.Text3FontSize = fs; Settings.Text3FontColor = fc; });
+        AttachFontHandlers(_timeFontSizeNumericUpDown, _timeFontColorPicker, (fs, fc) => { Settings.TimeFontSize = fs; Settings.TimeFontColor = fc; });
+        AttachFontHandlers(_text4FontSizeNumericUpDown, _text4FontColorPicker, (fs, fc) => { Settings.Text4FontSize = fs; Settings.Text4FontColor = fc; });
         AttachFontFamilyHandler(_text1FontFamilyComboBox, v => Settings.Text1FontFamily = v);
         AttachFontFamilyHandler(_nameFontFamilyComboBox, v => Settings.NameFontFamily = v);
         AttachFontFamilyHandler(_text3FontFamilyComboBox, v => Settings.Text3FontFamily = v);
@@ -793,26 +800,28 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
             _startSecondComboBox.SelectionChanged += (s, e) => UpdateStartTime();
     }
 
-    private void AttachFontHandlers(TextBox? fontSizeTextBox, ColorPicker? colorPicker, Action<double, string> handler)
+    private void AttachFontHandlers(NumericUpDown? fontSizeNumericUpDown, ColorPicker? colorPicker, Action<double, string> handler)
     {
-        if (fontSizeTextBox != null)
+        if (fontSizeNumericUpDown != null)
         {
-            FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(fontSizeTextBox, (s, e) =>
+            fontSizeNumericUpDown.ValueChanged += (s, e) =>
             {
-                if (double.TryParse(fontSizeTextBox.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var fontSize))
+                if (fontSizeNumericUpDown.Value.HasValue)
                 {
+                    var fontSize = (double)fontSizeNumericUpDown.Value.Value;
                     var color = colorPicker?.Color.ToString() ?? "#FFFFFF";
                     handler(fontSize, color);
                 }
-            });
+            };
         }
 
         if (colorPicker != null)
         {
             colorPicker.ColorChanged += (s, e) =>
             {
-                if (double.TryParse(fontSizeTextBox?.Text, NumberStyles.Any, CultureInfo.InvariantCulture, out var fontSize))
+                if (fontSizeNumericUpDown?.Value.HasValue == true)
                 {
+                    var fontSize = (double)fontSizeNumericUpDown.Value.Value;
                     handler(fontSize, colorPicker.Color.ToString());
                 }
             };
