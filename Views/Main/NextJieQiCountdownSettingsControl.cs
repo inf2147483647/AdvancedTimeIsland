@@ -249,6 +249,12 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -299,7 +305,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         }
         catch
         {
-            return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
+            return Color.Parse(ThemeHelper.GetTextColorHex());
         }
     }
 

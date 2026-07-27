@@ -321,20 +321,20 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         _jiValueFontFamilyLabel.Foreground = ThemeHelper.GetTextBrush();
         _jiValueFontWeightLabel.Foreground = ThemeHelper.GetTextBrush();
         
-        _yiLabelEnableCustomFontSizeToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiLabelEnableCustomFontColorToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiLabelEnableCustomFontFamilyToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiLabelEnableCustomFontWeightToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiValueEnableCustomFontSizeToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiValueEnableCustomFontFamilyToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _yiValueEnableCustomFontWeightToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiLabelEnableCustomFontSizeToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiLabelEnableCustomFontColorToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiLabelEnableCustomFontFamilyToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiLabelEnableCustomFontWeightToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiValueEnableCustomFontSizeToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiValueEnableCustomFontFamilyToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _jiValueEnableCustomFontWeightToggle.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _yiLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiLabelEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiLabelEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiValueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiValueEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
+        _yiValueEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiLabelEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiValueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiValueEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
+        _jiValueEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -511,6 +511,12 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -537,20 +543,20 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         _jiLabelFontWeightComboBox.SelectedItem = Settings.JiLabelFontWeight;
         _jiValueFontWeightComboBox.SelectedItem = Settings.JiValueFontWeight;
 
-        _yiLabelEnableCustomFontSizeToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiLabelEnableCustomFontSize);
-        _yiLabelEnableCustomFontColorToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiLabelEnableCustomFontColor);
-        _yiLabelEnableCustomFontFamilyToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiLabelEnableCustomFontFamily);
-        _yiLabelEnableCustomFontWeightToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiLabelEnableCustomFontWeight);
-        _yiValueEnableCustomFontSizeToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiValueEnableCustomFontSize);
-        _yiValueEnableCustomFontFamilyToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiValueEnableCustomFontFamily);
-        _yiValueEnableCustomFontWeightToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.YiValueEnableCustomFontWeight);
-        _jiLabelEnableCustomFontSizeToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiLabelEnableCustomFontSize);
-        _jiLabelEnableCustomFontColorToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiLabelEnableCustomFontColor);
-        _jiLabelEnableCustomFontFamilyToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiLabelEnableCustomFontFamily);
-        _jiLabelEnableCustomFontWeightToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiLabelEnableCustomFontWeight);
-        _jiValueEnableCustomFontSizeToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiValueEnableCustomFontSize);
-        _jiValueEnableCustomFontFamilyToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiValueEnableCustomFontFamily);
-        _jiValueEnableCustomFontWeightToggle.SetValue(ToggleSwitch.IsCheckedProperty, Settings.JiValueEnableCustomFontWeight);
+        _yiLabelEnableCustomFontSizeToggle.IsChecked = Settings.YiLabelEnableCustomFontSize;
+        _yiLabelEnableCustomFontColorToggle.IsChecked = Settings.YiLabelEnableCustomFontColor;
+        _yiLabelEnableCustomFontFamilyToggle.IsChecked = Settings.YiLabelEnableCustomFontFamily;
+        _yiLabelEnableCustomFontWeightToggle.IsChecked = Settings.YiLabelEnableCustomFontWeight;
+        _yiValueEnableCustomFontSizeToggle.IsChecked = Settings.YiValueEnableCustomFontSize;
+        _yiValueEnableCustomFontFamilyToggle.IsChecked = Settings.YiValueEnableCustomFontFamily;
+        _yiValueEnableCustomFontWeightToggle.IsChecked = Settings.YiValueEnableCustomFontWeight;
+        _jiLabelEnableCustomFontSizeToggle.IsChecked = Settings.JiLabelEnableCustomFontSize;
+        _jiLabelEnableCustomFontColorToggle.IsChecked = Settings.JiLabelEnableCustomFontColor;
+        _jiLabelEnableCustomFontFamilyToggle.IsChecked = Settings.JiLabelEnableCustomFontFamily;
+        _jiLabelEnableCustomFontWeightToggle.IsChecked = Settings.JiLabelEnableCustomFontWeight;
+        _jiValueEnableCustomFontSizeToggle.IsChecked = Settings.JiValueEnableCustomFontSize;
+        _jiValueEnableCustomFontFamilyToggle.IsChecked = Settings.JiValueEnableCustomFontFamily;
+        _jiValueEnableCustomFontWeightToggle.IsChecked = Settings.JiValueEnableCustomFontWeight;
 
         UpdateControlsEnabled();
     }
@@ -572,7 +578,7 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
         }
         catch
         {
-            return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
+            return Color.Parse(ThemeHelper.GetTextColorHex());
         }
     }
 

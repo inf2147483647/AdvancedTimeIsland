@@ -322,6 +322,12 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -336,9 +342,9 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
         _labelEnableCustomFontWeightToggle.IsChecked = Settings.LabelEnableCustomFontWeight;
         _valueEnableCustomFontWeightToggle.IsChecked = Settings.ValueEnableCustomFontWeight;
         UpdateControlsEnabled();
-        _labelColorPicker.Color = Avalonia.Media.Color.Parse(Settings.LabelFontColor);
+        _labelColorPicker.Color = ParseColor(Settings.LabelFontColor);
         _labelFontSizeNumericUpDown.Value = (decimal)Settings.LabelFontSize;
-        _valueColorPicker.Color = Avalonia.Media.Color.Parse(Settings.ValueFontColor);
+        _valueColorPicker.Color = ParseColor(Settings.ValueFontColor);
         _valueFontSizeNumericUpDown.Value = (decimal)Settings.ValueFontSize;
         _labelFontFamilyComboBox.SelectedItem = Settings.LabelFontFamily;
         _valueFontFamilyComboBox.SelectedItem = Settings.ValueFontFamily;
@@ -371,6 +377,18 @@ public class XingZuoSettingsControl : ComponentBase<XingZuoSettings>
     private void OnValueColorChanged(object? sender, ColorChangedEventArgs e)
     {
         Settings.ValueFontColor = _valueColorPicker.Color.ToString();
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
+        {
+            return Color.Parse(colorString);
+        }
+        catch
+        {
+            return Color.Parse(ThemeHelper.GetTextColorHex());
+        }
     }
 
     private void OnValueFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)

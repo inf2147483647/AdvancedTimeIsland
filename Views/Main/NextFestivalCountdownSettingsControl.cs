@@ -373,14 +373,14 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
         _redToggle.IsChecked = Settings.EnableRedFestivals;
 
-        _text1EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontSize);
-        _text1EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontColor);
-        _nameEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontSize);
-        _nameEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontColor);
-        _text3EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontSize);
-        _text3EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontColor);
-        _timeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontSize);
-        _timeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontColor);
+        _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
+        _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
+        _nameEnableCustomFontSizeToggle.IsChecked = Settings.NameEnableCustomFontSize;
+        _nameEnableCustomFontColorToggle.IsChecked = Settings.NameEnableCustomFontColor;
+        _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
+        _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
+        _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
+        _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
 
         UpdateControlsEnabled();
     }

@@ -840,26 +840,26 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
-        _text1FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontFamily);
-        _text1FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontWeight);
-        _text2FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
-        _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
-        _text2FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontFamily);
-        _text2FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontWeight);
-        _text3FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
-        _text3FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontFamily);
-        _text3FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontWeight);
-        _timeFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
-        _timeFontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontFamily);
-        _timeFontWeightComboBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontWeight);
-        _text4FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
-        _text4FontFamilyComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontFamily);
-        _text4FontWeightComboBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontWeight);
+        _text1FontSizeNumericUpDown.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
+        _text1FontFamilyComboBox.IsEnabled = Settings.Text1EnableCustomFontFamily;
+        _text1FontWeightComboBox.IsEnabled = Settings.Text1EnableCustomFontWeight;
+        _text2FontSizeNumericUpDown.IsEnabled = Settings.Text2EnableCustomFontSize;
+        _text2FontColorPicker.IsEnabled = Settings.Text2EnableCustomFontColor;
+        _text2FontFamilyComboBox.IsEnabled = Settings.Text2EnableCustomFontFamily;
+        _text2FontWeightComboBox.IsEnabled = Settings.Text2EnableCustomFontWeight;
+        _text3FontSizeNumericUpDown.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
+        _text3FontFamilyComboBox.IsEnabled = Settings.Text3EnableCustomFontFamily;
+        _text3FontWeightComboBox.IsEnabled = Settings.Text3EnableCustomFontWeight;
+        _timeFontSizeNumericUpDown.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
+        _timeFontFamilyComboBox.IsEnabled = Settings.TimeEnableCustomFontFamily;
+        _timeFontWeightComboBox.IsEnabled = Settings.TimeEnableCustomFontWeight;
+        _text4FontSizeNumericUpDown.IsEnabled = Settings.Text4EnableCustomFontSize;
+        _text4FontColorPicker.IsEnabled = Settings.Text4EnableCustomFontColor;
+        _text4FontFamilyComboBox.IsEnabled = Settings.Text4EnableCustomFontFamily;
+        _text4FontWeightComboBox.IsEnabled = Settings.Text4EnableCustomFontWeight;
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -868,13 +868,19 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
                               Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
         
-        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
-        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
+        _progressBarColorPicker.IsEnabled = isCustomEnabled && showProgressBar;
+        _progressRingColorPicker.IsEnabled = isCustomEnabled;
     }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -1160,7 +1166,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
         catch
         {
-            return ((SolidColorBrush)ThemeHelper.GetTextBrush()).Color;
+            return Color.Parse(ThemeHelper.GetTextColorHex());
         }
     }
 

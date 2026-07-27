@@ -249,6 +249,12 @@ public class NextXingZuoCountdownSettingsControl : ComponentBase<NextXingZuoCoun
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;

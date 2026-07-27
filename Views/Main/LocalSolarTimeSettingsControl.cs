@@ -357,6 +357,12 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -379,7 +385,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
         _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
         UpdateControlsEnabled();
-        _colorPicker.Color = Avalonia.Media.Color.Parse(Settings.FontColor);
+        _colorPicker.Color = ParseColor(Settings.FontColor);
         _fontSizeNumericUpDown.Value = (decimal)Settings.TextFontSize;
         _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
         _fontWeightComboBox.SelectedItem = Settings.FontWeight;
@@ -509,6 +515,18 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private void OnColorChanged(object? sender, ColorChangedEventArgs e)
     {
         Settings.FontColor = _colorPicker.Color.ToString();
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
+        {
+            return Color.Parse(colorString);
+        }
+        catch
+        {
+            return Color.Parse(ThemeHelper.GetTextColorHex());
+        }
     }
 
     private void OnFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)

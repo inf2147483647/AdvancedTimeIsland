@@ -366,6 +366,12 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -381,11 +387,11 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _weekDayEnableCustomFontFamilyToggle.IsChecked = Settings.WeekDayEnableCustomFontFamily;
         _weekDayEnableCustomFontWeightToggle.IsChecked = Settings.WeekDayEnableCustomFontWeight;
         UpdateControlsEnabled();
-        _dateColorPicker.Color = Avalonia.Media.Color.Parse(Settings.FontColor);
+        _dateColorPicker.Color = ParseColor(Settings.FontColor);
         _dateFontSizeNumericUpDown.Value = (decimal)Settings.DateFontSize;
         _dateFontFamilyComboBox.SelectedItem = Settings.FontFamily;
         _dateFontWeightComboBox.SelectedItem = Settings.FontWeight;
-        _weekDayColorPicker.Color = Avalonia.Media.Color.Parse(Settings.WeekDayFontColor);
+        _weekDayColorPicker.Color = ParseColor(Settings.WeekDayFontColor);
         _weekDayFontSizeNumericUpDown.Value = (decimal)Settings.WeekDayFontSize;
         _weekDayFontFamilyComboBox.SelectedItem = Settings.WeekDayFontFamily;
         _weekDayFontWeightComboBox.SelectedItem = Settings.WeekDayFontWeight;
@@ -422,6 +428,18 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private void OnWeekDayColorChanged(object? sender, ColorChangedEventArgs e)
     {
         Settings.WeekDayFontColor = _weekDayColorPicker.Color.ToString();
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
+        {
+            return Color.Parse(colorString);
+        }
+        catch
+        {
+            return Color.Parse(ThemeHelper.GetTextColorHex());
+        }
     }
 
     private void OnWeekDayFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)

@@ -309,14 +309,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         _statusText.Foreground = ThemeHelper.GetGrayBrush();
         _timeZoneTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _timeZoneLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunriseLabelEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunriseTimeEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunriseTimeEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunsetLabelEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunsetLabelEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunsetTimeEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _sunsetTimeEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _sunriseLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunriseTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _sunsetTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _sunriseLabelLabel.Foreground = ThemeHelper.GetTextBrush();
         _sunriseTimeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -511,6 +511,12 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -544,14 +550,14 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
             }
         }
 
-        _sunriseLabelEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseLabelEnableCustomFontSize);
-        _sunriseLabelEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseLabelEnableCustomFontColor);
-        _sunriseTimeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseTimeEnableCustomFontSize);
-        _sunriseTimeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunriseTimeEnableCustomFontColor);
-        _sunsetLabelEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetLabelEnableCustomFontSize);
-        _sunsetLabelEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetLabelEnableCustomFontColor);
-        _sunsetTimeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetTimeEnableCustomFontSize);
-        _sunsetTimeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.SunsetTimeEnableCustomFontColor);
+        _sunriseLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunriseLabelEnableCustomFontSize;
+        _sunriseLabelEnableCustomFontColorToggle.IsChecked = Settings.SunriseLabelEnableCustomFontColor;
+        _sunriseTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunriseTimeEnableCustomFontSize;
+        _sunriseTimeEnableCustomFontColorToggle.IsChecked = Settings.SunriseTimeEnableCustomFontColor;
+        _sunsetLabelEnableCustomFontSizeToggle.IsChecked = Settings.SunsetLabelEnableCustomFontSize;
+        _sunsetLabelEnableCustomFontColorToggle.IsChecked = Settings.SunsetLabelEnableCustomFontColor;
+        _sunsetTimeEnableCustomFontSizeToggle.IsChecked = Settings.SunsetTimeEnableCustomFontSize;
+        _sunsetTimeEnableCustomFontColorToggle.IsChecked = Settings.SunsetTimeEnableCustomFontColor;
         UpdateControlsEnabled();
 
         _sunriseLabelColorPicker.Color = ParseColor(Settings.SunriseLabelFontColor);

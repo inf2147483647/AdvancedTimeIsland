@@ -574,16 +574,16 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
-        _text2FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
-        _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
+        _text1FontSizeTextBox.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
+        _text2FontSizeTextBox.IsEnabled = Settings.Text2EnableCustomFontSize;
+        _text2FontColorPicker.IsEnabled = Settings.Text2EnableCustomFontColor;
+        _text3FontSizeTextBox.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
+        _timeFontSizeTextBox.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
+        _text4FontSizeTextBox.IsEnabled = Settings.Text4EnableCustomFontSize;
+        _text4FontColorPicker.IsEnabled = Settings.Text4EnableCustomFontColor;
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -592,13 +592,19 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
                               Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
         
-        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
-        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
+        _progressBarColorPicker.IsEnabled = isCustomEnabled && showProgressBar;
+        _progressRingColorPicker.IsEnabled = isCustomEnabled;
     }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;

@@ -631,16 +631,16 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
-        _nameFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontSize);
-        _nameFontColorPicker?.SetValue(IsEnabledProperty, Settings.NameEnableCustomFontColor);
-        _text3FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
-        _timeFontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
-        _text4FontSizeNumericUpDown?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
+        _text1FontSizeNumericUpDown.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
+        _nameFontSizeNumericUpDown.IsEnabled = Settings.NameEnableCustomFontSize;
+        _nameFontColorPicker.IsEnabled = Settings.NameEnableCustomFontColor;
+        _text3FontSizeNumericUpDown.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
+        _timeFontSizeNumericUpDown.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
+        _text4FontSizeNumericUpDown.IsEnabled = Settings.Text4EnableCustomFontSize;
+        _text4FontColorPicker.IsEnabled = Settings.Text4EnableCustomFontColor;
     }
 
     private void UpdateProgressColorControlsEnabled()
@@ -649,13 +649,19 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
                               Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
         
-        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
-        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
+        _progressBarColorPicker.IsEnabled = isCustomEnabled && showProgressBar;
+        _progressRingColorPicker.IsEnabled = isCustomEnabled;
     }
 
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
@@ -685,16 +691,16 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         AttachEventHandlers();
 
-        _text1EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontSize);
-        _text1EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text1EnableCustomFontColor);
-        _nameEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontSize);
-        _nameEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.NameEnableCustomFontColor);
-        _text3EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontSize);
-        _text3EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text3EnableCustomFontColor);
-        _timeEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontSize);
-        _timeEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.TimeEnableCustomFontColor);
-        _text4EnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text4EnableCustomFontSize);
-        _text4EnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.Text4EnableCustomFontColor);
+        _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
+        _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
+        _nameEnableCustomFontSizeToggle.IsChecked = Settings.NameEnableCustomFontSize;
+        _nameEnableCustomFontColorToggle.IsChecked = Settings.NameEnableCustomFontColor;
+        _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
+        _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
+        _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
+        _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
+        _text4EnableCustomFontSizeToggle.IsChecked = Settings.Text4EnableCustomFontSize;
+        _text4EnableCustomFontColorToggle.IsChecked = Settings.Text4EnableCustomFontColor;
         UpdateControlsEnabled();
 
         if (_enableCustomProgressColorToggle != null)

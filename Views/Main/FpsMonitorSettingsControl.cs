@@ -85,10 +85,10 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     private void UpdateThemeColors()
     {
         _enableComponentToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _labelEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _valueEnableCustomFontSizeToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
-        _valueEnableCustomFontColorToggle?.SetValue(ForegroundProperty, ThemeHelper.GetTextBrush());
+        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
@@ -386,16 +386,22 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     protected override void OnInitialized()
     {
         base.OnInitialized();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
         _enableComponentToggle.IsChecked = Settings.EnableComponent;
-        _labelEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.LabelEnableCustomFontSize);
-        _labelEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.LabelEnableCustomFontColor);
-        _valueEnableCustomFontSizeToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.ValueEnableCustomFontSize);
-        _valueEnableCustomFontColorToggle?.SetValue(ToggleSwitch.IsCheckedProperty, Settings.ValueEnableCustomFontColor);
+        _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
+        _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
+        _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;
+        _valueEnableCustomFontColorToggle.IsChecked = Settings.ValueEnableCustomFontColor;
         UpdateControlsEnabled();
         _labelColorPicker.Color = ParseColor(Settings.LabelFontColor);
         _labelFontSizeNumericUpDown.Value = (decimal)Settings.LabelFontSize;
