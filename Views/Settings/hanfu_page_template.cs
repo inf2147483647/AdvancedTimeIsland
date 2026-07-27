@@ -350,19 +350,39 @@ or
         var lines = markdown.Split('\n');
         var result = new List<string>();
         bool inAlert = false;
-        int alertStartLine = -1;
+        bool inCodeBlock = false;
 
         for (int i = 0; i < lines.Length; i++)
         {
             var line = lines[i];
             var trimmed = line.TrimStart();
 
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                if (inAlert)
+                {
+                    inAlert = false;
+                }
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                if (inAlert)
+                {
+                    inAlert = false;
+                }
+                result.Add(line);
+                continue;
+            }
+
             if (trimmed.StartsWith("> [!tip]") || trimmed.StartsWith("> [!note]") ||
                 trimmed.StartsWith("> [!warning]") || trimmed.StartsWith("> [!caution]") ||
                 Regex.IsMatch(trimmed, @"^>\s*\[[^\]!]+\]\s*$"))
             {
                 inAlert = true;
-                alertStartLine = i;
                 result.Add(line);
             }
             else if (inAlert)
