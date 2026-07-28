@@ -59,9 +59,7 @@
     </ItemGroup>
 
     <ItemGroup>
-      <None Include="Assets\hanfupage\**\*">
-        <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-      </None>
+      <AvaloniaResource Include="Assets\hanfupage\**\*" />
     </ItemGroup>
 
     <ItemGroup>
@@ -86,8 +84,7 @@
 
         <ItemGroup>
             <PackageFiles Include="$(PackageSourceDir)*" Exclude="$(PackageSourceDir)*.pdb;$(PackageSourceDir)*.cipx;$(PackageSourceDir)*.zip;$(PackageSourceDir)win-x64\**\*;$(PackageSourceDir)android-arm64\**\*" />
-            <PackageFiles Include="$(PackageSourceDir)Assets\**\*" Exclude="$(PackageSourceDir)Assets\**\*.pdb;$(PackageSourceDir)Assets\**\*.cipx;$(PackageSourceDir)Assets\**\*.zip" />
-            <PackageFiles Include="$(PackageSourceDir)hanfupage\**\*" Exclude="$(PackageSourceDir)hanfupage\**\*.pdb;$(PackageSourceDir)hanfupage\**\*.cipx;$(PackageSourceDir)hanfupage\**\*.zip" />
+            <PackageFiles Include="$(PackageSourceDir)Assets\Icons\**\*;$(PackageSourceDir)Assets\Markdown\**\*" Exclude="$(PackageSourceDir)Assets\**\*.pdb;$(PackageSourceDir)Assets\**\*.cipx;$(PackageSourceDir)Assets\**\*.zip" />
         </ItemGroup>
 
         <Copy SourceFiles="@(PackageFiles)" DestinationFiles="@(PackageFiles->'$(TempPackageDir)\%(RecursiveDir)%(Filename)%(Extension)')" />

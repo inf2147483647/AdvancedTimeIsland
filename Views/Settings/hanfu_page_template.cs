@@ -1304,9 +1304,6 @@ InfoBar 语法格式：
 
     private Control? CreateImageControl(string url)
     {
-        if (!url.StartsWith("http"))
-            return null;
-
         var image = new Image
         {
             Stretch = Stretch.Uniform,
@@ -1372,17 +1369,68 @@ InfoBar 语法格式：
             }
         };
 
-        async void RetryHandler(object? sender, RoutedEventArgs args)
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            retryButton.IsEnabled = false;
-            retryButton.Content = "加载中...";
-            errorPanel.IsVisible = false;
-            errorDetailText.Text = "";
-            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
-        }
+            async void RetryHandler(object? sender, RoutedEventArgs args)
+            {
+                retryButton.IsEnabled = false;
+                retryButton.Content = "加载中...";
+                errorPanel.IsVisible = false;
+                errorDetailText.Text = "";
+                await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+            }
 
-        retryButton.Click += RetryHandler;
-        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+            retryButton.Click += RetryHandler;
+            LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+        }
+        else
+        {
+            string localPath = ResolveLocalPath(url);
+            System.Diagnostics.Debug.WriteLine($"CreateImageControl: url={url}, resolvedPath={localPath ?? "null"}");
+            
+            bool loaded = false;
+
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            {
+                try
+                {
+                    using var stream = File.OpenRead(localPath);
+                    var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
+                    image.Source = bitmap;
+                    loaded = true;
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from file {localPath}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl file load failed: {ex.Message}");
+                }
+            }
+
+            if (!loaded)
+            {
+                try
+                {
+                    var avaresUri = BuildAvaresUri(url);
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: trying avares {avaresUri}");
+                    using var assetStream = Avalonia.Platform.AssetLoader.Open(new Uri(avaresUri));
+                    var bitmap = new Avalonia.Media.Imaging.Bitmap(assetStream);
+                    image.Source = bitmap;
+                    loaded = true;
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from avares {avaresUri}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl avares load failed: {ex.Message}");
+                }
+            }
+
+            if (!loaded)
+            {
+                retryButton.IsVisible = false;
+                errorDetailText.Text = $"图片加载失败: {url}";
+                errorPanel.IsVisible = true;
+            }
+        }
 
         return container;
     }
@@ -1508,7 +1556,15 @@ InfoBar 语法格式：
         {
             if (link.IsImage)
             {
-                yield return new Run { Text = $"[图片: {link.Url}]" };
+                var imageControl = CreateInlineImage(link.Url);
+                if (imageControl != null)
+                {
+                    yield return imageControl;
+                }
+                else
+                {
+                    yield return new Run { Text = $"[图片: {link.Url}]" };
+                }
             }
             else
             {
@@ -2254,9 +2310,22 @@ InfoBar 语法格式：
 
             if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(localPath);
+                using var stream = File.OpenRead(localPath);
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
                 imageControl.Source = bitmap;
                 return;
+            }
+
+            try
+            {
+                var avaresUri = BuildAvaresUri(src);
+                using var assetStream = Avalonia.Platform.AssetLoader.Open(new Uri(avaresUri));
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(assetStream);
+                imageControl.Source = bitmap;
+                return;
+            }
+            catch
+            {
             }
 
             if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -2326,6 +2395,61 @@ InfoBar 语法格式：
         }
     }
 
+    private static string BuildAvaresUri(string url)
+    {
+        var assemblyName = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name ?? "AdvancedTimeIsland";
+        var cleanPath = url.Replace('\\', '/');
+        if (cleanPath.StartsWith('/')) cleanPath = cleanPath.Substring(1);
+        return $"avares://{assemblyName}/{cleanPath}";
+    }
+
+    private InlineUIContainer? CreateInlineImage(string url)
+    {
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        var image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            MaxWidth = 300,
+            MaxHeight = 200,
+            Margin = new Thickness(4, 4, 4, 4)
+        };
+
+        bool loaded = false;
+
+        string localPath = ResolveLocalPath(url);
+        if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+        {
+            try
+            {
+                using var stream = File.OpenRead(localPath);
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
+                image.Source = bitmap;
+                loaded = true;
+            }
+            catch { }
+        }
+
+        if (!loaded)
+        {
+            try
+            {
+                var avaresUri = BuildAvaresUri(url);
+                using var assetStream = Avalonia.Platform.AssetLoader.Open(new Uri(avaresUri));
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(assetStream);
+                image.Source = bitmap;
+                loaded = true;
+            }
+            catch { }
+        }
+
+        if (!loaded)
+            return null;
+
+        return new InlineUIContainer(image);
+    }
+
     private string? ResolveLocalPath(string src)
     {
         if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
@@ -2334,6 +2458,8 @@ InfoBar 语法格式：
         try
         {
             var baseDir = AppContext.BaseDirectory;
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var pluginDir = string.IsNullOrEmpty(assemblyLocation) ? baseDir : System.IO.Path.GetDirectoryName(assemblyLocation) ?? baseDir;
 
             var relativePath = src.Replace('/', Path.DirectorySeparatorChar);
             if (relativePath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
@@ -2345,9 +2471,17 @@ InfoBar 语法格式：
             if (File.Exists(fullPath))
                 return fullPath;
 
+            var fullPathPlugin = Path.Combine(pluginDir, "Assets", relativePath);
+            if (File.Exists(fullPathPlugin))
+                return fullPathPlugin;
+
             var fullPath2 = Path.Combine(baseDir, src);
             if (File.Exists(fullPath2))
                 return fullPath2;
+
+            var fullPathPlugin2 = Path.Combine(pluginDir, src);
+            if (File.Exists(fullPathPlugin2))
+                return fullPathPlugin2;
 
             return null;
         }
