@@ -6,6 +6,7 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
 using Avalonia.Controls.Primitives;
@@ -13,6 +14,7 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.TextFormatting;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -34,6 +36,10 @@ public class HanfuPageTemplate : SettingsPageBase
     protected List<TextBlock>? _paragraphTextBlocks;
     protected List<TextBlock>? _sectionTextBlocks;
     protected TextBlock? _backTextBlock;
+    private Dictionary<int, InfoBarData>? _infoBarData;
+    private Dictionary<int, ImgData>? _imgData;
+    private Dictionary<Span, string>? _hyperlinkSpanMap;
+    private Dictionary<Span, (int Offset, int Length)>? _hyperlinkSpanOffsets;
 
     public HanfuPageTemplate()
     {
@@ -320,6 +326,27 @@ or
 > This is a normal info
 ```
 
+## 6. InfoBar 自定义语法
+
+InfoBar 语法格式：
+
+```
+<infobar='type:类型, closable:布尔值'>内容</infobar>
+```
+
+类型支持：信息(info)、警告(warning)、错误(error)
+
+<infobar='type:info, closable:false'>这是一条信息提示，不可关闭。</infobar>
+
+<infobar='type:warning, closable:true'>这是一条警告信息，可以点击右上角按钮关闭。</infobar>
+
+<infobar='type:error, closable:true'>这是一条错误信息，可以关闭。</infobar>
+
+<infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
+
+<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='图片加载失败'>
+<img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='80%' height='auto'>
+
 ";
 
         RenderMarkdown(panel, markdown);
@@ -327,8 +354,14 @@ or
 
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
+        _hyperlinkSpanMap = new Dictionary<Span, string>();
+        _hyperlinkSpanOffsets = new Dictionary<Span, (int, int)>();
         markdown = StripHtmlComments(markdown);
         markdown = PreprocessAlertBlocks(markdown);
+        markdown = PreprocessInfoBars(markdown);
+        markdown = PreprocessImgTags(markdown);
+        markdown = PreprocessRouteLinks(markdown);
+        markdown = PreprocessUnderlineTags(markdown);
         
         var pipeline = new Markdig.MarkdownPipelineBuilder()
             .UseEmphasisExtras()
@@ -379,7 +412,8 @@ or
             }
 
             if (trimmed.StartsWith("> [!tip]") || trimmed.StartsWith("> [!note]") ||
-                trimmed.StartsWith("> [!warning]") || trimmed.StartsWith("> [!caution]") ||
+                trimmed.StartsWith("> [!important]") || trimmed.StartsWith("> [!warning]") ||
+                trimmed.StartsWith("> [!caution]") ||
                 Regex.IsMatch(trimmed, @"^>\s*\[[^\]!]+\]\s*$"))
             {
                 inAlert = true;
@@ -406,6 +440,223 @@ or
             {
                 result.Add(line);
             }
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessInfoBars(string markdown)
+    {
+        _infoBarData = new Dictionary<int, InfoBarData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var match = Regex.Match(line, @"<infobar\s*=\s*'([^']*)'>([\s\S]*?)</infobar>", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var attrs = match.Groups[1].Value;
+                var content = match.Groups[2].Value.Trim();
+
+                var infoBarType = InfoBarType.Info;
+                var closable = false;
+
+                var typeMatch = Regex.Match(attrs, @"type\s*:\s*(\w+)", RegexOptions.IgnoreCase);
+                if (typeMatch.Success)
+                {
+                    var typeStr = typeMatch.Groups[1].Value.ToLowerInvariant();
+                    infoBarType = typeStr switch
+                    {
+                        "info" or "信息" => InfoBarType.Info,
+                        "warning" or "警告" => InfoBarType.Warning,
+                        "error" or "错误" => InfoBarType.Error,
+                        _ => InfoBarType.Info
+                    };
+                }
+
+                var closableMatch = Regex.Match(attrs, @"closable\s*:\s*(true|false)", RegexOptions.IgnoreCase);
+                if (closableMatch.Success)
+                {
+                    closable = bool.Parse(closableMatch.Groups[1].Value);
+                }
+
+                _infoBarData[index] = new InfoBarData
+                {
+                    Type = infoBarType,
+                    Closable = closable,
+                    Content = content
+                };
+
+                result.Add($"INFOBARBLOCK{index}END");
+                result.Add("");
+                index++;
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessRouteLinks(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var newLine = System.Text.RegularExpressions.Regex.Replace(
+                line,
+                @"\[route:([^\]]+)\](?!\()",
+                m => $"[{m.Groups[1].Value}](route:{m.Groups[1].Value})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            newLine = System.Text.RegularExpressions.Regex.Replace(
+                newLine,
+                @"\[([^\]]+)\]\(route:([^\)]+)\)",
+                m => $"[{m.Groups[1].Value}]({RouteUrlPrefix}{m.Groups[2].Value})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            result.Add(newLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessUnderlineTags(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var newLine = System.Text.RegularExpressions.Regex.Replace(
+                line,
+                @"<underline\s+style\s*=\s*['""]\s*(single|wave|double)\s*['""]\s*>(.*?)</underline>",
+                m =>
+                {
+                    var style = m.Groups[1].Value.ToLowerInvariant();
+                    var innerText = m.Groups[2].Value;
+                    return $"<span style=\"text-decoration: underline {style}\">{innerText}</span>";
+                },
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+
+            result.Add(newLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessImgTags(string markdown)
+    {
+        _imgData = new Dictionary<int, ImgData>();
+        int index = 0;
+
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<img\s+([^>]*?)\s*/?>",
+                match =>
+                {
+                    var attrs = match.Groups[1].Value;
+
+                    var srcMatch = Regex.Match(attrs, @"src\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var widthMatch = Regex.Match(attrs, @"width\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var heightMatch = Regex.Match(attrs, @"height\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var titleMatch = Regex.Match(attrs, @"title\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var altMatch = Regex.Match(attrs, @"alt\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+
+                    var src = srcMatch.Success ? srcMatch.Groups[1].Value.Trim() : "";
+                    var width = widthMatch.Success ? widthMatch.Groups[1].Value.Trim() : "";
+                    var height = heightMatch.Success ? heightMatch.Groups[1].Value.Trim() : "auto";
+                    var title = titleMatch.Success ? titleMatch.Groups[1].Value.Trim() : "";
+                    var alt = altMatch.Success ? altMatch.Groups[1].Value.Trim() : "";
+
+                    _imgData[index] = new ImgData
+                    {
+                        Src = src,
+                        Width = width,
+                        Height = height,
+                        Title = title,
+                        Alt = alt
+                    };
+
+                    var placeholder = $"\nIMGBLOCK{index}END\n";
+                    index++;
+                    return placeholder;
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
         }
 
         return string.Join("\n", result);
@@ -442,6 +693,16 @@ or
 
     private Control? ConvertMarkdownBlock(MarkdownObject block)
     {
+        if (block is ParagraphBlock p && TryGetImgPlaceholder(p, out int imgIndex))
+        {
+            return ConvertImg(imgIndex);
+        }
+
+        if (block is ParagraphBlock p2 && TryGetInfoBarPlaceholder(p2, out int infoBarIndex))
+        {
+            return ConvertInfoBar(infoBarIndex);
+        }
+
         return block switch
         {
             HeadingBlock heading => ConvertHeading(heading),
@@ -453,6 +714,190 @@ or
             ThematicBreakBlock => ConvertThematicBreak(),
             _ => null
         };
+    }
+
+    private bool TryGetImgPlaceholder(ParagraphBlock paragraph, out int index)
+    {
+        index = -1;
+        var text = ExtractParagraphText(paragraph);
+        var match = Regex.Match(text, @"^IMGBLOCK(\d+)END$");
+        if (match.Success && _imgData != null)
+        {
+            index = int.Parse(match.Groups[1].Value);
+            return _imgData.ContainsKey(index);
+        }
+        return false;
+    }
+
+    private bool TryGetInfoBarPlaceholder(ParagraphBlock paragraph, out int index)
+    {
+        index = -1;
+        var text = ExtractParagraphText(paragraph);
+        var match = Regex.Match(text, @"^INFOBARBLOCK(\d+)END$");
+        if (match.Success && _infoBarData != null)
+        {
+            index = int.Parse(match.Groups[1].Value);
+            return _infoBarData.ContainsKey(index);
+        }
+        return false;
+    }
+
+    private string ExtractParagraphText(ParagraphBlock paragraph)
+    {
+        if (paragraph.Inline == null) return "";
+        var sb = new System.Text.StringBuilder();
+        CollectInlineText(paragraph.Inline, sb);
+        return sb.ToString().Trim();
+    }
+
+    private void CollectInlineText(Markdig.Syntax.Inlines.Inline inline, System.Text.StringBuilder sb)
+    {
+        if (inline is Markdig.Syntax.Inlines.LiteralInline literal)
+        {
+            sb.Append(literal.Content.ToString());
+        }
+        else if (inline is Markdig.Syntax.Inlines.ContainerInline container)
+        {
+            var child = container.FirstChild;
+            while (child != null)
+            {
+                CollectInlineText(child, sb);
+                child = child.NextSibling;
+            }
+        }
+    }
+
+    private const string RouteUrlPrefix = "http://route.local/";
+
+    private Span CreateHyperlink(string url, string displayText, TextBlock? parentTextBlock = null)
+    {
+        var span = new Span
+        {
+            Foreground = GetAccentBrush(),
+            TextDecorations = TextDecorations.Underline
+        };
+
+        span.Inlines.Add(new Run { Text = displayText });
+        _hyperlinkSpanMap![span] = url;
+        return span;
+    }
+
+    private static void ApplyParentDecorationsToHyperlink(Span parentSpan, Span hyperlink)
+    {
+        if (parentSpan.TextDecorations == null) return;
+        var combined = new TextDecorationCollection();
+        if (hyperlink.TextDecorations != null)
+            foreach (var d in hyperlink.TextDecorations)
+                combined.Add(d);
+        foreach (var d in parentSpan.TextDecorations)
+            combined.Add(d);
+        hyperlink.TextDecorations = combined;
+    }
+
+    private void FinalizeHyperlinkLayout(TextBlock textBlock)
+    {
+        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+
+        var offset = 0;
+        ComputeSpanOffsetsRecursive(textBlock.Inlines, ref offset);
+    }
+
+    private void ComputeSpanOffsetsRecursive(InlineCollection inlines, ref int offset)
+    {
+        foreach (var inline in inlines)
+        {
+            if (inline is Run run)
+            {
+                offset += run.Text.Length;
+            }
+            else if (inline is Span span)
+            {
+                int startOffset = offset;
+                ComputeSpanOffsetsRecursive(span.Inlines, ref offset);
+                int length = offset - startOffset;
+                if (_hyperlinkSpanMap!.ContainsKey(span))
+                {
+                    _hyperlinkSpanOffsets![span] = (startOffset, length);
+                }
+            }
+            else if (inline is InlineUIContainer container)
+            {
+                if (container.Child is TextBlock tb)
+                    offset += tb.Text?.Length ?? 0;
+            }
+        }
+    }
+
+    private void AttachHyperlinkClickHandler(TextBlock textBlock)
+    {
+        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+
+        FinalizeHyperlinkLayout(textBlock);
+
+        textBlock.PointerReleased += (s, e) =>
+        {
+            if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+
+            var position = e.GetPosition(textBlock);
+            var textLayout = textBlock.TextLayout;
+            if (textLayout == null) return;
+
+            foreach (var span in _hyperlinkSpanMap.Keys)
+            {
+                if (_hyperlinkSpanOffsets!.TryGetValue(span, out var range))
+                {
+                    if (IsPositionInHyperlink(textLayout, range, position))
+                    {
+                        OpenLink(_hyperlinkSpanMap[span]);
+                        e.Handled = true;
+                        return;
+                    }
+                }
+            }
+        };
+
+        textBlock.PointerMoved += (s, e) =>
+        {
+            if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+
+            var position = e.GetPosition(textBlock);
+            var textLayout = textBlock.TextLayout;
+            if (textLayout == null) return;
+
+            bool overLink = false;
+            foreach (var span in _hyperlinkSpanMap.Keys)
+            {
+                if (_hyperlinkSpanOffsets!.TryGetValue(span, out var range))
+                {
+                    if (IsPositionInHyperlink(textLayout, range, position))
+                    {
+                        overLink = true;
+                        break;
+                    }
+                }
+            }
+            textBlock.Cursor = overLink ? new Cursor(StandardCursorType.Hand) : null;
+        };
+    }
+
+    private static bool IsPositionInHyperlink(TextLayout textLayout, (int Offset, int Length) range, Point position)
+    {
+        if (range.Length <= 0) return false;
+
+        var rects = textLayout.HitTestTextRange(range.Offset, range.Length);
+        foreach (var rect in rects)
+        {
+            if (rect.Contains(position))
+                return true;
+        }
+        return false;
+    }
+
+    private static string NormalizeRouteUrl(string url)
+    {
+        if (url.StartsWith(RouteUrlPrefix, StringComparison.Ordinal))
+            return "route:" + url.Substring(RouteUrlPrefix.Length);
+        return url;
     }
 
     private Control ConvertThematicBreak()
@@ -500,6 +945,7 @@ or
             _sectionTextBlocks?.Add(textBlock);
         }
 
+        AttachHyperlinkClickHandler(textBlock);
         return textBlock;
     }
 
@@ -512,7 +958,8 @@ or
             Spacing = 4
         };
 
-        CollectParagraphSegments(paragraph.Inline, segments, imagePanel);
+        var templateTextBlock = CreateParagraphTextBlock();
+        CollectParagraphSegments(paragraph.Inline, segments, imagePanel, templateTextBlock);
 
         var result = new StackPanel
         {
@@ -531,6 +978,7 @@ or
                 {
                     result.Children.Add(currentTextBlock);
                     _paragraphTextBlocks?.Add(currentTextBlock);
+                    AttachHyperlinkClickHandler(currentTextBlock);
                     currentTextBlock = CreateParagraphTextBlock();
                 }
 
@@ -542,6 +990,8 @@ or
 
                 foreach (var inline in segment.Inlines!)
                 {
+                    if (inline is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                        ApplyParentDecorationsToHyperlink(spanContent, hyperlink);
                     spanContent.Inlines.Add(inline);
                 }
 
@@ -569,6 +1019,7 @@ or
                     }
 
                     border.Child = innerTextBlock;
+                    AttachHyperlinkClickHandler(innerTextBlock);
                     result.Children.Add(border);
             }
             else if (segment.Type == ParagraphSegmentType.InlineStyledSpan)
@@ -577,6 +1028,8 @@ or
                 ApplySpanStyle(styledSpan, segment.StyleText!);
                 foreach (var inline in segment.Inlines!)
                 {
+                    if (inline is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                        ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                     styledSpan.Inlines.Add(inline);
                 }
                 currentTextBlock.Inlines.Add(styledSpan);
@@ -587,14 +1040,6 @@ or
                 {
                     currentTextBlock.Inlines.Add(inline);
                 }
-                
-                if (!string.IsNullOrEmpty(segment.LinkUrl))
-                {
-                    // 在TextBlock上设置链接属性
-                    currentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    currentTextBlock.Tag = segment.LinkUrl;
-                    currentTextBlock.PointerReleased += OnTextBlockLinkClicked;
-                }
             }
         }
 
@@ -602,6 +1047,7 @@ or
         {
             result.Children.Add(currentTextBlock);
             _paragraphTextBlocks?.Add(currentTextBlock);
+            AttachHyperlinkClickHandler(currentTextBlock);
         }
 
         if (imagePanel.Children.Count > 0)
@@ -621,13 +1067,14 @@ or
 
     private TextBlock CreateParagraphTextBlock()
     {
-        return new TextBlock
+        var tb = new TextBlock
         {
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0)
         };
+        return tb;
     }
 
     private enum ParagraphSegmentType
@@ -641,21 +1088,36 @@ or
     {
         public ParagraphSegmentType Type { get; set; }
         public string? StyleText { get; set; }
-        public string? LinkUrl { get; set; }
         public List<Avalonia.Controls.Documents.Inline>? Inlines { get; set; } = new List<Avalonia.Controls.Documents.Inline>();
     }
 
-    private void CollectParagraphSegments(Markdig.Syntax.Inlines.Inline? inline, List<ParagraphSegment> segments, StackPanel imagePanel)
+    private void CollectParagraphSegments(Markdig.Syntax.Inlines.Inline? inline, List<ParagraphSegment> segments, StackPanel imagePanel, TextBlock? parentTextBlock = null)
     {
         if (inline == null) return;
 
         if (inline is LiteralInline literal)
         {
-            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+            var text = literal.Content.ToString();
+            var routeMatch = System.Text.RegularExpressions.Regex.Match(text, @"^\[route:([^\]]+)\]$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (routeMatch.Success)
             {
-                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                var pageName = routeMatch.Groups[1].Value;
+                var url = "route:" + pageName;
+                var hyperlink = CreateHyperlink(url, pageName, parentTextBlock);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
-            segments[segments.Count - 1].Inlines!.Add(new Run { Text = literal.Content.ToString() });
+            else
+            {
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(new Run { Text = text });
+            }
         }
         else if (inline is EmphasisInline emphasis)
         {
@@ -669,19 +1131,21 @@ or
             }
             else if (emphasis.DelimiterChar == '~')
             {
-                styledSpan.TextDecorations = TextDecorations.Strikethrough;
+                styledSpan.TextDecorations = CreateStrikethroughDecoration();
             }
 
             foreach (var child in emphasis)
             {
                 var childSegments = new List<ParagraphSegment>();
-                CollectParagraphSegments(child, childSegments, imagePanel);
+                CollectParagraphSegments(child, childSegments, imagePanel, parentTextBlock);
                 foreach (var childSegment in childSegments)
                 {
                     if (childSegment.Type == ParagraphSegmentType.Text)
                     {
                         foreach (var item in childSegment.Inlines!)
                         {
+                            if (item is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                                ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                             styledSpan.Inlines.Add(item);
                         }
                     }
@@ -701,19 +1165,17 @@ or
         else if (inline is Markdig.Syntax.Inlines.CodeInline code)
         {
             var codeText = code.Content.ToString();
-            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://");
+            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://") || codeText.StartsWith("route:");
 
             if (isUrl)
             {
-                var linkSegment = new ParagraphSegment
+                var url = NormalizeRouteUrl(codeText);
+                var hyperlink = CreateHyperlink(url, codeText, parentTextBlock);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
                 {
-                    Type = ParagraphSegmentType.Text,
-                    LinkUrl = codeText
-                };
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
-                linkSpan.Inlines.Add(new Run { Text = codeText });
-                linkSegment.Inlines!.Add(linkSpan);
-                segments.Add(linkSegment);
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
             else
             {
@@ -744,34 +1206,22 @@ or
             }
             else
             {
-                var linkSegment = new ParagraphSegment
-                {
-                    Type = ParagraphSegmentType.Text,
-                    LinkUrl = link.Url
-                };
-                
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
+                var linkText = new System.Text.StringBuilder();
                 foreach (var child in link)
                 {
-                    var childSegments = new List<ParagraphSegment>();
-                    CollectParagraphSegments(child, childSegments, imagePanel);
-                    foreach (var childSegment in childSegments)
-                    {
-                        if (childSegment.Type == ParagraphSegmentType.Text)
-                        {
-                            foreach (var item in childSegment.Inlines!)
-                            {
-                                linkSpan.Inlines.Add(item);
-                            }
-                        }
-                        else
-                        {
-                            segments.Add(childSegment);
-                        }
-                    }
+                    if (child is LiteralInline lit)
+                        linkText.Append(lit.Content.ToString());
                 }
-                linkSegment.Inlines!.Add(linkSpan);
-                segments.Add(linkSegment);
+
+                var displayText = linkText.Length > 0 ? linkText.ToString() : link.Url;
+                var url = NormalizeRouteUrl(link.Url);
+                var hyperlink = CreateHyperlink(url, displayText, parentTextBlock);
+
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
         }
         else if (inline is LineBreakInline)
@@ -806,7 +1256,7 @@ or
                     while (child != null && !(child is HtmlInline closing && IsSpanClosingTag(closing)))
                     {
                         var childSegments = new List<ParagraphSegment>();
-                        CollectParagraphSegments(child, childSegments, imagePanel);
+                        CollectParagraphSegments(child, childSegments, imagePanel, parentTextBlock);
                         foreach (var childSegment in childSegments)
                         {
                             if (childSegment.Type == ParagraphSegmentType.Text)
@@ -833,7 +1283,7 @@ or
                 }
                 else
                 {
-                    CollectParagraphSegments(child, segments, imagePanel);
+                    CollectParagraphSegments(child, segments, imagePanel, parentTextBlock);
                     child = child.NextSibling;
                 }
             }
@@ -1005,7 +1455,7 @@ or
             }
             else if (emphasis.DelimiterChar == '~')
             {
-                styleSpan = new Span { TextDecorations = TextDecorations.Strikethrough };
+                styleSpan = new Span { TextDecorations = CreateStrikethroughDecoration() };
             }
 
             foreach (var child in emphasis)
@@ -1014,6 +1464,8 @@ or
                 {
                     if (styleSpan != null)
                     {
+                        if (inlineChild is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                            ApplyParentDecorationsToHyperlink(styleSpan, hyperlink);
                         styleSpan.Inlines.Add(inlineChild);
                     }
                     else
@@ -1031,23 +1483,13 @@ or
         else if (inline is Markdig.Syntax.Inlines.CodeInline code)
         {
             var codeText = code.Content.ToString();
-            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://");
+            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://") || codeText.StartsWith("route:");
             
             if (isUrl)
             {
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
-                linkSpan.Inlines.Add(new Run { Text = codeText });
-                
-                if (parentTextBlock != null)
-                {
-                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerReleased += (sender, e) =>
-                    {
-                        OpenLink(codeText);
-                    };
-                }
-                
-                yield return linkSpan;
+                var url = NormalizeRouteUrl(codeText);
+                var hyperlink = CreateHyperlink(url, codeText, parentTextBlock);
+                yield return hyperlink;
             }
             else
             {
@@ -1070,25 +1512,17 @@ or
             }
             else
             {
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
+                var linkText = new System.Text.StringBuilder();
                 foreach (var child in link)
                 {
-                    foreach (var inlineChild in ConvertInline(child, parentTextBlock))
-                    {
-                        linkSpan.Inlines.Add(inlineChild);
-                    }
+                    if (child is LiteralInline lit)
+                        linkText.Append(lit.Content.ToString());
                 }
-                
-                if (parentTextBlock != null)
-                {
-                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerReleased += (sender, e) =>
-                    {
-                        OpenLink(link.Url);
-                    };
-                }
-                
-                yield return linkSpan;
+
+                var displayText = linkText.Length > 0 ? linkText.ToString() : link.Url;
+                var url = NormalizeRouteUrl(link.Url);
+                var hyperlink = CreateHyperlink(url, displayText, parentTextBlock);
+                yield return hyperlink;
             }
         }
         else if (inline is LineBreakInline)
@@ -1109,6 +1543,8 @@ or
                     {
                         foreach (var innerChild in ConvertInline(child, parentTextBlock))
                         {
+                            if (innerChild is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                                ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                             styledSpan.Inlines.Add(innerChild);
                         }
                         child = child.NextSibling;
@@ -1207,10 +1643,21 @@ or
                         span.FontStyle = FontStyle.Normal;
                     break;
                 case "text-decoration":
-                    if (value.Contains("underline"))
-                        span.TextDecorations = TextDecorations.Underline;
-                    else if (value.Contains("line-through"))
-                        span.TextDecorations = TextDecorations.Strikethrough;
+                    var decorationValue = value.Trim().ToLowerInvariant();
+                    if (decorationValue.Contains("underline"))
+                    {
+                        var parts = decorationValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var styleType = parts.Length > 1 ? parts[1] : "single";
+                        span.TextDecorations = CreateUnderlineDecoration(styleType);
+                    }
+                    else if (decorationValue.Contains("line-through"))
+                    {
+                        span.TextDecorations = CreateStrikethroughDecoration();
+                    }
+                    else if (decorationValue.Contains("overline"))
+                    {
+                        span.TextDecorations = TextDecorations.Overline;
+                    }
                     break;
                 case "background-color":
                 case "background":
@@ -1218,6 +1665,56 @@ or
                     break;
             }
         }
+    }
+
+    private static TextDecorationCollection CreateUnderlineDecoration(string style)
+    {
+        switch (style)
+        {
+            case "wave":
+                var waveDecoration = new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    StrokeDashArray = new AvaloniaList<double> { 1.5, 1.0 },
+                    StrokeDashOffset = 0,
+                    StrokeLineCap = PenLineCap.Round
+                };
+                var waveCollection = new TextDecorationCollection();
+                waveCollection.Add(waveDecoration);
+                return waveCollection;
+
+            case "double":
+                var doubleCollection = new TextDecorationCollection();
+                doubleCollection.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    StrokeThickness = 1
+                });
+                doubleCollection.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    StrokeThickness = 1,
+                    StrokeOffset = 3,
+                    StrokeOffsetUnit = TextDecorationUnit.FontRecommended
+                });
+                return doubleCollection;
+
+            default:
+                return TextDecorations.Underline;
+        }
+    }
+
+    private static TextDecorationCollection CreateStrikethroughDecoration()
+    {
+        var decoration = new TextDecoration
+        {
+            Location = TextDecorationLocation.Strikethrough,
+            StrokeThickness = 2.5,
+            StrokeThicknessUnit = TextDecorationUnit.Pixel
+        };
+        var collection = new TextDecorationCollection();
+        collection.Add(decoration);
+        return collection;
     }
 
     private static Thickness ParseThickness(string value)
@@ -1307,14 +1804,6 @@ or
         return FontWeight.Normal;
     }
 
-    private void OnTextBlockLinkClicked(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
-    {
-        if (sender is TextBlock textBlock && textBlock.Tag is string url)
-        {
-            OpenLink(url);
-        }
-    }
-
     private void OpenLink(string url)
     {
         try
@@ -1378,9 +1867,33 @@ or
         None,
         Tip,
         Note,
+        Important,
         Warning,
         Caution,
         Custom
+    }
+
+    private enum InfoBarType
+    {
+        Info,
+        Warning,
+        Error
+    }
+
+    private class InfoBarData
+    {
+        public InfoBarType Type { get; set; }
+        public bool Closable { get; set; }
+        public string Content { get; set; } = "";
+    }
+
+    private class ImgData
+    {
+        public string Src { get; set; } = "";
+        public string Width { get; set; } = "";
+        public string Height { get; set; } = "auto";
+        public string Title { get; set; } = "";
+        public string Alt { get; set; } = "";
     }
 
     private (AlertType Type, string CustomTitle) DetectAlertType(QuoteBlock quote)
@@ -1389,14 +1902,15 @@ or
         {
             if (block is ParagraphBlock paragraph)
             {
-                var text = paragraph.Inline?.ToString() ?? "";
-                var specificMatch = Regex.Match(text, @"^\[!(tip|note|warning|caution)\]", RegexOptions.IgnoreCase);
+                var text = ExtractParagraphText(paragraph);
+                var specificMatch = Regex.Match(text, @"^\[!(tip|note|important|warning|caution)\]", RegexOptions.IgnoreCase);
                 if (specificMatch.Success)
                 {
                     return specificMatch.Groups[1].Value.ToLowerInvariant() switch
                     {
                         "tip" => (AlertType.Tip, ""),
                         "note" => (AlertType.Note, ""),
+                        "important" => (AlertType.Important, ""),
                         "warning" => (AlertType.Warning, ""),
                         "caution" => (AlertType.Caution, ""),
                         _ => (AlertType.None, "")
@@ -1417,8 +1931,8 @@ or
 
     private ParagraphBlock? StripAlertMarker(ParagraphBlock paragraph, AlertType alertType)
     {
-        var text = paragraph.Inline?.ToString() ?? "";
-        var specificMatch = Regex.Match(text, @"^\[!(tip|note|warning|caution)\]\s*", RegexOptions.IgnoreCase);
+        var text = ExtractParagraphText(paragraph);
+        var specificMatch = Regex.Match(text, @"^\[!(tip|note|important|warning|caution)\]\s*", RegexOptions.IgnoreCase);
         var customMatch = Regex.Match(text, @"^\[[^\]!]+\]\s*", RegexOptions.IgnoreCase);
         
         var match = specificMatch.Success ? specificMatch : (customMatch.Success ? customMatch : null);
@@ -1460,6 +1974,11 @@ or
                 titleColor = new SolidColorBrush(Color.Parse(isDark ? "#60A5FA" : "#1E40AF"));
                 bgColor = new SolidColorBrush(Color.Parse(isDark ? "#0E1F3D" : "#EFF6FF"));
                 break;
+            case AlertType.Important:
+                borderColor = new SolidColorBrush(Color.Parse(isDark ? "#A855F7" : "#7E22CE"));
+                titleColor = new SolidColorBrush(Color.Parse(isDark ? "#C084FC" : "#6B21A8"));
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#2A0F3D" : "#FAF5FF"));
+                break;
             case AlertType.Warning:
                 borderColor = ThemeHelper.GetOrangeBrush();
                 titleColor = ThemeHelper.GetOrangeBrush();
@@ -1471,9 +1990,9 @@ or
                 bgColor = new SolidColorBrush(Color.Parse(isDark ? "#330505" : "#FEF2F2"));
                 break;
             case AlertType.Custom:
-                borderColor = GetAccentBrush();
-                titleColor = GetAccentBrush();
-                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#1E2A3D" : "#F3F4F6"));
+                borderColor = new SolidColorBrush(Color.Parse(isDark ? "#9CA3AF" : "#6B7280"));
+                titleColor = new SolidColorBrush(Color.Parse(isDark ? "#D1D5DB" : "#4B5563"));
+                bgColor = new SolidColorBrush(Color.Parse(isDark ? "#1F2937" : "#F9FAFB"));
                 break;
             default:
                 borderColor = GetAccentBrush();
@@ -1486,9 +2005,10 @@ or
         {
             AlertType.Tip => ("💡", "Tip"),
             AlertType.Note => ("📝", "Note"),
+            AlertType.Important => ("⭐", "Important"),
             AlertType.Warning => ("⚠️", "Warning"),
             AlertType.Caution => ("⛔", "Caution"),
-            AlertType.Custom => ("📌", customTitle),
+            AlertType.Custom => ("", customTitle),
             _ => ("", "")
         };
 
@@ -1576,6 +2096,267 @@ or
         return grid;
     }
 
+    private Control ConvertInfoBar(int index)
+    {
+        if (_infoBarData == null || !_infoBarData.TryGetValue(index, out var data))
+            return new Border();
+
+        var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+
+        object severityValue = data.Type switch
+        {
+            InfoBarType.Warning => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning(),
+            InfoBarType.Error => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError(),
+            _ => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational()
+        };
+
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", severityValue);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", data.Content);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", data.Closable);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 8, 0, 8));
+
+        return infoBar;
+    }
+
+    private Control ConvertImg(int index)
+    {
+        if (_imgData == null || !_imgData.TryGetValue(index, out var data))
+            return new Border();
+
+        var image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+
+        if (!string.IsNullOrEmpty(data.Title))
+        {
+            ToolTip.SetTip(image, data.Title);
+        }
+
+        var altText = string.IsNullOrEmpty(data.Alt) ? "图片加载失败" : data.Alt;
+
+        var errorPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            IsVisible = false,
+            Margin = new Thickness(16)
+        };
+
+        var errorText = new TextBlock
+        {
+            Text = altText,
+            FontSize = 13,
+            Foreground = Brushes.Gray,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 300
+        };
+        errorPanel.Children.Add(errorText);
+
+        var grid = new Grid();
+        grid.Children.Add(image);
+        grid.Children.Add(errorPanel);
+
+        var container = new Border
+        {
+            Child = grid,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        container.Loaded += (s, e) =>
+        {
+            var parent = container.Parent as Control;
+            double viewportWidth = parent?.Bounds.Width ?? 800;
+            double viewportHeight = parent?.Bounds.Height ?? 600;
+
+            double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
+            double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
+
+            bool hasWidth = parsedWidth.HasValue;
+            bool hasHeight = parsedHeight.HasValue;
+
+            if (hasWidth)
+            {
+                container.Width = parsedWidth.Value;
+                image.Width = parsedWidth.Value;
+            }
+
+            if (hasHeight)
+            {
+                container.Height = parsedHeight.Value;
+                image.Height = parsedHeight.Value;
+            }
+
+            if (hasWidth && hasHeight)
+            {
+                image.Stretch = Stretch.Fill;
+            }
+            else if (hasWidth || hasHeight)
+            {
+                image.Stretch = Stretch.Uniform;
+            }
+            else
+            {
+                image.Stretch = Stretch.Uniform;
+                image.MaxWidth = viewportWidth * 0.9;
+            }
+
+            ResolveAndLoadImage(data.Src, image, errorPanel);
+        };
+
+        return container;
+    }
+
+    private double? ParseSizeValue(string value, double viewportSize)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+
+        if (value.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (value.EndsWith("%", StringComparison.Ordinal))
+        {
+            if (double.TryParse(value.Substring(0, value.Length - 1), out double percent))
+            {
+                return viewportSize * percent / 100.0;
+            }
+            return null;
+        }
+
+        if (value.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(value.Substring(0, value.Length - 2), out double px))
+            {
+                return px;
+            }
+            return null;
+        }
+
+        if (double.TryParse(value, out double plainValue))
+        {
+            return plainValue;
+        }
+
+        return null;
+    }
+
+    private async void ResolveAndLoadImage(string src, Image imageControl, StackPanel errorPanel)
+    {
+        try
+        {
+            string localPath = ResolveLocalPath(src);
+
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            {
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(localPath);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                await LoadRemoteImgOnly(src, imageControl, errorPanel);
+            }
+            else
+            {
+                imageControl.Source = null;
+                errorPanel.IsVisible = true;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ResolveAndLoadImage failed: {ex.Message}");
+            imageControl.Source = null;
+            errorPanel.IsVisible = true;
+        }
+    }
+
+    private async Task LoadRemoteImgOnly(string url, Image imageControl, StackPanel errorPanel)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var cachePath = Path.Combine(cacheDir, fileName);
+
+            if (File.Exists(cachePath))
+            {
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+
+            using var ms = new MemoryStream(bytes);
+            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
+            imageControl.Source = bitmap2;
+
+            await Task.Run(() =>
+            {
+                Directory.CreateDirectory(cacheDir);
+                var tempPath = Path.Combine(cacheDir, Guid.NewGuid().ToString() + ".tmp");
+                File.WriteAllBytes(tempPath, bytes);
+                if (File.Exists(cachePath))
+                {
+                    File.Delete(tempPath);
+                }
+                else
+                {
+                    File.Move(tempPath, cachePath);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadRemoteImgOnly failed: {ex.Message}");
+            imageControl.Source = null;
+            errorPanel.IsVisible = true;
+        }
+    }
+
+    private string? ResolveLocalPath(string src)
+    {
+        if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+
+            var relativePath = src.Replace('/', Path.DirectorySeparatorChar);
+            if (relativePath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+            {
+                relativePath = relativePath.Substring("Assets".Length).TrimStart(Path.DirectorySeparatorChar);
+            }
+
+            var fullPath = Path.Combine(baseDir, "Assets", relativePath);
+            if (File.Exists(fullPath))
+                return fullPath;
+
+            var fullPath2 = Path.Combine(baseDir, src);
+            if (File.Exists(fullPath2))
+                return fullPath2;
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
     private Control ConvertQuoteBlock(QuoteBlock quote)
     {
         var (alertType, customTitle) = DetectAlertType(quote);
@@ -1583,6 +2364,10 @@ or
         {
             return ConvertAlertBlock(quote, alertType, customTitle);
         }
+
+        var isDark = ThemeHelper.IsDarkTheme();
+        var leftBorderBrush = new SolidColorBrush(Color.Parse(isDark ? "#9CA3AF" : "#6B7280"));
+        var bgBrush = new SolidColorBrush(Color.Parse(isDark ? "#1F2937" : "#F9FAFB"));
 
         var grid = new Grid
         {
@@ -1593,10 +2378,17 @@ or
 
         var leftBorder = new Border
         {
-            Background = GetAccentBrush()
+            Background = leftBorderBrush
         };
         Grid.SetColumn(leftBorder, 0);
         grid.Children.Add(leftBorder);
+
+        var contentBorder = new Border
+        {
+            Background = bgBrush,
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        Grid.SetColumn(contentBorder, 1);
 
         var panel = new StackPanel
         {
@@ -1613,8 +2405,8 @@ or
             }
         }
 
-        Grid.SetColumn(panel, 1);
-        grid.Children.Add(panel);
+        contentBorder.Child = panel;
+        grid.Children.Add(contentBorder);
 
         return grid;
     }
