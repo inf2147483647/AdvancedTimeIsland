@@ -2063,7 +2063,7 @@ InfoBar 语法格式：
             AlertType.Note => ("📝", "Note"),
             AlertType.Important => ("⭐", "Important"),
             AlertType.Warning => ("⚠️", "Warning"),
-            AlertType.Caution => ("⛔", "Caution"),
+            AlertType.Caution => ("❗", "Caution"),
             AlertType.Custom => ("", customTitle),
             _ => ("", "")
         };

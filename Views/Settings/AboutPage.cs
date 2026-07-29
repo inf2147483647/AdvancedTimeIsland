@@ -11,7 +11,9 @@ using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Shared;
 
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -53,6 +55,7 @@ public class AboutPage : SettingsPageBase
     private List<TextBlock>? _aboutContentTextBlocks;
     private List<TextBlock>? _infoRowLabelTextBlocks;
     private List<TextBlock>? _infoRowValueTextBlocks;
+    private Button? _usingGuideButton;
 
     public AboutPage() : this(null)
     {
@@ -328,6 +331,26 @@ public class AboutPage : SettingsPageBase
         };
         _aboutContentTextBlocks.Add(descText);
         panel.Children.Add(descText);
+
+        _usingGuideButton = new Button
+        {
+            Content = "使用指南",
+            FontSize = 16,
+            Padding = new Thickness(16, 12),
+            CornerRadius = new CornerRadius(8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+
+        UpdateUsingGuideButtonStyle();
+
+        _usingGuideButton.Click += (s, e) =>
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandUsingPointer?ci_keepHistory=true"));
+        };
+
+        panel.Children.Add(_usingGuideButton);
 
         return panel;
     }
@@ -611,5 +634,22 @@ public class AboutPage : SettingsPageBase
                 tb.Foreground = ThemeHelper.GetSubTextBrush();
             }
         }
+
+        UpdateUsingGuideButtonStyle();
+    }
+
+    private void UpdateUsingGuideButtonStyle()
+    {
+        if (_usingGuideButton == null) return;
+
+        var isDark = ThemeHelper.IsDarkTheme();
+        _usingGuideButton.Background = isDark
+            ? new SolidColorBrush(Color.Parse("#37373D"))
+            : new SolidColorBrush(Color.Parse("#E8E8E8"));
+        _usingGuideButton.Foreground = GetAccentBrush();
+        _usingGuideButton.BorderBrush = isDark
+            ? new SolidColorBrush(Color.Parse("#444444"))
+            : new SolidColorBrush(Color.Parse("#CCCCCC"));
+        _usingGuideButton.BorderThickness = new Thickness(1);
     }
 }

@@ -1511,6 +1511,8 @@ public class Plugin : PluginBase
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
+        services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+        services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         if (Settings.EnableExperimentalFeatures)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
@@ -1533,7 +1535,6 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.ChangShanAoShuLingPage>();
             services.AddSettingsPage<Views.Settings.ChangShanAoJiaoLingPage>();
             services.AddSettingsPage<Views.Settings.HanfuPointNorthPage>();
-            services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
             services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
             services.AddSettingsPage<Views.Settings.MaMianQunMale>();
             services.AddSettingsPage<Views.Settings.JiaHao>();
