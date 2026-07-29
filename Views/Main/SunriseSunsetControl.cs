@@ -98,16 +98,28 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         switch (elementName)
         {
             case "sunriseLabel":
-                _sunriseLabel.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunriseLabel.FontSize = fontSize;
+                else
+                    _sunriseLabel.FontSize = FontFamilyHelper.GetBodyFontSize(_sunriseLabel);
                 break;
             case "sunriseTime":
-                _sunriseTime.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunriseTime.FontSize = fontSize;
+                else
+                    _sunriseTime.FontSize = FontFamilyHelper.GetBodyFontSize(_sunriseTime);
                 break;
             case "sunsetLabel":
-                _sunsetLabel.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunsetLabel.FontSize = fontSize;
+                else
+                    _sunsetLabel.FontSize = FontFamilyHelper.GetBodyFontSize(_sunsetLabel);
                 break;
             case "sunsetTime":
-                _sunsetTime.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunsetTime.FontSize = fontSize;
+                else
+                    _sunsetTime.FontSize = FontFamilyHelper.GetBodyFontSize(_sunsetTime);
                 break;
         }
     }
@@ -125,6 +137,14 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         UpdateAllFontColors();
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 0, "sunriseLabel");
+        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 0, "sunriseTime");
+        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 0, "sunsetLabel");
+        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 0, "sunsetTime");
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -132,6 +152,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
 
         vm = new SunriseSunsetViewModel(
             _timeBaseService,
@@ -154,10 +175,10 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         _sunsetTime.Text = vm.SunsetTime;
 
         UpdateAllFontColors();
-        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 14, "sunriseLabel");
-        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 14, "sunriseTime");
-        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 14, "sunsetLabel");
-        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 14, "sunsetTime");
+        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 0, "sunriseLabel");
+        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 0, "sunriseTime");
+        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 0, "sunsetLabel");
+        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 0, "sunsetTime");
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -173,6 +194,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
         _isDisposed = true;

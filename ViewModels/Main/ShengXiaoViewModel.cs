@@ -60,7 +60,7 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ShengXiaoSettings.LabelFontWeight) ||
                  e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontWeight))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(ShengXiaoSettings.ValueFontColor) ||
                  e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontColor) ||
@@ -76,7 +76,7 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ShengXiaoSettings.ValueFontWeight) ||
                  e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 

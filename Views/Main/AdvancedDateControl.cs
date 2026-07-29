@@ -15,7 +15,7 @@ namespace AdvancedTimeIsland.Views.Main;
 
 [ComponentInfo(
     "11223344-5566-7788-9900-112233445566",
-    "高级日期（ATI）",
+    "日期显示（ATI）",
     "\uE121",
     "显示精确日期"
 )]
@@ -62,12 +62,18 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
 
     private void UpdateDateFontSize(double fontSize)
     {
-        _dateTextBlock.FontSize = fontSize;
+        if (fontSize > 0)
+            _dateTextBlock.FontSize = fontSize;
+        else
+            _dateTextBlock.FontSize = FontFamilyHelper.GetBodyFontSize(_dateTextBlock);
     }
 
     private void UpdateWeekDayFontSize(double fontSize)
     {
-        _weekDayTextBlock.FontSize = fontSize;
+        if (fontSize > 0)
+            _weekDayTextBlock.FontSize = fontSize;
+        else
+            _weekDayTextBlock.FontSize = FontFamilyHelper.GetBodyFontSize(_weekDayTextBlock);
     }
 
     private void UpdateDateFontFamily()
@@ -108,6 +114,12 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         UpdateWeekDayFontColor(Settings.WeekDayFontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateDateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 0);
+        UpdateWeekDayFontSize(Settings.WeekDayEnableCustomFontSize ? Settings.WeekDayFontSize : 0);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -115,6 +127,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new AdvancedDateViewModel(_timeBaseService, Settings, 
             UpdateDateFontColor, UpdateDateFontSize,
             UpdateWeekDayFontColor, UpdateWeekDayFontSize);
@@ -124,11 +137,11 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         _weekDayTextBlock.IsVisible = Settings.ShowWeekDay;
         vm.PropertyChanged += OnVmPropertyChanged;
         UpdateDateFontColor(Settings.FontColor);
-        UpdateDateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 14);
+        UpdateDateFontSize(Settings.EnableCustomFontSize ? Settings.DateFontSize : 0);
         UpdateDateFontFamily();
         UpdateDateFontWeight();
         UpdateWeekDayFontColor(Settings.WeekDayFontColor);
-        UpdateWeekDayFontSize(Settings.WeekDayEnableCustomFontSize ? Settings.WeekDayFontSize : 14);
+        UpdateWeekDayFontSize(Settings.WeekDayEnableCustomFontSize ? Settings.WeekDayFontSize : 0);
         UpdateWeekDayFontFamily();
         UpdateWeekDayFontWeight();
         Settings.PropertyChanged += OnSettingsChanged;
@@ -175,6 +188,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

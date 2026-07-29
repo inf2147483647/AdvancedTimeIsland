@@ -69,7 +69,7 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(DayYiJiSettings.YiLabelFontWeight) ||
             e.PropertyName == nameof(DayYiJiSettings.YiLabelEnableCustomFontWeight))
         {
-            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 14);
+            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 0);
         }
         if (e.PropertyName == nameof(DayYiJiSettings.YiValueFontSize) ||
             e.PropertyName == nameof(DayYiJiSettings.YiValueEnableCustomFontSize) ||
@@ -78,7 +78,7 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(DayYiJiSettings.YiValueFontWeight) ||
             e.PropertyName == nameof(DayYiJiSettings.YiValueEnableCustomFontWeight))
         {
-            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 14);
+            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 0);
         }
         if (e.PropertyName == nameof(DayYiJiSettings.JiLabelFontSize) ||
             e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontSize) ||
@@ -87,7 +87,7 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(DayYiJiSettings.JiLabelFontWeight) ||
             e.PropertyName == nameof(DayYiJiSettings.JiLabelEnableCustomFontWeight))
         {
-            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 14);
+            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 0);
         }
         if (e.PropertyName == nameof(DayYiJiSettings.JiValueFontSize) ||
             e.PropertyName == nameof(DayYiJiSettings.JiValueEnableCustomFontSize) ||
@@ -96,7 +96,7 @@ public class DayYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(DayYiJiSettings.JiValueFontWeight) ||
             e.PropertyName == nameof(DayYiJiSettings.JiValueEnableCustomFontWeight))
         {
-            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 14);
+            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 0);
         }
     }
 

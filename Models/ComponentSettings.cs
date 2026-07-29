@@ -2105,6 +2105,36 @@ public class TimeZoneTimeSettings : INotifyPropertyChanged
         }
     }
 
+    private int _dateContentOrder = 0;
+
+    public int DateContentOrder
+    {
+        get => _dateContentOrder;
+        set
+        {
+            if (_dateContentOrder != value)
+            {
+                _dateContentOrder = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private int _dateSeparator = 0;
+
+    public int DateSeparator
+    {
+        get => _dateSeparator;
+        set
+        {
+            if (_dateSeparator != value)
+            {
+                _dateSeparator = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -3088,6 +3118,49 @@ public class FestivalSettings : INotifyPropertyChanged
                 if (_valueEnableCustomFontWeight != value)
                 {
                     _valueEnableCustomFontWeight = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        private bool _enableInternationalFestivals = true;
+        private bool _enableChineseTraditionalFestivals = true;
+        private bool _enableRedFestivals = true;
+
+        public bool EnableInternationalFestivals
+        {
+            get => _enableInternationalFestivals;
+            set
+            {
+                if (_enableInternationalFestivals != value)
+                {
+                    _enableInternationalFestivals = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool EnableChineseTraditionalFestivals
+        {
+            get => _enableChineseTraditionalFestivals;
+            set
+            {
+                if (_enableChineseTraditionalFestivals != value)
+                {
+                    _enableChineseTraditionalFestivals = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
+        public bool EnableRedFestivals
+        {
+            get => _enableRedFestivals;
+            set
+            {
+                if (_enableRedFestivals != value)
+                {
+                    _enableRedFestivals = value;
                     OnPropertyChanged();
                 }
             }

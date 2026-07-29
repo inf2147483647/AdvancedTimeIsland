@@ -95,7 +95,10 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
 
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor, string fontFamily = "", bool enableCustomFontFamily = false, string fontWeight = "", bool enableCustomFontWeight = false)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
         if (enableCustomFontFamily)
             tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
@@ -109,11 +112,20 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
+    }
+
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
     }
 
     protected override void OnInitialized()
@@ -123,6 +135,7 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new ForwardTimerViewModel(_timeBaseService, Settings,
             UpdateText1Style, UpdateNameStyle, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
@@ -131,11 +144,11 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
 
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
     }
 
     private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -144,23 +157,23 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         {
             case nameof(Settings.Text1FontWeight):
             case nameof(Settings.Text1EnableCustomFontWeight):
-                UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
+                UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
                 break;
             case nameof(Settings.NameFontWeight):
             case nameof(Settings.NameEnableCustomFontWeight):
-                UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
+                UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
                 break;
             case nameof(Settings.Text3FontWeight):
             case nameof(Settings.Text3EnableCustomFontWeight):
-                UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
+                UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
                 break;
             case nameof(Settings.TimeFontWeight):
             case nameof(Settings.TimeEnableCustomFontWeight):
-                UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
+                UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
                 break;
             case nameof(Settings.Text4FontWeight):
             case nameof(Settings.Text4EnableCustomFontWeight):
-                UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+                UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
                 break;
         }
     }
@@ -204,6 +217,7 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

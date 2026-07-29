@@ -55,7 +55,7 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(LocalSolarTimeSettings.FontWeight) ||
                  e.PropertyName == nameof(LocalSolarTimeSettings.EnableCustomFontWeight))
         {
-            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 0);
         }
     }
 

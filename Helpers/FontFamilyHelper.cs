@@ -1,5 +1,8 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using Avalonia;
+using Avalonia.Controls;
 using Avalonia.Media;
 
 namespace AdvancedTimeIsland.Helpers;
@@ -7,6 +10,8 @@ namespace AdvancedTimeIsland.Helpers;
 public static class FontFamilyHelper
 {
     private static List<string>? _cachedSystemFontFamilies;
+
+    public static event EventHandler? BodyFontSizeChanged;
 
     public static List<string> GetSystemFontFamilies()
     {
@@ -67,5 +72,31 @@ public static class FontFamilyHelper
             "ExtraBlack" => FontWeight.ExtraBlack,
             _ => FontWeight.Normal
         };
+    }
+
+    public static double GetBodyFontSize(Control control)
+    {
+        var cached = Services.FontSizeSyncService.LastKnownBodyFontSize;
+        if (cached > 0)
+            return cached;
+
+        try
+        {
+            var result = control.FindResource("MainWindowBodyFontSize");
+            if (result is double fontSize)
+                return fontSize;
+        }
+        catch { }
+        return 16;
+    }
+
+    public static double GetCachedBodyFontSize()
+    {
+        return Services.FontSizeSyncService.LastKnownBodyFontSize;
+    }
+
+    public static void RaiseBodyFontSizeChanged()
+    {
+        BodyFontSizeChanged?.Invoke(null, EventArgs.Empty);
     }
 }

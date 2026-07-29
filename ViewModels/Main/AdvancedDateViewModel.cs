@@ -54,7 +54,9 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         {
             _updateWeekDayFontColor?.Invoke(_settings.WeekDayFontColor);
         }
-        if (e.PropertyName == nameof(AdvancedDateSettings.ShowWeekDay))
+        if (e.PropertyName == nameof(AdvancedDateSettings.ShowWeekDay) ||
+            e.PropertyName == nameof(AdvancedDateSettings.DateContentOrder) ||
+            e.PropertyName == nameof(AdvancedDateSettings.DateSeparator))
         {
             UpdateTime();
         }
@@ -65,7 +67,7 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
              e.PropertyName == nameof(AdvancedDateSettings.FontWeight) ||
              e.PropertyName == nameof(AdvancedDateSettings.EnableCustomFontWeight))
         {
-            _updateDateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 14);
+            _updateDateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.DateFontSize : 0);
         }
         if (e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontSize) ||
              e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontSize) ||
@@ -74,7 +76,7 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
              e.PropertyName == nameof(AdvancedDateSettings.WeekDayFontWeight) ||
              e.PropertyName == nameof(AdvancedDateSettings.WeekDayEnableCustomFontWeight))
         {
-            _updateWeekDayFontSize?.Invoke(_settings.WeekDayEnableCustomFontSize ? _settings.WeekDayFontSize : 14);
+            _updateWeekDayFontSize?.Invoke(_settings.WeekDayEnableCustomFontSize ? _settings.WeekDayFontSize : 0);
         }
     }
 
@@ -114,22 +116,7 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = _timeBaseService.GetCurrentTime();
-            var datePart = $"{now.Year}-{now.Month:D2}-{now.Day:D2}";
-            var weekDayPart = "";
-            if (_settings.ShowWeekDay)
-            {
-                weekDayPart = now.DayOfWeek switch
-                {
-                    DayOfWeek.Sunday => "周日",
-                    DayOfWeek.Monday => "周一",
-                    DayOfWeek.Tuesday => "周二",
-                    DayOfWeek.Wednesday => "周三",
-                    DayOfWeek.Thursday => "周四",
-                    DayOfWeek.Friday => "周五",
-                    DayOfWeek.Saturday => "周六",
-                    _ => ""
-                };
-            }
+            var (datePart, weekDayPart) = BuildDisplayParts(now);
             DatePart = datePart;
             WeekDayPart = weekDayPart;
         }
@@ -143,25 +130,10 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            var datePart = $"{now.Year}-{now.Month:D2}-{now.Day:D2}";
-            var weekDayPart = "";
-            if (_settings.ShowWeekDay)
+            var (datePart, weekDayPart) = BuildDisplayParts(now);
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                weekDayPart = now.DayOfWeek switch
-                {
-                    DayOfWeek.Sunday => "周日",
-                    DayOfWeek.Monday => "周一",
-                    DayOfWeek.Tuesday => "周二",
-                    DayOfWeek.Wednesday => "周三",
-                    DayOfWeek.Thursday => "周四",
-                    DayOfWeek.Friday => "周五",
-                    DayOfWeek.Saturday => "周六",
-                    _ => ""
-                };
-            }
-            
-            await Dispatcher.UIThread.InvokeAsync(() => 
-            { 
                 DatePart = datePart;
                 WeekDayPart = weekDayPart;
             });
@@ -169,6 +141,41 @@ public class AdvancedDateViewModel : INotifyPropertyChanged, IDisposable
         catch (Exception)
         {
         }
+    }
+
+    private (string datePart, string weekDayPart) BuildDisplayParts(DateTime now)
+    {
+        var dateStr = _settings.DateSeparator switch
+        {
+            0 => $"{now.Year}-{now.Month:D2}-{now.Day:D2}",
+            1 => $"{now.Year}/{now.Month:D2}/{now.Day:D2}",
+            2 => $"{now.Year}.{now.Month:D2}.{now.Day:D2}",
+            3 => $"{now.Year} 年 {now.Month} 月 {now.Day} 日",
+            _ => $"{now.Year}-{now.Month:D2}-{now.Day:D2}"
+        };
+
+        var weekDayStr = "";
+        if (_settings.ShowWeekDay)
+        {
+            weekDayStr = now.DayOfWeek switch
+            {
+                DayOfWeek.Sunday => "周日",
+                DayOfWeek.Monday => "周一",
+                DayOfWeek.Tuesday => "周二",
+                DayOfWeek.Wednesday => "周三",
+                DayOfWeek.Thursday => "周四",
+                DayOfWeek.Friday => "周五",
+                DayOfWeek.Saturday => "周六",
+                _ => ""
+            };
+        }
+
+        // DateContentOrder: 0 = 日期-星期, 1 = 星期-日期
+        if (_settings.ShowWeekDay && _settings.DateContentOrder == 1)
+        {
+            return (weekDayStr, dateStr);
+        }
+        return (dateStr, weekDayStr);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -113,22 +113,46 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateLabelFontSize(double fontSize)
     {
-        labelFpsTb.FontSize = fontSize;
-        labelMaxTb.FontSize = fontSize;
-        labelAvgTb.FontSize = fontSize;
-        labelMinTb.FontSize = fontSize;
-        labelLow1Tb.FontSize = fontSize;
-        labelOneSecondFrameCountTb.FontSize = fontSize;
+        if (fontSize > 0)
+        {
+            labelFpsTb.FontSize = fontSize;
+            labelMaxTb.FontSize = fontSize;
+            labelAvgTb.FontSize = fontSize;
+            labelMinTb.FontSize = fontSize;
+            labelLow1Tb.FontSize = fontSize;
+            labelOneSecondFrameCountTb.FontSize = fontSize;
+        }
+        else
+        {
+            labelFpsTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelFpsTb);
+            labelMaxTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelMaxTb);
+            labelAvgTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelAvgTb);
+            labelMinTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelMinTb);
+            labelLow1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(labelLow1Tb);
+            labelOneSecondFrameCountTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelOneSecondFrameCountTb);
+        }
     }
 
     private void UpdateValueFontSize(double fontSize)
     {
-        valueFpsTb.FontSize = fontSize;
-        valueMaxTb.FontSize = fontSize;
-        valueAvgTb.FontSize = fontSize;
-        valueMinTb.FontSize = fontSize;
-        valueLow1Tb.FontSize = fontSize;
-        valueOneSecondFrameCountTb.FontSize = fontSize;
+        if (fontSize > 0)
+        {
+            valueFpsTb.FontSize = fontSize;
+            valueMaxTb.FontSize = fontSize;
+            valueAvgTb.FontSize = fontSize;
+            valueMinTb.FontSize = fontSize;
+            valueLow1Tb.FontSize = fontSize;
+            valueOneSecondFrameCountTb.FontSize = fontSize;
+        }
+        else
+        {
+            valueFpsTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueFpsTb);
+            valueMaxTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueMaxTb);
+            valueAvgTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueAvgTb);
+            valueMinTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueMinTb);
+            valueLow1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(valueLow1Tb);
+            valueOneSecondFrameCountTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueOneSecondFrameCountTb);
+        }
     }
 
     private void UpdateFpsForeground(IBrush brush)
@@ -171,6 +195,12 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     {
         UpdateLabelFontColor(Settings.LabelFontColor);
         UpdateValueFontColor(Settings.ValueFontColor);
+    }
+
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
     }
 
     private void OnRenderTimerTick(TimeSpan timestamp)
@@ -285,11 +315,12 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
 
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
         UpdateValueFontColor(Settings.ValueFontColor);
-        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
 
         if (Settings.EnableComponent)
         {
@@ -349,6 +380,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsPropertyChanged;
 
         _renderTimerSubscription?.Dispose();

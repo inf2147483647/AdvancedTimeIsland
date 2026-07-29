@@ -69,7 +69,7 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelFontWeight) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.YiLabelEnableCustomFontWeight))
         {
-            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 14);
+            _updateYiLabelFontSize?.Invoke(_settings.YiLabelEnableCustomFontSize ? _settings.YiLabelFontSize : 0);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontSize) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontSize) ||
@@ -78,7 +78,7 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(TomorrowYiJiSettings.YiValueFontWeight) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.YiValueEnableCustomFontWeight))
         {
-            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 14);
+            _updateYiValueFontSize?.Invoke(_settings.YiValueEnableCustomFontSize ? _settings.YiValueFontSize : 0);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontColor) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontColor) ||
@@ -94,7 +94,7 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelFontWeight) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.JiLabelEnableCustomFontWeight))
         {
-            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 14);
+            _updateJiLabelFontSize?.Invoke(_settings.JiLabelEnableCustomFontSize ? _settings.JiLabelFontSize : 0);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontSize) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontSize) ||
@@ -103,7 +103,7 @@ public class TomorrowYiJiViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(TomorrowYiJiSettings.JiValueFontWeight) ||
             e.PropertyName == nameof(TomorrowYiJiSettings.JiValueEnableCustomFontWeight))
         {
-            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 14);
+            _updateJiValueFontSize?.Invoke(_settings.JiValueEnableCustomFontSize ? _settings.JiValueFontSize : 0);
         }
         if (e.PropertyName == nameof(TomorrowYiJiSettings.YiLabel) || e.PropertyName == nameof(TomorrowYiJiSettings.JiLabel))
         {

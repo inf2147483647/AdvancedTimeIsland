@@ -154,18 +154,30 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressColors();
+    }
+
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
     }
 
     private void UpdateProgressColors()
@@ -199,6 +211,7 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new LunarCountdownViewModel(_timeBaseService, Settings,
             UpdateText1Style, UpdateNameStyle, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
@@ -209,11 +222,11 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressDisplayMode();
     }
 
@@ -373,6 +386,7 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

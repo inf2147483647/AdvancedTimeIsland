@@ -15,6 +15,8 @@ namespace AdvancedTimeIsland.Views.Main;
 public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 {
     private ToggleSwitch _showWeekDayToggle;
+    private ComboBox _contentOrderComboBox;
+    private ComboBox _dateSeparatorComboBox;
 
     private ToggleSwitch _dateEnableCustomFontSizeToggle;
     private ToggleSwitch _dateEnableCustomFontColorToggle;
@@ -37,6 +39,8 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private TextBlock _titleTextBlock;
     private TextBlock _descTextBlock;
     private TextBlock _labelTextBlock;
+    private TextBlock _contentOrderLabelTextBlock;
+    private TextBlock _dateSeparatorLabelTextBlock;
     private TextBlock _dateTitleTextBlock;
     private TextBlock _dateColorLabelTextBlock;
     private TextBlock _dateFontSizeLabelTextBlock;
@@ -73,6 +77,42 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         row.Children.Add(_showWeekDayToggle);
 
         sp.Children.Add(row);
+
+        var contentOrderRow = new Grid();
+        contentOrderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        contentOrderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _contentOrderLabelTextBlock = new TextBlock { Text = "内容组合", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_contentOrderLabelTextBlock, 0);
+        contentOrderRow.Children.Add(_contentOrderLabelTextBlock);
+
+        _contentOrderComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 150 };
+        _contentOrderComboBox.Items.Add("日期-星期");
+        _contentOrderComboBox.Items.Add("星期-日期");
+        _contentOrderComboBox.SelectedIndex = 0;
+        _contentOrderComboBox.SelectionChanged += OnContentOrderChanged;
+        Grid.SetColumn(_contentOrderComboBox, 1);
+        contentOrderRow.Children.Add(_contentOrderComboBox);
+        sp.Children.Add(contentOrderRow);
+
+        var dateSeparatorRow = new Grid();
+        dateSeparatorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        dateSeparatorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        _dateSeparatorLabelTextBlock = new TextBlock { Text = "日期分隔符", FontSize = 12, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(_dateSeparatorLabelTextBlock, 0);
+        dateSeparatorRow.Children.Add(_dateSeparatorLabelTextBlock);
+
+        _dateSeparatorComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left, MinWidth = 150 };
+        _dateSeparatorComboBox.Items.Add("- (2026-07-29)");
+        _dateSeparatorComboBox.Items.Add("/ (2026/07/29)");
+        _dateSeparatorComboBox.Items.Add(". (2026.07.29)");
+        _dateSeparatorComboBox.Items.Add("纯文本 (2026 年 7 月 29 日)");
+        _dateSeparatorComboBox.SelectedIndex = 0;
+        _dateSeparatorComboBox.SelectionChanged += OnDateSeparatorChanged;
+        Grid.SetColumn(_dateSeparatorComboBox, 1);
+        dateSeparatorRow.Children.Add(_dateSeparatorComboBox);
+        sp.Children.Add(dateSeparatorRow);
 
         _dateTitleTextBlock = new TextBlock { Text = "日期样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_dateTitleTextBlock);
@@ -118,7 +158,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         {
             Width = 155,
             Minimum = 1,
-            Maximum = 100,
+            Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
             HorizontalAlignment = HorizontalAlignment.Left
@@ -238,6 +278,8 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         _labelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _contentOrderLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _dateSeparatorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -378,7 +420,9 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         }
         UpdateThemeColors();
         _showWeekDayToggle.IsChecked = Settings.ShowWeekDay;
-        _dateEnableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+    _contentOrderComboBox.SelectedIndex = Settings.DateContentOrder;
+    _dateSeparatorComboBox.SelectedIndex = Settings.DateSeparator;
+    _dateEnableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _dateEnableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _dateEnableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
         _dateEnableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
@@ -410,6 +454,22 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     {
         Settings.ShowWeekDay = _showWeekDayToggle.IsChecked == true;
         UpdateControlsEnabled();
+    }
+
+    private void OnContentOrderChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_contentOrderComboBox.SelectedIndex >= 0)
+        {
+            Settings.DateContentOrder = _contentOrderComboBox.SelectedIndex;
+        }
+    }
+
+    private void OnDateSeparatorChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_dateSeparatorComboBox.SelectedIndex >= 0)
+        {
+            Settings.DateSeparator = _dateSeparatorComboBox.SelectedIndex;
+        }
     }
 
     private void OnDateColorChanged(object? sender, ColorChangedEventArgs e)

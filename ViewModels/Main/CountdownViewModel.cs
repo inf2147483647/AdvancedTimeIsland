@@ -247,7 +247,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text1FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontWeight))
         {
-            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text2FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text2FontColor) ||
@@ -258,7 +258,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text2FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontWeight))
         {
-            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 14);
+            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text3FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text3FontColor) ||
@@ -269,7 +269,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text3FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontWeight))
         {
-            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.TimeFontSize) ||
                  e.PropertyName == nameof(CountdownSettings.TimeFontColor) ||
@@ -280,7 +280,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.TimeFontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontWeight))
         {
-            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text4FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text4FontColor) ||
@@ -291,7 +291,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text4FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontWeight))
         {
-            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 0);
         }
     }
 

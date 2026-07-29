@@ -76,22 +76,34 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
 
     private void UpdateYiLabelFontSize(double fontSize)
     {
-        yiLabelTb.FontSize = fontSize;
+        if (fontSize > 0)
+            yiLabelTb.FontSize = fontSize;
+        else
+            yiLabelTb.FontSize = FontFamilyHelper.GetBodyFontSize(yiLabelTb);
     }
 
     private void UpdateYiValueFontSize(double fontSize)
     {
-        yiValueTb.FontSize = fontSize;
+        if (fontSize > 0)
+            yiValueTb.FontSize = fontSize;
+        else
+            yiValueTb.FontSize = FontFamilyHelper.GetBodyFontSize(yiValueTb);
     }
 
     private void UpdateJiLabelFontSize(double fontSize)
     {
-        jiLabelTb.FontSize = fontSize;
+        if (fontSize > 0)
+            jiLabelTb.FontSize = fontSize;
+        else
+            jiLabelTb.FontSize = FontFamilyHelper.GetBodyFontSize(jiLabelTb);
     }
 
     private void UpdateJiValueFontSize(double fontSize)
     {
-        jiValueTb.FontSize = fontSize;
+        if (fontSize > 0)
+            jiValueTb.FontSize = fontSize;
+        else
+            jiValueTb.FontSize = FontFamilyHelper.GetBodyFontSize(jiValueTb);
     }
 
     private void UpdateYiLabelFontFamily()
@@ -172,6 +184,14 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 0);
+        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 0);
+        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 0);
+        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 0);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -179,6 +199,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new DayYiJiViewModel(_timeBaseService, Settings, 
             UpdateYiLabelFontColor, UpdateJiLabelFontColor,
             UpdateYiLabelFontSize, UpdateYiValueFontSize, UpdateJiLabelFontSize, UpdateJiValueFontSize);
@@ -191,10 +212,10 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         
         UpdateYiLabelFontColor(Settings.YiLabelFontColor);
         UpdateJiLabelFontColor(Settings.JiLabelFontColor);
-        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 14);
-        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 14);
-        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 14);
-        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 14);
+        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 0);
+        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 0);
+        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 0);
+        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 0);
         
         UpdateYiLabelFontFamily();
         UpdateYiValueFontFamily();
@@ -249,6 +270,7 @@ public class DayYiJiControl : ComponentBase<DayYiJiSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

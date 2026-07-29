@@ -68,7 +68,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text1EnableCustomFontSize))
         {
-            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontColor))
@@ -78,7 +78,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontSize))
         {
-            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontColor))
@@ -88,7 +88,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontSize))
         {
-            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontColor))
@@ -98,7 +98,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontSize))
         {
-            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text1) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text3) ||
                  e.PropertyName == nameof(NextFestivalCountdownSettings.EnableInternationalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableChineseTraditionalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableRedFestivals))

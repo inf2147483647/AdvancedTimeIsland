@@ -51,7 +51,10 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
 
     private void UpdateFontSize(double fontSize)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
     }
 
     private void UpdateFontFamily(string fontFamily)
@@ -75,6 +78,11 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
         UpdateFontColor(Settings.FontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 0);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -82,13 +90,14 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new TimeZoneTimeViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.FullDisplay;
         vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateFontColor(Settings.FontColor);
-        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 14);
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 0);
         UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
         UpdateFontWeight(Settings.FontWeight);
     }
@@ -105,6 +114,7 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

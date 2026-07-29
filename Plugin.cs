@@ -235,6 +235,7 @@ public class Plugin : PluginBase
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         services.AddHostedService<StartupDelayService>();
+        services.AddHostedService<Services.FontSizeSyncService>();
 
         RegisterButtonPointerCursorStyle();
 

@@ -56,7 +56,10 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
 
     private void UpdateLabelFontSize(double fontSize)
     {
-        labelTb.FontSize = fontSize;
+        if (fontSize > 0)
+            labelTb.FontSize = fontSize;
+        else
+            labelTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelTb);
     }
 
     private void UpdateLabelFontFamily(string fontFamily)
@@ -86,9 +89,18 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         UpdateValueFontColor(Settings.ValueFontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
+    }
+
     private void UpdateValueFontSize(double fontSize)
     {
-        valueTb.FontSize = fontSize;
+        if (fontSize > 0)
+            valueTb.FontSize = fontSize;
+        else
+            valueTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueTb);
     }
 
     private void UpdateValueFontFamily(string fontFamily)
@@ -114,6 +126,7 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new ShengXiaoViewModel(_timeBaseService, Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateValueFontColor, UpdateValueFontSize);
         DataContext = vm;
         labelTb.Text = vm.LabelText;
@@ -121,11 +134,11 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
         UpdateLabelFontFamily(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
         UpdateLabelFontWeight(Settings.LabelFontWeight);
         UpdateValueFontColor(Settings.ValueFontColor);
-        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
         UpdateValueFontFamily(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
         UpdateValueFontWeight(Settings.ValueFontWeight);
     }
@@ -143,6 +156,7 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();

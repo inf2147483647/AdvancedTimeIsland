@@ -69,7 +69,7 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelFontSize) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunriseLabelEnableCustomFontSize))
         {
-            _updateSunriseLabelSize?.Invoke(_settings.SunriseLabelEnableCustomFontSize ? _settings.SunriseLabelFontSize : 14, "sunriseLabel");
+            _updateSunriseLabelSize?.Invoke(_settings.SunriseLabelEnableCustomFontSize ? _settings.SunriseLabelFontSize : 0, "sunriseLabel");
         }
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeFontColor) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeEnableCustomFontColor))
@@ -79,7 +79,7 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeFontSize) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunriseTimeEnableCustomFontSize))
         {
-            _updateSunriseTimeSize?.Invoke(_settings.SunriseTimeEnableCustomFontSize ? _settings.SunriseTimeFontSize : 14, "sunriseTime");
+            _updateSunriseTimeSize?.Invoke(_settings.SunriseTimeEnableCustomFontSize ? _settings.SunriseTimeFontSize : 0, "sunriseTime");
         }
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelFontColor) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelEnableCustomFontColor))
@@ -89,7 +89,7 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelFontSize) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunsetLabelEnableCustomFontSize))
         {
-            _updateSunsetLabelSize?.Invoke(_settings.SunsetLabelEnableCustomFontSize ? _settings.SunsetLabelFontSize : 14, "sunsetLabel");
+            _updateSunsetLabelSize?.Invoke(_settings.SunsetLabelEnableCustomFontSize ? _settings.SunsetLabelFontSize : 0, "sunsetLabel");
         }
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeFontColor) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeEnableCustomFontColor))
@@ -99,7 +99,7 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeFontSize) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.SunsetTimeEnableCustomFontSize))
         {
-            _updateSunsetTimeSize?.Invoke(_settings.SunsetTimeEnableCustomFontSize ? _settings.SunsetTimeFontSize : 14, "sunsetTime");
+            _updateSunsetTimeSize?.Invoke(_settings.SunsetTimeEnableCustomFontSize ? _settings.SunsetTimeFontSize : 0, "sunsetTime");
         }
         if (e.PropertyName == nameof(SunriseSunsetSettings.Longitude) ||
                  e.PropertyName == nameof(SunriseSunsetSettings.Latitude) ||

@@ -68,7 +68,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1EnableCustomFontSize))
         {
-            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontColor))
@@ -78,7 +78,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontSize))
         {
-            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontColor))
@@ -88,7 +88,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontSize))
         {
-            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontColor))
@@ -98,7 +98,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontSize))
         {
-            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3))
         {

@@ -30,8 +30,12 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private ComboBox _valueFontFamilyComboBox;
     private ComboBox _labelFontWeightComboBox;
     private ComboBox _valueFontWeightComboBox;
+    private ToggleSwitch _internationalToggle;
+    private ToggleSwitch _traditionalToggle;
+    private ToggleSwitch _redToggle;
 
     private TextBlock _labelTitleTextBlock;
+    private TextBlock _festivalTypeTitleTextBlock;
     private TextBlock _labelColorLabelTextBlock;
     private TextBlock _labelFontSizeLabelTextBlock;
     private TextBlock _valueTitleTextBlock;
@@ -46,6 +50,22 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
     private void InitializeComponent()
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+
+        _festivalTypeTitleTextBlock = new TextBlock { Text = "节日类型", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
+        _festivalTypeTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        sp.Children.Add(_festivalTypeTitleTextBlock);
+
+        _internationalToggle = new ToggleSwitch { Content = "国际节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
+        _internationalToggle.IsCheckedChanged += OnInternationalToggled;
+        sp.Children.Add(_internationalToggle);
+
+        _traditionalToggle = new ToggleSwitch { Content = "中国传统节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
+        _traditionalToggle.IsCheckedChanged += OnTraditionalToggled;
+        sp.Children.Add(_traditionalToggle);
+
+        _redToggle = new ToggleSwitch { Content = "红色节日", OffContent = "", OnContent = "", HorizontalAlignment = HorizontalAlignment.Left };
+        _redToggle.IsCheckedChanged += OnRedToggled;
+        sp.Children.Add(_redToggle);
 
         _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_labelTitleTextBlock);
@@ -91,7 +111,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         {
             Width = 155,
             Minimum = 1,
-            Maximum = 100,
+            Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
             HorizontalAlignment = HorizontalAlignment.Left
@@ -208,6 +228,7 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
 
     private void UpdateThemeColors()
     {
+        _festivalTypeTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
         _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -275,6 +296,21 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
         UpdateControlsEnabled();
     }
 
+    private void OnInternationalToggled(object? sender, EventArgs e)
+    {
+        Settings.EnableInternationalFestivals = _internationalToggle.IsChecked ?? true;
+    }
+
+    private void OnTraditionalToggled(object? sender, EventArgs e)
+    {
+        Settings.EnableChineseTraditionalFestivals = _traditionalToggle.IsChecked ?? true;
+    }
+
+    private void OnRedToggled(object? sender, EventArgs e)
+    {
+        Settings.EnableRedFestivals = _redToggle.IsChecked ?? true;
+    }
+
     private void OnLabelFontFamilyChanged(object? sender, EventArgs e)
     {
         if (_labelFontFamilyComboBox.SelectedItem != null)
@@ -333,6 +369,9 @@ public class FestivalSettingsControl : ComponentBase<FestivalSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
+        _internationalToggle.IsChecked = Settings.EnableInternationalFestivals;
+        _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
+        _redToggle.IsChecked = Settings.EnableRedFestivals;
         _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
         _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
         _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;

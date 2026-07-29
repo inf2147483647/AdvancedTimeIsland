@@ -165,7 +165,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         {
             Width = 155,
             Minimum = 1,
-            Maximum = 100,
+            Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
             HorizontalAlignment = HorizontalAlignment.Left

@@ -184,7 +184,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontSize) ||
             e.PropertyName == nameof(FpsMonitorSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontColor) ||
             e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontColor))
@@ -194,7 +194,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontSize) ||
             e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontSize))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 

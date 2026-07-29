@@ -45,6 +45,15 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(FestivalSettings.EnableInternationalFestivals) ||
+            e.PropertyName == nameof(FestivalSettings.EnableChineseTraditionalFestivals) ||
+            e.PropertyName == nameof(FestivalSettings.EnableRedFestivals))
+        {
+            UpdateDisplay();
+            _ = UpdateDisplayAsync();
+            return;
+        }
+
         if (e.PropertyName == nameof(FestivalSettings.LabelFontColor) ||
             e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontColor) ||
             e.PropertyName == nameof(FestivalSettings.LabelFontFamily) ||
@@ -59,7 +68,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(FestivalSettings.LabelFontWeight) ||
                  e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontWeight))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(FestivalSettings.ValueFontColor) ||
                  e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontColor) ||
@@ -75,7 +84,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(FestivalSettings.ValueFontWeight) ||
                  e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 
@@ -115,7 +124,10 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = _timeBaseService.GetCurrentTime();
-            var festivals = LunarHelper.GetFestivals(now);
+            var festivals = LunarHelper.GetFestivals(now,
+                _settings.EnableInternationalFestivals,
+                _settings.EnableChineseTraditionalFestivals,
+                _settings.EnableRedFestivals);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             LabelText = "当前节日：";
             ValueText = festivalsText;
@@ -130,7 +142,10 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            var festivals = LunarHelper.GetFestivals(now);
+            var festivals = LunarHelper.GetFestivals(now,
+                _settings.EnableInternationalFestivals,
+                _settings.EnableChineseTraditionalFestivals,
+                _settings.EnableRedFestivals);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             
             await Dispatcher.UIThread.InvokeAsync(() => 

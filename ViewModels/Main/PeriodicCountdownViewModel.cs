@@ -235,35 +235,35 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text1EnableCustomFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text1EnableCustomFontColor))
         {
-            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(PeriodicCountdownSettings.Text2FontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text2FontColor) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text2EnableCustomFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text2EnableCustomFontColor))
         {
-            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 14);
+            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 0);
         }
         if (e.PropertyName == nameof(PeriodicCountdownSettings.Text3FontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text3FontColor) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text3EnableCustomFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text3EnableCustomFontColor))
         {
-            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(PeriodicCountdownSettings.TimeFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.TimeFontColor) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.TimeEnableCustomFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.TimeEnableCustomFontColor))
         {
-            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(PeriodicCountdownSettings.Text4FontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text4FontColor) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text4EnableCustomFontSize) ||
                  e.PropertyName == nameof(PeriodicCountdownSettings.Text4EnableCustomFontColor))
         {
-            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 0);
         }
     }
 

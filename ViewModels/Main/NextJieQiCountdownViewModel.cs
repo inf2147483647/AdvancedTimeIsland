@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using System.Timers;
@@ -69,7 +69,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text1FontSize) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.Text1EnableCustomFontSize))
         {
-            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontColor) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.NameEnableCustomFontColor))
@@ -79,7 +79,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.NameFontSize) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.NameEnableCustomFontSize))
         {
-            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontColor) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.Text3EnableCustomFontColor))
@@ -89,7 +89,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.Text3FontSize) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.Text3EnableCustomFontSize))
         {
-            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontColor) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.TimeEnableCustomFontColor))
@@ -99,7 +99,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFontSize) ||
             e.PropertyName == nameof(NextJieQiCountdownSettings.TimeEnableCustomFontSize))
         {
-            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3))
         {

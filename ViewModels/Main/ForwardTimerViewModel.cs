@@ -180,7 +180,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text1FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontWeight))
         {
-            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.NameFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameFontColor) ||
@@ -191,7 +191,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.NameFontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontWeight))
         {
-            _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text3FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3FontColor) ||
@@ -202,7 +202,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text3FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontWeight))
         {
-            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.TimeFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeFontColor) ||
@@ -213,7 +213,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.TimeFontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontWeight))
         {
-            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text4FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4FontColor) ||
@@ -224,7 +224,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text4FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontWeight))
         {
-            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 0);
         }
     }
 

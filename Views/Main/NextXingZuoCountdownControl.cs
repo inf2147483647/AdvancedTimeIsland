@@ -47,25 +47,25 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
         text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text1EnableCustomFontColor);
     }
 
-    private void UpdateText1FontSize(double fontSize) { text1Tb.FontSize = fontSize; }
+    private void UpdateText1FontSize(double fontSize) { if (fontSize > 0) text1Tb.FontSize = fontSize; else text1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(text1Tb); }
     private void UpdateNameFontColor(string colorStr)
     {
         nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.NameEnableCustomFontColor);
     }
 
-    private void UpdateNameFontSize(double fontSize) { nameTb.FontSize = fontSize; }
+    private void UpdateNameFontSize(double fontSize) { if (fontSize > 0) nameTb.FontSize = fontSize; else nameTb.FontSize = FontFamilyHelper.GetBodyFontSize(nameTb); }
     private void UpdateText3FontColor(string colorStr)
     {
         text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text3EnableCustomFontColor);
     }
 
-    private void UpdateText3FontSize(double fontSize) { text3Tb.FontSize = fontSize; }
+    private void UpdateText3FontSize(double fontSize) { if (fontSize > 0) text3Tb.FontSize = fontSize; else text3Tb.FontSize = FontFamilyHelper.GetBodyFontSize(text3Tb); }
     private void UpdateTimeFontColor(string colorStr)
     {
         timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.TimeEnableCustomFontColor);
     }
 
-    private void UpdateTimeFontSize(double fontSize) { timeTb.FontSize = fontSize; }
+    private void UpdateTimeFontSize(double fontSize) { if (fontSize > 0) timeTb.FontSize = fontSize; else timeTb.FontSize = FontFamilyHelper.GetBodyFontSize(timeTb); }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
@@ -75,6 +75,14 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
         UpdateTimeFontColor(Settings.TimeFontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+    }
+
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -82,6 +90,7 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new NextXingZuoCountdownViewModel(_timeBaseService, Settings, UpdateText1FontColor, UpdateText1FontSize, UpdateNameFontColor, UpdateNameFontSize, UpdateText3FontColor, UpdateText3FontSize, UpdateTimeFontColor, UpdateTimeFontSize);
         DataContext = vm;
         text1Tb.Text = vm.Text1Display;
@@ -90,13 +99,13 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
         timeTb.Text = vm.TimeDisplay;
         vm.PropertyChanged += OnVmPropertyChanged;
         UpdateText1FontColor(Settings.Text1FontColor);
-        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
+        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
         UpdateNameFontColor(Settings.NameFontColor);
-        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
+        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
         UpdateText3FontColor(Settings.Text3FontColor);
-        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
+        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
         UpdateTimeFontColor(Settings.TimeFontColor);
-        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
+        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -114,6 +123,7 @@ public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSet
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }

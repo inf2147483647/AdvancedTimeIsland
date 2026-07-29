@@ -55,7 +55,7 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(TimeZoneTimeSettings.FontWeight) ||
                  e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontWeight))
         {
-            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 0);
         }
     }
 
