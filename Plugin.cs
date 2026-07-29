@@ -1537,6 +1537,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
             services.AddSettingsPage<Views.Settings.MaMianQunMale>();
             services.AddSettingsPage<Views.Settings.JiaHao>();
+            services.AddSettingsPage<Views.Settings.HanfuXuanGouZhiNanPage>();
         }
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();

@@ -13,20 +13,14 @@ using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-[SettingsPageInfo("AdvancedTimeIslandHanfuGuide", "汉服指南", false, SettingsPageCategory.Debug)]
-public class HanfuPointNorthPage : HanfuPageTemplate
+[SettingsPageInfo("AdvancedTimeIslandHanfuXuanGouZhiNan", "汉服选购指南", true, SettingsPageCategory.Debug)]
+public class HanfuXuanGouZhiNanPage : HanfuPageTemplate
 {
     private readonly Dictionary<Button, bool> _guideButtons = new Dictionary<Button, bool>();
 
     protected override void BuildContent(StackPanel panel)
     {
-        // 隐藏返回上一页按钮
-        if (_backTextBlock != null)
-        {
-            _backTextBlock.IsVisible = false;
-        }
-        AddSection(panel, "汉服指南", 24, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
-//        AddParagraph(panel, "给我指到南极点了");
+        AddSection(panel, "汉服选购指南", 24, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
 
         var buttonPanel = new StackPanel
         {
@@ -35,12 +29,14 @@ public class HanfuPointNorthPage : HanfuPageTemplate
             Margin = new Thickness(0, 16, 0, 0)
         };
 
+        // 男装选购、女装选购、男女同款选购、童装选购
+        // 仅“男女同款选购”已开发（跳转到 NanNvTongYongHanFuZhiBei）
         var guideItems = new[]
         {
-            ("汉服百科", true),
-            ("选购指南", true),
-            ("汉服拍照姿势指南", false),
-            ("汉服照片修图指南", false)
+            ("男装选购", false),
+            ("女装选购", false),
+            ("男女同款选购", true),
+            ("童装选购", false)
         };
 
         foreach (var (text, isDeveloped) in guideItems)
@@ -70,15 +66,10 @@ public class HanfuPointNorthPage : HanfuPageTemplate
 
     private void OnGuideButtonClick(string text)
     {
-        if (text == "汉服百科")
+        if (text == "男女同款选购")
         {
             IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfu?ci_keepHistory=true"));
-        }
-        else if (text == "选购指南")
-        {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuXuanGouZhiNan?ci_keepHistory=true"));
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandNanNvTongYongHanFuZhiBei?ci_keepHistory=true"));
         }
     }
 

@@ -300,7 +300,7 @@ or
 ```
 
 ---
-> [!tip]
+> [!important]
 How to end a tip
 
 Leave one blank line in between
