@@ -11,7 +11,6 @@ using AdvancedTimeIsland.Services.NotificationProviders;
 using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
-using AdvancedTimeIsland.Automation.Conditions;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using Avalonia.Controls;
@@ -296,8 +295,6 @@ public class Plugin : PluginBase
         }
 
         services.AddSingleton<ExactTimeTrigger>();
-
-        services.AddSingleton<TimeRangeCondition>();
 
         // ========== 现有条件：时间基准改为插件全局偏移后的时间 ==========
 
