@@ -1535,6 +1535,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.HanfuPointNorthPage>();
             services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
             services.AddSettingsPage<Views.Settings.MaMianQunMale>();
+            services.AddSettingsPage<Views.Settings.ManZheQunMalePage>();
             services.AddSettingsPage<Views.Settings.JiaHao>();
             services.AddSettingsPage<Views.Settings.HanfuXuanGouZhiNanPage>();
             services.AddSettingsPage<Views.Settings.HanfuIssuesPage>();

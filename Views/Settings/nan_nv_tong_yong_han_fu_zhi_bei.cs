@@ -13,6 +13,8 @@ public class NanNvTongYongHanFuZhiBei : HanfuPageTemplate  // NanNvTongYongHanFu
     protected override void BuildContent(StackPanel panel)
     {
         var markdown = @"
+<infobar='type:warning, closable:true'>当前文档内部可能包含不兼容字体的字符：“𧜽”</infobar>
+
 # 男女同款汉服选购与四季穿搭指南（适用于温带季风气候）
 温带季风气候的典型特征为：夏季高温多雨、空气湿度大；冬季寒冷干燥、气温降幅显著；春秋两季短促、昼夜温差大，且春季多风、秋季干爽。
 汉服穿搭的核心逻辑是**分层叠穿、灵活增减**，男女同款形制因版型宽松、风格中性，对气候波动的适配性更强，且可共享衣橱、性价比更高。
@@ -75,7 +77,7 @@ public class NanNvTongYongHanFuZhiBei : HanfuPageTemplate  // NanNvTongYongHanFu
 正规中性款会明确标注每个码数对应的**身高、肩宽、胸围、通袖长、衣长**，消费者可按自身数据选码，而非笼统的“男款L”“女款M”。
 
 ## 常见“陷阱”款式解析
-**马面裙**：[长马面裙](route:AdvancedTimeIslandMamianQunCeZhe)是明确的女装。[短马面裙](route:AdvancedTimeIslandMaMianQunMale)（又称“旋子”）才是作为男装内搭存在的。购买时需要特别留意长度和商家的命名。 //插件作者...
+**马面裙**：[长马面裙](route:AdvancedTimeIslandMamianQunCeZhe)是明确的女装。[短马面裙](route:AdvancedTimeIslandMaMianQunMale)（又称“𧜽子”）才是作为男装内搭存在的。购买时需要特别留意长度和商家的命名。 //插件作者...
 **明代圆领袍**：这是商家混淆的“重灾区”。男款通常带有“外摆”结构，而女款则没有外摆。购买时看商品详情页是否有“外摆”细节，是区分的关键。
 **晋制间色裙**：间色裙（拼接色）通常被认为是女装。传统上，男子更倾向于穿着纯色裙。 // 插件作者...
 **“衣裳”类**：主要指“短上衣+裙”的组合。虽然在先秦时期男女都穿，但自东汉以后，这种“两截穿衣”的风格逐渐演变为女性的标志。因此，除非是明确的礼服，否则日常穿着的“短衣+裙”很可能被归为女装。 //插件作者...

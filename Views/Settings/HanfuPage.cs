@@ -26,12 +26,7 @@ public class HanfuPage : HanfuPageTemplate
 {
     private readonly PluginSettings? _pluginSettings;
 
-    private TextBlock? _maleTitleTextBlock;
-    private TextBlock? _maleSubtitleTextBlock;
-    private TextBlock? _maleDescriptionTextBlock;
     private Border? _femaleContentBorder;
-    private Border? _maleTitleTooltipBorder;
-    private TextBlock? _maleTitleTooltipTextBlock;
     private TextBlock? _femaleGuideLinkTextBlock;
 
     public HanfuPage() : this(null)
@@ -62,6 +57,9 @@ public class HanfuPage : HanfuPageTemplate
             panel.Children.Add(warningBar);
             return;
         }
+
+        _xingZhiButtons = new List<Button>();
+        _dynastyTitleTextBlocks = new List<TextBlock>();
 
         _maleContent = CreateMaleContent();
         _femaleContent = CreateFemaleContent();
@@ -120,71 +118,76 @@ public class HanfuPage : HanfuPageTemplate
         }
     }
 
+    private Border? _maleContentBorder;
+
     private Control CreateMaleContent()
     {
+        var border = new Border
+        {
+            Background = ThemeHelper.GetHanfuBackgroundBrush(),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(16),
+            Margin = new Thickness(0)
+        };
+        _maleContentBorder = border;
+
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Center
+            Spacing = 16
         };
 
-        _maleTitleTextBlock = new TextBlock
+        AddDynastySection(panel, "明制汉服款式", new[]
         {
-            Text = ":(",
-            FontSize = 40,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
+            "衫 袄 交领 明制", "衫 袄 圆领 明制", "贴里 明制", "裤 明制", "满褶裙 明制",
+            "道袍 明制", "直裰 明制", "比甲 背心 明制", "披风 明制", "氅衣 明制",
+            "褡护 明制", "野服 明制", "罩甲 明制", "直身 明制", "圆领袍 衫 明制",
+            "深衣 大带 幅巾 明制", "道服 明制", "曳撒 明制", "襕衫 蓝袍 明制",
+            "公服 梁冠 明制", "朝服 幞头 明制", "冕服 明制"
+        });
 
-        _maleTitleTooltipTextBlock = new TextBlock
+        AddDynastySection(panel, "宋制汉服款式", new[]
         {
-            Text = "目前这个页面开发意义不大，因为在汉服运动中，女生占比约80%（在开发者所在地——开封，可能超过95%），所以需要先满足大多数用户的使用需求，等到插件主要功能完善后在开发这个页面。你也可以反馈插件问题，帮助开发者进行完善功能。<delete_line>尽管作者也属于那5%的群体[大雾]</delete_line>", // 根据观测，样本还是太少了
-            FontSize = 12,
-            Foreground = ThemeHelper.GetTextBrush(),
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 300
-        };
+            "抱腹 宋制", "袄 衫 直领 宋制", "袄 衫 交领 宋制", "袄 衫 圆领 宋制",
+            "长袄 衫 直领 宋制", "长袄 衫 交领 宋制", "长袄 衫 圆领 宋制",
+            "裈 合裆裤 宋制", "袴 开裆裤 宋制", "百迭裙 宋制", "背心 宋制",
+            "长背子 宋制", "氅衣 宋制", "鹤袖 貉袖 宋制", "圆领袍 䙆袍 宋制",
+            "深衣 大带 幅巾 宋制", "公服 宋制", "衬袍 衬褙子 宋制",
+            "圆领袍 襕袍衫 宋制", "襕衫 宋制", "道服 宋制", "祭服 宋制", "衮冕 宋制"
+        });
 
-        _maleTitleTooltipBorder = new Border
+        AddDynastySection(panel, "唐制汉服款式", new[]
         {
-            Background = ThemeHelper.IsDarkTheme()
-                ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
-                : new SolidColorBrush(Color.FromRgb(230, 230, 230)),
-            BorderBrush = ThemeHelper.GetGrayBrush(),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Padding = new Thickness(8),
-            Child = _maleTitleTooltipTextBlock
-        };
+            "裈 袴 唐制", "汗衫 袄子 圆领 唐制", "汗衫 袄子 交领 唐制",
+            "半臂 唐制", "长袖 唐制", "圆领袍衫 缺胯袍衫 唐制",
+            "披袍 披衫 唐制", "浴袍 唐制", "襕袍 襕衫 唐制",
+            "公服 唐制", "朝服 唐制", "祭服 唐制", "通天冠服 唐制", "衮冕 唐制"
+        });
 
-        ToolTip.SetTip(_maleTitleTextBlock, _maleTitleTooltipBorder);
-        ToolTip.SetPlacement(_maleTitleTextBlock, PlacementMode.Pointer);
-
-        panel.Children.Add(_maleTitleTextBlock);
-
-        _maleSubtitleTextBlock = new TextBlock
+        AddDynastySection(panel, "晋制汉服款式", new[]
         {
-            Text = "欧呦！你似乎进入了一个尚未动工的页面",
-            FontSize = 25,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ThemeHelper.GetSubTextBrush()
-        };
-        panel.Children.Add(_maleSubtitleTextBlock);
+            "两当 晋制", "木屐 木屧 晋制", "裈 袴 晋制", "褶 衫 晋制",
+            "长褶 大褶 晋制", "裙褶 袴褶 晋制", "衫襦 直领 晋制",
+            "衫襦 曲领 晋制", "衫襦 垂胡袖 晋制", "衫襦 窄袖 直袖 晋制",
+            "衫襦 大袖 晋制", "交窬裙 无缘裙 晋制", "交窬裙 有缘裙 晋制",
+            "半袖 晋制", "襦 晋制", "半袖裙襦 东汉式 晋制", "帔子 晋制",
+            "半袖裙襦 蔽膝 晋制", "单衣 蔽膝 晋制"
+        });
 
-        _maleDescriptionTextBlock = new TextBlock
+        AddDynastySection(panel, "汉制汉服款式", new[]
         {
-            Text = "由于开发者精力有限，这个页面可能需要较久的时间来实现，敬请期待。",
-            FontSize = 18,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Foreground = ThemeHelper.GetGrayBrush(),
-            TextWrapping = TextWrapping.Wrap,
-            MaxWidth = 600
-        };
-        panel.Children.Add(_maleDescriptionTextBlock);
+            "长襦 曲裾式 汉制", "长襦 直裾式 汉制", "交窬裙 汉制",
+            "单衣 汉制", "夹衣 汉制", "复衣 汉制"
+        });
 
-        return panel;
+        AddDynastySection(panel, "先秦制汉服款式", new[]
+        {
+            "裈 袴 先秦制", "交窬裙 先秦制", "长襦 单衣 先秦制",
+            "长襦 夹衣 先秦制", "长襦 复衣 先秦制"
+        });
+
+        border.Child = panel;
+        return border;
     }
 
     private List<Button>? _xingZhiButtons;
@@ -192,9 +195,6 @@ public class HanfuPage : HanfuPageTemplate
 
     private Control CreateFemaleContent()
     {
-        _xingZhiButtons = new List<Button>();
-        _dynastyTitleTextBlocks = new List<TextBlock>();
-
         var border = new Border
         {
             Background = ThemeHelper.GetHanfuBackgroundBrush(),
@@ -363,7 +363,30 @@ public class HanfuPage : HanfuPageTemplate
 
     private void OnXingZhiButtonClick(string text)
     {
-        if (text == "马面裙 侧褶 明制")
+        var isMaleTab = _tabStrip?.SelectedIndex == 0;
+
+        if (text == "贴里 明制")
+        {
+            var uri = isMaleTab
+                ? "classisland://app/settings/AdvancedTimeIslandTieliMingStyleMale?ci_keepHistory=true"
+                : "classisland://app/settings/AdvancedTimeIslandTieliMingStyle?ci_keepHistory=true";
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri(uri));
+        }
+        else if (text == "百迭裙 宋制")
+        {
+            var uri = isMaleTab
+                ? "classisland://app/settings/AdvancedTimeIslandBaiDieQunMale?ci_keepHistory=true"
+                : "classisland://app/settings/AdvancedTimeIslandBaiDieQun?ci_keepHistory=true";
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri(uri));
+        }
+        else if (text == "满褶裙 明制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandManZheQunMale?ci_keepHistory=true"));
+        }
+        else if (text == "马面裙 侧褶 明制")
         {
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunCeZhe?ci_keepHistory=true"));
@@ -392,16 +415,6 @@ public class HanfuPage : HanfuPageTemplate
         {
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandZhuYaoMingStyle?ci_keepHistory=true"));
-        }
-        else if (text == "贴里 明制")
-        {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandTieliMingStyle?ci_keepHistory=true"));
-        }
-        else if (text == "百迭裙 宋制")
-        {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandBaiDieQun?ci_keepHistory=true"));
         }
         else if (text == "短衫 袄 交领 明制")
         {
@@ -438,7 +451,8 @@ public class HanfuPage : HanfuPageTemplate
         "短衫 袄 交领 明制",
         "短衫 袄 竖领 明制",
         "长衫 袄 竖领 明制",
-        "长衫 袄 交领 明制"
+        "长衫 袄 交领 明制",
+        "满褶裙 明制"
     };
 
     private void UpdateXingZhiButtonStyle(Button button)
@@ -461,28 +475,11 @@ public class HanfuPage : HanfuPageTemplate
     {
         base.UpdateThemeColors();
 
-        if (_maleTitleTextBlock != null)
-            _maleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        if (_maleSubtitleTextBlock != null)
-            _maleSubtitleTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_maleDescriptionTextBlock != null)
-            _maleDescriptionTextBlock.Foreground = ThemeHelper.GetGrayBrush();
-
         if (_femaleContentBorder != null)
             _femaleContentBorder.Background = ThemeHelper.GetHanfuBackgroundBrush();
 
-        if (_maleTitleTooltipBorder != null)
-        {
-            _maleTitleTooltipBorder.Background = ThemeHelper.IsDarkTheme()
-                ? new SolidColorBrush(Color.FromRgb(30, 30, 30))
-                : new SolidColorBrush(Color.FromRgb(230, 230, 230));
-            _maleTitleTooltipBorder.BorderBrush = ThemeHelper.GetGrayBrush();
-        }
-
-        if (_maleTitleTooltipTextBlock != null)
-        {
-            _maleTitleTooltipTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        }
+        if (_maleContentBorder != null)
+            _maleContentBorder.Background = ThemeHelper.GetHanfuBackgroundBrush();
 
         if (_femaleGuideLinkTextBlock != null)
         {
