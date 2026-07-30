@@ -39,6 +39,7 @@ public class HanfuPointNorthPage : HanfuPageTemplate
         {
             ("汉服百科", true),
             ("选购指南", true),
+            ("常见（以及一些不常见的）问题", true),
             ("汉服拍照姿势指南", false),
             ("汉服照片修图指南", false)
         };
@@ -79,6 +80,11 @@ public class HanfuPointNorthPage : HanfuPageTemplate
         {
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuXuanGouZhiNan?ci_keepHistory=true"));
+        }
+        else if (text == "常见（以及一些不常见的）问题")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuIssues?ci_keepHistory=true"));
         }
     }
 

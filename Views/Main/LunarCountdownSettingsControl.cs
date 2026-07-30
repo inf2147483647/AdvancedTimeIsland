@@ -141,9 +141,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         _timeBaseComboBox = new ComboBox();
         _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
         _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("原始系统时间");
+        _timeBaseComboBox.Items.Add("ClassIsland时间");
         Grid.SetColumn(_timeBaseComboBox, 1);
         timeBaseRow.Children.Add(_timeBaseComboBox);
 
@@ -672,7 +671,20 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
         if (_text4TextBox != null) _text4TextBox.Text = Settings.Text4;
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
+        // 迁移旧版时间基准值
+        var migratedType = TimeBaseTypeHelper.Migrate((int)Settings.TimeBaseType);
+        if (migratedType != Settings.TimeBaseType)
+        {
+            Settings.TimeBaseType = migratedType;
+        }
+
+        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
+        {
+            TimeBaseType.PluginOffsetServerTime => 0,
+            TimeBaseType.RawServerTime => 1,
+            TimeBaseType.ClassIslandTime => 2,
+            _ => 0
+        };
 
         if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
 
@@ -736,7 +748,13 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
             {
                 if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
                 {
-                    Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
+                    Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
+                    {
+                        0 => TimeBaseType.PluginOffsetServerTime,
+                        1 => TimeBaseType.RawServerTime,
+                        2 => TimeBaseType.ClassIslandTime,
+                        _ => TimeBaseType.PluginOffsetServerTime
+                    };
                 }
             };
         }

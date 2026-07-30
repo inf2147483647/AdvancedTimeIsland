@@ -15,10 +15,27 @@ public enum ProgressDisplayMode
 
 public enum TimeBaseType
 {
-    PluginOffsetServerTime,  // 插件偏移后的服务器时间（默认）
-    PluginOffsetSystemTime,  // 插件偏移后的系统时间
-    RawServerTime,           // 原始服务器时间
-    RawSystemTime            // 原始系统时间
+    PluginOffsetServerTime = 0,  // 插件偏移后的服务器时间（默认）
+    RawServerTime = 2,           // 原始服务器时间
+    ClassIslandTime = 4          // ClassIsland时间
+}
+
+public static class TimeBaseTypeHelper
+{
+    /// <summary>
+    /// 迁移旧版时间基准值到新版枚举
+    /// </summary>
+    public static TimeBaseType Migrate(int value)
+    {
+        return value switch
+        {
+            0 => TimeBaseType.PluginOffsetServerTime,
+            1 => TimeBaseType.PluginOffsetServerTime,   // 旧 PluginOffsetSystemTime → PluginOffsetServerTime
+            2 => TimeBaseType.RawServerTime,
+            3 => TimeBaseType.ClassIslandTime,         // 旧 RawSystemTime → ClassIslandTime
+            _ => (TimeBaseType)value
+        };
+    }
 }
 
 public class CountdownSettings : INotifyPropertyChanged
@@ -3166,6 +3183,21 @@ public class FestivalSettings : INotifyPropertyChanged
             }
         }
 
+        private bool _enableExperimentalFeatures = false;
+
+        public bool EnableExperimentalFeatures
+        {
+            get => _enableExperimentalFeatures;
+            set
+            {
+                if (_enableExperimentalFeatures != value)
+                {
+                    _enableExperimentalFeatures = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -3380,6 +3412,14 @@ public class FestivalSettings : INotifyPropertyChanged
     {
         get => _jiValueFontWeight;
         set { if (_jiValueFontWeight != value) { _jiValueFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _infoBarDismissed = false;
+
+    public bool InfoBarDismissed
+    {
+        get => _infoBarDismissed;
+        set { if (_infoBarDismissed != value) { _infoBarDismissed = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

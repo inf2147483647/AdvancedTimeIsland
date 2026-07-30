@@ -259,7 +259,11 @@ public class TimeBaseService
         return syncTime;
     }
 
-    private DateTime GetClassIslandTime()
+    /// <summary>
+    /// 获取ClassIsland时间
+    /// </summary>
+    /// <returns>ClassIsland时间</returns>
+    public DateTime GetClassIslandTime()
     {
         var exactTimeService = ExactTimeService;
         if (exactTimeService != null)
@@ -441,16 +445,6 @@ public class TimeBaseService
     }
 
     /// <summary>
-    /// 获取系统时间 + 插件偏移（不使用NTP）
-    /// </summary>
-    /// <returns>系统时间 + 插件偏移</returns>
-    public DateTime GetPluginOffsetSystemTime()
-    {
-        var offset = TimeSpan.FromSeconds(_settings.TimeOffsetSeconds);
-        return GetClassIslandTime().Add(offset);
-    }
-
-    /// <summary>
     /// 异步获取当前时间
     /// </summary>
     /// <returns>当前时间</returns>
@@ -469,12 +463,12 @@ public class TimeBaseService
     }
 
     /// <summary>
-    /// 异步获取系统时间 + 插件偏移
+    /// 异步获取ClassIsland时间
     /// </summary>
-    /// <returns>系统时间 + 插件偏移</returns>
-    public async Task<DateTime> GetPluginOffsetSystemTimeAsync()
+    /// <returns>ClassIsland时间</returns>
+    public async Task<DateTime> GetClassIslandTimeAsync()
     {
-        return await Task.Run(() => GetPluginOffsetSystemTime()).ConfigureAwait(false);
+        return await Task.Run(() => GetClassIslandTime()).ConfigureAwait(false);
     }
 
     /// <summary>

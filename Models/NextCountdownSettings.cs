@@ -645,6 +645,21 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableExperimentalFeatures = false;
+
+    public bool EnableExperimentalFeatures
+    {
+        get => _enableExperimentalFeatures;
+        set
+        {
+            if (_enableExperimentalFeatures != value)
+            {
+                _enableExperimentalFeatures = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private bool _text1EnableCustomFontSize = false;
     public bool Text1EnableCustomFontSize
     {
@@ -983,6 +998,14 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
     {
         get => _jiValueEnableCustomFontWeight;
         set { if (_jiValueEnableCustomFontWeight != value) { _jiValueEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _infoBarDismissed = false;
+
+    public bool InfoBarDismissed
+    {
+        get => _infoBarDismissed;
+        set { if (_infoBarDismissed != value) { _infoBarDismissed = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

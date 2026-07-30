@@ -27,6 +27,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
     private string _text3Display = string.Empty;
     private string _timeDisplay = string.Empty;
     private bool _isDisposed;
+    private bool _enableExperimentalFeatures;
 
     public string Text1Display { get => _text1Display; private set { if (_text1Display != value) { _text1Display = value; OnPropertyChanged(); } } }
     public string NameDisplay { get => _nameDisplay; private set { if (_nameDisplay != value) { _nameDisplay = value; OnPropertyChanged(); } } }
@@ -51,11 +52,25 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         _updateTimeFontSize = updateTimeFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
+
+        _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged += OnPluginSettingsPropertyChanged;
+
         UpdateDisplay();
         _updateTimer = new System.Timers.Timer(1000);
         _updateTimer.Elapsed += OnTimerElapsed;
         _updateTimer.AutoReset = true;
         _updateTimer.Enabled = true;
+    }
+
+    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+            UpdateDisplay();
+        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -209,6 +224,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("寒食节", GetQingMingDate(date.Year).AddDays(-1)));
         festivals.Add(("清明节", GetQingMingDate(date.Year)));
         festivals.Add(("端午节", LunarToSolar(lunarYear, 5, 5)));
+        festivals.Add(("上巳节", LunarToSolar(lunarYear, 3, 3)));
         festivals.Add(("七夕节", LunarToSolar(lunarYear, 7, 7)));
         festivals.Add(("中元节", LunarToSolar(lunarYear, 7, 15)));
         festivals.Add(("中秋节", LunarToSolar(lunarYear, 8, 15)));
@@ -217,6 +233,11 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
         festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
         festivals.Add(("除夕", GetChuXiDate(lunarYear)));
+
+        if (_enableExperimentalFeatures)
+        {
+            festivals.Add(("花朝节", LunarToSolar(lunarYear, 2, 15)));
+        }
     }
 
     private void AddRedFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
@@ -315,6 +336,8 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (_isDisposed) return;
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged -= OnPluginSettingsPropertyChanged;
         _updateTimer?.Stop();
         _updateTimer?.Dispose();
     }

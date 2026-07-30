@@ -162,6 +162,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        // 迁移旧版时间基准值
+        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
+        if (migrated != _settings.TimeBaseType)
+        {
+            _settings.TimeBaseType = migrated;
+        }
         _updateText1Style = updateText1Style;
         _updateText2Style = updateText2Style;
         _updateText3Style = updateText3Style;
@@ -342,9 +348,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
-            TimeBaseType.PluginOffsetSystemTime => _timeBaseService.GetPluginOffsetSystemTime(),
             TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.RawSystemTime => DateTime.Now,
+            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
             _ => _timeBaseService.GetCurrentTime()
         };
     }
@@ -354,9 +359,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            TimeBaseType.PluginOffsetSystemTime => await _timeBaseService.GetPluginOffsetSystemTimeAsync().ConfigureAwait(false),
             TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.RawSystemTime => await System.Threading.Tasks.Task.FromResult(DateTime.Now).ConfigureAwait(false),
+            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
             _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
         };
     }

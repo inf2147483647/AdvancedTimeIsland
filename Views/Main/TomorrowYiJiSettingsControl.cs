@@ -74,15 +74,34 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
 
     private void InitializeComponent()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        var rootPanel = new Grid();
+        var rootRowDefinitions = new RowDefinitions();
+        rootRowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootRowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootRowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        rootPanel.RowDefinitions = rootRowDefinitions;
+
+        var disclaimerBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Title", "郑重声明");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Message", "我们是坚定不移的唯物主义者，世界是物质的，不依赖于我们的意识。宜忌内容仅供参考，切勿当真。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Margin", new Thickness(0, 0, 0, 8));
+        Grid.SetRow(disclaimerBar, 0);
+        rootPanel.Children.Add(disclaimerBar);
 
         var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", "注意：此组件的内容可能非常长，以至于超出屏幕，建议包括在滚动容器中使用。");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", !Settings.InfoBarDismissed);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 0, 0, 8));
-        sp.Children.Add(infoBar);
+        FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(infoBar, (s, e) => Settings.InfoBarDismissed = true);
+        Grid.SetRow(infoBar, 1);
+        rootPanel.Children.Add(infoBar);
+
+        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
         sp.Children.Add(CreateDisplayModeRow());
 
@@ -124,7 +143,9 @@ public class TomorrowYiJiSettingsControl : ComponentBase<TomorrowYiJiSettings>
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = sp
         };
-        Content = scrollViewer;
+        Grid.SetRow(scrollViewer, 2);
+        rootPanel.Children.Add(scrollViewer);
+        Content = rootPanel;
     }
 
     private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown, out ToggleSwitch toggleSwitch,

@@ -141,9 +141,8 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         timeBasePanel.Children.Add(_timeBaseLabel);
         _timeBaseComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
         _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
         _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("原始系统时间");
+        _timeBaseComboBox.Items.Add("ClassIsland时间");
         timeBasePanel.Children.Add(_timeBaseComboBox);
 
         timeBaseGroup.Content = timeBasePanel;
@@ -637,7 +636,20 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
         if (_text4TextBox != null) _text4TextBox.Text = Settings.Text4;
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
+        // 迁移旧版时间基准值
+        var migratedType = TimeBaseTypeHelper.Migrate((int)Settings.TimeBaseType);
+        if (migratedType != Settings.TimeBaseType)
+        {
+            Settings.TimeBaseType = migratedType;
+        }
+
+        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
+        {
+            TimeBaseType.PluginOffsetServerTime => 0,
+            TimeBaseType.RawServerTime => 1,
+            TimeBaseType.ClassIslandTime => 2,
+            _ => 0
+        };
 
         var startTime = DateTimeOffset.FromUnixTimeSeconds(Settings.StartTime).LocalDateTime;
         if (_startYearTextBox != null) _startYearTextBox.Text = startTime.Year.ToString();
@@ -678,7 +690,13 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         {
             _timeBaseComboBox.SelectionChanged += (s, e) =>
             {
-                Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
+                Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
+                {
+                    0 => TimeBaseType.PluginOffsetServerTime,
+                    1 => TimeBaseType.RawServerTime,
+                    2 => TimeBaseType.ClassIslandTime,
+                    _ => TimeBaseType.PluginOffsetServerTime
+                };
             };
         }
 

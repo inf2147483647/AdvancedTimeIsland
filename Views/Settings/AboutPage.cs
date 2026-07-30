@@ -180,6 +180,60 @@ public class AboutPage : SettingsPageBase
         }
     }
 
+    private string GetPluginVersion()
+    {
+        try
+        {
+            var version = TryReadVersionFromManifest();
+            if (!string.IsNullOrEmpty(version))
+            {
+                if (_pluginSettings != null && _pluginSettings.CachedVersion != version)
+                {
+                    _pluginSettings.CachedVersion = version;
+                }
+                return version;
+            }
+        }
+        catch { }
+
+        if (!string.IsNullOrEmpty(_pluginSettings?.CachedVersion))
+        {
+            return _pluginSettings!.CachedVersion!;
+        }
+
+        return "未知版本";
+    }
+
+    private static string? TryReadVersionFromManifest()
+    {
+        try
+        {
+            var manifestPath = System.IO.Path.Combine(AppContext.BaseDirectory, "manifest.yml");
+            if (!System.IO.File.Exists(manifestPath))
+            {
+                var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+                var pluginDir = System.IO.Path.GetDirectoryName(assemblyLocation);
+                if (!string.IsNullOrEmpty(pluginDir))
+                {
+                    manifestPath = System.IO.Path.Combine(pluginDir, "manifest.yml");
+                }
+            }
+
+            if (!System.IO.File.Exists(manifestPath))
+                return null;
+
+            var content = System.IO.File.ReadAllText(manifestPath);
+            var match = System.Text.RegularExpressions.Regex.Match(content, @"^\s*version\s*:\s*(.+?)\s*$", System.Text.RegularExpressions.RegexOptions.Multiline);
+            if (match.Success)
+            {
+                return match.Groups[1].Value.Trim().Trim('"', '\'');
+            }
+        }
+        catch { }
+
+        return null;
+    }
+
     /// <summary>
     /// 图标点击事件
     /// </summary>
@@ -315,7 +369,7 @@ public class AboutPage : SettingsPageBase
 
         var versionText = new TextBlock
         {
-            Text = "版本：1.0.3.0",
+            Text = $"版本：{GetPluginVersion()}",
             FontSize = 14,
             Foreground = ThemeHelper.GetTextBrush()
         };

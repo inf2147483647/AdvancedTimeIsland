@@ -19,3 +19,5 @@
 5. 确保所有页面以及组件的Guid两两互异
 
 最后调用AdvisorTool进行vibe review
+
+构建命令：dotnet build 2>&1 | Select-String -Pattern "error|Error" | c:\Users\Administrator\RiderProjects\AdvancedTimeIsland\Build-Package.ps1

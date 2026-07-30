@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -39,6 +39,20 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableDayYiJi = true;
     private bool _enableShengXiao = true;
     private bool _enableFestival = true;
+    private string? _cachedVersion;
+
+    public string? CachedVersion
+    {
+        get => _cachedVersion;
+        set
+        {
+            if (_cachedVersion != value)
+            {
+                _cachedVersion = value;
+                OnPropertyChanged();
+            }
+        }
+    }
 
     /// <summary>
     /// 是否启用农历功能
