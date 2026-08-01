@@ -43,7 +43,6 @@ public class HanfuPageTemplate : SettingsPageBase
     private Dictionary<int, HideData>? _hideData;
     private Dictionary<int, LoadingData>? _loadingData;
     private Dictionary<Span, string>? _hyperlinkSpanMap;
-    private Dictionary<Span, (int Offset, int Length)>? _hyperlinkSpanOffsets;
 
     public HanfuPageTemplate()
     {
@@ -72,20 +71,7 @@ public class HanfuPageTemplate : SettingsPageBase
         _paragraphTextBlocks = new List<TextBlock>();
         _sectionTextBlocks = new List<TextBlock>();
 
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(0),
-            BringIntoViewOnFocusChange = false
-        };
-
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 0
-        };
-
+        // 返回按钮脱离滚动容器，始终固定在页面顶部
         _backTextBlock = new TextBlock
         {
             Text = "‹ 返回上一级",
@@ -96,7 +82,6 @@ public class HanfuPageTemplate : SettingsPageBase
             Cursor = new Cursor(StandardCursorType.Hand)
         };
         _backTextBlock.PointerPressed += OnBackClick;
-        mainPanel.Children.Add(_backTextBlock);
 
         _contentBorder = new Border
         {
@@ -112,12 +97,43 @@ public class HanfuPageTemplate : SettingsPageBase
             Spacing = 8
         };
 
-        BuildContent(panel);
+        try
+        {
+            BuildContent(panel);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BuildContent failed: {ex}");
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"页面内容加载失败: {ex.Message}",
+                Foreground = Brushes.Red,
+                FontSize = 14,
+                Margin = new Thickness(0, 8, 0, 0)
+            });
+        }
 
         _contentBorder.Child = panel;
-        mainPanel.Children.Add(_contentBorder);
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
+
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0),
+            BringIntoViewOnFocusChange = false,
+            Content = _contentBorder
+        };
+
+        // 使用 Grid 将返回按钮固定在顶部，滚动内容占据剩余空间
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(_backTextBlock, 0);
+        Grid.SetRow(scrollViewer, 1);
+        rootGrid.Children.Add(_backTextBlock);
+        rootGrid.Children.Add(scrollViewer);
+
+        Content = rootGrid;
     }
 
     protected virtual void BuildContent(StackPanel panel)
@@ -351,8 +367,8 @@ InfoBar 语法格式：
 <img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='图片加载失败'>
 <img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='80%' height='auto'>、
 
-<hide clicktime=5000 count=11>还是被你发现了</hide>
-<loading size=20px><loading size=40px><loading size=60px><loading size=50px color='#5555ff'>
+<hide clicktime=5000 count=11>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
+<loading size=20px color='#E70C22'>还没加载完，千万别关机！
 ";
 
         RenderMarkdown(panel, markdown);
@@ -361,7 +377,6 @@ InfoBar 语法格式：
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
         _hyperlinkSpanMap = new Dictionary<Span, string>();
-        _hyperlinkSpanOffsets = new Dictionary<Span, (int, int)>();
         markdown = StripHtmlComments(markdown);
         markdown = PreprocessAlertBlocks(markdown);
         markdown = PreprocessInfoBars(markdown);
@@ -946,15 +961,17 @@ InfoBar 语法格式：
         hyperlink.TextDecorations = combined;
     }
 
-    private void FinalizeHyperlinkLayout(TextBlock textBlock)
+    private Dictionary<Span, (int Offset, int Length)> FinalizeHyperlinkLayout(TextBlock textBlock)
     {
-        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+        var result = new Dictionary<Span, (int, int)>();
+        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return result;
 
         var offset = 0;
-        ComputeSpanOffsetsRecursive(textBlock.Inlines, ref offset);
+        ComputeSpanOffsetsRecursive(textBlock.Inlines, ref offset, result);
+        return result;
     }
 
-    private void ComputeSpanOffsetsRecursive(InlineCollection inlines, ref int offset)
+    private void ComputeSpanOffsetsRecursive(InlineCollection inlines, ref int offset, Dictionary<Span, (int, int)> result)
     {
         foreach (var inline in inlines)
         {
@@ -965,11 +982,11 @@ InfoBar 语法格式：
             else if (inline is Span span)
             {
                 int startOffset = offset;
-                ComputeSpanOffsetsRecursive(span.Inlines, ref offset);
+                ComputeSpanOffsetsRecursive(span.Inlines, ref offset, result);
                 int length = offset - startOffset;
                 if (_hyperlinkSpanMap!.ContainsKey(span))
                 {
-                    _hyperlinkSpanOffsets![span] = (startOffset, length);
+                    result[span] = (startOffset, length);
                 }
             }
             else if (inline is InlineUIContainer container)
@@ -984,48 +1001,47 @@ InfoBar 语法格式：
     {
         if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
 
-        FinalizeHyperlinkLayout(textBlock);
+        // 为当前 TextBlock 计算其专属的超链接偏移量，避免其他段落链接的"扩散"误触发
+        var spanOffsets = FinalizeHyperlinkLayout(textBlock);
+        if (spanOffsets.Count == 0) return;
 
         textBlock.PointerReleased += (s, e) =>
         {
-            if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+            // 防止"链接扩散"：只处理直接点击 TextBlock 文本区域的情况
+            // 点击 InlineUIContainer 子控件（hide/loading/img）时 e.Source 为子控件而非 TextBlock，直接忽略
+            if (!ReferenceEquals(e.Source, textBlock)) return;
 
             var position = e.GetPosition(textBlock);
             var textLayout = textBlock.TextLayout;
             if (textLayout == null) return;
 
-            foreach (var span in _hyperlinkSpanMap.Keys)
+            foreach (var (span, range) in spanOffsets)
             {
-                if (_hyperlinkSpanOffsets!.TryGetValue(span, out var range))
+                if (IsPositionInHyperlink(textLayout, range, position))
                 {
-                    if (IsPositionInHyperlink(textLayout, range, position))
-                    {
-                        OpenLink(_hyperlinkSpanMap[span]);
-                        e.Handled = true;
-                        return;
-                    }
+                    OpenLink(_hyperlinkSpanMap![span]);
+                    e.Handled = true;
+                    return;
                 }
             }
         };
 
         textBlock.PointerMoved += (s, e) =>
         {
-            if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+            // 同上：忽略 InlineUIContainer 子控件的鼠标移动，避免在非链接区域显示手型光标
+            if (!ReferenceEquals(e.Source, textBlock)) return;
 
             var position = e.GetPosition(textBlock);
             var textLayout = textBlock.TextLayout;
             if (textLayout == null) return;
 
             bool overLink = false;
-            foreach (var span in _hyperlinkSpanMap.Keys)
+            foreach (var (_, range) in spanOffsets)
             {
-                if (_hyperlinkSpanOffsets!.TryGetValue(span, out var range))
+                if (IsPositionInHyperlink(textLayout, range, position))
                 {
-                    if (IsPositionInHyperlink(textLayout, range, position))
-                    {
-                        overLink = true;
-                        break;
-                    }
+                    overLink = true;
+                    break;
                 }
             }
             textBlock.Cursor = overLink ? new Cursor(StandardCursorType.Hand) : null;
@@ -2470,6 +2486,9 @@ InfoBar 语法格式：
             e.Handled = true;
         };
 
+        // 阻止 PointerReleased 冒泡到外层 TextBlock 的超链接处理器
+        border.PointerReleased += (s, e) => e.Handled = true;
+
         // 不保存消失状态：重进页面时控件会重新创建，自动恢复隐藏状态
         return border;
     }
@@ -2573,6 +2592,10 @@ InfoBar 语法格式：
             Child = path
         };
 
+        // 防止点击 loading 控件时事件冒泡到外层 TextBlock 触发超链接"扩散"
+        wrapper.PointerPressed += (s, e) => e.Handled = true;
+        wrapper.PointerReleased += (s, e) => e.Handled = true;
+
         return wrapper;
     }
 
@@ -2625,11 +2648,17 @@ InfoBar 语法格式：
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
+        // 防止点击 img 控件时事件冒泡到外层 TextBlock 触发超链接"扩散"
+        container.PointerPressed += (s, e) => e.Handled = true;
+        container.PointerReleased += (s, e) => e.Handled = true;
+
         container.Loaded += (s, e) =>
         {
-            var parent = container.Parent as Control;
-            double viewportWidth = parent?.Bounds.Width ?? 800;
-            double viewportHeight = parent?.Bounds.Height ?? 600;
+            // 从视觉树中查找最近的 Control 父级以获取可用宽度
+            // （内联使用时 container.Parent 是 InlineUIContainer，不是 Control）
+            var visualParent = container.GetVisualParent() as Control;
+            double viewportWidth = visualParent?.Bounds.Width ?? 800;
+            double viewportHeight = visualParent?.Bounds.Height ?? 600;
 
             double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
             double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
