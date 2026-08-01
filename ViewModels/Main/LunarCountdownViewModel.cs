@@ -225,7 +225,8 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(LunarCountdownSettings.Text3) ||
             e.PropertyName == nameof(LunarCountdownSettings.Text4) ||
             e.PropertyName == nameof(LunarCountdownSettings.CountdownItems) ||
-            e.PropertyName == nameof(LunarCountdownSettings.TimeBaseType))
+            e.PropertyName == nameof(LunarCountdownSettings.TimeBaseType) ||
+            e.PropertyName == nameof(LunarCountdownSettings.StartTime))
         {
             UpdateCountdown();
         }
@@ -408,16 +409,11 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
 
         double percent = 0;
         var targetTimestamp = currentItem.GetTargetTimestamp();
-        if (targetTimestamp > 0)
+        if (_settings.StartTime > 0 && targetTimestamp > _settings.StartTime)
         {
-            var startOfYear = new DateTime(now.Year, 1, 1, 0, 0, 0, DateTimeKind.Utc);
-            var startOfYearTimestamp = (long)(startOfYear - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
-            if (targetTimestamp > startOfYearTimestamp)
-            {
-                var totalDuration = targetTimestamp - startOfYearTimestamp;
-                var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
-                percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
-            }
+            var totalDuration = targetTimestamp - _settings.StartTime;
+            var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
+            percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }
 
         return new LunarCountdownDisplayData

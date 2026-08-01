@@ -3448,6 +3448,7 @@ public class LunarCountdownSettings : INotifyPropertyChanged
     private string _text4FontColor = "";
     private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<LunarCountdownItem> _countdownItems = new();
+    private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
     public string Text1
     {
@@ -3652,6 +3653,19 @@ public class LunarCountdownSettings : INotifyPropertyChanged
             if (_countdownItems != value)
             {
                 _countdownItems = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    public long StartTime
+    {
+        get => _startTime;
+        set
+        {
+            if (_startTime != value)
+            {
+                _startTime = value;
                 OnPropertyChanged();
             }
         }
