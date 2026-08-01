@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
@@ -15,6 +16,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.TextFormatting;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -38,6 +40,8 @@ public class HanfuPageTemplate : SettingsPageBase
     protected TextBlock? _backTextBlock;
     private Dictionary<int, InfoBarData>? _infoBarData;
     private Dictionary<int, ImgData>? _imgData;
+    private Dictionary<int, HideData>? _hideData;
+    private Dictionary<int, LoadingData>? _loadingData;
     private Dictionary<Span, string>? _hyperlinkSpanMap;
     private Dictionary<Span, (int Offset, int Length)>? _hyperlinkSpanOffsets;
 
@@ -345,8 +349,10 @@ InfoBar 语法格式：
 <infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
 
 <img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='图片加载失败'>
-<img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='80%' height='auto'>
+<img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='80%' height='auto'>、
 
+<hide clicktime=5000 count=11>还是被你发现了</hide>
+<loading size=20px><loading size=40px><loading size=60px><loading size=50px color='#5555ff'>
 ";
 
         RenderMarkdown(panel, markdown);
@@ -362,6 +368,8 @@ InfoBar 语法格式：
         markdown = PreprocessImgTags(markdown);
         markdown = PreprocessRouteLinks(markdown);
         markdown = PreprocessUnderlineTags(markdown);
+        markdown = PreprocessHideTags(markdown);
+        markdown = PreprocessLoadingTags(markdown);
         
         var pipeline = new Markdig.MarkdownPipelineBuilder()
             .UseEmphasisExtras()
@@ -597,6 +605,117 @@ InfoBar 语法格式：
         return string.Join("\n", result);
     }
 
+    private string PreprocessHideTags(string markdown)
+    {
+        _hideData = new Dictionary<int, HideData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<hide\s+clicktime\s*=\s*(\d+)\s+count\s*=\s*(\d+)\s*>([\s\S]*?)</hide>",
+                match =>
+                {
+                    var clicktime = int.Parse(match.Groups[1].Value);
+                    var count = int.Parse(match.Groups[2].Value);
+                    var content = match.Groups[3].Value;
+
+                    // 检测内部文本颜色（排除 background-color）
+                    string? detectedColor = null;
+                    var colorMatch = Regex.Match(
+                        content,
+                        @"(?<!-)color\s*:\s*(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)",
+                        RegexOptions.IgnoreCase);
+                    if (colorMatch.Success)
+                    {
+                        detectedColor = colorMatch.Groups[1].Value;
+                    }
+
+                    int currentId = index;
+                    _hideData![currentId] = new HideData
+                    {
+                        ClickTime = clicktime,
+                        Count = count,
+                        Content = content,
+                        DetectedColor = detectedColor
+                    };
+                    index++;
+
+                    // 使用内联占位符，不加换行符，确保只有被 hide 包裹的文本部分有背景
+                    var placeholder = $"HIDEINLINE{currentId}END";
+                    return placeholder;
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessLoadingTags(string markdown)
+    {
+        _loadingData = new Dictionary<int, LoadingData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<loading\s+size\s*=\s*([\d.]+)px\s*(?:color\s*=\s*['""]?([^'""\s>]+)['""]?\s*)?>",
+                match =>
+                {
+                    var size = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                    var color = match.Groups[2].Success ? match.Groups[2].Value : null;
+                    int currentId = index;
+                    _loadingData![currentId] = new LoadingData { Size = size, Color = color };
+                    index++;
+                    // 使用内联占位符，不加换行符，确保同一行的多个 loading 保持在同一段落内
+                    return $"LOADINGINLINE{currentId}END";
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
+        }
+
+        return string.Join("\n", result);
+    }
+
     private string PreprocessImgTags(string markdown)
     {
         _imgData = new Dictionary<int, ImgData>();
@@ -650,7 +769,7 @@ InfoBar 语法格式：
                         Alt = alt
                     };
 
-                    var placeholder = $"\nIMGBLOCK{index}END\n";
+                    var placeholder = $"IMGINLINE{index}END";
                     index++;
                     return placeholder;
                 },
@@ -693,11 +812,6 @@ InfoBar 语法格式：
 
     private Control? ConvertMarkdownBlock(MarkdownObject block)
     {
-        if (block is ParagraphBlock p && TryGetImgPlaceholder(p, out int imgIndex))
-        {
-            return ConvertImg(imgIndex);
-        }
-
         if (block is ParagraphBlock p2 && TryGetInfoBarPlaceholder(p2, out int infoBarIndex))
         {
             return ConvertInfoBar(infoBarIndex);
@@ -716,19 +830,6 @@ InfoBar 语法格式：
         };
     }
 
-    private bool TryGetImgPlaceholder(ParagraphBlock paragraph, out int index)
-    {
-        index = -1;
-        var text = ExtractParagraphText(paragraph);
-        var match = Regex.Match(text, @"^IMGBLOCK(\d+)END$");
-        if (match.Success && _imgData != null)
-        {
-            index = int.Parse(match.Groups[1].Value);
-            return _imgData.ContainsKey(index);
-        }
-        return false;
-    }
-
     private bool TryGetInfoBarPlaceholder(ParagraphBlock paragraph, out int index)
     {
         index = -1;
@@ -740,6 +841,57 @@ InfoBar 语法格式：
             return _infoBarData.ContainsKey(index);
         }
         return false;
+    }
+
+    private enum InlinePlaceholderType { Loading, Hide, Img }
+
+    private record InlinePlaceholder(InlinePlaceholderType Type, int Id);
+
+    private static readonly Regex InlinePlaceholderRegex = new Regex(
+        @"(?:LOADINGINLINE(\d+)END)|(?:HIDEINLINE(\d+)END)|(?:IMGINLINE(\d+)END)", RegexOptions.Compiled);
+
+    private List<object> SplitInline(string text)
+    {
+        var result = new List<object>();
+        var matches = InlinePlaceholderRegex.Matches(text);
+        int pos = 0;
+        foreach (Match match in matches)
+        {
+            if (match.Index > pos)
+            {
+                result.Add(text.Substring(pos, match.Index - pos));
+            }
+            if (match.Groups[1].Success)
+            {
+                int id = int.Parse(match.Groups[1].Value);
+                if (_loadingData != null && _loadingData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Loading, id));
+                else
+                    result.Add(match.Value);
+            }
+            else if (match.Groups[2].Success)
+            {
+                int id = int.Parse(match.Groups[2].Value);
+                if (_hideData != null && _hideData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Hide, id));
+                else
+                    result.Add(match.Value);
+            }
+            else if (match.Groups[3].Success)
+            {
+                int id = int.Parse(match.Groups[3].Value);
+                if (_imgData != null && _imgData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Img, id));
+                else
+                    result.Add(match.Value);
+            }
+            pos = match.Index + match.Length;
+        }
+        if (pos < text.Length)
+        {
+            result.Add(text.Substring(pos));
+        }
+        return result;
     }
 
     private string ExtractParagraphText(ParagraphBlock paragraph)
@@ -1072,7 +1224,8 @@ InfoBar 语法格式：
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0)
+            Margin = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Stretch
         };
         return tb;
     }
@@ -1112,11 +1265,38 @@ InfoBar 语法格式：
             }
             else
             {
-                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                // 检测内联占位符（loading / hide），拆分文本
+                var parts = SplitInline(text);
+                foreach (var part in parts)
                 {
-                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                    if (part is string textPart)
+                    {
+                        if (textPart.Length > 0)
+                        {
+                            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                            {
+                                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                            }
+                            segments[segments.Count - 1].Inlines!.Add(new Run { Text = textPart });
+                        }
+                    }
+                    else if (part is InlinePlaceholder placeholder)
+                    {
+                        Control control = placeholder.Type switch
+                        {
+                            InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                            InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                            InlinePlaceholderType.Img => ConvertImg(placeholder.Id),
+                            _ => new Border()
+                        };
+                        var container = new InlineUIContainer(control);
+                        if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                        {
+                            segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                        }
+                        segments[segments.Count - 1].Inlines!.Add(container);
+                    }
                 }
-                segments[segments.Count - 1].Inlines!.Add(new Run { Text = text });
             }
         }
         else if (inline is EmphasisInline emphasis)
@@ -1485,7 +1665,26 @@ InfoBar 语法格式：
     {
         if (inline is LiteralInline literal)
         {
-            yield return new Run { Text = literal.Content.ToString() };
+            var text = literal.Content.ToString();
+            var parts = SplitInline(text);
+            foreach (var part in parts)
+            {
+                if (part is string textPart && textPart.Length > 0)
+                {
+                    yield return new Run { Text = textPart };
+                }
+                else if (part is InlinePlaceholder placeholder)
+                {
+                    Control control = placeholder.Type switch
+                    {
+                        InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                        InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                        InlinePlaceholderType.Img => ConvertImg(placeholder.Id),
+                        _ => new Border()
+                    };
+                    yield return new InlineUIContainer(control);
+                }
+            }
         }
         else if (inline is EmphasisInline emphasis)
         {
@@ -1952,6 +2151,20 @@ InfoBar 语法格式：
         public string Alt { get; set; } = "";
     }
 
+    private class HideData
+    {
+        public int ClickTime { get; set; }
+        public int Count { get; set; }
+        public string Content { get; set; } = "";
+        public string? DetectedColor { get; set; }
+    }
+
+    private class LoadingData
+    {
+        public double Size { get; set; }
+        public string? Color { get; set; }
+    }
+
     private (AlertType Type, string CustomTitle) DetectAlertType(QuoteBlock quote)
     {
         foreach (var block in quote)
@@ -2173,6 +2386,194 @@ InfoBar 语法格式：
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 8, 0, 8));
 
         return infoBar;
+    }
+
+    private Control ConvertHide(int index)
+    {
+        if (_hideData == null || !_hideData.TryGetValue(index, out var data))
+            return new Border();
+
+        // 确定背景色：如果内部有文本颜色语法，背景色与文本颜色一致；否则使用默认文本色
+        IBrush backgroundBrush;
+        if (!string.IsNullOrEmpty(data.DetectedColor))
+        {
+            try { backgroundBrush = new SolidColorBrush(Color.Parse(data.DetectedColor)); }
+            catch { backgroundBrush = ThemeHelper.GetSubTextBrush(); }
+        }
+        else
+        {
+            backgroundBrush = ThemeHelper.GetSubTextBrush();
+        }
+
+        // 创建内部 TextBlock，设置 Foreground 与背景一致以隐藏默认文本
+        var innerTextBlock = new TextBlock
+        {
+            FontSize = 14,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = backgroundBrush,
+            Margin = new Thickness(0)
+        };
+
+        // 将内部内容作为 Markdown 解析并渲染为内联元素（支持嵌套语法）
+        var innerPipeline = new Markdig.MarkdownPipelineBuilder()
+            .UseEmphasisExtras()
+            .Build();
+        var innerDoc = Markdig.Markdown.Parse(data.Content, innerPipeline);
+
+        bool hasInlineContent = false;
+        foreach (var block in innerDoc)
+        {
+            if (block is ParagraphBlock paragraph && paragraph.Inline != null)
+            {
+                foreach (var inline in ConvertInline(paragraph.Inline, innerTextBlock))
+                {
+                    innerTextBlock.Inlines.Add(inline);
+                }
+                hasInlineContent = true;
+            }
+        }
+
+        // 如果内容被解析为 HtmlBlock（如 span 标签独占一行），回退为纯文本
+        if (!hasInlineContent && !string.IsNullOrEmpty(data.Content))
+        {
+            innerTextBlock.Inlines.Add(new Run { Text = data.Content });
+        }
+
+        AttachHyperlinkClickHandler(innerTextBlock);
+
+        // 创建带隐藏背景的 Border
+        var border = new Border
+        {
+            Background = backgroundBrush,
+            Child = innerTextBlock,
+            Padding = new Thickness(2, 0),
+            CornerRadius = new CornerRadius(2),
+            Cursor = new Cursor(StandardCursorType.Hand)
+        };
+
+        // 点击计数：在 clicktime 毫秒内点击 count 次后背景消失
+        var clickTimes = new List<DateTime>();
+        border.PointerPressed += (s, e) =>
+        {
+            var now = DateTime.Now;
+            clickTimes.Add(now);
+            // 移除超出时间窗口的点击记录
+            clickTimes.RemoveAll(t => (now - t).TotalMilliseconds > data.ClickTime);
+
+            if (clickTimes.Count >= data.Count)
+            {
+                // 背景消失，展示文本
+                border.Background = Brushes.Transparent;
+                border.Cursor = null;
+                clickTimes.Clear();
+            }
+            e.Handled = true;
+        };
+
+        // 不保存消失状态：重进页面时控件会重新创建，自动恢复隐藏状态
+        return border;
+    }
+
+    private Control ConvertLoading(int index)
+    {
+        if (_loadingData == null || !_loadingData.TryGetValue(index, out var data))
+            return new Border();
+
+        var size = data.Size;
+        var center = size / 2.0;
+        // FA3 比例：80x80视觉中圆弧半径30，描边宽度4
+        var radius = 3.0 * size / 8.0;
+        var strokeWidth = size / 20.0;
+
+        // 确定描边颜色：优先使用 color 属性，否则使用默认文本色
+        IBrush strokeBrush;
+        if (!string.IsNullOrEmpty(data.Color))
+        {
+            try { strokeBrush = new SolidColorBrush(Color.Parse(data.Color)); }
+            catch { strokeBrush = ThemeHelper.GetSubTextBrush(); }
+        }
+        else
+        {
+            strokeBrush = ThemeHelper.GetSubTextBrush();
+        }
+
+        var path = new Avalonia.Controls.Shapes.Path
+        {
+            Stroke = strokeBrush,
+            StrokeThickness = strokeWidth,
+            StrokeLineCap = PenLineCap.Round,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = size,
+            Height = size
+        };
+
+        // 完全按照 FA3 FAProgressRingAnimatedVisual 的动画算法实现
+        // 周期2秒，3圈旋转（1080°），弧长在0°→180°→180°→0°之间变化
+        var startTime = DateTime.Now;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+
+        timer.Tick += (s, e) =>
+        {
+            var elapsed = (DateTime.Now - startTime).TotalSeconds;
+            var duration = 2.0; // FA3: _duration = 2
+            var seconds = elapsed % duration;
+            var progress = seconds / duration;
+
+            // 弧长（扫过角度）算法 - 与 FA3 一致
+            // 0%-25%: 0°→180°, 25%-75%: 180°, 75%-100%: 180°→0°
+            double sweepSize;
+            if (progress < 0.25)
+                sweepSize = 180.0 * (progress / 0.25);
+            else if (progress >= 0.75)
+                sweepSize = 180.0 * ((1.0 - progress) / 0.25);
+            else
+                sweepSize = 180.0;
+
+            var sweepSize2 = sweepSize / 2.0;
+
+            // 旋转位置：3圈 = 1080°
+            var position = 1080.0 * progress;
+
+            // 起始角度：-90° + 旋转位置 - 弧长一半（与 FA3 AddArc 一致）
+            var startAngle = -90.0 + position - sweepSize2;
+            var sweepAngle = sweepSize;
+
+            if (sweepAngle < 0.5)
+            {
+                path.Data = null;
+                return;
+            }
+
+            var startRad = startAngle * Math.PI / 180.0;
+            var endRad = (startAngle + sweepAngle) * Math.PI / 180.0;
+
+            var startX = center + radius * Math.Cos(startRad);
+            var startY = center + radius * Math.Sin(startRad);
+            var endX = center + radius * Math.Cos(endRad);
+            var endY = center + radius * Math.Sin(endRad);
+
+            var largeArc = sweepAngle > 180.0 ? 1 : 0;
+            var pathData = string.Format(CultureInfo.InvariantCulture,
+                "M {0},{1} A {2},{2} 0 {3} 1 {4},{5}",
+                startX, startY, radius, largeArc, endX, endY);
+            path.Data = StreamGeometry.Parse(pathData);
+        };
+
+        path.AttachedToVisualTree += (s, e) => timer.Start();
+        path.DetachedFromVisualTree += (s, e) => timer.Stop();
+
+        // 使用 Border 包装 Path，确保尺寸测量正确
+        var wrapper = new Border
+        {
+            Width = size,
+            Height = size,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = path
+        };
+
+        return wrapper;
     }
 
     private Control ConvertImg(int index)
