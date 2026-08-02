@@ -166,7 +166,7 @@ public class HanfuPageTemplate : SettingsPageBase
 ## 2. 图片与链接
 
 网络图片:
-![banner](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg)
+![banner](https://www.classisland.tech/assets/automation-y0DvcHaz.webp)
 
 WPF 资源图片：
 
@@ -365,9 +365,14 @@ InfoBar 语法格式：
 <infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
 
 <img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='图片加载失败'>
-<img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='80%' height='auto'>、
 
-<hide clicktime=5000 count=11>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
+
+<hide clicktime=5000 count=11><img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='100%' title='粽锁粥汁，女装只有0次与无数次；别说了，快女装吧'><br>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
+
+强制换行测试：第一行<br>第二行<br>第三行
+
+<hide clicktime=5000 count=11>隐藏多行测试：第一行<br>第二行<br>第三行</hide>
+
 <loading size=20px color='#E70C22'>还没加载完，千万别关机！
 ";
 
@@ -1289,11 +1294,22 @@ InfoBar 语法格式：
                     {
                         if (textPart.Length > 0)
                         {
-                            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                            // 按 <br> 拆分文本，支持强制换行
+                            foreach (var (brText, isBr) in SplitTextWithBr(textPart))
                             {
-                                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                                {
+                                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                                }
+                                if (isBr)
+                                {
+                                    segments[segments.Count - 1].Inlines!.Add(new LineBreak());
+                                }
+                                else if (!string.IsNullOrEmpty(brText))
+                                {
+                                    segments[segments.Count - 1].Inlines!.Add(new Run { Text = brText });
+                                }
                             }
-                            segments[segments.Count - 1].Inlines!.Add(new Run { Text = textPart });
                         }
                     }
                     else if (part is InlinePlaceholder placeholder)
@@ -1302,7 +1318,7 @@ InfoBar 语法格式：
                         {
                             InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
                             InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
-                            InlinePlaceholderType.Img => ConvertImg(placeholder.Id),
+                            InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: true),
                             _ => new Border()
                         };
                         var container = new InlineUIContainer(control);
@@ -1473,8 +1489,16 @@ InfoBar 语法格式：
                     segments.Add(segment);
                     if (child != null) child = child.NextSibling;
                 }
-                else if (child is HtmlInline)
+                else if (child is HtmlInline brChild)
                 {
+                    if (brChild.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                        {
+                            segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                        }
+                        segments[segments.Count - 1].Inlines!.Add(new LineBreak());
+                    }
                     child = child.NextSibling;
                 }
                 else
@@ -1677,6 +1701,27 @@ InfoBar 语法格式：
         }
     }
 
+    private IEnumerable<(string? Text, bool IsLineBreak)> SplitTextWithBr(string text)
+    {
+        var matches = Regex.Matches(text, @"<br\s*/?>", RegexOptions.IgnoreCase);
+        if (matches.Count == 0)
+        {
+            yield return (text, false);
+            yield break;
+        }
+
+        int lastPos = 0;
+        foreach (Match match in matches)
+        {
+            if (match.Index > lastPos)
+                yield return (text.Substring(lastPos, match.Index - lastPos), false);
+            yield return (null, true);
+            lastPos = match.Index + match.Length;
+        }
+        if (lastPos < text.Length)
+            yield return (text.Substring(lastPos), false);
+    }
+
     private IEnumerable<Avalonia.Controls.Documents.Inline> ConvertInline(Markdig.Syntax.Inlines.Inline inline, TextBlock? parentTextBlock = null)
     {
         if (inline is LiteralInline literal)
@@ -1687,7 +1732,14 @@ InfoBar 语法格式：
             {
                 if (part is string textPart && textPart.Length > 0)
                 {
-                    yield return new Run { Text = textPart };
+                    // 按 <br> 拆分文本，支持强制换行（不受 hide 等语法的单行限制）
+                    foreach (var (brText, isBr) in SplitTextWithBr(textPart))
+                    {
+                        if (isBr)
+                            yield return new LineBreak();
+                        else if (!string.IsNullOrEmpty(brText))
+                            yield return new Run { Text = brText };
+                    }
                 }
                 else if (part is InlinePlaceholder placeholder)
                 {
@@ -1695,11 +1747,19 @@ InfoBar 语法格式：
                     {
                         InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
                         InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
-                        InlinePlaceholderType.Img => ConvertImg(placeholder.Id),
+                        InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: true),
                         _ => new Border()
                     };
                     yield return new InlineUIContainer(control);
                 }
+            }
+        }
+        else if (inline is HtmlInline htmlInline)
+        {
+            // 处理 Markdig 解析为 HtmlInline 的 <br> 标签
+            if (htmlInline.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return new LineBreak();
             }
         }
         else if (inline is EmphasisInline emphasis)
@@ -1823,8 +1883,12 @@ InfoBar 语法格式：
                     yield return styledSpan;
                     if (child != null) child = child.NextSibling;
                 }
-                else if (child is HtmlInline)
+                else if (child is HtmlInline brChild)
                 {
+                    if (brChild.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+                    {
+                        yield return new LineBreak();
+                    }
                     child = child.NextSibling;
                 }
                 else
@@ -2421,55 +2485,112 @@ InfoBar 语法格式：
             backgroundBrush = ThemeHelper.GetSubTextBrush();
         }
 
-        // 创建内部 TextBlock，设置 Foreground 与背景一致以隐藏默认文本
-        var innerTextBlock = new TextBlock
+        // 使用 StackPanel 作为容器，使图片等块级元素能正确应用宽度参数
+        // 使用 Opacity=0 隐藏所有内容（文本+图片），点击揭示后设为1
+        // IsHitTestVisible=false 防止隐藏状态下鼠标悬停仍展示 ToolTip（如图片 title）
+        var innerPanel = new StackPanel
         {
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = backgroundBrush,
-            Margin = new Thickness(0)
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0),
+            Opacity = 0,
+            IsHitTestVisible = false
         };
 
-        // 将内部内容作为 Markdown 解析并渲染为内联元素（支持嵌套语法）
+        // 按内联占位符拆分内容：图片等块级元素单独渲染以正确应用宽度参数
         var innerPipeline = new Markdig.MarkdownPipelineBuilder()
             .UseEmphasisExtras()
             .Build();
-        var innerDoc = Markdig.Markdown.Parse(data.Content, innerPipeline);
 
-        bool hasInlineContent = false;
-        foreach (var block in innerDoc)
+        var parts = SplitInline(data.Content);
+        bool hasContent = false;
+
+        foreach (var part in parts)
         {
-            if (block is ParagraphBlock paragraph && paragraph.Inline != null)
+            if (part is string textPart && textPart.Length > 0)
             {
-                foreach (var inline in ConvertInline(paragraph.Inline, innerTextBlock))
+                textPart = Regex.Replace(textPart, @"^\s*<br\s*/?>\s*", "", RegexOptions.IgnoreCase);
+                if (string.IsNullOrEmpty(textPart)) continue;
+
+                var textDoc = Markdig.Markdown.Parse(textPart, innerPipeline);
+                bool partRendered = false;
+                foreach (var block in textDoc)
                 {
-                    innerTextBlock.Inlines.Add(inline);
+                    if (block is ParagraphBlock paragraph && paragraph.Inline != null)
+                    {
+                        var textBlock = new TextBlock
+                        {
+                            FontSize = 14,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = backgroundBrush,
+                            Margin = new Thickness(0)
+                        };
+                        foreach (var inline in ConvertInline(paragraph.Inline, textBlock))
+                        {
+                            textBlock.Inlines.Add(inline);
+                        }
+                        if (textBlock.Inlines.Count > 0)
+                        {
+                            innerPanel.Children.Add(textBlock);
+                            AttachHyperlinkClickHandler(textBlock);
+                            partRendered = true;
+                        }
+                    }
                 }
-                hasInlineContent = true;
+                if (!partRendered)
+                {
+                    var fallbackBlock = new TextBlock
+                    {
+                        FontSize = 14,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = backgroundBrush,
+                        Margin = new Thickness(0)
+                    };
+                    fallbackBlock.Inlines.Add(new Run { Text = textPart });
+                    innerPanel.Children.Add(fallbackBlock);
+                }
+                hasContent = true;
+            }
+            else if (part is InlinePlaceholder placeholder)
+            {
+                Control control = placeholder.Type switch
+                {
+                    InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: false),
+                    InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                    InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                    _ => new Border()
+                };
+                innerPanel.Children.Add(control);
+                hasContent = true;
             }
         }
 
-        // 如果内容被解析为 HtmlBlock（如 span 标签独占一行），回退为纯文本
-        if (!hasInlineContent && !string.IsNullOrEmpty(data.Content))
+        if (!hasContent && !string.IsNullOrEmpty(data.Content))
         {
-            innerTextBlock.Inlines.Add(new Run { Text = data.Content });
+            var fallbackBlock = new TextBlock
+            {
+                FontSize = 14,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = backgroundBrush,
+                Margin = new Thickness(0)
+            };
+            fallbackBlock.Inlines.Add(new Run { Text = data.Content });
+            innerPanel.Children.Add(fallbackBlock);
         }
-
-        AttachHyperlinkClickHandler(innerTextBlock);
 
         // 创建带隐藏背景的 Border
         var border = new Border
         {
             Background = backgroundBrush,
-            Child = innerTextBlock,
+            Child = innerPanel,
             Padding = new Thickness(2, 0),
             CornerRadius = new CornerRadius(2),
             Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         // 点击计数：在 clicktime 毫秒内点击 count 次后背景消失
+        // 使用 handledEventsToo: true 确保点击图片（其容器会设置 e.Handled = true）时仍能触发取消隐藏
         var clickTimes = new List<DateTime>();
-        border.PointerPressed += (s, e) =>
+        EventHandler<PointerPressedEventArgs> pressedHandler = (s, e) =>
         {
             var now = DateTime.Now;
             clickTimes.Add(now);
@@ -2478,16 +2599,19 @@ InfoBar 语法格式：
 
             if (clickTimes.Count >= data.Count)
             {
-                // 背景消失，展示文本
+                // 背景消失，展示所有内容（文本+图片）
                 border.Background = Brushes.Transparent;
+                innerPanel.Opacity = 1;
+                innerPanel.IsHitTestVisible = true;
                 border.Cursor = null;
                 clickTimes.Clear();
             }
             e.Handled = true;
         };
+        border.AddHandler(InputElement.PointerPressedEvent, pressedHandler, RoutingStrategies.Bubble, true);
 
         // 阻止 PointerReleased 冒泡到外层 TextBlock 的超链接处理器
-        border.PointerReleased += (s, e) => e.Handled = true;
+        border.AddHandler(InputElement.PointerReleasedEvent, (s, e) => e.Handled = true, RoutingStrategies.Bubble, true);
 
         // 不保存消失状态：重进页面时控件会重新创建，自动恢复隐藏状态
         return border;
@@ -2599,7 +2723,7 @@ InfoBar 语法格式：
         return wrapper;
     }
 
-    private Control ConvertImg(int index)
+    private Control ConvertImg(int index, bool isInline = false)
     {
         if (_imgData == null || !_imgData.TryGetValue(index, out var data))
             return new Border();
@@ -2652,48 +2776,101 @@ InfoBar 语法格式：
         container.PointerPressed += (s, e) => e.Handled = true;
         container.PointerReleased += (s, e) => e.Handled = true;
 
-        container.Loaded += (s, e) =>
+        if (isInline)
         {
-            // 从视觉树中查找最近的 Control 父级以获取可用宽度
-            // （内联使用时 container.Parent 是 InlineUIContainer，不是 Control）
-            var visualParent = container.GetVisualParent() as Control;
-            double viewportWidth = visualParent?.Bounds.Width ?? 800;
-            double viewportHeight = visualParent?.Bounds.Height ?? 600;
+            // 内联模式：不使用 Loaded 处理器（避免 InlineUIContainer 内布局循环导致死机）
+            // 使用 MaxWidth/MaxHeight 而非 Width/Height，与 CreateInlineImage 一致
+            // 这样 Image 在 Source 加载前后都能正确测量，InlineUIContainer 可自适应
+            double viewportWidth = 800;
+            double viewportHeight = 600;
 
             double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
             double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
 
-            bool hasWidth = parsedWidth.HasValue;
-            bool hasHeight = parsedHeight.HasValue;
-
-            if (hasWidth)
+            if (parsedWidth.HasValue)
             {
-                container.Width = parsedWidth.Value;
-                image.Width = parsedWidth.Value;
+                image.MaxWidth = parsedWidth.Value;
+            }
+            else
+            {
+                image.MaxWidth = viewportWidth * 0.9;
             }
 
-            if (hasHeight)
+            if (parsedHeight.HasValue)
             {
-                container.Height = parsedHeight.Value;
-                image.Height = parsedHeight.Value;
+                image.MaxHeight = parsedHeight.Value;
             }
 
-            if (hasWidth && hasHeight)
+            if (parsedWidth.HasValue && parsedHeight.HasValue)
             {
                 image.Stretch = Stretch.Fill;
-            }
-            else if (hasWidth || hasHeight)
-            {
-                image.Stretch = Stretch.Uniform;
             }
             else
             {
                 image.Stretch = Stretch.Uniform;
-                image.MaxWidth = viewportWidth * 0.9;
             }
 
+            // 内联模式不设置 container.Width，让 Border 自适应 Image 大小
+            container.HorizontalAlignment = HorizontalAlignment.Left;
+
             ResolveAndLoadImage(data.Src, image, errorPanel);
-        };
+        }
+        else
+        {
+            // 块级模式：使用 Loaded 处理器根据父级宽度计算尺寸
+            container.Loaded += (s, e) =>
+            {
+                // 向上遍历视觉树查找实际可用宽度
+                // 直接父级（如 hide 内的 StackPanel）宽度由内容决定，需找到外层 TextBlock 获取页面宽度
+                double viewportWidth = 800;
+                double viewportHeight = 600;
+                var parent = container.GetVisualParent();
+                while (parent != null)
+                {
+                    if (parent is Control c && c.Bounds.Width > 0)
+                    {
+                        viewportWidth = c.Bounds.Width;
+                        viewportHeight = c.Bounds.Height;
+                        if (c is TextBlock) break;
+                    }
+                    parent = parent.GetVisualParent();
+                }
+
+                double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
+                double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
+
+                bool hasWidth = parsedWidth.HasValue;
+                bool hasHeight = parsedHeight.HasValue;
+
+                if (hasWidth)
+                {
+                    container.Width = parsedWidth.Value;
+                    image.Width = parsedWidth.Value;
+                }
+
+                if (hasHeight)
+                {
+                    container.Height = parsedHeight.Value;
+                    image.Height = parsedHeight.Value;
+                }
+
+                if (hasWidth && hasHeight)
+                {
+                    image.Stretch = Stretch.Fill;
+                }
+                else if (hasWidth || hasHeight)
+                {
+                    image.Stretch = Stretch.Uniform;
+                }
+                else
+                {
+                    image.Stretch = Stretch.Uniform;
+                    image.MaxWidth = viewportWidth * 0.9;
+                }
+
+                ResolveAndLoadImage(data.Src, image, errorPanel);
+            };
+        }
 
         return container;
     }
@@ -2835,9 +3012,6 @@ InfoBar 语法格式：
 
     private InlineUIContainer? CreateInlineImage(string url)
     {
-        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
-            return null;
-
         var image = new Image
         {
             Stretch = Stretch.Uniform,
@@ -2845,6 +3019,13 @@ InfoBar 语法格式：
             MaxHeight = 200,
             Margin = new Thickness(4, 4, 4, 4)
         };
+
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            // 异步加载网络图片（复用缓存逻辑），加载完成前 Image 为空白
+            _ = LoadRemoteInlineImage(url, image);
+            return new InlineUIContainer(image);
+        }
 
         bool loaded = false;
 
@@ -2878,6 +3059,44 @@ InfoBar 语法格式：
             return null;
 
         return new InlineUIContainer(image);
+    }
+
+    private async Task LoadRemoteInlineImage(string url, Image imageControl)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var cachePath = Path.Combine(cacheDir, fileName);
+
+            if (File.Exists(cachePath))
+            {
+                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            using var ms = new MemoryStream(bytes);
+            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
+            imageControl.Source = bitmap2;
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(cacheDir);
+                    File.WriteAllBytes(cachePath, bytes);
+                }
+                catch { }
+            });
+        }
+        catch { }
     }
 
     private string? ResolveLocalPath(string src)
