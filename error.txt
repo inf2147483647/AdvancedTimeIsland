@@ -1,0 +1,26 @@
+2026/8/6 16:28:37|Error|ClassIsland.Views.SettingsWindowNew|无法完成设置页面导航 AdvancedTimeIslandHanfu
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at FluentAvalonia.UI.Controls.NavigationView.RaiseItemInvoked(Object item, Boolean isSettings, NavigationViewItemBase container, NavigationRecommendedTransitionDirection recDir)
+   at FluentAvalonia.UI.Controls.NavigationView.ChangeSelection(Object prevItem, Object nextItem)
+   at FluentAvalonia.UI.Controls.NavigationView.OnSelectedItemPropertyChanged(Object oldItem, Object newItem)
+   at FluentAvalonia.UI.Controls.NavigationView.OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+   at Avalonia.Animation.Animatable.OnPropertyChangedCore(AvaloniaPropertyChangedEventArgs change)
+   at Avalonia.AvaloniaObject.RaisePropertyChanged[T](AvaloniaProperty`1 property, Optional`1 oldValue, BindingValue`1 newValue, BindingPriority priority, Boolean isEffectiveValue)
+   at Avalonia.AvaloniaObject.SetAndRaise[T](DirectPropertyBase`1 property, T& field, T value)
+   at FluentAvalonia.UI.Controls.NavigationView.set_SelectedItem(Object value)
+   at FluentAvalonia.UI.Controls.NavigationView.SetSelectedItemAndExpectItemInvokeWhenSelectionChangedIfNotInvokedFromAPI(Object selItem)
+   at FluentAvalonia.UI.Controls.NavigationView.OnSelectionModelSelectionChanged(Object sender, SelectionModelSelectionChangedEventArgs e)
+   at FluentAvalonia.UI.Controls.SelectionModel.OnSelectionChanged()
+   at FluentAvalonia.UI.Controls.SelectionModel.SelectWithPathImpl(IndexPath index, Boolean select, Boolean raiseSelectionChanged)
+   at FluentAvalonia.UI.Controls.SelectionModel.DeselectAt(IndexPath index)
+   at FluentAvalonia.UI.Controls.NavigationView.OnNavigationViewItemIsSelectedPropertyChanged(AvaloniaPropertyChangedEventArgs args)
+   at FluentAvalonia.Core.SimpleObserver`1.OnNext(T value)
+   at Avalonia.Reactive.LightweightObservableBase`1.PublishNext(T value)
+   at Avalonia.Reactive.AvaloniaPropertyChangedObservable.PropertyChanged(Object sender, AvaloniaPropertyChangedEventArgs e)
+   at Avalonia.PropertyStore.EffectiveValue`1.NotifyValueChanged(ValueStore owner, StyledProperty`1 property, T oldValue)
+   at Avalonia.PropertyStore.EffectiveValue`1.SetAndRaiseCore(ValueStore owner, StyledProperty`1 property, T value, BindingPriority priority, Boolean isOverriddenCurrentValue, Boolean isCoercedDefaultValue)
+   at Avalonia.PropertyStore.ValueStore.SetLocalValue[T](StyledProperty`1 property, T value)
+   at Avalonia.PropertyStore.ValueStore.SetValue[T](StyledProperty`1 property, T value, BindingPriority priority)
+   at Avalonia.Controls.ListBoxItem.set_IsSelected(Boolean value)
+   at ClassIsland.Views.SettingsWindowNew.SelectNavigationItem(SettingsPageInfo info) in /_/ClassIsland/Views/SettingsWindowNew.axaml.cs:line 875
+   at ClassIsland.Views.SettingsWindowNew.CoreNavigate(SettingsPageInfo info, Uri uri) in /_/ClassIsland/Views/SettingsWindowNew.axaml.cs:line 368
