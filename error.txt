@@ -24,3 +24,12 @@ System.NullReferenceException: Object reference not set to an instance of an obj
    at Avalonia.Controls.ListBoxItem.set_IsSelected(Boolean value)
    at ClassIsland.Views.SettingsWindowNew.SelectNavigationItem(SettingsPageInfo info) in /_/ClassIsland/Views/SettingsWindowNew.axaml.cs:line 875
    at ClassIsland.Views.SettingsWindowNew.CoreNavigate(SettingsPageInfo info, Uri uri) in /_/ClassIsland/Views/SettingsWindowNew.axaml.cs:line 368
+
+
+----------
+
+
+2026/8/7 12:39:04|Information|ClassIsland.App|App stopped.
+2026/8/7 12:39:04|Error|AdvancedTimeIsland.Services.FpsBackgroundCollectorService|Failed to stop FpsBackgroundCollectorService.
+System.NullReferenceException: Object reference not set to an instance of an object.
+   at AdvancedTimeIsland.Services.FpsBackgroundCollectorService.StopAsync(CancellationToken cancellationToken)
