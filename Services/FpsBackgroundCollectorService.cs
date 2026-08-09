@@ -348,13 +348,27 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 
             if (_cts != null)
             {
-                _cts.Cancel();
+                try
+                {
+                    _cts.Cancel();
+                }
+                catch
+                {
+                }
+
                 try
                 {
                     if (_waitForTopLevelTask != null)
                     {
                         await _waitForTopLevelTask;
                     }
+                }
+                catch
+                {
+                }
+
+                try
+                {
                     if (_reportTask != null)
                     {
                         await _reportTask;
@@ -363,15 +377,35 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
                 catch
                 {
                 }
-                _cts.Dispose();
+
+                try
+                {
+                    _cts.Dispose();
+                }
+                catch
+                {
+                }
                 _cts = null;
             }
 
-            _renderTimerSubscription?.Dispose();
+            try
+            {
+                _renderTimerSubscription?.Dispose();
+            }
+            catch
+            {
+            }
             _renderTimerSubscription = null;
             _currentTopLevel = null;
 
-            ViewModels.Settings.FpsSampler.Stop();
+            try
+            {
+                ViewModels.Settings.FpsSampler.Stop();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to stop FpsSampler.");
+            }
         }
         catch (Exception ex)
         {

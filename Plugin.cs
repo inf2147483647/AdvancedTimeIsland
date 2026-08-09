@@ -228,6 +228,16 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
 
+        // 跨插件联动：FemboyTest 与女装彩蛋互斥。
+        // 若加载当前插件时 FemboyTest 插件也已启用，则原有彩蛋已触发状态变为未触发。
+        if (Helpers.CrossPluginHelper.ResetEasterEggIfFemboyTestEnabled(Settings))
+        {
+            SaveSettings();
+        }
+
+        // 启动彩蛋互斥监视器，持续保证 FemboyTest 与彩蛋完全互斥（不受插件加载顺序影响）
+        Helpers.CrossPluginHelper.StartEasterEggMutexMonitor(Settings);
+
         services.AddSingleton(Settings);
 
         services.AddSingleton<TimeBaseService>();

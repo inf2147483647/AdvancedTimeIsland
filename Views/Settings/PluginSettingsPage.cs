@@ -687,7 +687,7 @@ public class PluginSettingsPage : UserControl
 
             var experimentalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Header", "实验性功能");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Description", "启用后可以使用实验性功能，不保证其稳定性。");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Description", "启用后可以使用实验性功能，不保证其稳定性;启用一些小众的,不太受欢迎的,以及可能与插件主要功能无关的功能和跨插件联动的功能。");
 
             var experimentalFooterPanel = new StackPanel
             {

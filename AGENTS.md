@@ -21,3 +21,4 @@
 最后调用AdvisorTool进行vibe review
 
 构建命令：dotnet build 2>&1 | Select-String -Pattern "error|Error" | c:\Users\Administrator\RiderProjects\AdvancedTimeIsland\Build-Package.ps1
+当dotnet build 2>&1 | Select-String -Pattern "error|Error"执行没有任何输出时表示无错误,构建成功
