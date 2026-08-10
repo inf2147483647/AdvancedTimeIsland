@@ -364,7 +364,7 @@ InfoBar 语法格式：
 
 <infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
 
-<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='图片加载失败'>
+<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='加载失败,轻触屏幕'>
 
 
 <hide clicktime=5000 count=11><img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='100%' title='粽锁粥汁，女装只有0次与无数次；别说了，快女装吧'><br>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
@@ -1542,7 +1542,7 @@ InfoBar 语法格式：
 
         var errorText = new TextBlock
         {
-            Text = "图片加载失败",
+            Text = "加载失败,轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -1562,7 +1562,7 @@ InfoBar 语法格式：
 
         var retryButton = new Button
         {
-            Content = "重试",
+            Content = "重新刷新",
             HorizontalAlignment = HorizontalAlignment.Center,
             Padding = new Thickness(12, 6),
             FontSize = 12
@@ -1580,14 +1580,8 @@ InfoBar 语法格式：
             Width = 0
         };
 
-        container.Loaded += (s, e) =>
-        {
-            var parent = container.Parent as Control;
-            if (parent != null)
-            {
-                container.Width = parent.Bounds.Width * 0.8;
-            }
-        };
+        // 图片宽度跟随父级（视口）宽度动态缩放，窗口缩放时自动调整
+        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: false);
 
         if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
@@ -1647,7 +1641,7 @@ InfoBar 语法格式：
             if (!loaded)
             {
                 retryButton.IsVisible = false;
-                errorDetailText.Text = $"图片加载失败: {url}";
+                errorDetailText.Text = $"加载失败,轻触屏幕: {url}";
                 errorPanel.IsVisible = true;
             }
         }
@@ -1697,7 +1691,7 @@ InfoBar 语法格式：
             errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
             errorPanel.IsVisible = true;
             retryButton.IsEnabled = true;
-            retryButton.Content = "重试";
+            retryButton.Content = "重新刷新";
         }
     }
 
@@ -2739,7 +2733,7 @@ InfoBar 语法格式：
             ToolTip.SetTip(image, data.Title);
         }
 
-        var altText = string.IsNullOrEmpty(data.Alt) ? "图片加载失败" : data.Alt;
+        var altText = string.IsNullOrEmpty(data.Alt) ? "加载失败,轻触屏幕" : data.Alt;
 
         var errorPanel = new StackPanel
         {
@@ -2781,19 +2775,18 @@ InfoBar 语法格式：
             // 内联模式：不使用 Loaded 处理器（避免 InlineUIContainer 内布局循环导致死机）
             // 使用 MaxWidth/MaxHeight 而非 Width/Height，与 CreateInlineImage 一致
             // 这样 Image 在 Source 加载前后都能正确测量，InlineUIContainer 可自适应
-            double viewportWidth = 800;
-            double viewportHeight = 600;
+            bool widthIsPercent = data.Width.EndsWith("%", StringComparison.Ordinal);
+            double? parsedWidth = ParseSizeValue(data.Width, 800);
+            double? parsedHeight = ParseSizeValue(data.Height, 600);
 
-            double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
-            double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
-
-            if (parsedWidth.HasValue)
+            if (parsedWidth.HasValue && !widthIsPercent)
             {
                 image.MaxWidth = parsedWidth.Value;
             }
             else
             {
-                image.MaxWidth = viewportWidth * 0.9;
+                // 未指定宽度或百分比宽度：随所在 TextBlock 宽度动态缩放（窗口缩放时自动调整）
+                ResponsiveImageHelper.MakeInlineWidthFollowTextBlock(container, image, data.Width, 0.9);
             }
 
             if (parsedHeight.HasValue)
@@ -2801,7 +2794,7 @@ InfoBar 语法格式：
                 image.MaxHeight = parsedHeight.Value;
             }
 
-            if (parsedWidth.HasValue && parsedHeight.HasValue)
+            if (parsedWidth.HasValue && parsedHeight.HasValue && !widthIsPercent)
             {
                 image.Stretch = Stretch.Fill;
             }
@@ -2817,24 +2810,14 @@ InfoBar 语法格式：
         }
         else
         {
-            // 块级模式：使用 Loaded 处理器根据父级宽度计算尺寸
-            container.Loaded += (s, e) =>
+            // 块级模式：根据父级宽度计算尺寸，并随窗口缩放动态调整
+            Control? widthSource = null;
+
+            void ApplySize()
             {
-                // 向上遍历视觉树查找实际可用宽度
-                // 直接父级（如 hide 内的 StackPanel）宽度由内容决定，需找到外层 TextBlock 获取页面宽度
-                double viewportWidth = 800;
-                double viewportHeight = 600;
-                var parent = container.GetVisualParent();
-                while (parent != null)
-                {
-                    if (parent is Control c && c.Bounds.Width > 0)
-                    {
-                        viewportWidth = c.Bounds.Width;
-                        viewportHeight = c.Bounds.Height;
-                        if (c is TextBlock) break;
-                    }
-                    parent = parent.GetVisualParent();
-                }
+                if (widthSource == null || widthSource.Bounds.Width <= 0) return;
+                double viewportWidth = widthSource.Bounds.Width;
+                double viewportHeight = widthSource.Bounds.Height;
 
                 double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
                 double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
@@ -2847,11 +2830,21 @@ InfoBar 语法格式：
                     container.Width = parsedWidth.Value;
                     image.Width = parsedWidth.Value;
                 }
+                else
+                {
+                    container.Width = double.NaN;
+                    image.Width = double.NaN;
+                }
 
                 if (hasHeight)
                 {
                     container.Height = parsedHeight.Value;
                     image.Height = parsedHeight.Value;
+                }
+                else
+                {
+                    container.Height = double.NaN;
+                    image.Height = double.NaN;
                 }
 
                 if (hasWidth && hasHeight)
@@ -2867,7 +2860,35 @@ InfoBar 语法格式：
                     image.Stretch = Stretch.Uniform;
                     image.MaxWidth = viewportWidth * 0.9;
                 }
+            }
 
+            container.Loaded += (s, e) =>
+            {
+                // 向上遍历视觉树查找实际可用宽度
+                // 直接父级（如 hide 内的 StackPanel）宽度由内容决定，需找到外层 TextBlock 获取页面宽度
+                Control? fallback = null;
+                var parent = container.GetVisualParent();
+                while (parent != null)
+                {
+                    if (parent is Control c)
+                    {
+                        if (c.Bounds.Width > 0)
+                        {
+                            widthSource = c;
+                            if (c is TextBlock) break;
+                        }
+                        else if (fallback == null)
+                        {
+                            fallback = c;
+                        }
+                    }
+                    parent = parent.GetVisualParent();
+                }
+                if (widthSource == null) widthSource = fallback;
+                if (widthSource == null) return;
+
+                ApplySize();
+                widthSource.SizeChanged += (_, _) => ApplySize();
                 ResolveAndLoadImage(data.Src, image, errorPanel);
             };
         }

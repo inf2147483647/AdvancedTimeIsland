@@ -302,6 +302,11 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private void OnEasterEggForceReset()
     {
+        // 同步重置彩蛋检测器：清空 IsActivated 与点击缓冲，
+        // 避免 FemboyTest 关闭后彩蛋因 IsActivated 永不复位而无法再次触发（漏洞 10），
+        // 也避免已累计的点击在 FemboyTest 启停切换后残留、跨状态续点（漏洞 4）。
+        _easterEggDetector?.Reset();
+
         if (_easterEggActive)
         {
             _easterEggActive = false;
@@ -314,6 +319,12 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private void OnEasterEggToggled(object? sender, bool isEnabled)
     {
+        // 关闭彩蛋时同步重置检测器，保证再次开启后可重新累计点击触发
+        if (!isEnabled)
+        {
+            _easterEggDetector?.Reset();
+        }
+
         if (!isEnabled && _easterEggActive)
         {
             _easterEggActive = false;

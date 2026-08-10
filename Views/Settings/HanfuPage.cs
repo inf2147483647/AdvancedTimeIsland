@@ -119,9 +119,11 @@ public class HanfuPage : HanfuPageTemplate
     }
 
     private Border? _maleContentBorder;
+    private bool _isMaleTab;
 
     private Control CreateMaleContent()
     {
+        _isMaleTab = true;
         var border = new Border
         {
             Background = ThemeHelper.GetHanfuBackgroundBrush(),
@@ -191,10 +193,12 @@ public class HanfuPage : HanfuPageTemplate
     }
 
     private List<Button>? _xingZhiButtons;
+    private readonly Dictionary<Button, bool> _xingZhiDevelopedStates = new Dictionary<Button, bool>();
     private List<TextBlock>? _dynastyTitleTextBlocks;
 
     private Control CreateFemaleContent()
     {
+        _isMaleTab = false;
         var border = new Border
         {
             Background = ThemeHelper.GetHanfuBackgroundBrush(),
@@ -351,6 +355,7 @@ public class HanfuPage : HanfuPageTemplate
             VerticalAlignment = VerticalAlignment.Center
         };
 
+        _xingZhiDevelopedStates[button] = IsDeveloped(text, _isMaleTab);
         UpdateXingZhiButtonStyle(button);
 
         button.Click += (s, e) =>
@@ -383,6 +388,9 @@ public class HanfuPage : HanfuPageTemplate
         }
         else if (text == "满褶裙 明制")
         {
+            // 女装“满褶裙 明制”尚未开发，仅在男装标签页跳转
+            if (!isMaleTab)
+                return;
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandManZheQunMale?ci_keepHistory=true"));
         }
@@ -436,6 +444,11 @@ public class HanfuPage : HanfuPageTemplate
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoJiaoLing?ci_keepHistory=true"));
         }
+        else if (text == "抹胸 裹肚 宋制")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandSongMo?ci_keepHistory=true"));
+        }
     }
 
     private readonly HashSet<string> _developedFeatures = new HashSet<string>
@@ -452,8 +465,19 @@ public class HanfuPage : HanfuPageTemplate
         "短衫 袄 竖领 明制",
         "长衫 袄 竖领 明制",
         "长衫 袄 交领 明制",
-        "满褶裙 明制"
+        "满褶裙 明制",
+        "抹胸 裹肚 宋制"
     };
+
+    private bool IsDeveloped(string text, bool isMaleTab)
+    {
+        if (!_developedFeatures.Contains(text))
+            return false;
+        // “满褶裙 明制”目前仅男装已开发（跳转 AdvancedTimeIslandManZheQunMale），女装尚未开发
+        if (text == "满褶裙 明制" && !isMaleTab)
+            return false;
+        return true;
+    }
 
     private void UpdateXingZhiButtonStyle(Button button)
     {
@@ -461,8 +485,8 @@ public class HanfuPage : HanfuPageTemplate
         button.Background = isDark
             ? new SolidColorBrush(Color.Parse("#37373D"))
             : new SolidColorBrush(Color.Parse("#E8E8E8"));
-        var buttonText = button.Content as string;
-        button.Foreground = _developedFeatures.Contains(buttonText)
+        var isDeveloped = _xingZhiDevelopedStates.TryGetValue(button, out var dev) && dev;
+        button.Foreground = isDeveloped
             ? GetAccentBrush()
             : ThemeHelper.GetTextBrush();
         button.BorderBrush = isDark

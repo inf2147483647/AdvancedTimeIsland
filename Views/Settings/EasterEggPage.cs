@@ -50,6 +50,8 @@ public class EasterEggPage : UserControl
     private Button? _backToTopButton;
     private OverlayLayer? _overlayLayer;
     private ScrollViewer? _outerScrollViewer;
+    private Control? _femboyTestWarningBar;
+    private DispatcherTimer? _femboyTestWatchTimer;
 
     public EasterEggPage() : this(null)
     {
@@ -117,6 +119,25 @@ public class EasterEggPage : UserControl
             mainPanel.Children.Add(infoBar);
         }
 
+        // FemboyTest 启用时显示错误类型警告（不可关闭）；FemboyTest 关闭时取消显示。
+        // 该警告与页面是否可见无关，必须始终跟随 FemboyTest 实际运行状态动态增删，
+        // 否则可能留下绕过互斥检测的漏洞。
+        _femboyTestWarningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Message", "《祖上传下来的护身符炸了》《爷爷送的玉佩炸了》《奶奶给我的黄符纸自燃了》《保我的菩萨断臂求生了》《护我道上的狐仙被别的狐狸配了》《我拜的关公倒地了》《家里的金银器全发黑了》《僵尸在我旁边撒糯米》");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Margin", new Thickness(0, 0, 0, 8));
+
+        // 定时监视 FemboyTest 运行状态，动态增删该警告栏
+        _femboyTestWatchTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _femboyTestWatchTimer.Tick += (s, e) => UpdateFemboyTestWarningBar();
+        _femboyTestWatchTimer.Start();
+        UpdateFemboyTestWarningBar();
+
         // Markdown 内容
         var markdownContent = @"## 图片展示
 
@@ -148,7 +169,28 @@ public class EasterEggPage : UserControl
 
 ![图片14](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC07560.jpg)
 
-![图片15](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02563.jpg)";
+![图片15](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02563.jpg)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5701.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5704.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5723.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5728.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6161.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6172.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6176.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6179.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6168.JPG)
+
+
+";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
@@ -157,6 +199,9 @@ public class EasterEggPage : UserControl
 
         _scrollViewer.Content = mainPanel;
         Content = _scrollViewer;
+
+        // Content 设置完成后立即同步一次 FemboyTest 警告栏状态
+        UpdateFemboyTestWarningBar();
 
         // 在Loaded事件中初始化返回顶部按钮
         Loaded += OnLoaded;
@@ -489,7 +534,7 @@ public class EasterEggPage : UserControl
 
         var errorText = new TextBlock
         {
-            Text = "图片加载失败",
+            Text = "加载失败,轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -509,7 +554,7 @@ public class EasterEggPage : UserControl
 
         var retryButton = new Button
         {
-            Content = "重试",
+            Content = "重新刷新",
             HorizontalAlignment = HorizontalAlignment.Center,
             Padding = new Thickness(12, 6),
             FontSize = 12
@@ -527,14 +572,8 @@ public class EasterEggPage : UserControl
             Width = 0
         };
 
-        container.Loaded += (s, e) =>
-        {
-            var parent = container.Parent as Control;
-            if (parent != null)
-            {
-                container.Width = parent.Bounds.Width * 0.8;
-            }
-        };
+        // 图片宽度跟随父级（视口）宽度动态缩放，窗口缩放时自动调整
+        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: false);
 
         async void RetryHandler(object? sender, RoutedEventArgs args)
         {
@@ -596,7 +635,7 @@ public class EasterEggPage : UserControl
             errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
             errorPanel.IsVisible = true;
             retryButton.IsEnabled = true;
-            retryButton.Content = "重试";
+            retryButton.Content = "重新刷新";
         }
     }
 
@@ -670,6 +709,47 @@ public class EasterEggPage : UserControl
         // 注意：不移除KeyDown和Loaded订阅，以便切换Tab回来时仍能正常工作
         // 清理返回顶部按钮（移除OverlayLayer上的按钮和事件订阅）
         CleanupBackToTopButton();
+        // 停止 FemboyTest 状态监视
+        if (_femboyTestWatchTimer != null)
+        {
+            _femboyTestWatchTimer.Stop();
+            _femboyTestWatchTimer = null;
+        }
+    }
+
+    /// <summary>
+    /// 根据 FemboyTest 实际运行状态动态显示/取消 FemboyTest 错误警告栏。
+    /// 通过程序集名/清单 ID 匹配 与 唯一标识符文件识别 任一命中即显示；关闭时取消。
+    /// </summary>
+    private void UpdateFemboyTestWarningBar()
+    {
+        if (_femboyTestWarningBar == null || _scrollViewer == null)
+            return;
+
+        var panel = _scrollViewer.Content as StackPanel;
+        if (panel == null)
+            return;
+
+        // 识别 FemboyTest：程序集/清单匹配，或唯一标识符文件识别（互为补充）
+        var enabled = CrossPluginHelper.IsFemboyTestEnabled() || CrossPluginHelper.IsFemboyTestIdentifierPresent();
+        var contains = panel.Children.Contains(_femboyTestWarningBar);
+        if (enabled && !contains)
+        {
+            // 插在两个原有 FAInfobar 之后（即 Markdown 内容之前）
+            var markdownIndex = panel.Children.IndexOf(_markdownSectionBorder);
+            if (markdownIndex >= 0)
+            {
+                panel.Children.Insert(markdownIndex, _femboyTestWarningBar);
+            }
+            else
+            {
+                panel.Children.Add(_femboyTestWarningBar);
+            }
+        }
+        else if (!enabled && contains)
+        {
+            panel.Children.Remove(_femboyTestWarningBar);
+        }
     }
 
     private void CleanupBackToTopButton()
@@ -739,6 +819,18 @@ public class EasterEggPage : UserControl
     {
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();
+
+        // 重启 FemboyTest 状态监视（切换 Tab 后 timer 已在 Detached 中停止）
+        if (_femboyTestWatchTimer == null)
+        {
+            _femboyTestWatchTimer = new DispatcherTimer
+            {
+                Interval = TimeSpan.FromSeconds(1)
+            };
+            _femboyTestWatchTimer.Tick += (s, e2) => UpdateFemboyTestWarningBar();
+        }
+        _femboyTestWatchTimer.Start();
+        UpdateFemboyTestWarningBar();
 
         // 延迟到布局完成后再初始化，确保OverlayLayer的AvailableSize已正确计算
         Dispatcher.UIThread.Post(() =>

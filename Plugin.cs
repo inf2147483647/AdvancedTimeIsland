@@ -229,14 +229,10 @@ public class Plugin : PluginBase
         }
 
         // 跨插件联动：FemboyTest 与女装彩蛋互斥。
-        // 若加载当前插件时 FemboyTest 插件也已启用，则原有彩蛋已触发状态变为未触发。
-        if (Helpers.CrossPluginHelper.ResetEasterEggIfFemboyTestEnabled(Settings))
-        {
-            SaveSettings();
-        }
-
-        // 启动彩蛋互斥监视器，持续保证 FemboyTest 与彩蛋完全互斥（不受插件加载顺序影响）
-        Helpers.CrossPluginHelper.StartEasterEggMutexMonitor(Settings);
+        // 延迟到初始化 3 秒后再检测，确保此时所有插件均已加载完成，
+        // 若 FemboyTest 已启用，则将原有彩蛋已触发状态重置为未触发。
+        Helpers.CrossPluginHelper.ScheduleEasterEggMutexCheck(
+            Settings, TimeSpan.FromSeconds(3));
 
         services.AddSingleton(Settings);
 
@@ -1546,6 +1542,7 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
             services.AddSettingsPage<Views.Settings.MaMianQunMale>();
             services.AddSettingsPage<Views.Settings.ManZheQunMalePage>();
+            services.AddSettingsPage<Views.Settings.SongMoPage>();
             services.AddSettingsPage<Views.Settings.JiaHao>();
             services.AddSettingsPage<Views.Settings.HanfuXuanGouZhiNanPage>();
             services.AddSettingsPage<Views.Settings.HanfuIssuesPage>();
