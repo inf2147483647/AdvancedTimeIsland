@@ -568,12 +568,14 @@ public class EasterEggPage : UserControl
         var container = new Border
         {
             Child = grid,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Width = 0
+            HorizontalAlignment = HorizontalAlignment.Center
+            // 不设固定 Width：宽度由 MakeWidthFollowAncestor 的 MaxWidth 控制（内容自适应）
         };
 
-        // 图片宽度跟随父级（视口）宽度动态缩放，窗口缩放时自动调整
-        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: false);
+        // 图片宽度跟随父级（内容区）宽度动态缩放，窗口缩放时自动调整；
+        // 使用 MaxWidth 而非强制 Width：图片最多占内容区 80%，不会超出展示框，
+        // 也不会把小图强制拉伸到占满整个页面宽度。
+        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: true);
 
         async void RetryHandler(object? sender, RoutedEventArgs args)
         {
@@ -719,7 +721,7 @@ public class EasterEggPage : UserControl
 
     /// <summary>
     /// 根据 FemboyTest 实际运行状态动态显示/取消 FemboyTest 错误警告栏。
-    /// 通过程序集名/清单 ID 匹配 与 唯一标识符文件识别 任一命中即显示；关闭时取消。
+    /// 真身双因子反射扫描、标识符文件双因子校验 与 跨进程命名事件检测任一命中即显示；关闭时取消。
     /// </summary>
     private void UpdateFemboyTestWarningBar()
     {
@@ -730,7 +732,7 @@ public class EasterEggPage : UserControl
         if (panel == null)
             return;
 
-        // 识别 FemboyTest：程序集/清单匹配，或唯一标识符文件识别（互为补充）
+        // 识别 FemboyTest：程序集/清单匹配 + 反射硬编码标识符 + 标识符文件识别（互为补充）
         var enabled = CrossPluginHelper.IsFemboyTestEnabled() || CrossPluginHelper.IsFemboyTestIdentifierPresent();
         var contains = panel.Children.Contains(_femboyTestWarningBar);
         if (enabled && !contains)

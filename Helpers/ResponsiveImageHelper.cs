@@ -36,7 +36,9 @@ public static class ResponsiveImageHelper
 
         target.Loaded += (_, _) =>
         {
-            // 向上遍历视觉树：优先取具有实际宽度（Bounds.Width > 0）的祖先作为宽度来源
+            // 向上遍历视觉树：取最近的具有实际宽度（Bounds.Width > 0）的祖先作为宽度来源。
+            // 注意：不能继续向上覆盖到最外层（如 ScrollViewer），否则图片会被放大到整页宽度，
+            // 超出所在卡片/展示框。
             Control? source = null;
             Control? fallback = null;
             var p = target.GetVisualParent();
@@ -47,9 +49,9 @@ public static class ResponsiveImageHelper
                     if (c.Bounds.Width > 0)
                     {
                         source = c;
-                        if (c is TextBlock) break;
+                        break;
                     }
-                    else if (fallback == null)
+                    if (fallback == null)
                     {
                         fallback = c;
                     }
