@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net8.0</TargetFramework>
+        <TargetFramework>net10.0</TargetFramework>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <EnableDynamicLoading>true</EnableDynamicLoading>
@@ -14,7 +14,12 @@
     </PropertyGroup>
 
     <PropertyGroup>
-        <ClassIslandPluginSdkVersion>1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
+        <!-- 按目标框架选择 SDK：
+             net10.0（Misha 新版）使用 ClassIsland.PluginSdk/Core 2.1.1；
+             net8.0（兼容版，支持旧版 ClassIsland）使用 1.7.106.2-dev-v2。
+             由 Build-Package.ps1 通过 -p:TargetFramework 切换构建。 -->
+        <ClassIslandPluginSdkVersion Condition="'$(TargetFramework)' == 'net10.0'">2.1.1</ClassIslandPluginSdkVersion>
+        <ClassIslandPluginSdkVersion Condition="'$(TargetFramework)' != 'net10.0'">1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(Configuration)' == 'Release'">

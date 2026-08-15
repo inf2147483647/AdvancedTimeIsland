@@ -127,17 +127,46 @@ public class MemoryLeakTestService
             var bytesToLeak = CalculateBytesToLeak();
             if (bytesToLeak > 0)
             {
-                var buffer = new byte[bytesToLeak];
-                lock (_buffers)
+                try
                 {
-                    _buffers.Add(buffer);
+                    var buffer = new byte[bytesToLeak];
+                    // 大数组（LOH）分配时页面是惰性提交的：未写入的页面不占用物理内存，
+                    // 任务管理器中看不到内存增长。逐页写入以强制提交物理内存，使泄漏真实可见。
+                    TouchMemory(buffer);
+                    lock (_buffers)
+                    {
+                        _buffers.Add(buffer);
+                    }
+                    Volatile.Write(ref _leakedBytes, Volatile.Read(ref _leakedBytes) + bytesToLeak);
                 }
-                Volatile.Write(ref _leakedBytes, Volatile.Read(ref _leakedBytes) + bytesToLeak);
+                catch (OutOfMemoryException)
+                {
+                    // 内存已耗尽，无法继续泄漏，安全停止
+                    _isRunning = false;
+                    _isPaused = false;
+                }
                 LeakUpdated?.Invoke(this, EventArgs.Empty);
             }
 
             Thread.Sleep(1000);
         }
+    }
+
+    /// <summary>
+    /// 逐页写入数组以强制提交物理内存。
+    /// 大数组分配到大对象堆（LOH）时页面是惰性提交的，只有写入才会真正占用物理内存。
+    /// </summary>
+    private static void TouchMemory(byte[] buffer)
+    {
+        if (buffer.Length == 0)
+            return;
+
+        const int pageSize = 4096;
+        for (var i = 0; i < buffer.Length; i += pageSize)
+        {
+            buffer[i] = 0xAB;
+        }
+        buffer[^1] = 0xAB;
     }
 
     private long CalculateBytesToLeak()

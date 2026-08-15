@@ -721,7 +721,9 @@ public class EasterEggPage : UserControl
 
     /// <summary>
     /// 根据 FemboyTest 实际运行状态动态显示/取消 FemboyTest 错误警告栏。
-    /// 真身双因子反射扫描、标识符文件双因子校验 与 跨进程命名事件检测任一命中即显示；关闭时取消。
+    /// 仅依据"运行中"信号判定（同进程 CI2 版真身反射扫描 + 跨进程 WPF 1.7 版命名事件），
+    /// FemboyTest 未在运行（进程退出/程序集卸载）时即隐藏；
+    /// 不使用标识符文件等"已安装"存在性判定，否则文件残留会导致警告栏无法正确回收。
     /// </summary>
     private void UpdateFemboyTestWarningBar()
     {
@@ -732,8 +734,10 @@ public class EasterEggPage : UserControl
         if (panel == null)
             return;
 
-        // 识别 FemboyTest：程序集/清单匹配 + 反射硬编码标识符 + 标识符文件识别（互为补充）
-        var enabled = CrossPluginHelper.IsFemboyTestEnabled() || CrossPluginHelper.IsFemboyTestIdentifierPresent();
+        // 仅依据"运行中"信号判定（CI2 版反射扫描 + WPF 1.7 版跨进程命名事件），
+        // 不使用标识符文件等"已安装"判定：FemboyTest 停止后文件仍残留，
+        // 若被计入会令警告栏永远无法回收。
+        var enabled = CrossPluginHelper.IsFemboyTestEnabled();
         var contains = panel.Children.Contains(_femboyTestWarningBar);
         if (enabled && !contains)
         {

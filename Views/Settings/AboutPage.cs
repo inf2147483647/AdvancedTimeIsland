@@ -7,6 +7,7 @@ using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 
@@ -339,19 +340,27 @@ public class AboutPage : SettingsPageBase
     {
         try
         {
-            var topLevel = TopLevel.GetTopLevel(this);
-            if (topLevel == null) return;
+            // FA2 中设置窗口（SettingsWindowNew）本身就是顶层窗口；
+            // FA3/CI2 中 SettingsWindowNew 改成了内嵌的 ContentPage（不再是窗口），
+            // TopLevel.GetTopLevel 返回的是主窗口，而主窗口的 ViewModel 没有 IsRequestedRestart，
+            // 导致反射静默失败。统一方案：沿视觉树向上查找带 IsRequestedRestart 的 ViewModel。
+            foreach (var ancestor in this.GetVisualAncestors())
+            {
+                var viewModel = ancestor.GetType().GetProperty("ViewModel", BindingFlags.Public | BindingFlags.Instance);
+                if (viewModel == null)
+                    continue;
 
-            var viewModel = topLevel.GetType().GetProperty("ViewModel", BindingFlags.Public | BindingFlags.Instance);
-            if (viewModel == null) return;
+                var vm = viewModel.GetValue(ancestor);
+                if (vm == null)
+                    continue;
 
-            var vm = viewModel.GetValue(topLevel);
-            if (vm == null) return;
+                var isRequestedRestartProp = vm.GetType().GetProperty("IsRequestedRestart", BindingFlags.Public | BindingFlags.Instance);
+                if (isRequestedRestartProp == null)
+                    continue;
 
-            var isRequestedRestartProp = vm.GetType().GetProperty("IsRequestedRestart", BindingFlags.Public | BindingFlags.Instance);
-            if (isRequestedRestartProp == null) return;
-
-            isRequestedRestartProp.SetValue(vm, true);
+                isRequestedRestartProp.SetValue(vm, true);
+                return;
+            }
         }
         catch
         {
