@@ -1,0 +1,1803 @@
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Configuration;
+using ClassIsland.Core.Abstractions;
+using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Extensions.Registry;
+using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Services;
+using AdvancedTimeIsland.Services.NotificationProviders;
+using AdvancedTimeIsland.Views.Main;
+using AdvancedTimeIsland.ViewModels.Main;
+using AdvancedTimeIsland.Automation.Triggers;
+using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Shared;
+using MaterialDesignThemes.Wpf;
+using System.IO;
+using System.Text.Json;
+using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+
+namespace AdvancedTimeIsland;
+
+[PluginEntrance]
+public class Plugin : PluginBase
+{
+    public static Guid PluginId => new("11223344-5566-7788-9900-aabbccddeeff");
+
+    public static Plugin Instance { get; private set; } = null!;
+
+    public PluginSettings Settings { get; set; } = new();
+    public DebugSettings DebugSettings { get; set; } = new();
+
+    private const string SettingsFileName = "settings.json";
+    private const string TempFileSuffix = ".tmp";
+
+    private static readonly object _saveLock = new();
+
+    public Plugin()
+    {
+        Instance = this;
+    }
+
+    private string GetSettingsFilePath()
+    {
+        return Path.Combine(PluginConfigFolder, SettingsFileName);
+    }
+
+    private void LoadSettings()
+    {
+        try
+        {
+            var filePath = GetSettingsFilePath();
+            if (File.Exists(filePath))
+            {
+                var json = File.ReadAllText(filePath);
+                var loadedContainer = JsonSerializer.Deserialize<SettingsContainer>(json, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+                if (loadedContainer != null)
+                {
+                    if (loadedContainer.Settings != null)
+                    {
+                        Settings = loadedContainer.Settings;
+                        Settings.PropertyChanged -= OnSettingsPropertyChanged;
+                        Settings.PropertyChanged += OnSettingsPropertyChanged;
+                    }
+                    if (loadedContainer.DebugSettings != null)
+                    {
+                        DebugSettings = loadedContainer.DebugSettings;
+                        DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+                        DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+                    }
+                }
+            }
+            else
+            {
+                Settings.PropertyChanged -= OnSettingsPropertyChanged;
+                Settings.PropertyChanged += OnSettingsPropertyChanged;
+                DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+                DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+            }
+        }
+        catch
+        {
+            Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            Settings.PropertyChanged += OnSettingsPropertyChanged;
+            DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+            DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+        }
+    }
+
+    private void SaveSettings()
+    {
+        lock (_saveLock)
+        {
+            try
+            {
+                var filePath = GetSettingsFilePath();
+                var tempPath = filePath + TempFileSuffix;
+
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var container = new SettingsContainer
+                {
+                    Settings = Settings,
+                    DebugSettings = DebugSettings
+                };
+
+                var json = JsonSerializer.Serialize(container, new JsonSerializerOptions
+                {
+                    WriteIndented = true
+                });
+
+                using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
+                using (var writer = new StreamWriter(fs))
+                {
+                    writer.Write(json);
+                    writer.Flush();
+                    fs.Flush(true);
+                }
+
+                if (File.Exists(filePath))
+                {
+                    File.Replace(tempPath, filePath, null);
+                }
+                else
+                {
+                    File.Move(tempPath, filePath);
+                }
+            }
+            catch
+            {
+                // 如果保存失败，忽略
+            }
+        }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        SaveSettings();
+    }
+
+    private void OnDebugSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        SaveSettings();
+    }
+
+    /// <summary>
+    /// 获取当前时间（应用插件全局偏移，基于NTP服务器时间）
+    /// </summary>
+    public static DateTime GetCurrentTime()
+    {
+        if (TimeBaseService.Instance != null)
+        {
+            return TimeBaseService.Instance.GetCurrentTime();
+        }
+        var offset = Instance?.Settings.TimeOffsetSeconds ?? 0;
+        return DateTime.Now.AddSeconds(offset);
+    }
+
+    /// <summary>
+    /// 计算地方时
+    /// </summary>
+    public static DateTime GetLocalSolarTime(DateTime localTime)
+    {
+        var longitude = Instance?.Settings.Longitude ?? 116.4;
+        return GetLocalSolarTime(localTime, longitude);
+    }
+
+    /// <summary>
+    /// 计算地方时（指定经度）
+    /// </summary>
+    public static DateTime GetLocalSolarTime(DateTime localTime, double longitude)
+    {
+        var standardMeridian = TimeZoneInfo.Local.BaseUtcOffset.TotalHours * 15;
+        var timeDifferenceMinutes = (longitude - standardMeridian) * 4;
+        return localTime.AddMinutes(timeDifferenceMinutes);
+    }
+
+    /// <summary>
+    /// 计算区时
+    /// </summary>
+    public static DateTime GetTimeZoneTime(DateTime localTime)
+    {
+        var timeZoneId = Instance?.Settings.TimeZoneId ?? "China Standard Time";
+        return GetTimeZoneTime(localTime, timeZoneId);
+    }
+
+    /// <summary>
+    /// 计算区时（指定时区）
+    /// </summary>
+    public static DateTime GetTimeZoneTime(DateTime localTime, string timeZoneId)
+    {
+        try
+        {
+            var targetTimeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
+            return TimeZoneInfo.ConvertTime(localTime, targetTimeZone);
+        }
+        catch
+        {
+            return localTime.ToLocalTime();
+        }
+    }
+
+
+    public override void Initialize(HostBuilderContext context, IServiceCollection services)
+    {
+        // 加载已保存的设置
+        LoadSettings();
+
+        // 订阅设置变更事件，自动保存（LoadSettings 中已订阅，此处为双重保险）
+        if (Settings != null)
+        {
+            Settings.PropertyChanged -= OnSettingsPropertyChanged;
+            Settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
+
+        if (DebugSettings != null)
+        {
+            DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
+            DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
+        }
+
+        // 跨插件联动：FemboyTest 与女装彩蛋互斥。
+        // 延迟到初始化 3 秒后再检测，确保此时所有插件均已加载完成，
+        // 若 FemboyTest 已启用，则将原有彩蛋已触发状态重置为未触发。
+        Helpers.CrossPluginHelper.ScheduleEasterEggMutexCheck(
+            Settings, TimeSpan.FromSeconds(3));
+
+        services.AddSingleton(Settings);
+
+        services.AddSingleton<TimeBaseService>();
+        services.AddSingleton<SharedRenderClockService>();
+        services.AddNotificationProvider<CountdownNotificationProvider>();
+        services.AddHostedService<Shared.ServicesFetcherService>();
+        services.AddHostedService<StartupDelayService>();
+        services.AddHostedService<Services.FontSizeSyncService>();
+
+        RegisterButtonPointerCursorStyle();
+        RegisterScrollViewerTouchPanning();
+
+        services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
+        services.AddComponent<CountdownControl, CountdownSettingsControl>();
+        services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
+        services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
+
+        if (Settings.EnableLunarCalendar)
+        {
+            services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableLocalSolarTime)
+        {
+            services.AddComponent<LocalSolarTimeControl, LocalSolarTimeSettingsControl>();
+            services.AddComponent<SunriseSunsetControl, SunriseSunsetSettingsControl>();
+        }
+
+        if (Settings.EnableTimeZoneTime)
+        {
+            services.AddComponent<TimeZoneTimeControl, TimeZoneTimeSettingsControl>();
+        }
+
+        if (Settings.EnableXingZuo)
+        {
+            services.AddComponent<XingZuoControl, XingZuoSettingsControl>();
+            services.AddComponent<NextXingZuoCountdownControl, NextXingZuoCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableJieQi)
+        {
+            services.AddComponent<JieQiControl, JieQiSettingsControl>();
+            services.AddComponent<NextJieQiCountdownControl, NextJieQiCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableDayYiJi)
+        {
+            services.AddComponent<DayYiJiControl, DayYiJiSettingsControl>();
+            services.AddComponent<TomorrowYiJiControl, TomorrowYiJiSettingsControl>();
+        }
+
+        if (Settings.EnableShengXiao)
+        {
+            services.AddComponent<ShengXiaoControl, ShengXiaoSettingsControl>();
+        }
+
+        if (Settings.EnableFestival)
+        {
+            services.AddComponent<FestivalControl, FestivalSettingsControl>();
+            services.AddComponent<NextFestivalCountdownControl, NextFestivalCountdownSettingsControl>();
+        }
+
+        if (Settings.EnableExperimentalFeatures)
+        {
+            services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
+            services.AddHostedService<Services.FpsBackgroundCollectorService>();
+        }
+
+        services.AddSingleton<ExactTimeTrigger>();
+
+        // ========== 现有条件：时间基准改为插件全局偏移后的时间 ==========
+
+        // 注册规则：精确时间在范围
+        services.AddRule<ExactTimeRangeRuleSettings, ExactTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.exact_time_range",
+            "精确时间在范围",
+            PackIconKind.ClockOutline,
+            settings =>
+            {
+                if (settings is not ExactTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = GetCurrentTime();
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
+
+        // 注册规则：每年时间范围 (MM-DD-hh-mm-ss)
+        services.AddRule<YearlyTimeRangeRuleSettings, YearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.yearly_time_range",
+            "每年时间范围",
+            PackIconKind.CalendarOutline,
+            settings =>
+            {
+                if (settings is not YearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 5 || endParts.Length < 5)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMonth) ||
+                    !int.TryParse(startParts[1], out int startDay) ||
+                    !int.TryParse(startParts[2], out int startHour) ||
+                    !int.TryParse(startParts[3], out int startMinute) ||
+                    !int.TryParse(startParts[4], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMonth) ||
+                    !int.TryParse(endParts[1], out int endDay) ||
+                    !int.TryParse(endParts[2], out int endHour) ||
+                    !int.TryParse(endParts[3], out int endMinute) ||
+                    !int.TryParse(endParts[4], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
+                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
+                    else
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
+                }
+
+                return now >= startTimeThisYear && now <= endTimeThisYear;
+            }
+        );
+
+        // 注册规则：每月时间范围 (DD-hh-mm-ss)
+        services.AddRule<MonthlyTimeRangeRuleSettings, MonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.monthly_time_range",
+            "每月时间范围",
+            PackIconKind.CalendarMonth,
+            settings =>
+            {
+                if (settings is not MonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 4 || endParts.Length < 4)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startDay) ||
+                    !int.TryParse(startParts[1], out int startHour) ||
+                    !int.TryParse(startParts[2], out int startMinute) ||
+                    !int.TryParse(startParts[3], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endDay) ||
+                    !int.TryParse(endParts[1], out int endHour) ||
+                    !int.TryParse(endParts[2], out int endMinute) ||
+                    !int.TryParse(endParts[3], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
+                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
+                    else
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
+                }
+
+                return now >= startTimeThisMonth && now <= endTimeThisMonth;
+            }
+        );
+
+        // 注册规则：每天时间范围 (hh-mm-ss)
+        services.AddRule<DailyTimeRangeRuleSettings, DailyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.daily_time_range",
+            "每天时间范围",
+            PackIconKind.CalendarToday,
+            settings =>
+            {
+                if (settings is not DailyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // 注册规则：每小时时间范围 (mm-ss)
+        services.AddRule<HourlyTimeRangeRuleSettings, HourlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.hourly_time_range",
+            "每小时时间范围",
+            PackIconKind.Clock,
+            settings =>
+            {
+                if (settings is not HourlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 2 || endParts.Length < 2)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMinute) ||
+                    !int.TryParse(startParts[1], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMinute) ||
+                    !int.TryParse(endParts[1], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
+                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
+                    else
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
+                }
+
+                return now >= startTimeThisHour && now <= endTimeThisHour;
+            }
+        );
+
+        // 注册规则：每分钟时间范围 (ss)
+        services.AddRule<MinutelyTimeRangeRuleSettings, MinutelyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.minutely_time_range",
+            "每分钟时间范围",
+            PackIconKind.TimerSand,
+            settings =>
+            {
+                if (settings is not MinutelyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartSecond) || string.IsNullOrWhiteSpace(s.EndSecond))
+                    return false;
+
+                if (!int.TryParse(s.StartSecond, out int startSecond) ||
+                    !int.TryParse(s.EndSecond, out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
+                var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
+
+                if (startTimeThisMinute > endTimeThisMinute)
+                {
+                    if (now >= startTimeThisMinute)
+                        endTimeThisMinute = endTimeThisMinute.AddMinutes(1);
+                    else
+                        startTimeThisMinute = startTimeThisMinute.AddMinutes(-1);
+                }
+
+                return now >= startTimeThisMinute && now <= endTimeThisMinute;
+            }
+        );
+
+        // ========== 地方时条件（6个，带经度设置）==========
+
+        if (Settings.EnableLocalSolarTime)
+        {
+            // 1. 地方时精确时间在范围
+            services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_exact_time_range",
+            "地方时精确时间在范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarExactTimeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
+
+        // 2. 地方时每年时间范围
+        services.AddRule<LocalSolarYearlyTimeRangeRuleSettings, LocalSolarYearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_yearly_time_range",
+            "地方时每年时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarYearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 5 || endParts.Length < 5)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMonth) ||
+                    !int.TryParse(startParts[1], out int startDay) ||
+                    !int.TryParse(startParts[2], out int startHour) ||
+                    !int.TryParse(startParts[3], out int startMinute) ||
+                    !int.TryParse(startParts[4], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMonth) ||
+                    !int.TryParse(endParts[1], out int endDay) ||
+                    !int.TryParse(endParts[2], out int endHour) ||
+                    !int.TryParse(endParts[3], out int endMinute) ||
+                    !int.TryParse(endParts[4], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
+                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
+                    else
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
+                }
+
+                return now >= startTimeThisYear && now <= endTimeThisYear;
+            }
+        );
+
+        // 3. 地方时每月时间范围
+        services.AddRule<LocalSolarMonthlyTimeRangeRuleSettings, LocalSolarMonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_monthly_time_range",
+            "地方时每月时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarMonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 4 || endParts.Length < 4)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startDay) ||
+                    !int.TryParse(startParts[1], out int startHour) ||
+                    !int.TryParse(startParts[2], out int startMinute) ||
+                    !int.TryParse(startParts[3], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endDay) ||
+                    !int.TryParse(endParts[1], out int endHour) ||
+                    !int.TryParse(endParts[2], out int endMinute) ||
+                    !int.TryParse(endParts[3], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
+                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
+                    else
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
+                }
+
+                return now >= startTimeThisMonth && now <= endTimeThisMonth;
+            }
+        );
+
+        // 4. 地方时每天时间范围
+        services.AddRule<LocalSolarDailyTimeRangeRuleSettings, LocalSolarDailyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_daily_time_range",
+            "地方时每天时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarDailyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // 5. 地方时每小时时间范围
+        services.AddRule<LocalSolarHourlyTimeRangeRuleSettings, LocalSolarHourlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_hourly_time_range",
+            "地方时每小时时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarHourlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 2 || endParts.Length < 2)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMinute) ||
+                    !int.TryParse(startParts[1], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMinute) ||
+                    !int.TryParse(endParts[1], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
+                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
+                    else
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
+                }
+
+                return now >= startTimeThisHour && now <= endTimeThisHour;
+            }
+        );
+
+        // 6. 地方时每分钟时间范围
+        services.AddRule<LocalSolarMinutelyTimeRangeRuleSettings, LocalSolarMinutelyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_minutely_time_range",
+            "地方时每分钟时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarMinutelyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartSecond) || string.IsNullOrWhiteSpace(s.EndSecond))
+                    return false;
+
+                if (!int.TryParse(s.StartSecond, out int startSecond) ||
+                    !int.TryParse(s.EndSecond, out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
+                var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
+
+                if (startTimeThisMinute > endTimeThisMinute)
+                {
+                    if (now >= startTimeThisMinute)
+                        endTimeThisMinute = endTimeThisMinute.AddMinutes(1);
+                    else
+                        startTimeThisMinute = startTimeThisMinute.AddMinutes(-1);
+                }
+
+                return now >= startTimeThisMinute && now <= endTimeThisMinute;
+            }
+        );
+
+        // 7. 地方时每周时间范围
+        services.AddRule<LocalSolarWeeklyTimeRangeRuleSettings, LocalSolarWeeklyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.local_solar_weekly_time_range",
+            "地方时每周时间范围",
+            PackIconKind.Earth,
+            settings =>
+            {
+                if (settings is not LocalSolarWeeklyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
+                var currentDayOfWeek = (int)now.DayOfWeek;
+
+                bool isInDayRange;
+                if (s.StartDayOfWeek <= s.EndDayOfWeek)
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
+                }
+                else
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
+                }
+
+                if (!isInDayRange)
+                    return false;
+
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+        }
+
+        // ========== 区时条件（5个，带时区设置）==========
+
+        if (Settings.EnableTimeZoneTime)
+        {
+            // 7. 区时精确时间在范围
+        services.AddRule<TimeZoneExactTimeRuleSettings, TimeZoneExactTimeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_exact_time_range",
+            "区时精确时间在范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneExactTimeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                if (!Helpers.UnixTimeHelper.TryParseExactTime(s.StartTime, out var startTime) ||
+                    !Helpers.UnixTimeHelper.TryParseExactTime(s.EndTime, out var endTime))
+                    return false;
+
+                var currentTime = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                return currentTime >= startTime && currentTime <= endTime;
+            }
+        );
+
+        // 8. 区时每年时间范围
+        services.AddRule<TimeZoneYearlyTimeRangeRuleSettings, TimeZoneYearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_yearly_time_range",
+            "区时每年时间范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneYearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 5 || endParts.Length < 5)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMonth) ||
+                    !int.TryParse(startParts[1], out int startDay) ||
+                    !int.TryParse(startParts[2], out int startHour) ||
+                    !int.TryParse(startParts[3], out int startMinute) ||
+                    !int.TryParse(startParts[4], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMonth) ||
+                    !int.TryParse(endParts[1], out int endDay) ||
+                    !int.TryParse(endParts[2], out int endHour) ||
+                    !int.TryParse(endParts[3], out int endMinute) ||
+                    !int.TryParse(endParts[4], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
+                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisYear) >= 0)
+                        endTimeThisYear = LunarHelper.SolarAddYears(endTimeThisYear, 1);
+                    else
+                        startTimeThisYear = LunarHelper.SolarAddYears(startTimeThisYear, -1);
+                }
+
+                return now >= startTimeThisYear && now <= endTimeThisYear;
+            }
+        );
+
+        // 9. 区时每月时间范围
+        services.AddRule<TimeZoneMonthlyTimeRangeRuleSettings, TimeZoneMonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_monthly_time_range",
+            "区时每月时间范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneMonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 4 || endParts.Length < 4)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startDay) ||
+                    !int.TryParse(startParts[1], out int startHour) ||
+                    !int.TryParse(startParts[2], out int startMinute) ||
+                    !int.TryParse(startParts[3], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endDay) ||
+                    !int.TryParse(endParts[1], out int endHour) ||
+                    !int.TryParse(endParts[2], out int endMinute) ||
+                    !int.TryParse(endParts[3], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
+                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisMonth) >= 0)
+                        endTimeThisMonth = LunarHelper.SolarAddMonths(endTimeThisMonth, 1);
+                    else
+                        startTimeThisMonth = LunarHelper.SolarAddMonths(startTimeThisMonth, -1);
+                }
+
+                return now >= startTimeThisMonth && now <= endTimeThisMonth;
+            }
+        );
+
+        // 10. 区时每天时间范围
+        services.AddRule<TimeZoneDailyTimeRangeRuleSettings, TimeZoneDailyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_daily_time_range",
+            "区时每天时间范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneDailyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // 11. 区时每小时时间范围
+        services.AddRule<TimeZoneHourlyTimeRangeRuleSettings, TimeZoneHourlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_hourly_time_range",
+            "区时每小时时间范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneHourlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 2 || endParts.Length < 2)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startMinute) ||
+                    !int.TryParse(startParts[1], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endMinute) ||
+                    !int.TryParse(endParts[1], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
+                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeThisHour) >= 0)
+                        endTimeThisHour = LunarHelper.SolarAddHours(endTimeThisHour, 1);
+                    else
+                        startTimeThisHour = LunarHelper.SolarAddHours(startTimeThisHour, -1);
+                }
+
+                return now >= startTimeThisHour && now <= endTimeThisHour;
+            }
+        );
+
+        // 12. 区时每周时间范围
+        services.AddRule<TimeZoneWeeklyTimeRangeRuleSettings, TimeZoneWeeklyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.time_zone_weekly_time_range",
+            "区时每周时间范围",
+            PackIconKind.GlobeModel,
+            settings =>
+            {
+                if (settings is not TimeZoneWeeklyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZone);
+                var currentDayOfWeek = (int)now.DayOfWeek;
+
+                bool isInDayRange;
+                if (s.StartDayOfWeek <= s.EndDayOfWeek)
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
+                }
+                else
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
+                }
+
+                if (!isInDayRange)
+                    return false;
+
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+        }
+
+        // ========== 每周规则 ==========
+
+        // 注册规则：每周时间范围
+        services.AddRule<WeeklyTimeRangeRuleSettings, WeeklyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.weekly_time_range",
+            "每周时间范围",
+            PackIconKind.CalendarWeek,
+            settings =>
+            {
+                if (settings is not WeeklyTimeRangeRuleSettings s)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                var currentDayOfWeek = (int)now.DayOfWeek;
+
+                bool isInDayRange;
+                if (s.StartDayOfWeek <= s.EndDayOfWeek)
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
+                }
+                else
+                {
+                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
+                }
+
+                if (!isInDayRange)
+                    return false;
+
+                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
+                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+
+                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
+                {
+                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
+                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
+                    else
+                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
+                }
+
+                return now >= startTimeToday && now <= endTimeToday;
+            }
+        );
+
+        // ========== 新增农历时间范围规则（4个）==========
+
+        if (Settings.EnableLunarCalendar)
+        {
+            // 注册规则：农历精确时间范围
+            services.AddRule<LunarExactTimeRangeRuleSettings, LunarExactTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.lunar_exact_time_in_range",
+            "农历精确时间范围",
+            PackIconKind.MoonNew,
+            settings =>
+            {
+                if (settings is not LunarExactTimeRangeRuleSettings s)
+                    return false;
+
+                if (s.StartLunarYear < 1901 || s.StartLunarYear > 2101 ||
+                    s.EndLunarYear < 1901 || s.EndLunarYear > 2101)
+                    return false;
+
+                if (s.StartLunarMonth < 1 || s.StartLunarMonth > 12 ||
+                    s.EndLunarMonth < 1 || s.EndLunarMonth > 12 ||
+                    s.StartLunarDay < 1 || s.StartLunarDay > 30 ||
+                    s.EndLunarDay < 1 || s.EndLunarDay > 30)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTargetTime) || string.IsNullOrWhiteSpace(s.EndTargetTime))
+                    return false;
+
+                var startParts = s.StartTargetTime.Split('-');
+                var endParts = s.EndTargetTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                try
+                {
+                    var startTime = LunarCalendarHelper.LunarToSolar(
+                        s.StartLunarYear, s.StartLunarMonth, s.StartIsLeapMonth, s.StartLunarDay,
+                        startHour, startMinute, startSecond);
+                    var endTime = LunarCalendarHelper.LunarToSolar(
+                        s.EndLunarYear, s.EndLunarMonth, s.EndIsLeapMonth, s.EndLunarDay,
+                        endHour, endMinute, endSecond);
+
+                    if (startTime == null || endTime == null)
+                        return false;
+
+                    return now >= startTime.Value && now <= endTime.Value;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        );
+
+        // 注册规则：农历每年时间范围
+        services.AddRule<LunarYearlyTimeRangeRuleSettings, LunarYearlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.lunar_yearly_time_in_range",
+            "农历每年时间范围",
+            PackIconKind.MoonWaningCrescent,
+            settings =>
+            {
+                if (settings is not LunarYearlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (s.StartMonth < 1 || s.StartMonth > 12 ||
+                    s.EndMonth < 1 || s.EndMonth > 12 ||
+                    s.StartDay < 1 || s.StartDay > 30 ||
+                    s.EndDay < 1 || s.EndDay > 30)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                try
+                {
+                    var lunarYear = LunarCalendarHelper.GetLunarYear(now);
+
+                    var startTimeThisYear = LunarCalendarHelper.LunarToSolar(
+                        lunarYear, s.StartMonth, s.StartIsLeapMonth, s.StartDay,
+                        startHour, startMinute, startSecond);
+                    var endTimeThisYear = LunarCalendarHelper.LunarToSolar(
+                        lunarYear, s.EndMonth, s.EndIsLeapMonth, s.EndDay,
+                        endHour, endMinute, endSecond);
+
+                    if (startTimeThisYear == null || endTimeThisYear == null)
+                        return false;
+
+                    if (startTimeThisYear > endTimeThisYear)
+                    {
+                        if (now >= startTimeThisYear)
+                        {
+                            var endTimeNextYear = LunarCalendarHelper.LunarToSolar(
+                                lunarYear + 1, s.EndMonth, s.EndIsLeapMonth, s.EndDay,
+                                endHour, endMinute, endSecond);
+                            if (endTimeNextYear == null)
+                                return false;
+                            endTimeThisYear = endTimeNextYear;
+                        }
+                        else
+                        {
+                            var startTimeLastYear = LunarCalendarHelper.LunarToSolar(
+                                lunarYear - 1, s.StartMonth, s.StartIsLeapMonth, s.StartDay,
+                                startHour, startMinute, startSecond);
+                            if (startTimeLastYear == null)
+                                return false;
+                            startTimeThisYear = startTimeLastYear;
+                        }
+                    }
+
+                    return now >= startTimeThisYear.Value && now <= endTimeThisYear.Value;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        );
+
+        // 注册规则：农历每月时间范围
+        services.AddRule<LunarMonthlyTimeRangeRuleSettings, LunarMonthlyTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.lunar_monthly_time_in_range",
+            "农历每月时间范围",
+            PackIconKind.MoonFull,
+            settings =>
+            {
+                if (settings is not LunarMonthlyTimeRangeRuleSettings s)
+                    return false;
+
+                if (s.StartDay < 1 || s.StartDay > 30 ||
+                    s.EndDay < 1 || s.EndDay > 30)
+                    return false;
+
+                if (string.IsNullOrWhiteSpace(s.StartTime) || string.IsNullOrWhiteSpace(s.EndTime))
+                    return false;
+
+                var startParts = s.StartTime.Split('-');
+                var endParts = s.EndTime.Split('-');
+                if (startParts.Length < 3 || endParts.Length < 3)
+                    return false;
+
+                if (!int.TryParse(startParts[0], out int startHour) ||
+                    !int.TryParse(startParts[1], out int startMinute) ||
+                    !int.TryParse(startParts[2], out int startSecond))
+                    return false;
+
+                if (!int.TryParse(endParts[0], out int endHour) ||
+                    !int.TryParse(endParts[1], out int endMinute) ||
+                    !int.TryParse(endParts[2], out int endSecond))
+                    return false;
+
+                var now = GetCurrentTime();
+                try
+                {
+                    var lunarYear = LunarCalendarHelper.GetLunarYear(now);
+                    var lunarMonth = LunarCalendarHelper.GetLunarMonth(now);
+                    var isLeapMonth = LunarCalendarHelper.IsLeapMonth(now);
+                    var daysInMonth = LunarCalendarHelper.GetDaysInLunarMonth(lunarYear, lunarMonth);
+
+                    var startDay = Math.Min(s.StartDay, daysInMonth);
+                    var endDay = Math.Min(s.EndDay, daysInMonth);
+
+                    var startTimeThisMonth = LunarCalendarHelper.LunarToSolar(
+                        lunarYear, lunarMonth, isLeapMonth, startDay,
+                        startHour, startMinute, startSecond);
+                    var endTimeThisMonth = LunarCalendarHelper.LunarToSolar(
+                        lunarYear, lunarMonth, isLeapMonth, endDay,
+                        endHour, endMinute, endSecond);
+
+                    if (startTimeThisMonth == null || endTimeThisMonth == null)
+                        return false;
+
+                    if (startTimeThisMonth > endTimeThisMonth)
+                    {
+                        if (now >= startTimeThisMonth)
+                        {
+                            int nextMonth = lunarMonth + 1;
+                            int nextYear = lunarYear;
+                            bool nextIsLeap = false;
+                            if (nextMonth > 12)
+                            {
+                                nextMonth = 1;
+                                nextYear++;
+                            }
+
+                            var nextEndDay = Math.Min(s.EndDay, LunarCalendarHelper.GetDaysInLunarMonth(nextYear, nextMonth));
+                            var endTimeNextMonth = LunarCalendarHelper.LunarToSolar(
+                                nextYear, nextMonth, nextIsLeap, nextEndDay,
+                                endHour, endMinute, endSecond);
+                            if (endTimeNextMonth == null)
+                                return false;
+                            endTimeThisMonth = endTimeNextMonth;
+                        }
+                        else
+                        {
+                            int prevMonth = lunarMonth - 1;
+                            int prevYear = lunarYear;
+                            bool prevIsLeap = false;
+                            if (prevMonth < 1)
+                            {
+                                prevMonth = 12;
+                                prevYear--;
+                            }
+
+                            var prevStartDay = Math.Min(s.StartDay, LunarCalendarHelper.GetDaysInLunarMonth(prevYear, prevMonth));
+                            var startTimeLastMonth = LunarCalendarHelper.LunarToSolar(
+                                prevYear, prevMonth, prevIsLeap, prevStartDay,
+                                startHour, startMinute, startSecond);
+                            if (startTimeLastMonth == null)
+                                return false;
+                            startTimeThisMonth = startTimeLastMonth;
+                        }
+                    }
+
+                    return now >= startTimeThisMonth.Value && now <= endTimeThisMonth.Value;
+                }
+                catch
+                {
+                    return false;
+                }
+            }
+        );
+        }
+
+        // 注册规则：绝对时间戳范围
+        services.AddRule<UnixTimestampRangeRuleSettings, UnixTimestampRangeRuleSettingsControl>(
+            "advancedtimeisland.unix_timestamp_range",
+            "绝对时间范围",
+            PackIconKind.Counter,
+            settings =>
+            {
+                if (settings is not UnixTimestampRangeRuleSettings s)
+                    return false;
+
+                var now = GetCurrentTime();
+                var currentTimestamp = UnixTimeHelper.ToUnixTimestampDouble(now);
+
+                return currentTimestamp >= s.StartTimestamp && currentTimestamp <= s.EndTimestamp;
+            }
+        );
+
+        // ========== 触发器注册 ==========
+
+        services.AddTrigger<ExactTimeTrigger, ExactTimeTriggerSettingsControl>();
+        services.AddTrigger<YearlyTimeTrigger, YearlyTimeTriggerSettingsControl>();
+        services.AddTrigger<MonthlyTimeTrigger, MonthlyTimeTriggerSettingsControl>();
+        services.AddTrigger<WeeklyTimeTrigger, WeeklyTimeTriggerSettingsControl>();
+        services.AddTrigger<DailyTimeTrigger, DailyTimeTriggerSettingsControl>();
+        services.AddTrigger<HourlyTimeTrigger, HourlyTimeTriggerSettingsControl>();
+        services.AddTrigger<MinutelyTimeTrigger, MinutelyTimeTriggerSettingsControl>();
+        services.AddTrigger<UnixTimestampTrigger, UnixTimestampTriggerSettingsControl>();
+
+        if (Settings.EnableLunarCalendar)
+        {
+            services.AddTrigger<LunarExactTimeTrigger, LunarExactTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarYearlyTimeTrigger, LunarYearlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarMonthlyTimeTrigger, LunarMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LunarLastDayTimeTrigger, LunarLastDayTimeTriggerSettingsControl>();
+        }
+
+        if (Settings.EnableLocalSolarTime)
+        {
+            services.AddTrigger<LocalSolarExactTimeTrigger, LocalSolarExactTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarMonthlyTimeTrigger, LocalSolarMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarWeeklyTimeTrigger, LocalSolarWeeklyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarDailyTimeTrigger, LocalSolarDailyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarHourlyTimeTrigger, LocalSolarHourlyTimeTriggerSettingsControl>();
+            services.AddTrigger<LocalSolarMinutelyTimeTrigger, LocalSolarMinutelyTimeTriggerSettingsControl>();
+        }
+
+        if (Settings.EnableTimeZoneTime)
+        {
+            services.AddTrigger<TimeZoneExactTimeTrigger, TimeZoneExactTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneYearlyTimeTrigger, TimeZoneYearlyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneMonthlyTimeTrigger, TimeZoneMonthlyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneWeeklyTimeTrigger, TimeZoneWeeklyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneDailyTimeTrigger, TimeZoneDailyTimeTriggerSettingsControl>();
+            services.AddTrigger<TimeZoneHourlyTimeTrigger, TimeZoneHourlyTimeTriggerSettingsControl>();
+        }
+
+        // ========== 实验性功能：时间范围间隔触发触发器 ==========
+        if (Settings.EnableExperimentalFeatures)
+        {
+            // 基础时间范围间隔触发
+            services.AddTrigger<ExactTimeIntervalTrigger, ExactTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<YearlyTimeIntervalTrigger, YearlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<MonthlyTimeIntervalTrigger, MonthlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<DailyTimeIntervalTrigger, DailyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<HourlyTimeIntervalTrigger, HourlyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<MinutelyTimeIntervalTrigger, MinutelyTimeIntervalTriggerSettingsControl>();
+            services.AddTrigger<UnixTimestampIntervalTrigger, UnixTimestampIntervalTriggerSettingsControl>();
+
+            // 地方时时间范围间隔触发
+            if (Settings.EnableLocalSolarTime)
+            {
+                services.AddTrigger<LocalSolarExactTimeIntervalTrigger, LocalSolarExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarYearlyTimeIntervalTrigger, LocalSolarYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarMonthlyTimeIntervalTrigger, LocalSolarMonthlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarDailyTimeIntervalTrigger, LocalSolarDailyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarHourlyTimeIntervalTrigger, LocalSolarHourlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LocalSolarMinutelyTimeIntervalTrigger, LocalSolarMinutelyTimeIntervalTriggerSettingsControl>();
+            }
+
+            // 区时时间范围间隔触发
+            if (Settings.EnableTimeZoneTime)
+            {
+                services.AddTrigger<TimeZoneExactTimeIntervalTrigger, TimeZoneExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneYearlyTimeIntervalTrigger, TimeZoneYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneMonthlyTimeIntervalTrigger, TimeZoneMonthlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneDailyTimeIntervalTrigger, TimeZoneDailyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<TimeZoneHourlyTimeIntervalTrigger, TimeZoneHourlyTimeIntervalTriggerSettingsControl>();
+            }
+
+            // 农历时间范围间隔触发
+            if (Settings.EnableLunarCalendar)
+            {
+                services.AddTrigger<LunarExactTimeIntervalTrigger, LunarExactTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LunarYearlyTimeIntervalTrigger, LunarYearlyTimeIntervalTriggerSettingsControl>();
+                services.AddTrigger<LunarMonthlyTimeIntervalTrigger, LunarMonthlyTimeIntervalTriggerSettingsControl>();
+            }
+        }
+
+        services.AddSettingsPage<Views.Settings.AboutPage>();
+        services.AddSettingsPage<Views.Settings.DebugPage>();
+        services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+        services.AddSettingsPage<Views.Settings.UsingPointerPage>();
+        if (Settings.EnableExperimentalFeatures)
+        {
+            services.AddSettingsPage<Views.Settings.FpsChartPage>();
+            services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
+            services.AddSettingsPage<Views.Settings.HanfuPage>();
+            services.AddSettingsPage<Views.Settings.MamianQunCeZhePage>();
+            services.AddSettingsPage<Views.Settings.MamianQunBaiZhePage>();
+            services.AddSettingsPage<Views.Settings.BeiZiPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongTopPage>();
+            services.AddSettingsPage<Views.Settings.QiXiongJiaoYuQunPage>();
+            services.AddSettingsPage<Views.Settings.RuQunPage>();
+            services.AddSettingsPage<Views.Settings.ZhuYaoMingStylePage>();
+            services.AddSettingsPage<Views.Settings.TieliMingStylePage>();
+            services.AddSettingsPage<Views.Settings.TieliMingStyleMalePage>();
+            services.AddSettingsPage<Views.Settings.BaiDieQunPage>();
+            services.AddSettingsPage<Views.Settings.BaiDieQunMalePage>();
+            services.AddSettingsPage<Views.Settings.DuanShanAoShuLingPage>();
+            services.AddSettingsPage<Views.Settings.DuanShanAoJiaoLingPage>();
+            services.AddSettingsPage<Views.Settings.ChangShanAoShuLingPage>();
+            services.AddSettingsPage<Views.Settings.ChangShanAoJiaoLingPage>();
+            services.AddSettingsPage<Views.Settings.HanfuPointNorthPage>();
+            services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
+            services.AddSettingsPage<Views.Settings.MaMianQunMale>();
+            services.AddSettingsPage<Views.Settings.ManZheQunMalePage>();
+            services.AddSettingsPage<Views.Settings.SongMoPage>();
+            services.AddSettingsPage<Views.Settings.JiaHao>();
+            services.AddSettingsPage<Views.Settings.HanfuXuanGouZhiNanPage>();
+            services.AddSettingsPage<Views.Settings.HanfuIssuesPage>();
+        }
+
+        services.AddAction("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", PackIconKind.TimerSync, (_, _) =>
+        {
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                GlobalConstants.HostInterfaces.ExactTimeService?.Sync();
+            });
+        });
+        services.AddAction("advancedtimeisland.sync_plugin_time", "同步AdvancedTimeIsland插件时间", PackIconKind.Sync, (_, _) =>
+        {
+            _ = TimeBaseService.Instance?.SyncTimeNowAsync(TimeSpan.FromSeconds(10));
+        });
+
+        // ========== 新增条件：星座、节气、生肖 ==========
+        if (Settings.EnableXingZuo)
+        {
+            services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
+                "advancedtimeisland.xingzuo",
+                "当前星座是",
+                PackIconKind.Star,
+                settings =>
+                {
+                    if (settings is not XingZuoRuleSettings s)
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(s.TargetXingZuo))
+                        return false;
+
+                    var now = GetCurrentTime();
+                    var currentXingZuo = LunarHelper.GetXingZuo(now);
+                    return currentXingZuo == s.TargetXingZuo;
+                }
+            );
+        }
+
+        if (Settings.EnableJieQi)
+        {
+            services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
+                "advancedtimeisland.jieqi",
+                "当前节气是",
+                PackIconKind.WeatherSunny,
+                settings =>
+                {
+                    if (settings is not JieQiRuleSettings s)
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(s.TargetJieQi))
+                        return false;
+
+                    var now = GetCurrentTime();
+                    var currentJieQi = LunarHelper.GetJieQi(now);
+                    return currentJieQi == s.TargetJieQi;
+                }
+            );
+        }
+
+        if (Settings.EnableShengXiao)
+        {
+            services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
+                "advancedtimeisland.shengxiao",
+                "当前生肖是",
+                PackIconKind.Paw,
+                settings =>
+                {
+                    if (settings is not ShengXiaoRuleSettings s)
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(s.TargetShengXiao))
+                        return false;
+
+                    var now = GetCurrentTime();
+                    var currentShengXiao = LunarHelper.GetCurrentShengXiao(now);
+                    return currentShengXiao == s.TargetShengXiao;
+                }
+            );
+        }
+
+        if (Settings.EnableFestival)
+        {
+            services.AddRule<FestivalRuleSettings, FestivalRuleSettingsControl>(
+                "advancedtimeisland.festival",
+                "当前节日是",
+                PackIconKind.Gift,
+                settings =>
+                {
+                    if (settings is not FestivalRuleSettings s)
+                        return false;
+
+                    if (string.IsNullOrWhiteSpace(s.TargetFestival))
+                        return false;
+
+                    var now = GetCurrentTime();
+                    var currentFestival = GetCurrentFestival(now);
+                    return s.TargetFestival.StartsWith(currentFestival + " ");
+                }
+            );
+        }
+    }
+
+    private string GetCurrentFestival(DateTime date)
+    {
+        var festivals = new List<(string Name, DateTime Date)>();
+
+        // 国际节日
+        festivals.Add(("元旦", new DateTime(date.Year, 1, 1)));
+        festivals.Add(("妇女节", new DateTime(date.Year, 3, 8)));
+        festivals.Add(("植树节", new DateTime(date.Year, 3, 12)));
+        festivals.Add(("劳动节", new DateTime(date.Year, 5, 1)));
+        festivals.Add(("儿童节", new DateTime(date.Year, 6, 1)));
+        festivals.Add(("教师节", new DateTime(date.Year, 9, 10)));
+        festivals.Add(("清明节", GetQingMingDate(date.Year)));
+        festivals.Add(("冬至", GetDongZhiDate(date.Year)));
+
+        // 中国传统节日（农历）
+        var solar = Lunar.Solar.FromDate(date);
+        var lunarYear = solar.Lunar.Year;
+        festivals.Add(("春节", LunarToSolar(lunarYear, 1, 1)));
+        festivals.Add(("元宵节", LunarToSolar(lunarYear, 1, 15)));
+        festivals.Add(("寒食节", GetQingMingDate(date.Year).AddDays(-1)));
+        festivals.Add(("端午节", LunarToSolar(lunarYear, 5, 5)));
+        festivals.Add(("七夕节", LunarToSolar(lunarYear, 7, 7)));
+        festivals.Add(("中元节", LunarToSolar(lunarYear, 7, 15)));
+        festivals.Add(("中秋节", LunarToSolar(lunarYear, 8, 15)));
+        festivals.Add(("重阳节", LunarToSolar(lunarYear, 9, 9)));
+        festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
+        festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
+        festivals.Add(("除夕", GetChuXiDate(lunarYear)));
+
+        // 红色节日
+        festivals.Add(("二七纪念日", new DateTime(date.Year, 2, 7)));
+        festivals.Add(("学雷锋纪念日", new DateTime(date.Year, 3, 5)));
+        festivals.Add(("五四青年节", new DateTime(date.Year, 5, 4)));
+        festivals.Add(("七一建党节", new DateTime(date.Year, 7, 1)));
+        festivals.Add(("八一建军节", new DateTime(date.Year, 8, 1)));
+        festivals.Add(("中国人民抗日战争胜利纪念日", new DateTime(date.Year, 9, 3)));
+        festivals.Add(("九一八事变纪念日", new DateTime(date.Year, 9, 18)));
+        festivals.Add(("烈士纪念日", new DateTime(date.Year, 9, 30)));
+        festivals.Add(("十一国庆节", new DateTime(date.Year, 10, 1)));
+        festivals.Add(("中国工农红军长征胜利纪念日", new DateTime(date.Year, 10, 22)));
+        festivals.Add(("南京大屠杀死难者国家公祭日", new DateTime(date.Year, 12, 13)));
+
+        var currentDate = date.Date;
+        var matchedFestival = festivals.FirstOrDefault(f => f.Date.Date == currentDate);
+        return matchedFestival.Name;
+    }
+
+    private DateTime GetQingMingDate(int year)
+    {
+        var solar = Lunar.Solar.FromYmdHms(year, 4, 4);
+        var jieQi = solar.Lunar.JieQi;
+        if (jieQi == "清明") return new DateTime(year, 4, 4);
+        return new DateTime(year, 4, 5);
+    }
+
+    private DateTime GetDongZhiDate(int year)
+    {
+        var solar = Lunar.Solar.FromYmdHms(year, 12, 21);
+        var jieQi = solar.Lunar.JieQi;
+        if (jieQi == "冬至") return new DateTime(year, 12, 21);
+        solar = Lunar.Solar.FromYmdHms(year, 12, 22);
+        jieQi = solar.Lunar.JieQi;
+        if (jieQi == "冬至") return new DateTime(year, 12, 22);
+        return new DateTime(year, 12, 23);
+    }
+
+    private DateTime LunarToSolar(int lunarYear, int lunarMonth, int lunarDay)
+    {
+        try
+        {
+            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, lunarMonth, lunarDay);
+            var solar = lunar.Solar;
+            return new DateTime(solar.Year, solar.Month, solar.Day);
+        }
+        catch
+        {
+            return DateTime.MaxValue;
+        }
+    }
+
+    private DateTime GetChuXiDate(int lunarYear)
+    {
+        try
+        {
+            var nextYearLunar = Lunar.Lunar.FromYmdHms(lunarYear + 1, 1, 1);
+            var nextYearSolar = nextYearLunar.Solar;
+            var nextYearDate = new DateTime(nextYearSolar.Year, nextYearSolar.Month, nextYearSolar.Day);
+            return nextYearDate.AddDays(-1);
+        }
+        catch
+        {
+            return DateTime.MaxValue;
+        }
+    }
+
+    private void RegisterButtonPointerCursorStyle()
+    {
+        if (Application.Current != null)
+        {
+            var buttonStyle = new Style(typeof(Button));
+            buttonStyle.Setters.Add(new Setter(FrameworkElement.CursorProperty, Cursors.Hand));
+            Application.Current.Resources[typeof(Button)] = buttonStyle;
+        }
+    }
+
+    /// <summary>
+    /// 启用 ScrollViewer 触摸平移（触屏滚动）。
+    /// 优先通过 OverrideMetadata 将 PanningMode 默认值改为 Both；
+    /// 同时通过 Loaded 类处理器按各 ScrollViewer 的滚动条可见性自动选择精确方向：
+    /// 仅垂直（页面主体）→ VerticalOnly；仅水平（代码块/表格块）→ HorizontalOnly；
+    /// 双向 → Both；均不可滚 → None。
+    /// 仅当 PanningMode 未被显式设置（仍为默认值）时生效，不覆盖宿主显式配置。
+    /// </summary>
+    private static void RegisterScrollViewerTouchPanning()
+    {
+        try
+        {
+            ScrollViewer.PanningModeProperty.OverrideMetadata(
+                typeof(ScrollViewer),
+                new FrameworkPropertyMetadata(PanningMode.Both));
+        }
+        catch
+        {
+            // 元数据已被宿主应用，走 Loaded 兜底
+        }
+
+        EventManager.RegisterClassHandler(
+            typeof(ScrollViewer),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler(OnScrollViewerLoaded));
+    }
+
+    private static void OnScrollViewerLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer) return;
+        var source = DependencyPropertyHelper.GetValueSource(scrollViewer, ScrollViewer.PanningModeProperty);
+        if (source.BaseValueSource != BaseValueSource.Default) return;
+
+        var canScrollVertical = scrollViewer.VerticalScrollBarVisibility is ScrollBarVisibility.Auto or ScrollBarVisibility.Visible;
+        var canScrollHorizontal = scrollViewer.HorizontalScrollBarVisibility is ScrollBarVisibility.Auto or ScrollBarVisibility.Visible;
+
+        scrollViewer.PanningMode = (canScrollVertical, canScrollHorizontal) switch
+        {
+            (true, true) => PanningMode.Both,
+            (true, false) => PanningMode.VerticalOnly,
+            (false, true) => PanningMode.HorizontalOnly,
+            _ => PanningMode.None
+        };
+    }
+}
+
+
+

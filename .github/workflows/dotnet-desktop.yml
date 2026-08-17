@@ -5,6 +5,7 @@ on:
     branches: [ "master" ]
   pull_request:
     branches: [ "master" ]
+  workflow_dispatch:
 
 jobs:
   build:
@@ -12,7 +13,6 @@ jobs:
 
     env:
       Solution_Name: AdvancedTimeIsland.sln
-      Project_Path: AdvancedTimeIsland.csproj
 
     steps:
     - name: Checkout
@@ -20,25 +20,49 @@ jobs:
       with:
         fetch-depth: 0
 
-    - name: Install .NET Core
+    - name: Install .NET 8
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: 8.0.x
 
+    - name: Install .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: 10.0.x
+
     - name: Restore dependencies
       run: dotnet restore $env:Solution_Name
 
-    - name: Build the project
-      run: dotnet build $env:Project_Path --configuration Release --no-restore
+    - name: Build and package all 3 variants
+      shell: pwsh
+      run: |
+        .\Build-Package.ps1 -Target both
+        if ($LASTEXITCODE -ne 0) { exit 1 }
 
-    - name: Upload build artifacts
+    - name: Upload net8.0 compat package
       uses: actions/upload-artifact@v4
       with:
-        name: Build Output
-        path: bin/Release/net8.0/
+        name: AdvancedTimeIsland-net8.0-compat.cipx
+        path: cipx/AdvancedTimeIsland-net8.0-compat.cipx
+        if-no-files-found: error
 
-    - name: Upload .cipx package
+    - name: Upload net10.0 new package
       uses: actions/upload-artifact@v4
       with:
-        name: AdvancedTimeIsland.cipx
-        path: bin/Release/net8.0/AdvancedTimeIsland.cipx
+        name: AdvancedTimeIsland-net10.0.cipx
+        path: cipx/AdvancedTimeIsland-net10.0.cipx
+        if-no-files-found: error
+
+    - name: Upload WPF package
+      uses: actions/upload-artifact@v4
+      with:
+        name: AdvancedTimeIsland-wpf.cipx
+        path: cipx/AdvancedTimeIsland-wpf.cipx
+        if-no-files-found: error
+
+    - name: Upload all packages (zip)
+      uses: actions/upload-artifact@v4
+      with:
+        name: AdvancedTimeIsland-all-cipx
+        path: cipx/*.cipx
+        if-no-files-found: error

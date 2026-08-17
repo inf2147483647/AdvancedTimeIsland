@@ -1,0 +1,187 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
+
+namespace AdvancedTimeIsland.Automation.Triggers;
+
+public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<TimeZoneYearlyTimeRangeRuleSettings>
+{
+    private ComboBox _timeZoneComboBox = null!;
+    private DatePicker _startDatePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+
+    public TimeZoneYearlyTimeTriggerSettingsControl()
+    {
+        InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void InitializeComponent()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        var mainPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        mainPanel.Children.Add(CreateTimeZoneInputGroup());
+        mainPanel.Children.Add(CreateDateTimePickerGroup("触发时间:"));
+
+        Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+    }
+
+    private StackPanel CreateTimeZoneInputGroup()
+    {
+        var groupPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        groupPanel.Children.Add(new TextBlock
+        {
+            Text = "时区:",
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        _timeZoneComboBox = new ComboBox
+        {
+            Width = 500
+        };
+
+        var timeZones = TimeZoneInfo.GetSystemTimeZones();
+        foreach (var tz in timeZones)
+        {
+            _timeZoneComboBox.Items.Add(tz);
+        }
+
+        _timeZoneComboBox.SelectionChanged += (s, e) => UpdateTimeZone();
+
+        groupPanel.Children.Add(_timeZoneComboBox);
+
+        return groupPanel;
+    }
+
+    private StackPanel CreateDateTimePickerGroup(string label)
+    {
+        var groupPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        groupPanel.Children.Add(new TextBlock
+        {
+            Text = label,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        var datePicker = new DatePicker
+        {
+            Width = 300,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        var timePicker = new WpfTimePicker
+        {
+            Width = 250,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        _startDatePicker = datePicker;
+        _startTimePicker = timePicker;
+
+        datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
+        timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
+
+        groupPanel.Children.Add(datePicker);
+        groupPanel.Children.Add(timePicker);
+
+        groupPanel.Children.Add(new TextBlock
+        {
+            Text = "仅设置触发时间，不限制结束时间",
+            Foreground = Brushes.Gray,
+            FontSize = 12,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        return groupPanel;
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        foreach (var item in _timeZoneComboBox.Items)
+        {
+            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            {
+                _timeZoneComboBox.SelectedItem = item;
+                break;
+            }
+        }
+
+        var initialValue = Settings.StartTime;
+        ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
+
+        if (month > 0 && day > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTime(2024, month, day);
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+    }
+
+    private void UpdateTimeZone()
+    {
+        if (Settings == null) return;
+        if (_timeZoneComboBox.SelectedItem is TimeZoneInfo tz)
+        {
+            Settings.TimeZoneId = tz.Id;
+        }
+    }
+
+    private void UpdateSettingsValue()
+    {
+        if (Settings == null) return;
+
+        var startDate = _startDatePicker.SelectedDate ?? new DateTime(2024, 1, 1);
+        var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
+        Settings.StartTime = $"{startDate.Month:D2}-{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
+    }
+
+    private void ParseTimeString(string value, out int month, out int day, out int hour, out int minute, out int second)
+    {
+        month = 0; day = 0; hour = 0; minute = 0; second = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        var parts = value.Split('-');
+        if (parts.Length >= 1 && int.TryParse(parts[0], out int m)) month = m;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out int d)) day = d;
+        if (parts.Length >= 3 && int.TryParse(parts[2], out int h)) hour = h;
+        if (parts.Length >= 4 && int.TryParse(parts[3], out int mi)) minute = mi;
+        if (parts.Length >= 5 && int.TryParse(parts[4], out int s)) second = s;
+    }
+}

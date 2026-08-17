@@ -1,0 +1,123 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
+using AdvancedTimeIsland.ViewModels.Main;
+using AdvancedTimeIsland.Services;
+using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Attributes;
+
+namespace AdvancedTimeIsland.Views.Main;
+
+[ComponentInfo("d913f8dd-4bb3-415f-9a5c-4f5a976c167f", "下个节日倒计时（ATI）", PackIconKind.CakeVariant, "显示下个节日倒计时")]
+public class NextFestivalCountdownControl : ComponentBase<NextFestivalCountdownSettings>
+{
+    private NextFestivalCountdownViewModel vm;
+    private TextBlock text1Tb;
+    private TextBlock nameTb;
+    private TextBlock text3Tb;
+    private TextBlock timeTb;
+    private Border rootBorder;
+    private readonly TimeBaseService _timeBaseService;
+
+    public NextFestivalCountdownControl(TimeBaseService tbs) { _timeBaseService = tbs; InitializeComponent(); }
+
+    private void InitializeComponent()
+    {
+        rootBorder = new Border { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
+        text1Tb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        nameTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        text3Tb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        timeTb = new TextBlock { VerticalAlignment = VerticalAlignment.Center };
+        sp.Children.Add(text1Tb);
+        sp.Children.Add(nameTb);
+        sp.Children.Add(text3Tb);
+        sp.Children.Add(timeTb);
+        rootBorder.Child = sp;
+        Content = rootBorder;
+    }
+
+    private void UpdateText1FontColor(string colorStr)
+    {
+        text1Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text1EnableCustomFontColor);
+    }
+
+    private void UpdateText1FontSize(double fontSize) { if (fontSize > 0) text1Tb.FontSize = fontSize; else text1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(text1Tb); }
+    private void UpdateNameFontColor(string colorStr)
+    {
+        nameTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.NameEnableCustomFontColor);
+    }
+
+    private void UpdateNameFontSize(double fontSize) { if (fontSize > 0) nameTb.FontSize = fontSize; else nameTb.FontSize = FontFamilyHelper.GetBodyFontSize(nameTb); }
+    private void UpdateText3FontColor(string colorStr)
+    {
+        text3Tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.Text3EnableCustomFontColor);
+    }
+
+    private void UpdateText3FontSize(double fontSize) { if (fontSize > 0) text3Tb.FontSize = fontSize; else text3Tb.FontSize = FontFamilyHelper.GetBodyFontSize(text3Tb); }
+    private void UpdateTimeFontColor(string colorStr)
+    {
+        timeTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.TimeEnableCustomFontColor);
+    }
+
+    private void UpdateTimeFontSize(double fontSize) { if (fontSize > 0) timeTb.FontSize = fontSize; else timeTb.FontSize = FontFamilyHelper.GetBodyFontSize(timeTb); }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateText1FontColor(Settings.Text1FontColor);
+        UpdateNameFontColor(Settings.NameFontColor);
+        UpdateText3FontColor(Settings.Text3FontColor);
+        UpdateTimeFontColor(Settings.TimeFontColor);
+    }
+
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
+        vm = new NextFestivalCountdownViewModel(_timeBaseService, Settings, UpdateText1FontColor, UpdateText1FontSize, UpdateNameFontColor, UpdateNameFontSize, UpdateText3FontColor, UpdateText3FontSize, UpdateTimeFontColor, UpdateTimeFontSize);
+        DataContext = vm;
+        text1Tb.Text = vm.Text1Display;
+        nameTb.Text = vm.NameDisplay;
+        text3Tb.Text = vm.Text3Display;
+        timeTb.Text = vm.TimeDisplay;
+        vm.PropertyChanged += OnVmPropertyChanged;
+        UpdateText1FontColor(Settings.Text1FontColor);
+        UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameFontColor(Settings.NameFontColor);
+        UpdateNameFontSize(Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3FontColor(Settings.Text3FontColor);
+        UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeFontColor(Settings.TimeFontColor);
+        UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.Text1Display)) text1Tb.Text = vm.Text1Display;
+        if (e.PropertyName == nameof(vm.NameDisplay)) nameTb.Text = vm.NameDisplay;
+        if (e.PropertyName == nameof(vm.Text3Display)) text3Tb.Text = vm.Text3Display;
+        if (e.PropertyName == nameof(vm.TimeDisplay)) timeTb.Text = vm.TimeDisplay;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
+        (vm as IDisposable)?.Dispose();
+    }
+}

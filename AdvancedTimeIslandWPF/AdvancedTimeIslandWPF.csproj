@@ -1,0 +1,82 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <UseWPF>true</UseWPF>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <EnableDynamicLoading>true</EnableDynamicLoading>
+        <AssemblyName>AdvancedTimeIsland</AssemblyName>
+        <RootNamespace>AdvancedTimeIsland</RootNamespace>
+        <!-- 不启用 SDK 自带的 cipx 打包（依赖 pwsh），改用 Build-Package.ps1 打包 -->
+        <CreateCipx>false</CreateCipx>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- ClassIsland 1.x（WPF 版）SDK -->
+        <PackageReference Include="ClassIsland.PluginSdk" Version="1.7.0.1">
+            <ExcludeAssets>runtime; native</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="ClassIsland.Core" Version="1.7.0.1">
+            <ExcludeAssets>runtime; native</ExcludeAssets>
+        </PackageReference>
+        <PackageReference Include="Markdig" Version="1.3.2" />
+    </ItemGroup>
+
+    <ItemGroup>
+        <Reference Include="lunar">
+            <HintPath>lunar.dll</HintPath>
+            <Private>true</Private>
+            <CopyLocal>true</CopyLocal>
+        </Reference>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Update="manifest.yml">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="README.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="icon.png">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+        <None Update="Assets\**\*">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <!-- 打包逻辑已统一交给 Build-Package.ps1 的 Build-WpfVariant 函数（调用脚本内 Create-CipxPackage）执行，
+         避免 csproj Target 和 PowerShell 脚本各自重复打包、双份拷贝。 -->
+    <Target Name="CreateCipxPackage" AfterTargets="Build" Condition="'$(CreateCipxPackageEnabled)' == 'true' and '$(Configuration)' == 'Release'">
+        <PropertyGroup>
+            <TempPackageDir>$(IntermediateOutputPath)CipxPackage</TempPackageDir>
+            <CipxFileName>$(AssemblyName).cipx</CipxFileName>
+            <CipxFilePath>$(OutputPath)$(CipxFileName)</CipxFilePath>
+            <PackageSourceDir>$(OutputPath)</PackageSourceDir>
+        </PropertyGroup>
+
+        <Message Text="Creating .cipx package..." Importance="high" />
+        <Message Text="Package file: $(CipxFilePath)" Importance="high" />
+
+        <RemoveDir Directories="$(TempPackageDir)" />
+        <MakeDir Directories="$(TempPackageDir)" />
+
+        <ItemGroup>
+            <PackageFiles Include="$(PackageSourceDir)*" Exclude="$(PackageSourceDir)*.pdb;$(PackageSourceDir)*.cipx;$(PackageSourceDir)*.zip" />
+            <PackageFiles Include="$(PackageSourceDir)Assets\**\*" Exclude="$(PackageSourceDir)Assets\**\*.pdb" />
+        </ItemGroup>
+
+        <Copy SourceFiles="@(PackageFiles)" DestinationFiles="@(PackageFiles->'$(TempPackageDir)\%(RecursiveDir)%(Filename)%(Extension)')" />
+
+        <Delete Files="$(CipxFilePath)" />
+
+        <ZipDirectory SourceDirectory="$(TempPackageDir)" DestinationFile="$(CipxFilePath)" />
+
+        <Message Text="Packaging successful!" Importance="high" />
+        <Message Text="Package location: $(CipxFilePath)" Importance="high" />
+
+        <RemoveDir Directories="$(TempPackageDir)" />
+    </Target>
+
+</Project>

@@ -1,0 +1,202 @@
+<ci:ComponentBase x:Class="AdvancedTimeIsland.Views.Main.NextJieQiCountdownSettingsControl"
+                  x:TypeArguments="models:NextJieQiCountdownSettings"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:local="clr-namespace:AdvancedTimeIsland.Views.Main"
+                  xmlns:models="clr-namespace:AdvancedTimeIsland.Models"
+                  xmlns:helpers="clr-namespace:AdvancedTimeIsland.Helpers"
+                  xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                  xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+                  mc:Ignorable="d"
+                  d:DesignHeight="700" d:DesignWidth="800"
+                  DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:NextJieQiCountdownSettingsControl}}"
+                  TextElement.Foreground="{DynamicResource MaterialDesignBody}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{DynamicResource SettingsPageStackPanelStyle}">
+
+            <!-- 时间格式 -->
+            <ci:IconText Kind="ClockOutline" Text="时间格式" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="FormatItem"
+                                 IconGlyph="FormatText"
+                                 Header="格式化文本"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <TextBox Width="200"
+                             HorizontalAlignment="Left"
+                             LostFocus="OnFormatLostFocus" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="格式化说明：%d天数，%h小时数，%m分钟数，%s秒数，%x毫秒数，%H总小时数，%M总分钟数，%S总秒数，%X总毫秒数"
+                       FontSize="11"
+                       TextWrapping="Wrap"
+                       Foreground="{DynamicResource MaterialDesignBodyLight}"
+                       Margin="0,2,0,8" />
+
+            <!-- 文本1样式 -->
+            <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="FormatSize" Text="文本1样式" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="Text1FontSizeItem"
+                                 IconGlyph="FormatSize"
+                                 Header="字体大小"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="80"
+                                 HorizontalAlignment="Left"
+                                 LostFocus="OnText1FontSizeLostFocus" />
+                        <CheckBox Content="使用自定义大小"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnText1EnableCustomFontSizeChanged"
+                                  Unchecked="OnText1EnableCustomFontSizeChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="Text1ColorItem"
+                                 IconGlyph="Palette"
+                                 Header="颜色"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <helpers:WpfColorPicker Width="120"
+                                                HorizontalAlignment="Left"
+                                                ColorChanged="OnText1ColorChanged" />
+                        <CheckBox Content="使用自定义颜色"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnText1EnableCustomFontColorChanged"
+                                  Unchecked="OnText1EnableCustomFontColorChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <!-- 节气名样式 -->
+            <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="FormatText" Text="节气名样式" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="NameFontSizeItem"
+                                 IconGlyph="FormatSize"
+                                 Header="字体大小"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="80"
+                                 HorizontalAlignment="Left"
+                                 LostFocus="OnNameFontSizeLostFocus" />
+                        <CheckBox Content="使用自定义大小"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnNameEnableCustomFontSizeChanged"
+                                  Unchecked="OnNameEnableCustomFontSizeChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="NameColorItem"
+                                 IconGlyph="Palette"
+                                 Header="颜色"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <helpers:WpfColorPicker Width="120"
+                                                HorizontalAlignment="Left"
+                                                ColorChanged="OnNameColorChanged" />
+                        <CheckBox Content="使用自定义颜色"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnNameEnableCustomFontColorChanged"
+                                  Unchecked="OnNameEnableCustomFontColorChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <!-- 文本3样式 -->
+            <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="FormatSize" Text="文本3样式" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="Text3FontSizeItem"
+                                 IconGlyph="FormatSize"
+                                 Header="字体大小"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="80"
+                                 HorizontalAlignment="Left"
+                                 LostFocus="OnText3FontSizeLostFocus" />
+                        <CheckBox Content="使用自定义大小"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnText3EnableCustomFontSizeChanged"
+                                  Unchecked="OnText3EnableCustomFontSizeChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="Text3ColorItem"
+                                 IconGlyph="Palette"
+                                 Header="颜色"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <helpers:WpfColorPicker Width="120"
+                                                HorizontalAlignment="Left"
+                                                ColorChanged="OnText3ColorChanged" />
+                        <CheckBox Content="使用自定义颜色"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnText3EnableCustomFontColorChanged"
+                                  Unchecked="OnText3EnableCustomFontColorChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <!-- 时间样式 -->
+            <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="ClockOutline" Text="时间样式" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="TimeFontSizeItem"
+                                 IconGlyph="FormatSize"
+                                 Header="字体大小"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <TextBox Width="80"
+                                 HorizontalAlignment="Left"
+                                 LostFocus="OnTimeFontSizeLostFocus" />
+                        <CheckBox Content="使用自定义大小"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnTimeEnableCustomFontSizeChanged"
+                                  Unchecked="OnTimeEnableCustomFontSizeChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="TimeColorItem"
+                                 IconGlyph="Palette"
+                                 Header="颜色"
+                                 Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <helpers:WpfColorPicker Width="120"
+                                                HorizontalAlignment="Left"
+                                                ColorChanged="OnTimeColorChanged" />
+                        <CheckBox Content="使用自定义颜色"
+                                  Margin="8,0,0,0"
+                                  VerticalAlignment="Center"
+                                  Checked="OnTimeEnableCustomFontColorChanged"
+                                  Unchecked="OnTimeEnableCustomFontColorChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+        </StackPanel>
+    </ScrollViewer>
+</ci:ComponentBase>

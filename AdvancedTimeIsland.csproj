@@ -1,12 +1,13 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
-        <TargetFramework>net10.0</TargetFramework>
+        <TargetFrameworks>net8.0;net10.0</TargetFrameworks>
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <EnableDynamicLoading>true</EnableDynamicLoading>
         <CreateCipx>false</CreateCipx>
         <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+        <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     </PropertyGroup>
 
     <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
@@ -69,9 +70,19 @@
 
     <ItemGroup>
       <Compile Remove="Views\Main\AdvancedDateControl.axaml.cs" />
+      <!-- 排除 WPF 版本代码，避免被 CI2 项目默认递归编译 -->
+      <Compile Remove="AdvancedTimeIslandWPF\**\*.cs" />
+      <None Remove="AdvancedTimeIslandWPF\**\*" />
+      <Content Remove="AdvancedTimeIslandWPF\**\*" />
+      <AvaloniaResource Remove="AdvancedTimeIslandWPF\**\*" />
+      <Page Remove="AdvancedTimeIslandWPF\**\*" />
+      <Resource Remove="AdvancedTimeIslandWPF\**\*" />
+      <EmbeddedResource Remove="AdvancedTimeIslandWPF\**\*" />
     </ItemGroup>
 
-    <Target Name="CreateCipxPackage" AfterTargets="Build" Condition="'$(Configuration)' == 'Release'">
+    <!-- 打包逻辑已统一交给 Build-Package.ps1 中的 Create-CipxPackage 函数执行，
+         避免 MSBuild Target 与 PowerShell 脚本重复打包（双重 ZIP 浪费时间 + 输出不一致）。 -->
+    <Target Name="CreateCipxPackage" AfterTargets="Build" Condition="'$(CreateCipxPackageEnabled)' == 'true' and '$(Configuration)' == 'Release'">
         <PropertyGroup>
             <TempPackageDir>$(IntermediateOutputPath)CipxPackage</TempPackageDir>
             <CipxFileName>$(AssemblyName).cipx</CipxFileName>

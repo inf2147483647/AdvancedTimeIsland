@@ -1,0 +1,157 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
+
+namespace AdvancedTimeIsland.Automation.Rules;
+
+/// <summary>
+/// 精确时间范围规则设置控件
+/// 使用 DatePicker 和 TimePicker 替代下拉框
+/// </summary>
+public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRangeRuleSettings>
+{
+    private DatePicker _startDatePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private DatePicker _endDatePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+
+    public ExactTimeRangeRuleSettingsControl()
+    {
+        InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void InitializeComponent()
+    {
+        HorizontalAlignment = HorizontalAlignment.Stretch;
+
+        var mainPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        // 开始时间
+        mainPanel.Children.Add(CreateDateTimePickerGroup("开始时间:", true));
+
+        // 结束时间
+        mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
+
+        Content = new ScrollViewer
+        {
+            Content = mainPanel,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+    }
+
+    private StackPanel CreateDateTimePickerGroup(string label, bool isStart)
+    {
+        var groupPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        groupPanel.Children.Add(new TextBlock
+        {
+            Text = label,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+
+        // 日期选择器
+        var datePicker = new DatePicker
+        {
+            Width = 300,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        // 时间选择器
+        var timePicker = new WpfTimePicker
+        {
+            Width = 250,
+            ClockIdentifier = "24HourClock",
+            UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+
+        if (isStart)
+        {
+            _startDatePicker = datePicker;
+            _startTimePicker = timePicker;
+        }
+        else
+        {
+            _endDatePicker = datePicker;
+            _endTimePicker = timePicker;
+        }
+
+        // 监听变化
+        datePicker.SelectedDateChanged += (s, e) => UpdateSettingsValue();
+        timePicker.SelectedTimeChanged += (s, e) => UpdateSettingsValue();
+
+        groupPanel.Children.Add(datePicker);
+        groupPanel.Children.Add(timePicker);
+
+        return groupPanel;
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+
+        var startInitialValue = Settings.StartTime;
+        ParseDateTimeString(startInitialValue, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+        if (startYear > 0 && startMonth > 0 && startDay > 0)
+        {
+            _startDatePicker.SelectedDate = new DateTime(startYear, startMonth, startDay);
+        }
+        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+        var endInitialValue = Settings.EndTime;
+        ParseDateTimeString(endInitialValue, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+        if (endYear > 0 && endMonth > 0 && endDay > 0)
+        {
+            _endDatePicker.SelectedDate = new DateTime(endYear, endMonth, endDay);
+        }
+        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+    }
+
+    private void UpdateSettingsValue()
+    {
+        if (Settings == null) return;
+
+        var startDate = _startDatePicker.SelectedDate ?? DateTime.Today;
+        var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
+        Settings.StartTime = $"{startDate.Year:D4}-{startDate.Month:D2}-{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
+
+        var endDate = _endDatePicker.SelectedDate ?? DateTime.Today;
+        var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
+        Settings.EndTime = $"{endDate.Year:D4}-{endDate.Month:D2}-{endDate.Day:D2}-{endTime.Hours:D2}-{endTime.Minutes:D2}-{endTime.Seconds:D2}";
+    }
+
+    private void ParseDateTimeString(string value, out int year, out int month, out int day, out int hour, out int minute, out int second)
+    {
+        year = 0; month = 0; day = 0; hour = 0; minute = 0; second = 0;
+
+        if (string.IsNullOrWhiteSpace(value))
+            return;
+
+        var parts = value.Split('-');
+        if (parts.Length >= 1 && int.TryParse(parts[0], out int y)) year = y;
+        if (parts.Length >= 2 && int.TryParse(parts[1], out int m)) month = m;
+        if (parts.Length >= 3 && int.TryParse(parts[2], out int d)) day = d;
+        if (parts.Length >= 4 && int.TryParse(parts[3], out int h)) hour = h;
+        if (parts.Length >= 5 && int.TryParse(parts[4], out int mi)) minute = mi;
+        if (parts.Length >= 6 && int.TryParse(parts[5], out int s)) second = s;
+    }
+}
