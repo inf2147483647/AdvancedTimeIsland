@@ -14,6 +14,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public partial class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSettings>
 {
     private TextBox _longitudeTextBox = null!;
+    private bool _initCompleted;
     private TextBox _longitudeDmsDegreesTextBox = null!;
     private TextBox _longitudeDmsMinutesTextBox = null!;
     private TextBox _longitudeDmsSecondsTextBox = null!;
@@ -148,8 +149,27 @@ public partial class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTim
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

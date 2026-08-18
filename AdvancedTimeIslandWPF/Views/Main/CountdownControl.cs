@@ -34,6 +34,7 @@ public class CountdownControl : ComponentBase<CountdownSettings>
     private Panel circleProgressRoot;
     private Ellipse circleProgressBackground;
     private System.Windows.Shapes.Path circleProgressPath;
+    private bool _initCompleted;
 
     public CountdownControl(TimeBaseService tbs)
     {
@@ -215,6 +216,19 @@ public class CountdownControl : ComponentBase<CountdownSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -234,6 +248,12 @@ public class CountdownControl : ComponentBase<CountdownSettings>
         UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
         UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressDisplayMode();
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void UpdateDisplays()

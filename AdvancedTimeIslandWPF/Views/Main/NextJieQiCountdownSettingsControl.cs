@@ -13,6 +13,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public partial class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdownSettings>
 {
     private TextBox _formatTextBox;
+    private bool _initCompleted;
     private TextBox _text1FontSizeTextBox;
     private WpfColorPicker _text1FontColorPicker;
     private TextBox _nameFontSizeTextBox;
@@ -129,8 +130,27 @@ public partial class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQi
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

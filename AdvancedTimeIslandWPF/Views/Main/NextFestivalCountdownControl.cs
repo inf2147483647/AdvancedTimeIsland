@@ -16,6 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class NextFestivalCountdownControl : ComponentBase<NextFestivalCountdownSettings>
 {
     private NextFestivalCountdownViewModel vm;
+    private bool _initCompleted;
     private TextBlock text1Tb;
     private TextBlock nameTb;
     private TextBlock text3Tb;
@@ -85,6 +86,19 @@ public class NextFestivalCountdownControl : ComponentBase<NextFestivalCountdownS
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -103,6 +117,12 @@ public class NextFestivalCountdownControl : ComponentBase<NextFestivalCountdownS
         UpdateText3FontSize(Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
         UpdateTimeFontColor(Settings.TimeFontColor);
         UpdateTimeFontSize(Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

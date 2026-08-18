@@ -20,6 +20,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 {
     private FpsMonitorViewModel? vm;
+    private bool _initCompleted;
     private TextBlock labelFpsTb;
     private TextBlock valueFpsTb;
     private TextBlock labelMaxTb;
@@ -293,6 +294,19 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
 
@@ -307,6 +321,12 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
 
         Settings.PropertyChanged += OnSettingsPropertyChanged;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

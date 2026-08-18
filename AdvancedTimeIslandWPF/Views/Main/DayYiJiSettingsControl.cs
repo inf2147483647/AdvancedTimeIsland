@@ -12,6 +12,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public partial class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 {
     private WpfNumericUpDown _yiLabelFontSizeNumericUpDown = null!;
+    private bool _initCompleted;
     private WpfColorPicker _yiLabelFontColorPicker = null!;
     private WpfNumericUpDown _yiValueFontSizeNumericUpDown = null!;
     private WpfNumericUpDown _jiLabelFontSizeNumericUpDown = null!;
@@ -292,8 +293,27 @@ public partial class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         Loaded += OnLoaded;
         Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

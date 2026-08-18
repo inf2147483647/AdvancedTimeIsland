@@ -16,6 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 {
     private TomorrowYiJiViewModel vm;
+    private bool _initCompleted;
     private TextBlock yiLabelTb;
     private TextBlock yiValueTb;
     private TextBlock jiLabelTb;
@@ -96,6 +97,19 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -122,6 +136,12 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         UpdateJiValueFontFamily(Settings.JiValueEnableCustomFontFamily ? Settings.JiValueFontFamily : "");
         UpdateJiValueFontWeight(Settings.JiValueFontWeight);
         UpdateDisplayMode();
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

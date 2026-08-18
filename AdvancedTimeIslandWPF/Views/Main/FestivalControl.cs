@@ -25,6 +25,7 @@ public class FestivalControl : ComponentBase<FestivalSettings>
     private TextBlock valueTb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private bool _initCompleted;
 
     public FestivalControl(TimeBaseService tbs)
     {
@@ -121,6 +122,19 @@ public class FestivalControl : ComponentBase<FestivalSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -138,6 +152,12 @@ public class FestivalControl : ComponentBase<FestivalSettings>
         UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
         UpdateValueFontFamily(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
         UpdateValueFontWeight(Settings.ValueFontWeight);
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

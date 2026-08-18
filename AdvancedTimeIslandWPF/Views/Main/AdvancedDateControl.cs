@@ -26,6 +26,7 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
     private bool _isDisposed;
+    private bool _initCompleted;
 
     public AdvancedDateControl(TimeBaseService tbs)
     {
@@ -122,6 +123,19 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -142,6 +156,12 @@ public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>
         UpdateWeekDayFontFamily();
         UpdateWeekDayFontWeight();
         Settings.PropertyChanged += OnSettingsChanged;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

@@ -22,6 +22,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
 {
     private LunarCountdownViewModel vm;
+    private bool _initCompleted;
     private TextBlock tbText1;
     private TextBlock tbName;
     private TextBlock tbText3;
@@ -207,6 +208,19 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -226,6 +240,12 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
         UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressDisplayMode();
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void UpdateDisplays()

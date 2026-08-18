@@ -24,6 +24,7 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
     private TextBlock tb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private bool _initCompleted;
 
     public TimeZoneTimeControl(TimeBaseService tbs)
     {
@@ -85,6 +86,19 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -97,6 +111,12 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
         UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 0);
         UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
         UpdateFontWeight(Settings.FontWeight);
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

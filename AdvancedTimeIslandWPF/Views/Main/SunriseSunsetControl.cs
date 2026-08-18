@@ -21,6 +21,7 @@ namespace AdvancedTimeIsland.Views.Main;
 public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 {
     private SunriseSunsetViewModel vm;
+    private bool _initCompleted;
     private TextBlock _sunriseLabel;
     private TextBlock _sunriseTime;
     private TextBlock _sunsetLabel;
@@ -147,6 +148,19 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
     protected override void OnInitialized(EventArgs e)
     {
         base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
         ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         Unloaded += OnUnloaded;
@@ -176,6 +190,12 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 0, "sunriseTime");
         UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 0, "sunsetLabel");
         UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 0, "sunsetTime");
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
