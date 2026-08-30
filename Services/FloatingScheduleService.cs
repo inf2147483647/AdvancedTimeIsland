@@ -101,6 +101,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private List<(object? ClassInfo, Subject? Subject, object LayoutItem)> _currentClassRows = new();
     private int _currentOnClassIndex = -1;
     private object? _currentBreakLayoutItem;        // 若 Breaking 命中则写入，UpdateProgress 计算进度用
+    // 【★ 连续课间分别走进度】课间项列表（TimeType==1，按 Start 升序），RefreshSchedule 构建时从 classPlan 收集。
+    //  连续课间 B1→B2→B3（首尾相接）时，课对空隙 = 总长度（进度条会走总长度）。
+    //  用本列表按"now ∈ 哪个课间项的 [Start, End)"定位 → 每个课间分别走进度。
+    private readonly List<object> _breakItemsAv = new();
 
     private CancellationTokenSource? _retryCts;
     private DispatcherTimer? _timer;                      // 500ms 进度刷新（原保持不变）
@@ -177,6 +181,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //     → 不一致就强制 RefreshSchedule（解决极罕见的"PropertyChanged 丢失 + Date 没变 + state/breakTicks 恰好相同但 UI 错位"的一致性黑洞）
     private const int HardSyncTickIntervalAv = 10;   // 500ms * 10 = 5 秒
     private int _hardSyncTickCounterAv = 0;
+    // 【★ 时间跳变 → 进度条立即更新兜底】上次 UpdateProgress Tick 的 now（用于检测跳变 >2s → 立即强制刷新，
+    //  覆盖"宿主 Settings.PropertyChanged 事件丢失导致 OnHostSettingsDebugTimeChanged 未触发、进度条只能等 5s 硬刷新"的场景）
+    private DateTime _lastTickNowAv = DateTime.MinValue;
+    // 宿主 OnHostSettingsDebugTimeChanged 最近一次刷新的 TickCount（UpdateProgress 跳变检测据此跳过，避免与宿主刷新重复重建闪 0）
+    private long _lastHostTimeChangeRefreshTicksAv = long.MinValue;
     // 【★ 连续课间即时切换】SDK 课间 item 超时容忍（真实 now > SDK item.End + 此值 → 视为 SDK 滞后，改用真实时间空隙定位）
     private const double EndOverrunToleranceSecAv = 0.05;
 
@@ -238,6 +247,28 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
         }
         return -1;
+    }
+
+    // 【★ 连续课间分别走进度】用真实时间 now 在 _breakItemsAv 中定位"now ∈ [Start, End)"的课间项。
+    //  连续课间 B1→B2→B3（首尾相接）各自独立区间 → 每个课间分别走进度（而非课对空隙总长度）。
+    //  返回命中的课间项；找不到返回 null。out 返回该课间项的时间区间。
+    private object? FindBreakItemByRealTimeAv(TimeSpan now, out TimeSpan bs, out TimeSpan be)
+    {
+        bs = default;
+        be = default;
+        foreach (var b in _breakItemsAv)
+        {
+            var st = ReflectGetStartTime(b);
+            var ed = ReflectGetEndTime(b);
+            // 左闭右开：边界点（now == 课间 End）归属下一段，保证 B1→B2 无缝切到 B2
+            if (now >= st && now < ed)
+            {
+                bs = st;
+                be = ed;
+                return b;
+            }
+        }
+        return null;
     }
 
     // 【★ 时间跳变/连续上课 高亮定位】用真实时间 now 在 _currentClassRows 中定位"now ∈ [Start, End)"的课行索引；找不到返回 -1
@@ -975,6 +1006,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
                 // ② 同步 RefreshSchedule：重建整表（Date 锚用 GetClassIslandNow().Date = 最新调试偏移后的今天）
                 RefreshSchedule();
+                // 记录宿主刷新时间戳：UpdateProgress 时间跳变检测据此跳过（1s 内不重复重建，避免闪 0）
+                _lastHostTimeChangeRefreshTicksAv = Environment.TickCount64;
 
                 // ③ 同步 Apply 一次"当前真实 ratio"（needRefresh 分支的镜像逻辑）：
                 //   原因：RefreshSchedule 构建的新进度条 indicator Width = 构造默认 0；若不立刻写 ratio，
@@ -992,8 +1025,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     if (brk)
                     {
                         var nn = GetClassIslandNow().TimeOfDay;
-                        int gapIdxB = FindBreakGapIndexByRealTimeAv(nn, out var gsB, out var geB);
-                        if (gapIdxB >= 0 && _currentBreakProgressIndicator != null)
+                        var biB = FindBreakItemByRealTimeAv(nn, out var gsB, out var geB);
+                        if (biB != null && _currentBreakProgressIndicator != null)
                         {
                             double tb = (geB - gsB).TotalSeconds;
                             if (tb > 0)
@@ -1670,6 +1703,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
             VerticalAlignment = VerticalAlignment.Stretch,
             ClipToBounds = true
         };
+        // 【★ 修复：进度条比例改为 Grid Star 列宽驱动（不依赖 host 布局时序/手动 Width）】
+        //  之前 indicator.Width = host.Bounds.Width * ratio：RefreshSchedule 重建后 host 未布局
+        //  （Bounds.Width=0）→ 进度条 Width 从 0 假重置，待 LayoutUpdated 才写回正确比例；
+        //  时间跳变/5s 硬刷新频繁重建时，用户感知"跳变后比例显示错误 / 流速不对（忽快忽慢/倒退）"。
+        //  现改为两列比例：Column0 = 进度比例（indicator Stretch 自动占该列全宽），Column1 = 剩余空白。
+        //  比例由 Grid 布局自动分配 → 重建后布局瞬间即正确，无假重置、无延迟、无依赖时序。
+        host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        host.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(0, GridUnitType.Star) });
         var bg = new Border
         {
             Background = bgBrush,
@@ -1677,73 +1718,32 @@ public class FloatingScheduleService : IHostedService, IDisposable
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Stretch
         };
+        Grid.SetColumnSpan(bg, 2);   // 背景铺满整个进度条区域
         var indicator = new Border
         {
             Background = accentBrush,
             CornerRadius = new CornerRadius(1.5),
-            HorizontalAlignment = HorizontalAlignment.Left,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            Width = 0
+            HorizontalAlignment = HorizontalAlignment.Stretch,   // 占满 Column0（比例列）
+            VerticalAlignment = VerticalAlignment.Stretch
         };
+        Grid.SetColumn(indicator, 0);
         host.Children.Add(bg);
         host.Children.Add(indicator);
         return (host, indicator);
     }
 
-    // AVA 端 LayoutUpdated 待触发 handler 弱引用追踪（Avalonia Layoutable 没有 Tag 属性，用 ConditionalWeakTable）
-    private static readonly ConditionalWeakTable<Layoutable, object> _avPendingLayoutHandlers = new();
-
     private static void ApplyProgressRatioAv(Layoutable? host, Border? indicator, double ratio)
     {
-        if (host == null || indicator == null) return;
+        // 【★ 修复：进度条比例改为 Grid Star 列宽驱动】
+        //  host 是 CreateSelfDrawnProgressBar 创建的 Grid（含 2 列：Column0=进度比例 / Column1=剩余）。
+        //  直接设置两列 Star 宽度 → Grid 布局自动按比例分配 indicator 宽度，
+        //  不依赖 host.Bounds.Width 是否就绪、无需 LayoutUpdated 延迟写回：
+        //  - RefreshSchedule 重建后布局瞬间即正确（消除"重建后 Width=0 假重置/比例显示错误"）
+        //  - 时间跳变/5s 硬刷新频繁重建时进度条连续正确（消除"流速不对/忽快忽慢/倒退"）
+        if (host is not Grid hostGrid || hostGrid.ColumnDefinitions.Count < 2) return;
         ratio = double.IsNaN(ratio) ? 0.0 : Math.Clamp(ratio, 0.0, 1.0);
-        var aw = host.Bounds.Width;
-        if (aw > 0)
-        {
-            indicator.Width = aw * ratio;
-            // 宿主宽度就绪：清理之前尚未触发的 LayoutUpdated 订阅
-            if (_avPendingLayoutHandlers.TryGetValue(host, out var o) && o is EventHandler pendingHandler)
-            {
-                host.LayoutUpdated -= pendingHandler;
-                _avPendingLayoutHandlers.Remove(host);
-            }
-        }
-        else
-        {
-            // 每轮 Apply 刷新 indicator.Tag ratio 缓存：保证"后续 LayoutUpdated 回调"读的是最新值（不是 RefreshSchedule 刚构造完时 stale 默认 0）
-            indicator.Tag = ratio;
-
-            // 已经订阅过（通过 weak-table 追踪）：不重复订阅事件，直接 return
-            if (_avPendingLayoutHandlers.TryGetValue(host, out _))
-                return;
-
-            EventHandler? handler = null;
-            handler = (_, _) =>
-            {
-                if (host == null || indicator == null)
-                {
-                    if (handler != null) host.LayoutUpdated -= handler;
-                    _avPendingLayoutHandlers.Remove(host);
-                    return;
-                }
-                double widthNow = host.Bounds.Width;
-                if (widthNow <= 0) return;   // 宿主 Bounds 仍未就绪：保持订阅（关键修复：不再在未成功应用前 -=）
-                try
-                {
-                    var cached = indicator.Tag is double r ? r : 0.0;
-                    indicator.Width = widthNow * cached;
-                }
-                finally
-                {
-                    host.LayoutUpdated -= handler;
-                    _avPendingLayoutHandlers.Remove(host);
-                }
-            };
-            host.LayoutUpdated += handler;
-            if (_avPendingLayoutHandlers.TryGetValue(host, out _))
-                _avPendingLayoutHandlers.Remove(host);
-            _avPendingLayoutHandlers.Add(host, handler);
-        }
+        hostGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
+        hostGrid.ColumnDefinitions[1].Width = new GridLength(Math.Max(0.0, 1.0 - ratio), GridUnitType.Star);
     }
 
     // ===================== 课表 UI 构建 =====================
@@ -1829,9 +1829,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 var validRaw = ReflectGetValidTimeLayoutItems(classPlan);
                 var validItems = new List<object>();
+                // 【★ 连续课间分别走进度】同步收集课间项（TimeType==1），供课间进度条"每个课间分别走"
+                _breakItemsAv.Clear();
                 foreach (var x in validRaw)
-                    if (x != null && ReflectGetTimeType(x) == 0) validItems.Add(x);
+                {
+                    if (x == null) continue;
+                    if (ReflectGetTimeType(x) == 0) validItems.Add(x);
+                    else if (ReflectGetTimeType(x) == 1) _breakItemsAv.Add(x);
+                }
                 validItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+                _breakItemsAv.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
 
                 var classesList = ReflectGetClasses(classPlan);
 
@@ -1918,11 +1925,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
             string breakNameText = "课间休息";
             if (isBreaking && _currentClassRows.Count >= 2)
             {
-                var bLi = ReflectProp(_lessonsService, "CurrentTimeLayoutItem");
+                // 【★ 连续课间分别走进度】首选：真实时间定位当前课间项（连续课间 B1→B2→B3 各自独立区间，
+                //  课间行/进度条分别显示每个课间，而非课对空隙总长度）；找不到再回退 SDK CurrentTimeLayoutItem。
+                var realBi = FindBreakItemByRealTimeAv(now, out var bsReal, out var beReal);
+                var bLi = realBi ?? ReflectProp(_lessonsService, "CurrentTimeLayoutItem");
                 if (bLi != null && ReflectGetTimeType(bLi) == 1)
                 {
-                    var bs = ReflectGetStartTime(bLi);
-                    var be = ReflectGetEndTime(bLi);
+                    // 时间区间：真实时间定位命中用其区间，否则用 SDK item 区间
+                    var bs = realBi != null ? bsReal : ReflectGetStartTime(bLi);
+                    var be = realBi != null ? beReal : ReflectGetEndTime(bLi);
                     var firstStart = ReflectGetStartTime(_currentClassRows[0].LayoutItem);
                     var lastEnd = ReflectGetEndTime(_currentClassRows[_currentClassRows.Count - 1].LayoutItem);
                     if (bs >= firstStart && be <= lastEnd)
@@ -1954,14 +1965,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                             breakNameText = ReflectGetBreakNameText(bLi);
                         }
                     }
-                    // 【★ 连续课间即时切换（真实时间空隙兜底）】
-                    //  根因：SDK CurrentTimeLayoutItem 在 B1→B2 边界跨越后有 1-2 Tick（500ms~1s）滞后，
-                    //        滞后窗口内 SDK 仍返回 B1 → 课间行显示 B1 + 进度条卡 100%，B2 不出现
-                    //        → 用户感知"连续课间卡住不切换"（课程行总在列表里无此问题，课间行是动态插入的）。
-                    //  修复：真实 now 已超过 SDK 课间 item.End + 容忍（= SDK 滞后）→
-                    //        改用"真实时间定位当前课间空隙"（now ∈ [C_i.End, C_{i+1}.Start) 的两课之间）
-                    //        → 课间行立即切到 B2 的空隙区间 + 进度条用空隙+真实时间正确重置，不再等 SDK 推进。
-                    if (now.TotalSeconds - be.TotalSeconds > EndOverrunToleranceSecAv)
+                    // 【★ 连续课间即时切换（空隙兜底）】真实时间课间项定位失败（如 _breakItemsAv 空/时间异常）
+                    //  且 SDK item 超时 → 回退课对空隙定位，保证 SDK 滞后时课间行仍能切到下一段。
+                    if (realBi == null && now.TotalSeconds - be.TotalSeconds > EndOverrunToleranceSecAv)
                     {
                         int gapIdx = FindBreakGapIndexByRealTimeAv(now, out var gs, out var ge);
                         if (gapIdx >= 0)
@@ -2328,8 +2334,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     {
                         // 课间进度条：真实时间定位当前课间空隙（SDK 滞后时也能正确推进/重置）
                         var nn = GetClassIslandNow().TimeOfDay;
-                        int gapIdxB = FindBreakGapIndexByRealTimeAv(nn, out var gsB, out var geB);
-                        if (gapIdxB >= 0 && _currentBreakProgressIndicator != null)
+                        var biB = FindBreakItemByRealTimeAv(nn, out var gsB, out var geB);
+                        if (biB != null && _currentBreakProgressIndicator != null)
                         {
                             double tb = (geB - gsB).TotalSeconds;
                             if (tb > 0)
@@ -2452,6 +2458,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
                                        breakStartTicks != _lastRefreshBreakStartTicks ||
                                        breakEndTicks != _lastRefreshBreakEndTicks;
 
+            // 【★ 时间跳变 → 进度条立即更新兜底】
+            //  若 now 与上次 Tick 差距超过 2s（正常 500ms Tick 差距 ~0.5s），视为时间跳变
+            //  （宿主调试偏移 / 系统时间 / NTP 同步导致）。若宿主 Settings.PropertyChanged 事件丢失
+            //  （订阅失败 / 宿主版本差异 / 事件被吞）→ OnHostSettingsDebugTimeChanged 未触发 →
+            //  进度条只能等 5s 硬刷新才用新时间重建（用户感知"时间跳变进度条不立即更新"）。
+            //  修复：跳变时强制 stateOrBreakChanged=true → needRefresh → RefreshSchedule 真实时间定位 + Apply。
+            //  去重：最近 1s 内宿主已触发刷新（OnHostSettingsDebugTimeChanged 执行过）→ 跳过，避免重复重建闪 0。
+            if (_lastTickNowAv != DateTime.MinValue &&
+                Math.Abs((now - _lastTickNowAv).TotalSeconds) > 2.0 &&
+                Environment.TickCount64 - _lastHostTimeChangeRefreshTicksAv > 1000)
+            {
+                stateOrBreakChanged = true;
+            }
+            _lastTickNowAv = now;
+
             // 【修复：调试时间不立刻刷新 - Date 跳变兜底强制 Refresh】
             //  场景：用户在调试页调 DebugTimeOffsetSeconds += 86400（跨1天），或系统时间被 NTP 回拨/拨快超过一天。
             //  即使宿主 SettingsService.Settings.PropertyChanged 事件丢失（极端场景），500ms Tick 内检测到 now.Date 与
@@ -2524,6 +2545,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
                 //  (2) 【核心要求】任何情况下每 5s 全量重建时间表
                 RefreshSchedule();
+                // 【★ 修复：5s 硬刷新不生效（双重重建闪 0）】
+                //  5s 硬刷新已无条件 RefreshSchedule（覆盖本 Tick 一切状态变化），若此处 stateOrBreakChanged 仍为 true
+                //  （本 Tick 状态变化 / 时间跳变检测 / dateChanged 触发）→ 下方 needRefresh 会再 Post 一次 RefreshSchedule
+                //  → 同 Tick 双重重建：进度条每次重建 Width 先归 0 再恢复，用户感知"5s 硬刷新不生效/进度条闪 0"。
+                //  修复：无条件重建后立即置 false，仅保留 `onClass != indexValid` 的一致性兜底触发。
+                stateOrBreakChanged = false;
             }
 
             // ======== 【用户：删除淡化渐变动画以外的所有动画 Ava】课间 EXIT 不再播放 250ms TranslateY/淡出，直接整表重建 ========
@@ -2608,8 +2635,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         if (breaking2)
                         {
                             var n = GetClassIslandNow().TimeOfDay;
-                            int gapIdxB2 = FindBreakGapIndexByRealTimeAv(n, out var gsB2, out var geB2);
-                            if (gapIdxB2 >= 0 && _currentBreakProgressIndicator != null)
+                            var biB2 = FindBreakItemByRealTimeAv(n, out var gsB2, out var geB2);
+                            if (biB2 != null && _currentBreakProgressIndicator != null)
                             {
                                 double totalB = (geB2 - gsB2).TotalSeconds;
                                 if (totalB > 0)
@@ -2659,13 +2686,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 return;
             }
 
-            // ========== 课间进度条（Breaking 命中时：真实时间定位当前课间空隙计算百分比，不依赖 SDK 滞后 item） ==========
+            // ========== 课间进度条（Breaking 命中时：真实时间定位当前课间项计算百分比，每个课间分别走进度） ==========
             if (breaking && _currentBreakProgressIndicator != null)
             {
                 // 复用 UpdateProgress 开头已拿到的 now（含最新 DebugTimeOffset 偏移）
                 var nn = now.TimeOfDay;
-                int gapIdxCur = FindBreakGapIndexByRealTimeAv(nn, out var breakStart, out var breakEnd);
-                if (gapIdxCur >= 0)
+                var biCur = FindBreakItemByRealTimeAv(nn, out var breakStart, out var breakEnd);
+                if (biCur != null)
                 {
                     var breakTotal = (breakEnd - breakStart).TotalSeconds;
                     if (breakTotal > 0)
@@ -2681,7 +2708,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
                 else
                 {
-                    // 真实时间不在任何空隙（SDK Breaking 但实际已到上课/放学）→ 课间进度条 0
+                    // 真实时间不在任何课间项（SDK Breaking 但实际已到上课/放学）→ 课间进度条 0
                     ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
                 }
             }
