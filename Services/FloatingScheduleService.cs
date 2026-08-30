@@ -72,6 +72,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     private static extern IntPtr SendMessage(IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     private const uint WM_NCLBUTTONDOWN = 0x00A1;
+
+    // ========== 悬浮窗层级重设频率（Mode=0 OnWindowZOrderChanged）Win32 子类化 ==========
+    //  检测 WM_WINDOWPOSCHANGED 中 flags & SWP_NOZORDER==0 → 触发 ApplyWindowLayer。
+    //  用 SetWindowLongPtr(GWLP_WNDPROC) 子类化 + 保存委托引用防止 GC 回收。
+    private const int GWLP_WNDPROC_AV = -4;
+    private const uint WM_WINDOWPOSCHANGED_AV = 0x0047;
+    private delegate IntPtr TopmostWndProcAv(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+    [DllImport("user32.dll")]
+    private static extern IntPtr CallWindowProc(IntPtr lpPrevWndFunc, IntPtr hWnd, uint Msg, IntPtr wParam, IntPtr lParam);
     private static readonly IntPtr HTCAPTION = new IntPtr(2);  // HTTRANSPARENT=-1 / HTCLIENT=1 / HTCAPTION=2
 #endif
 
@@ -144,6 +153,23 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjAv;
     private PropertyChangedEventHandler? _hostSettingsChangedHandlerAv;
 
+    // ========== 悬浮窗层级重设频率 4 模式（Avalonia 端）==========
+    //   0 OnWindowZOrderChanged → Win32 子类化 WM_WINDOWPOSCHANGED（非 Windows 退化 Mode 1）
+    //   1 OnForegroundWindowChanged → 反射宿主 IWindowPlatformService.ForegroundWindowChanged
+    //   2 Every50Ms / 3 Every1Ms → DispatcherTimer
+    private DispatcherTimer? _topmostRefreshTimerAv;
+    private object? _windowPlatformServiceAv;                // Mode 1：宿主 IWindowPlatformService 实例，Detach 需 -= 事件
+    private Delegate? _foregroundWindowChangedHandlerAv;     // Mode 1：实际 EventHandler<FWCEA>，保存为 Delegate 以便反射 -=
+    // Mode 0（Win32 子类化）：保存旧 WndProc、子类化 hwnd、以及 WndProc 委托引用（防止 GC 回收导致 CallbackOnCollectedDelegate）
+    private IntPtr _topmostOldWndProcAv = IntPtr.Zero;
+    private IntPtr _topmostHookedHwndAv = IntPtr.Zero;
+    private TopmostWndProcAv? _topmostWndProcDelegateAv;
+    // Mode 0/1/2/3 当前激活模式（便于 Detach 时判定走哪路清理，避免误清理）
+    private FloatingTopmostRefreshMode _currentTopmostModeAv = (FloatingTopmostRefreshMode)(-1);
+    // 【修复 Issue 1】ApplyWindowLayer 重入计数器：防止 Mode 0 WndProc 钩子"自己 Apply→SetWindowPos→WM_WINDOWPOSCHANGED→Post Apply" 无限死循环
+    //  >0 表示当前调用栈在 ApplyWindowLayer 内部；Mode 0 WndProc 检测到 >0 时抑制 Post。
+    private int _inApplyWindowLayerAv = 0;
+
     // ========== 5s 全量同步硬兜底（用户方案：每 5s 检查一次当前时间表状态并同步）==========
     //  策略（对齐 Experience 1279696 "双定时器分层"思想）：复用现有 500ms 轻量 Timer，
     //   - 500ms Tick：只更新进度条 ratio + 常规 state/breakTicks/date 变化检测（高频、轻量）
@@ -151,10 +177,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //     → 不一致就强制 RefreshSchedule（解决极罕见的"PropertyChanged 丢失 + Date 没变 + state/breakTicks 恰好相同但 UI 错位"的一致性黑洞）
     private const int HardSyncTickIntervalAv = 10;   // 500ms * 10 = 5 秒
     private int _hardSyncTickCounterAv = 0;
-    // 5s 硬校验前一次记录的"当前高亮课 Start/End Ticks"。用于 OnClass 状态时比对 SDK CurrentTimeLayoutItem 是否被 UI 漏同步（stateCode 相同但高亮错）。
-    //  初始值 = -1：表示"上一轮 RefreshSchedule 未记录到高亮课"。
-    private long _hardSyncHighlightStartTicksAv = -1;
-    private long _hardSyncHighlightEndTicksAv = -1;
+    // 【★ 连续课间即时切换】SDK 课间 item 超时容忍（真实 now > SDK item.End + 此值 → 视为 SDK 滞后，改用真实时间空隙定位）
+    private const double EndOverrunToleranceSecAv = 0.05;
 
     public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger)
     {
@@ -193,6 +217,60 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (pi2 != null && int.TryParse(pi2.GetValue(item)?.ToString(), out var sec))
             return TimeSpan.FromSeconds(sec);
         return TimeSpan.Zero;
+    }
+
+    // 【★ 连续课间即时切换】用真实时间 now 定位"当前课间空隙"（相邻课对之间，now ∈ [C_i.End, C_{i+1}.Start)）
+    //  返回前一课索引 i（在其后插入课间行）；找不到返回 -1。out 返回空隙时间区间。
+    private int FindBreakGapIndexByRealTimeAv(TimeSpan now, out TimeSpan gapStart, out TimeSpan gapEnd)
+    {
+        gapStart = default;
+        gapEnd = default;
+        for (int i = 0; i < _currentClassRows.Count - 1; i++)
+        {
+            var cEnd = ReflectGetEndTime(_currentClassRows[i].LayoutItem);
+            var cNextStart = ReflectGetStartTime(_currentClassRows[i + 1].LayoutItem);
+            // 左闭右开：now ∈ [C_i.End, C_{i+1}.Start) 视为处于这两节课之间的课间
+            if (now >= cEnd && now < cNextStart)
+            {
+                gapStart = cEnd;
+                gapEnd = cNextStart;
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    // 【★ 时间跳变/连续上课 高亮定位】用真实时间 now 在 _currentClassRows 中定位"now ∈ [Start, End)"的课行索引；找不到返回 -1
+    //  左闭右开：边界点（now == 某课 End）归属下一段，保证 C1.End == C2.Start 的连续课无缝切到 C2。
+    //  用途：RefreshSchedule 高亮行主选（含插件/调试时间偏移，反映"插件当前时间应上的课"），
+    //        时间跳变（改调试偏移/插件 TimeOffsetSeconds）时 SDK 不反映插件时间 → 必须用真实时间定位，
+    //        否则进度条会按 SDK 旧课继承旧进度；SDK 匹配仅作兜底（真实时间定位失败时）。
+    private int FindClassIndexByRealTimeAv(TimeSpan now)
+    {
+        for (int i = 0; i < _currentClassRows.Count; i++)
+        {
+            var st = ReflectGetStartTime(_currentClassRows[i].LayoutItem);
+            var ed = ReflectGetEndTime(_currentClassRows[i].LayoutItem);
+            if (now >= st && now < ed) return i;
+        }
+        return -1;
+    }
+
+    // 【★ 悬浮窗时间跟随 ClassIsland（便于调试）】
+    //  时间基准直接取宿主 ExactTimeService.GetCurrentLocalDateTime()：
+    //    - 包含宿主调试偏移 DebugTimeOffsetSeconds（用户在 ClassIsland 调试页调时间 → 悬浮窗课表/进度条即时反映）
+    //    - 包含宿主 TimeOffsetSeconds（时钟页全局偏移）
+    //  不再叠加插件 TimeBaseService 的 NTP 同步偏移（_timeOffset）与插件 TimeOffsetSeconds——
+    //    NTP 链会使悬浮窗时间与 ClassIsland 调试时间产生偏差，调试不直观。
+    private DateTime GetClassIslandNow()
+    {
+        try
+        {
+            var tbs = TimeBaseService.Instance;
+            if (tbs != null) return tbs.GetClassIslandTime();
+        }
+        catch { /* ignore */ }
+        return DateTime.Now;
     }
 
     private static int ReflectGetTimeType(object item)
@@ -495,6 +573,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 //  窗口建立后立刻订阅宿主 SettingsService.Settings.PropertyChanged，
                 //  当 DebugTimeOffsetSeconds / TimeOffsetSeconds 变化时立刻 UI 线程 Post Refresh（<=1 UI 帧，远快于 500ms Timer）。
                 EnsureHostSettingsSubscriptionAv();
+                // 【h4】悬浮窗层级重设频率 Attach：窗口 Show 后 hwnd 已建立，按 Settings.FloatingScheduleTopmostRefreshMode 启动 4 路触发之一
+                AttachTopmostRefreshAv(_window!, _settings.FloatingScheduleTopmostRefreshMode);
             }
         });
     }
@@ -509,6 +589,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _hoverFadeTimer = null;
         _fadeAvCts?.Cancel();
         _fadeAvCts = null;
+        // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
+        DetachTopmostRefreshAv();
         // 【修复：调试时间不立刻刷新 - 退订宿主 Settings PropertyChanged 防止内存泄漏】
         //  SettingsService 是宿主 singleton，若插件实例作为 PropertyChanged.target 被它持有，插件/悬浮窗会在关闭开关后无法 GC。
         DetachHostSettingsSubscriptionAv();
@@ -521,10 +603,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _currentBreakProgressIndicator = null;
         _currentBreakProgressHost = null;
         _currentBreakLayoutItem = null;
-        // 【5s 硬兜底复位】Stop 时清零计数与高亮快照，下次 EnableFloatingSchedule=true 从零开始同步
+        // 【5s 硬兜底复位】Stop 时清零计数，下次 EnableFloatingSchedule=true 从零开始同步
         _hardSyncTickCounterAv = 0;
-        _hardSyncHighlightStartTicksAv = -1;
-        _hardSyncHighlightEndTicksAv = -1;
         // 【修复：课间向上位移 0.5-1s】Stop 时 Cancel+Dispose 仍在飞的 ENTER/EXIT 动画 CTS，避免异步动画回调访问旧 UI（Dispose 后可能已 null/detached）
         try { _breakRowEnterCtsAv?.Cancel(); } catch { /* ignore */ }
         try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
@@ -631,6 +711,188 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
     }
 
+    // ===================== 悬浮窗层级重设频率 4 模式 Attach/Detach（Avalonia 端）=====================
+    //  生命周期：StartInternal 创建窗口 Show 后 Attach；Stop / EnableFloatingSchedule=false Detach；
+    //            FloatingScheduleTopmostRefreshMode PropertyChanged → Detach 旧 + ReAttach 新 + Apply 一次。
+    //  设计原则（对齐 Experience 1279696 分层定时器 + 对称释放）：
+    //    - 定时器 1ms / 50ms 只做轻量 ApplyWindowLayer（仅 Win32 SetWindowPos 或 _window.Topmost 赋值），不触 UI 重建，保证不卡。
+    //    - 所有 Attach 路径必须可被 Detach 对称清理：Timer.Stop + 置空；事件 -=；Win32 解子类。
+    //    - 非 Windows 下 Mode=0 退化为 Mode=1（ForegroundWindowChanged）。
+
+    /// <summary>
+    /// Detach 悬浮窗层级重设所有触发源（4 模式清理三件套）。安全：重复调用/从未 Attach 都不会抛。
+    /// </summary>
+    private void DetachTopmostRefreshAv()
+    {
+        try
+        {
+            // ---- 定时器（Mode 2/3）Stop + 置空 ----
+            try { _topmostRefreshTimerAv?.Stop(); } catch { /* ignore */ }
+            _topmostRefreshTimerAv = null;
+
+            // ---- Mode 1：宿主 IWindowPlatformService.ForegroundWindowChanged 退订 ----
+            if (_windowPlatformServiceAv != null && _foregroundWindowChangedHandlerAv != null)
+            {
+                try
+                {
+                    var evt = _windowPlatformServiceAv.GetType().GetEvent("ForegroundWindowChanged",
+                        BindingFlags.Instance | BindingFlags.Public);
+                    evt?.RemoveEventHandler(_windowPlatformServiceAv, _foregroundWindowChangedHandlerAv);
+                }
+                catch (Exception ex) { _logger.LogDebug(ex, "DetachTopmostRefreshAv -= ForegroundWindowChanged 异常（忽略）"); }
+            }
+            _windowPlatformServiceAv = null;
+            _foregroundWindowChangedHandlerAv = null;
+
+            // ---- Mode 0：Win32 解子类（恢复旧 WndProc）----
+#if WINDOWS
+            if (_topmostOldWndProcAv != IntPtr.Zero && _topmostHookedHwndAv != IntPtr.Zero)
+            {
+                try
+                {
+                    SetWindowLong(_topmostHookedHwndAv, GWLP_WNDPROC_AV, _topmostOldWndProcAv);
+                }
+                catch (Exception ex) { _logger.LogDebug(ex, "DetachTopmostRefreshAv Win32 解子类异常（忽略）"); }
+            }
+#endif
+            _topmostOldWndProcAv = IntPtr.Zero;
+            _topmostHookedHwndAv = IntPtr.Zero;
+            _topmostWndProcDelegateAv = null;   // 释放委托引用，允许 GC
+
+            _currentTopmostModeAv = (FloatingTopmostRefreshMode)(-1);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DetachTopmostRefreshAv 未知异常（忽略，功能兜底仍由 ApplyWindowLayer PropertyChanged 触发）");
+        }
+    }
+
+    /// <summary>
+    /// 按 mode 选择一路触发源并 Attach。w 必须已 Show（hwnd 存在以便 Win32 子类化）。
+    /// </summary>
+    private void AttachTopmostRefreshAv(Window w, FloatingTopmostRefreshMode mode)
+    {
+        if (w == null) return;
+        // 确保 clean start（即使调用方忘记先 Detach，我们也先清一遍，防止双模式叠加造成重复 Apply 或泄漏）
+        DetachTopmostRefreshAv();
+
+        try
+        {
+            switch (mode)
+            {
+                case FloatingTopmostRefreshMode.OnWindowZOrderChanged:
+#if WINDOWS
+                    var hwnd = w.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+                    if (hwnd != IntPtr.Zero)
+                    {
+                        // 子类化：保存委托引用 → SetWindowLong 替换 WndProc
+                        _topmostWndProcDelegateAv = TopmostWndProcHookAv;
+                        _topmostOldWndProcAv = SetWindowLong(hwnd, GWLP_WNDPROC_AV,
+                            System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_topmostWndProcDelegateAv));
+                        _topmostHookedHwndAv = hwnd;
+                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnWindowZOrderChanged;
+                        _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnWindowZOrderChanged (Win32 子类化 hwnd=0x{0})", hwnd.ToString("X"));
+                        return;
+                    }
+#endif
+                    // 非 Windows 或 hwnd 拿不到：退化为 Mode=1 OnForegroundWindowChanged
+                    _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnWindowZOrderChanged 不可用（非 Windows 或无 hwnd），退化为 OnForegroundWindowChanged");
+                    goto case FloatingTopmostRefreshMode.OnForegroundWindowChanged;
+
+                case FloatingTopmostRefreshMode.OnForegroundWindowChanged:
+                    {
+                        if (IAppHost.Host?.Services == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 但 IAppHost.Host.Services 为空，跳过"); break; }
+                        var tWinPlatform = FindHostServiceType("ClassIsland.Services.IWindowPlatformService")
+                                        ?? FindHostServiceType("ClassIsland.Core.Services.IWindowPlatformService")
+                                        ?? FindHostServiceType("ClassIsland.Services.WindowPlatformService")
+                                        ?? FindHostServiceType("ClassIsland.Core.Services.WindowPlatformService");
+                        if (tWinPlatform == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 找不到 IWindowPlatformService 类型，跳过"); break; }
+                        var svc = IAppHost.Host.Services.GetService(tWinPlatform);
+                        if (svc == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 拿不到 IWindowPlatformService 实例，跳过"); break; }
+
+                        // 找到 ForegroundWindowChanged 事件 → 构建同签名 EventHandler<T> 委托 → +=
+                        var evt = svc.GetType().GetEvent("ForegroundWindowChanged", BindingFlags.Instance | BindingFlags.Public);
+                        if (evt == null) { _logger.LogDebug("AttachTopmostRefreshAv: 事件 ForegroundWindowChanged 未找到，跳过"); break; }
+                        var handlerType = evt.EventHandlerType;   // 期望 EventHandler<ForegroundWindowChangedEventArgs>
+                        var handlerMethod = new Action<object?, EventArgs?>(OnForegroundWindowChangedForTopmostAv);
+                        var deleg = Delegate.CreateDelegate(handlerType!, this, handlerMethod.Method, throwOnBindFailure: false);
+                        if (deleg == null) { _logger.LogDebug("AttachTopmostRefreshAv: 创建 ForegroundWindowChanged 委托失败，跳过"); break; }
+                        evt.AddEventHandler(svc, deleg);
+
+                        _windowPlatformServiceAv = svc;
+                        _foregroundWindowChangedHandlerAv = deleg;
+                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnForegroundWindowChanged;
+                        _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 已订阅");
+                    }
+                    break;
+
+                case FloatingTopmostRefreshMode.Every50Ms:
+                case FloatingTopmostRefreshMode.Every1Ms:
+                    {
+                        var intervalMs = mode == FloatingTopmostRefreshMode.Every50Ms ? 50 : 1;
+                        _topmostRefreshTimerAv = new DispatcherTimer(DispatcherPriority.Background)
+                        {
+                            Interval = TimeSpan.FromMilliseconds(intervalMs)
+                        };
+                        _topmostRefreshTimerAv.Tick += (_, _) => ApplyWindowLayer();
+                        _topmostRefreshTimerAv.Start();
+                        _currentTopmostModeAv = mode;
+                        _logger.LogDebug("AttachTopmostRefreshAv: Mode=Every{0}Ms 已启动 DispatcherTimer", intervalMs);
+                    }
+                    break;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "AttachTopmostRefreshAv mode={0} 异常（功能降级：仅保留 FloatingScheduleWindowLayer PropertyChanged 即时 Apply）", mode);
+            // 失败兜底：完全 Detach 所有已半截 Attach 的资源，避免泄漏或重复触发
+            DetachTopmostRefreshAv();
+        }
+    }
+
+    // ---- Mode 0 Win32 子类化 WndProc 回调 ----
+#if WINDOWS
+    private IntPtr TopmostWndProcHookAv(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam)
+    {
+        // 防御：任何异常都不吞 CallWindowProc，必须保证旧 WndProc 被调用，否则窗口会失去所有消息泵（卡死/无响应）
+        try
+        {
+            if (msg == WM_WINDOWPOSCHANGED_AV && lParam != IntPtr.Zero)
+            {
+                // WINDOWPOS.flags 位于结构第 6 个字段：偏移 sizeof(HWND)*2 + sizeof(int)*4 = IntPtr.Size*2 + 16
+                //   实际上 (HWND hwnd=IntPtr, HWND hwndInsertAfter=IntPtr, int x, int y, int cx, int cy, UINT flags)
+                //   所以 flags 偏移 = IntPtr.Size * 2 + sizeof(int) * 4 = IntPtr.Size*2 + 16
+                int flagsOffset = IntPtr.Size * 2 + 16;
+                uint flags = (uint)System.Runtime.InteropServices.Marshal.ReadInt32(lParam, flagsOffset);
+                // flags & SWP_NOZORDER == 0 表示这次 WINDOWPOS 消息包含 z-order 变化，需要重设 Topmost/Bottom
+                // 【修复 Issue 1】若 _inApplyWindowLayerAv > 0：本 WM_WINDOWPOSCHANGED 是 ApplyWindowLayer→SetWindowPos 同步发出的（自己改 z-order），抑制 Post 防止死循环
+                //                  == 0：本消息来自外部系统/其他窗口改 z-order，正常重设
+                if ((flags & SWP_NOZORDER_AV) == 0
+                    && System.Threading.Volatile.Read(ref _inApplyWindowLayerAv) == 0)
+                {
+                    Dispatcher.UIThread.Post(ApplyWindowLayer, DispatcherPriority.Background);
+                }
+            }
+        }
+        catch { /* 防御：任何异常忽略，保证流程进入 CallWindowProc */ }
+
+        // 转发给旧 WndProc
+        if (_topmostOldWndProcAv != IntPtr.Zero)
+            return CallWindowProc(_topmostOldWndProcAv, hWnd, msg, wParam, lParam);
+        // 兜底（理论上不会到，因为 _topmostOldWndProcAv=Zero 表示未子类化/已解子类）
+        return DefWindowProc(hWnd, msg, wParam, lParam);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr DefWindowProc(IntPtr hWnd, uint uMsg, IntPtr wParam, IntPtr lParam);
+#endif
+
+    // ---- Mode 1 ForegroundWindowChanged 回调 ----
+    private void OnForegroundWindowChangedForTopmostAv(object? sender, EventArgs? e)
+    {
+        Dispatcher.UIThread.Post(ApplyWindowLayer, DispatcherPriority.Background);
+    }
+
     /// <summary>
     /// 宿主 Settings.Settings 属性变化回调：
     ///  当变化属性名属于"影响 ExactTimeService 返回值"的集合
@@ -639,7 +901,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void OnHostSettingsDebugTimeChangedAv(object? sender, PropertyChangedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.PropertyName)) return;
-        // 覆盖所有"会改变 Plugin.GetCurrentTime() 结果"的设置项：
+        // 覆盖所有"会改变 GetClassIslandNow() 结果"的设置项：
         //   - DebugTimeOffsetSeconds：调试页加减偏移（不保存，用户调时间表立刻看效果的核心）
         //   - TimeOffsetSeconds：时钟页全局时间偏移
         //   - DebugTimeSpeed：调试页时间倍速（倍速变化会导致进度条百分比跳变，需要重建进度条 Width）
@@ -653,7 +915,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (!isTimeRelated) return;
 
         // Post 到 UI 线程，优先级 = Loaded：等待宿主 DebugPage 的 DebugTimeOffsetSeconds 赋值 + PropertyChanged 同步走完，
-        // 这样 Plugin.GetCurrentTime() 能拿到最新偏移；同时比用户"再操作下一步"更早执行（下一帧可见）。
+        // 这样 GetClassIslandNow() 能拿到最新偏移；同时比用户"再操作下一步"更早执行（下一帧可见）。
         Dispatcher.UIThread.Post(() =>
         {
             if (_window == null || _containerBorder == null) return;
@@ -711,7 +973,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _lastRefreshBreakEndTicks = -1;
                 _lastRefreshDate = DateTime.MinValue;
 
-                // ② 同步 RefreshSchedule：重建整表（Date 锚用 Plugin.GetCurrentTime().Date = 最新调试偏移后的今天）
+                // ② 同步 RefreshSchedule：重建整表（Date 锚用 GetClassIslandNow().Date = 最新调试偏移后的今天）
                 RefreshSchedule();
 
                 // ③ 同步 Apply 一次"当前真实 ratio"（needRefresh 分支的镜像逻辑）：
@@ -726,19 +988,17 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     bool onC = s == TimeState.OnClass;
                     bool brk = s == TimeState.Breaking;
 
-                    // -- 课间进度条 --
+                    // -- 课间进度条（真实时间定位当前课间空隙，SDK 滞后时也能正确推进/重置）--
                     if (brk)
                     {
-                        var bx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                        if (bx != null && ReflectGetTimeType(bx) == 1 && _currentBreakProgressIndicator != null)
+                        var nn = GetClassIslandNow().TimeOfDay;
+                        int gapIdxB = FindBreakGapIndexByRealTimeAv(nn, out var gsB, out var geB);
+                        if (gapIdxB >= 0 && _currentBreakProgressIndicator != null)
                         {
-                            var bs = ReflectGetStartTime(bx);
-                            var be = ReflectGetEndTime(bx);
-                            double tb = (be - bs).TotalSeconds;
+                            double tb = (geB - gsB).TotalSeconds;
                             if (tb > 0)
                             {
-                                var nn = Plugin.GetCurrentTime().TimeOfDay;
-                                double rb = Math.Clamp((nn - bs).TotalSeconds / tb, 0.0, 1.0);
+                                double rb = Math.Clamp((nn - gsB).TotalSeconds / tb, 0.0, 1.0);
                                 ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, rb);
                             }
                             else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
@@ -749,19 +1009,20 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     else if (_currentBreakProgressIndicator != null)
                         ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
 
-                    // -- 当前课进度条 --
+                    // -- 当前课进度条（用 RefreshSchedule 刚定位的高亮行区间 + 真实时间，不依赖 SDK 滞后 item）--
                     if (onC)
                     {
-                        var lx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                        if (lx != null && _currentProgressIndicator != null)
+                        if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count &&
+                            _currentProgressIndicator != null)
                         {
-                            var st = ReflectGetStartTime(lx);
-                            var ed = ReflectGetEndTime(lx);
+                            var rowLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
+                            var st = ReflectGetStartTime(rowLi);
+                            var ed = ReflectGetEndTime(rowLi);
                             double t = (ed - st).TotalSeconds;
                             if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
                             else
                             {
-                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                var nn = GetClassIslandNow().TimeOfDay;
                                 double p = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
                                 ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, p);
                             }
@@ -882,22 +1143,32 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void ApplyWindowLayer()
     {
         if (_window == null) return;
-        var layer = _settings.FloatingScheduleWindowLayer;
-#if WINDOWS
+        // 【修复 Issue 1】重入计数器 +1（嵌套/异常安全：即使中途 return/throw 也 finally -1）
+        //   Mode 0 WM_WINDOWPOSCHANGED 钩子检测本字段 >0 时抑制 Post，防止"自己 Apply→SetWindowPos→WM_WINDOWPOSCHANGED→Post Apply"无限循环
+        System.Threading.Interlocked.Increment(ref _inApplyWindowLayerAv);
         try
         {
-            var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-            if (hwnd != IntPtr.Zero)
+            var layer = _settings.FloatingScheduleWindowLayer;
+#if WINDOWS
+            try
             {
-                var insert = layer == FloatingScheduleWindowLayer.Topmost ? HWND_TOPMOST : HWND_BOTTOM;
-                SetWindowPos(hwnd, insert, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
-                return;
+                var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+                if (hwnd != IntPtr.Zero)
+                {
+                    var insert = layer == FloatingScheduleWindowLayer.Topmost ? HWND_TOPMOST : HWND_BOTTOM;
+                    SetWindowPos(hwnd, insert, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    return;
+                }
             }
-        }
-        catch { }
+            catch { }
 #endif
-        // 非 Windows 或 hwnd 获取失败：只支持 Topmost 属性
-        try { _window.Topmost = layer == FloatingScheduleWindowLayer.Topmost; } catch { }
+            // 非 Windows 或 hwnd 获取失败：只支持 Topmost 属性
+            try { _window.Topmost = layer == FloatingScheduleWindowLayer.Topmost; } catch { }
+        }
+        finally
+        {
+            System.Threading.Interlocked.Decrement(ref _inApplyWindowLayerAv);
+        }
     }
 
 #if WINDOWS
@@ -1032,12 +1303,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         StartOrStopTimer();
                         // 【修复：调试时间不立刻刷新】开关打开时立刻订阅宿主 Settings.PropertyChanged
                         EnsureHostSettingsSubscriptionAv();
+                        // 【h4】开关打开时 Attach 悬浮窗层级重设触发源（4 模式，按 Settings.FloatingScheduleTopmostRefreshMode）
+                        AttachTopmostRefreshAv(_window!, _settings.FloatingScheduleTopmostRefreshMode);
                     });
                 }
                 else
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
+                        // 【h4】开关关闭先 Detach Topmost 刷新（解 Win32 子类 / 停 Timer / - = ForegroundWindowChanged）
+                        DetachTopmostRefreshAv();
                         // 【修复：调试时间不立刻刷新 - 防内存泄漏】开关关闭时先 Detach 宿主 Settings 订阅（SettingsService 是宿主 singleton）
                         DetachHostSettingsSubscriptionAv();
                         HideWindow();
@@ -1045,8 +1320,27 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     });
                 }
                 break;
+            case nameof(PluginSettings.TimeOffsetSeconds):
+                // 【★ 时间跳变：插件全局时间偏移变化 → 立即 RefreshSchedule 重建】
+                //  TimeBaseService.GetCurrentTime() 每次读最新偏移，但 FloatingScheduleService 不知道偏移变了；
+                //  若不刷新，UpdateProgress 会用"旧高亮课 + 新时间"算进度条（继承旧进度/卡 100%）。
+                //  刷新后高亮行真实时间定位切到目标课，RefreshSchedule 末尾集中 Apply 立即写新进度。
+                Dispatcher.UIThread.Post(RefreshSchedule);
+                break;
             case nameof(PluginSettings.FloatingScheduleWindowLayer):
                 Dispatcher.UIThread.Post(ApplyWindowLayer);
+                break;
+            case nameof(PluginSettings.FloatingScheduleTopmostRefreshMode):
+                // 模式切换：先 Detach 旧模式全部触发源 → ReAttach 新模式（窗口存在时） → 再 Apply 一次立即生效
+                Dispatcher.UIThread.Post(() =>
+                {
+                    DetachTopmostRefreshAv();
+                    if (_window != null && _settings.EnableFloatingSchedule)
+                    {
+                        AttachTopmostRefreshAv(_window, _settings.FloatingScheduleTopmostRefreshMode);
+                    }
+                    ApplyWindowLayer();
+                });
                 break;
             case nameof(PluginSettings.FloatingScheduleOpacity):
                 // 背景不透明度作用在卡片背景刷 Alpha，需要重建 UI 刷新颜色；
@@ -1509,9 +1803,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // ---- 获取今日课表（优先：ILessonsService.CurrentClassPlan / GetClassPlanByDate(调试偏移后的今天)）----
             //  【修复：调试时间调整不立刻刷新时间表 - Date 锚点】
             //  原来用 DateTime.Today（本地系统日期，不会随 DebugTimeOffsetSeconds 跨天变化），
-            //  改为 Plugin.GetCurrentTime().Date（走宿主 ExactTimeService，包含 DebugTimeOffsetSeconds + TimeOffsetSeconds 偏移），
+            //  改为 GetClassIslandNow().Date（走宿主 ExactTimeService，包含 DebugTimeOffsetSeconds + TimeOffsetSeconds 偏移），
             //  这样"调试把日期调到另一天（跨86400秒）"时 ClassPlan 能立刻抓目标日期课表，而不是停留在系统日期课。
-            DateTime todayBase = Plugin.GetCurrentTime().Date;
+            DateTime todayBase = GetClassIslandNow().Date;
             object? classPlan = ReflectProp(_lessonsService, "CurrentClassPlan");
             if (classPlan == null)
             {
@@ -1571,7 +1865,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
 
             // ---- 定位当前课程索引 + 当前课间休息位置 ----
-            var now = Plugin.GetCurrentTime().TimeOfDay;
+            var now = GetClassIslandNow().TimeOfDay;
             var curStateRaw = ReflectProp(_lessonsService, "CurrentState");
             TimeState curState = curStateRaw != null ? (TimeState)curStateRaw : TimeState.None;
             bool isOnClass = curState == TimeState.OnClass;
@@ -1579,16 +1873,26 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
             if (isOnClass)
             {
-                var curLi = ReflectProp(_lessonsService, "CurrentTimeLayoutItem");
-                if (curLi != null)
+                // 【★ 时间跳变/连续上课 高亮定位】真实时间主选：
+                //  - 连续上课 C1→C2：now 一过 C1.End 即定位 C2（比等 SDK 推进更准）
+                //  - 时间跳变（改调试偏移/插件 TimeOffsetSeconds）：SDK CurrentTimeLayoutItem 不反映插件时间
+                //    → 若只用 SDK 匹配会高亮旧课，进度条按旧课区间+新时间算（继承旧进度/卡 100%）
+                //    → 必须用"真实时间 now 落在课表行的 [Start, End) 区间"定位目标课，进度条立即显示目标课新进度。
+                _currentOnClassIndex = FindClassIndexByRealTimeAv(now);
+                // SDK 匹配兜底：真实时间定位失败（如 SDK 特殊课程/时间异常）时，回退到 SDK CurrentTimeLayoutItem 匹配
+                if (_currentOnClassIndex < 0)
                 {
-                    var cs = ReflectGetStartTime(curLi);
-                    var ce = ReflectGetEndTime(curLi);
-                    for (int i = 0; i < _currentClassRows.Count; i++)
+                    var curLi = ReflectProp(_lessonsService, "CurrentTimeLayoutItem");
+                    if (curLi != null)
                     {
-                        if (ReflectGetStartTime(_currentClassRows[i].LayoutItem) == cs &&
-                            ReflectGetEndTime(_currentClassRows[i].LayoutItem) == ce)
-                        { _currentOnClassIndex = i; break; }
+                        var cs = ReflectGetStartTime(curLi);
+                        var ce = ReflectGetEndTime(curLi);
+                        for (int i = 0; i < _currentClassRows.Count; i++)
+                        {
+                            if (ReflectGetStartTime(_currentClassRows[i].LayoutItem) == cs &&
+                                ReflectGetEndTime(_currentClassRows[i].LayoutItem) == ce)
+                            { _currentOnClassIndex = i; break; }
+                        }
                     }
                 }
             }
@@ -1648,6 +1952,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
                             breakStart = bs;
                             breakEnd = be;
                             breakNameText = ReflectGetBreakNameText(bLi);
+                        }
+                    }
+                    // 【★ 连续课间即时切换（真实时间空隙兜底）】
+                    //  根因：SDK CurrentTimeLayoutItem 在 B1→B2 边界跨越后有 1-2 Tick（500ms~1s）滞后，
+                    //        滞后窗口内 SDK 仍返回 B1 → 课间行显示 B1 + 进度条卡 100%，B2 不出现
+                    //        → 用户感知"连续课间卡住不切换"（课程行总在列表里无此问题，课间行是动态插入的）。
+                    //  修复：真实 now 已超过 SDK 课间 item.End + 容忍（= SDK 滞后）→
+                    //        改用"真实时间定位当前课间空隙"（now ∈ [C_i.End, C_{i+1}.Start) 的两课之间）
+                    //        → 课间行立即切到 B2 的空隙区间 + 进度条用空隙+真实时间正确重置，不再等 SDK 推进。
+                    if (now.TotalSeconds - be.TotalSeconds > EndOverrunToleranceSecAv)
+                    {
+                        int gapIdx = FindBreakGapIndexByRealTimeAv(now, out var gs, out var ge);
+                        if (gapIdx >= 0)
+                        {
+                            breakInsertAfterClassIdx = gapIdx;
+                            breakStart = gs;
+                            breakEnd = ge;
+                            breakNameText = ReflectGetBreakNameText(bLi);   // 名称沿用 SDK 课间 item（连续课间名称通常一致）
+                        }
+                        else
+                        {
+                            // 真实时间已不在任何空隙（SDK 滞后但实际已到上课/放学）→ 不显示课间行
+                            breakInsertAfterClassIdx = -1;
                         }
                     }
                 }
@@ -1974,21 +2301,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 【修复：调试时间不立刻刷新 - Date 兜底快照】
             //  记录本次 RefreshSchedule 构建时的调试时间 Date（非系统 DateTime.Today），
             //  500ms Tick 检测 dateChanged 时以此为基线，跨天调试跳转即使 PropertyChanged 事件丢失也能在下一 Tick 强制 needRefresh。
-            _lastRefreshDate = Plugin.GetCurrentTime().Date;
-            // 【5s 硬兜底快照同步】RefreshSchedule 构建成功 → 同步"当前 UI 高亮课"的 Start/End 到 5s 校验基线
-            //  这样 5s 硬校验时，把 SDK 最新 CurrentTimeLayoutItem 的 Start/End 与这里写入的"UI 实际高亮快照"做比对，
-            //  能捕获极罕见"stateCode 碰巧相同但 _currentOnClassIndex 高亮索引错位"的一致性黑洞。
-            if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count)
-            {
-                var hiLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
-                _hardSyncHighlightStartTicksAv = ReflectGetStartTime(hiLi).Ticks;
-                _hardSyncHighlightEndTicksAv = ReflectGetEndTime(hiLi).Ticks;
-            }
-            else
-            {
-                _hardSyncHighlightStartTicksAv = -1;
-                _hardSyncHighlightEndTicksAv = -1;
-            }
+            _lastRefreshDate = GetClassIslandNow().Date;
 
             // ===== 【★ 用户报告：悬浮窗初始化以进度条 0% 为假快照 → 后续异常】集中兜底 =====
             //  根因（与 Experience 601376 "多写入源覆盖"同构）：
@@ -2013,16 +2326,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     // -- 课间进度条 --
                     if (brk)
                     {
-                        var bx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                        if (bx != null && ReflectGetTimeType(bx) == 1 && _currentBreakProgressIndicator != null)
+                        // 课间进度条：真实时间定位当前课间空隙（SDK 滞后时也能正确推进/重置）
+                        var nn = GetClassIslandNow().TimeOfDay;
+                        int gapIdxB = FindBreakGapIndexByRealTimeAv(nn, out var gsB, out var geB);
+                        if (gapIdxB >= 0 && _currentBreakProgressIndicator != null)
                         {
-                            var bs = ReflectGetStartTime(bx);
-                            var be = ReflectGetEndTime(bx);
-                            double tb = (be - bs).TotalSeconds;
+                            double tb = (geB - gsB).TotalSeconds;
                             if (tb > 0)
                             {
-                                var nn = Plugin.GetCurrentTime().TimeOfDay;
-                                double breakRatio = Math.Clamp((nn - bs).TotalSeconds / tb, 0.0, 1.0);
+                                double breakRatio = Math.Clamp((nn - gsB).TotalSeconds / tb, 0.0, 1.0);
                                 ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, breakRatio);
                             }
                             else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
@@ -2033,19 +2345,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     else if (_currentBreakProgressIndicator != null)
                         ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
 
-                    // -- 当前课进度条 --
+                    // -- 当前课进度条（用高亮行区间 + 真实时间，不再依赖 SDK 滞后 item）--
                     if (onC)
                     {
-                        var lx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                        if (lx != null && _currentProgressIndicator != null)
+                        // 高亮行：RefreshSchedule 上方已保证 onC 时 _currentOnClassIndex 非 -1（SDK 匹配确定高亮）
+                        if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count &&
+                            _currentProgressIndicator != null)
                         {
-                            var st = ReflectGetStartTime(lx);
-                            var ed = ReflectGetEndTime(lx);
+                            var rowLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
+                            var st = ReflectGetStartTime(rowLi);
+                            var ed = ReflectGetEndTime(rowLi);
                             double t = (ed - st).TotalSeconds;
                             if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
                             else
                             {
-                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                var nn = GetClassIslandNow().TimeOfDay;
                                 double classProgressRatio = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
                                 ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, classProgressRatio);
                             }
@@ -2110,14 +2424,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 【修复：调试时间不立刻刷新 - Date 跳变兜底】
             //  每 Tick 先取一次"调试时间完整 DateTime"（包含 DebugTimeOffsetSeconds/TimeOffsetSeconds 偏移）。
             //  - 用途1：dateChanged 检测（跨天调试、NTP 回跳、系统时间改）→ 强制 stateOrBreakChanged=true。
-            //  - 用途2：后续所有 .TimeOfDay 比率计算可复用 now，避免每 Tick 调多次 Plugin.GetCurrentTime()（减少宿主 ExactTimeService 开销）。
-            var now = Plugin.GetCurrentTime();
+            //  - 用途2：后续所有 .TimeOfDay 比率计算可复用 now，避免每 Tick 调多次 GetClassIslandNow()（减少宿主 ExactTimeService 开销）。
+            var now = GetClassIslandNow();
 
             var curStateRaw = ReflectProp(_lessonsService, "CurrentState");
             TimeState curState = curStateRaw != null ? (TimeState)curStateRaw : TimeState.None;
             bool onClass = curState == TimeState.OnClass;
             breaking = curState == TimeState.Breaking;
-            var curLi = onClass ? ReflectProp(_lessonsService, "CurrentTimeLayoutItem") : null;
 
             // ====== 需求 1：悬浮窗随时间状态变化而变化（含课间插入行显示/消失）======
             //  比"仅 OnClass 索引校验"更强：当状态在 None/OnClass/Breaking/AfterSchool 之间切换，
@@ -2148,50 +2461,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (_lastRefreshDate != DateTime.MinValue && now.Date != _lastRefreshDate)
                 stateOrBreakChanged = true;
 
-            // 【修复：连续课程 C1→C2→C3 高亮不刷新（对称连续课间问题）】
-            //  根因：UpdateProgress 原本只比对 stateCode + breakStartTicks/breakEndTicks。
-            //        当多节课首尾相接连续（C1.End=C2.Start）时，SDK CurrentState 始终=OnClass → stateCode 相同；
-            //        非 Breaking → breakStartTicks/EndTicks 始终=-1 相同。
-            //        结果：C1→C2 切换时 stateOrBreakChanged=FALSE → needRefresh 不触发 → UI 高亮永久停在 C1，直到 5s 硬刷新。
-            //        用户要求"立刻不出现类似连续课间的问题" → 不能依赖 5s 兜底，必须在 500ms Tick 级即时检测。
-            //  修复：OnClass 状态时：SDK CurrentTimeLayoutItem (TimeType=0) Start/End ↔ 当前 UI 高亮快照（RefreshSchedule 末尾写入的 _hardSyncHighlight）
-            //        任一方不匹配 → stateOrBreakChanged=true → 下一帧 needRefresh → RefreshSchedule 立刻切高亮。
-            //  EXIT 动画窗口跳过：连续课程切换都是 OnClass→OnClass，不会进入 EXIT；但为代码对称仍跳过（保持 EXIT 250ms 动画时序完整）。
-            if (onClass && curLi != null && !_breakRowExitAnimatingAv)
+            // 【★ 连续课间即时切换触发源（保留 breaking 分支）】
+            //  课间行是动态插入的，连续课间 B1→B2 时 SDK CurrentTimeLayoutItem 滞后 1-2 Tick 仍返回 B1：
+            //  真实 now 超过 SDK 课间 item.End + 容忍 → 强制 needRefresh → RefreshSchedule 用真实时间空隙
+            //  定位 B2 → 课间行立即切到 B2 + 进度条正确重置。（连续上课无此问题：课程行总在列表里，
+            //  高亮切换由 5s 硬刷新兜底，无需 500ms 级即时检测，故不再对 onClass 分支做超时强制。）
+            if (!stateOrBreakChanged && breaking && bLi != null)
             {
-                long sdkHiStart = ReflectGetStartTime(curLi).Ticks;
-                long sdkHiEnd   = ReflectGetEndTime(curLi).Ticks;
-                if (sdkHiStart != _hardSyncHighlightStartTicksAv || sdkHiEnd != _hardSyncHighlightEndTicksAv)
+                var eBrk = ReflectGetEndTime(bLi);
+                if (now.TimeOfDay.TotalSeconds - eBrk.TotalSeconds > EndOverrunToleranceSecAv)
                     stateOrBreakChanged = true;
-            }
-
-            // 【★ 修复：连续上课/连续课间 时间点状态变化不重置进度条】
-            //  根因（Experience 601376「多写入源覆盖 + 数据源断档 progress 未归零」同构）：
-            //   SDK CurrentTimeLayoutItem 在 C1→C2 / B1→B2 跨越边界点后有 1-2 Tick（500ms~1s）的滞后。
-            //   滞后窗口内，onClass/breaking 快照仍为 true，常规 Apply 路径仍拿「旧 LayoutItem」算比率：
-            //     elapsed = (now - oldItem.Start).TotalSeconds   →   elapsed > oldItem.TotalSeconds
-            //     Math.Clamp(elapsed/total, 0, 1) = 1.0 → 连写 1-2 Tick indicator.Width = W*1.0（100%），
-            //   覆盖掉 RefreshSchedule 末尾本应写入的新段 0.x%，用户感知「进度条卡在最后不重置」。
-            //  修复（真实时间兜底检测，对齐 Experience 601376「timeList 清空时同步 progress=0」的「数据源-当前值-UI 三者一致」原则）：
-            //   当 Plugin.GetCurrentTime() (真实 now) 已超过 SDK 当前 LayoutItem 的 End + 50ms Tolerance 时，
-            //   强制 stateOrBreakChanged=true → needRefresh 立刻触发 → RefreshSchedule 全量重建，
-            //   一旦 SDK 推进到 C2/B2，新 UI 的 indicator.Tag 会被集中 Apply 写为 C2/B2 的 0.x%。
-            //   50ms 容忍度用于排除 C1.End == C2.Start 边界点"now 恰好等于 End"的误触发（边界点不应该算超时）。
-            const double EndOverrunToleranceSecAv = 0.05;
-            if (!stateOrBreakChanged)
-            {
-                if (onClass && curLi != null)
-                {
-                    var eCur = ReflectGetEndTime(curLi);
-                    if (now.TimeOfDay.TotalSeconds - eCur.TotalSeconds > EndOverrunToleranceSecAv)
-                        stateOrBreakChanged = true;
-                }
-                else if (breaking && bLi != null)
-                {
-                    var eBrk = ReflectGetEndTime(bLi);
-                    if (now.TimeOfDay.TotalSeconds - eBrk.TotalSeconds > EndOverrunToleranceSecAv)
-                        stateOrBreakChanged = true;
-                }
             }
 
             // 【5s 全量强制刷新（用户：任何情况下每 5s 刷新，而不是兜底）】
@@ -2278,6 +2557,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
 
             // ---- 时间表状态变化 → 触发 RefreshSchedule 重建高亮行与进度条位置 ----
+            //  连续上课（C1→C2）：课程行总在列表里，高亮/进度条切换由 5s 硬刷新兜底，无需额外 LayoutItem 比对；
+            //  连续课间（B1→B2）：由上方 breaking 超时触发源 + RefreshSchedule 真实时间空隙定位即时切换。
             bool needRefresh = stateOrBreakChanged;
             bool indexValid = _currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count;
             if (!needRefresh && onClass != indexValid)
@@ -2285,15 +2566,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 // 上课状态与索引存在性不一致（例如：进入上课但仍没高亮索引，或下课了还有进度条）
                 needRefresh = true;
             }
-            else if (!needRefresh && onClass && indexValid && curLi != null)
-            {
-                // 已上课且当前索引有效：校验当前 LayoutItem 的 Start/End 是否与高亮行匹配
-                var expectedStart = ReflectGetStartTime(_currentClassRows[_currentOnClassIndex].LayoutItem);
-                var expectedEnd = ReflectGetEndTime(_currentClassRows[_currentOnClassIndex].LayoutItem);
-                if (ReflectGetStartTime(curLi) != expectedStart || ReflectGetEndTime(curLi) != expectedEnd)
-                    needRefresh = true;
-            }
-            // EXIT 动画窗口期间：任何 needRefresh（break indicator 非空触发的、LayoutItem 不匹配触发的等）全部延后到动画结束回调，
+            // EXIT 动画窗口期间：任何 needRefresh（break indicator 非空触发的、状态不一致触发的等）全部延后到动画结束回调，
             //  避免课间行控件在动画播放途中被提前销毁导致"动画半截突然消失"。
             if (_breakRowExitAnimatingAv)
                 needRefresh = false;
@@ -2331,19 +2604,17 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         bool onClass2 = s2 == TimeState.OnClass;
                         bool breaking2 = s2 == TimeState.Breaking;
 
-                        // -- 课间进度条 --
+                        // -- 课间进度条（真实时间定位当前课间空隙，SDK 滞后时也能正确推进/重置）--
                         if (breaking2)
                         {
-                            var b2 = ReflectProp(svc, "CurrentTimeLayoutItem");
-                            if (b2 != null && ReflectGetTimeType(b2) == 1 && _currentBreakProgressIndicator != null)
+                            var n = GetClassIslandNow().TimeOfDay;
+                            int gapIdxB2 = FindBreakGapIndexByRealTimeAv(n, out var gsB2, out var geB2);
+                            if (gapIdxB2 >= 0 && _currentBreakProgressIndicator != null)
                             {
-                                var bs = ReflectGetStartTime(b2);
-                                var be = ReflectGetEndTime(b2);
-                                double totalB = (be - bs).TotalSeconds;
+                                double totalB = (geB2 - gsB2).TotalSeconds;
                                 if (totalB > 0)
                                 {
-                                    var n = Plugin.GetCurrentTime().TimeOfDay;
-                                    double ratioB = Math.Clamp((n - bs).TotalSeconds / totalB, 0.0, 1.0);
+                                    double ratioB = Math.Clamp((n - gsB2).TotalSeconds / totalB, 0.0, 1.0);
                                     ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, ratioB);
                                 }
                                 else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
@@ -2358,17 +2629,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
                             ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
                         }
 
-                        // -- 当前课进度条 --
+                        // -- 当前课进度条（用高亮行区间 + 真实时间，不依赖 SDK 滞后 item）--
                         if (onClass2)
                         {
-                            var l2 = ReflectProp(svc, "CurrentTimeLayoutItem");
-                            if (l2 != null && _currentProgressIndicator != null)
+                            // RefreshSchedule 刚执行完，_currentOnClassIndex 已含真实时间兜底（onClass 时非 -1）
+                            if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count &&
+                                _currentProgressIndicator != null)
                             {
-                                var start = ReflectGetStartTime(l2);
-                                var end = ReflectGetEndTime(l2);
+                                var rowLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
+                                var start = ReflectGetStartTime(rowLi);
+                                var end = ReflectGetEndTime(rowLi);
                                 double total = (end - start).TotalSeconds;
                                 if (total <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); return; }
-                                var n = Plugin.GetCurrentTime().TimeOfDay;
+                                var n = GetClassIslandNow().TimeOfDay;
                                 double prog = Math.Clamp((n - start).TotalSeconds / total, 0.0, 1.0);
                                 ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, prog);
                             }
@@ -2386,22 +2659,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 return;
             }
 
-            // ========== 课间进度条（Breaking 命中时：按 SDK 当前课间项目 start/end 计算百分比）==========
-            if (breaking && bLi != null && _currentBreakProgressIndicator != null)
+            // ========== 课间进度条（Breaking 命中时：真实时间定位当前课间空隙计算百分比，不依赖 SDK 滞后 item） ==========
+            if (breaking && _currentBreakProgressIndicator != null)
             {
-                var breakStart = ReflectGetStartTime(bLi);
-                var breakEnd = ReflectGetEndTime(bLi);
-                var breakTotal = (breakEnd - breakStart).TotalSeconds;
-                if (breakTotal > 0)
+                // 复用 UpdateProgress 开头已拿到的 now（含最新 DebugTimeOffset 偏移）
+                var nn = now.TimeOfDay;
+                int gapIdxCur = FindBreakGapIndexByRealTimeAv(nn, out var breakStart, out var breakEnd);
+                if (gapIdxCur >= 0)
                 {
-                    // 复用 UpdateProgress 开头已拿到的 now（含最新 DebugTimeOffset 偏移），省一次 ExactTimeService 调用；并避免 CS0136 同名 shadow
-                    var nn = now.TimeOfDay;
-                    var bElapsed = (nn - breakStart).TotalSeconds;
-                    double ratio = Math.Clamp(bElapsed / breakTotal, 0.0, 1.0);
-                    ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, ratio);
+                    var breakTotal = (breakEnd - breakStart).TotalSeconds;
+                    if (breakTotal > 0)
+                    {
+                        var bElapsed = (nn - breakStart).TotalSeconds;
+                        double ratio = Math.Clamp(bElapsed / breakTotal, 0.0, 1.0);
+                        ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, ratio);
+                    }
+                    else
+                    {
+                        ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+                    }
                 }
                 else
                 {
+                    // 真实时间不在任何空隙（SDK Breaking 但实际已到上课/放学）→ 课间进度条 0
                     ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
                 }
             }
@@ -2410,19 +2690,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
             }
 
-            // ========== 当前课进度条（OnClass 命中时） ==========
-            if (_currentProgressIndicator == null || !onClass || curLi == null)
+            // ========== 当前课进度条（OnClass 命中时，用高亮行区间 + 真实时间，不依赖 SDK 滞后 item） ==========
+            if (_currentProgressIndicator == null || !onClass ||
+                _currentOnClassIndex < 0 || _currentOnClassIndex >= _currentClassRows.Count)
             {
                 ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
                 return;
             }
 
-            var start = ReflectGetStartTime(curLi);
-            var end = ReflectGetEndTime(curLi);
+            var rowLiCur = _currentClassRows[_currentOnClassIndex].LayoutItem;
+            var start = ReflectGetStartTime(rowLiCur);
+            var end = ReflectGetEndTime(rowLiCur);
             var total = (end - start).TotalSeconds;
             if (total <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); return; }
 
-            var now2 = Plugin.GetCurrentTime().TimeOfDay;
+            var now2 = GetClassIslandNow().TimeOfDay;
             var elapsed = (now2 - start).TotalSeconds;
             var progress = Math.Clamp(elapsed / total, 0.0, 1.0);
             ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, progress);

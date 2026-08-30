@@ -720,6 +720,87 @@ public class PluginSettingsPage : UserControl
                 "默认置底不会遮挡其他窗口；不推荐置顶，可能遮挡应用",
                 layerComboBox);
 
+            // 项 2.5: 悬浮窗层级设置频率 (ComboBox 四档 + 50ms/1ms 警告色文本/图标，深浅自适应)
+            var recheckComboBox = new ComboBox
+            {
+                Width = 240,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var recheckWarningOrange = new SolidColorBrush(Color.Parse("#FF8C5A00"));    // 深浅模式下都足够可见（Orange）
+            var recheckWarningOrangeRed = new SolidColorBrush(Color.Parse("#FF4A3400")); // OrangeRed（深棕橙，低亮态下不刺眼）
+            // 0 - 窗口层级变化时（默认）
+            recheckComboBox.Items.Add(new TextBlock { Text = "窗口层级变化时（默认）", TextWrapping = TextWrapping.NoWrap });
+            // 1 - 前台窗口变化时
+            recheckComboBox.Items.Add(new TextBlock { Text = "前台窗口变化时", TextWrapping = TextWrapping.NoWrap });
+            // 2 - 每 50ms（带警告图标色）
+            var warn50Text = new TextBlock
+            {
+                Text = "⚠",
+                FontSize = 18,
+                Foreground = recheckWarningOrange,
+                Margin = new Thickness(0, -3, 0, -3),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTip.SetTip(warn50Text, "较高频率可能带来性能占用与轻微闪烁，仅当置顶频繁丢失时使用。");
+            recheckComboBox.Items.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "每 50ms", VerticalAlignment = VerticalAlignment.Center },
+                    warn50Text
+                }
+            });
+            // 3 - 每 1ms（高风险橙红警告）
+            var warn1Text = new TextBlock
+            {
+                Text = "⚠",
+                FontSize = 18,
+                Foreground = recheckWarningOrangeRed,
+                Margin = new Thickness(0, -3, 0, -3),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            ToolTip.SetTip(warn1Text, "极高频率重设：明显占用 UI 线程、可能导致主窗口/悬浮窗闪烁，仅作极端调试用途。");
+            recheckComboBox.Items.Add(new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "每 1ms", VerticalAlignment = VerticalAlignment.Center },
+                    warn1Text
+                }
+            });
+            int InitRecheckIndexFromMode(FloatingTopmostRefreshMode m) => m switch
+            {
+                FloatingTopmostRefreshMode.OnWindowZOrderChanged => 0,
+                FloatingTopmostRefreshMode.OnForegroundWindowChanged => 1,
+                FloatingTopmostRefreshMode.Every50Ms => 2,
+                FloatingTopmostRefreshMode.Every1Ms => 3,
+                _ => 0
+            };
+            FloatingTopmostRefreshMode ModeFromRecheckIndex(int idx) => idx switch
+            {
+                0 => FloatingTopmostRefreshMode.OnWindowZOrderChanged,
+                1 => FloatingTopmostRefreshMode.OnForegroundWindowChanged,
+                2 => FloatingTopmostRefreshMode.Every50Ms,
+                3 => FloatingTopmostRefreshMode.Every1Ms,
+                _ => FloatingTopmostRefreshMode.OnWindowZOrderChanged
+            };
+            recheckComboBox.SelectedIndex = InitRecheckIndexFromMode(
+                _settings?.FloatingScheduleTopmostRefreshMode ?? FloatingTopmostRefreshMode.OnWindowZOrderChanged);
+            recheckComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_settings != null && s is ComboBox cb)
+                    _settings.FloatingScheduleTopmostRefreshMode = ModeFromRecheckIndex(cb.SelectedIndex);
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "悬浮窗层级设置频率",
+                "ClassIsland 在什么时候重新把悬浮窗设回用户选择的层级（置底/置顶）。用于防止其他窗口挤占悬浮窗层级。\n高频设置会带来性能占用，并可能导致界面轻微闪烁。",
+                recheckComboBox);
+
             // 项 3: 背景不透明度 (NumericUpDown)
             var opacityBox = new NumericUpDown
             {

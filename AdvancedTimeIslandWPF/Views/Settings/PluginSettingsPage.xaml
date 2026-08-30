@@ -104,6 +104,12 @@
                                          Description="默认为置底。置顶会遮挡其他窗口，不推荐"
                                          Margin="0,8,0,0" />
 
+                    <ci:SettingsControl x:Name="FloatingScheduleTopmostRefreshItem"
+                                         IconGlyph="AvTimer"
+                                         Header="悬浮窗层级设置频率"
+                                         Description="ClassIsland 在什么时候重新设置悬浮窗层级（置底/置顶）。用于防止其他窗口挤占悬浮窗层级；高频设置会带来性能占用并可能导致界面轻微闪烁。"
+                                         Margin="0,8,0,0" />
+
                     <ci:SettingsControl x:Name="FloatingScheduleOpacityItem"
                                          IconGlyph="Opacity"
                                          Header="背景不透明度"

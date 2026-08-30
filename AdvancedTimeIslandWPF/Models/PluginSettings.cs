@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -22,6 +22,29 @@ public enum FloatingScheduleWindowLayer
     /// 置顶（不推荐）
     /// </summary>
     Topmost = 1
+}
+
+/// <summary>
+/// 悬浮窗层级重设频率（参考 ClassIsland.WindowSettingsPage.WindowTopmostRecheckMode 索引语义）。
+/// </summary>
+public enum FloatingTopmostRefreshMode
+{
+    /// <summary>
+    /// 0 - 窗口层级变化时（默认）：Win32 WM_WINDOWPOSCHANGED &amp; !SWP_NOZORDER 触发；非 Win 退化为前台窗口变化。
+    /// </summary>
+    OnWindowZOrderChanged = 0,
+    /// <summary>
+    /// 1 - 前台窗口变化时：IWindowPlatformService.ForegroundWindowChanged 事件触发。
+    /// </summary>
+    OnForegroundWindowChanged = 1,
+    /// <summary>
+    /// 2 - 每 50ms：DispatcherTimer 周期性重设。
+    /// </summary>
+    Every50Ms = 2,
+    /// <summary>
+    /// 3 - 每 1ms：DispatcherTimer 极高频率周期性重设（注意性能占用与闪烁风险）。
+    /// </summary>
+    Every1Ms = 3
 }
 
 /// <summary>
@@ -65,6 +88,7 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleOpacity = 0.85;
     private double _floatingScheduleFontScale = 18.0;
     private bool _floatingScheduleEnableFullTeacherName = false;
+    private FloatingTopmostRefreshMode _floatingScheduleTopmostRefreshMode = FloatingTopmostRefreshMode.OnWindowZOrderChanged;
 
     public string? CachedVersion
     {
@@ -639,6 +663,23 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleHoverFadeReverse != value)
             {
                 _floatingScheduleHoverFadeReverse = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮窗层级重设频率（窗口层级变化时 / 前台窗口变化时 / 每 50ms / 每 1ms）。
+    /// 参考 ClassIsland 原生 WindowTopmostRecheckMode 4 档索引，用于防止其他置顶窗口盖住悬浮窗。
+    /// </summary>
+    public FloatingTopmostRefreshMode FloatingScheduleTopmostRefreshMode
+    {
+        get => _floatingScheduleTopmostRefreshMode;
+        set
+        {
+            if (_floatingScheduleTopmostRefreshMode != value)
+            {
+                _floatingScheduleTopmostRefreshMode = value;
                 OnPropertyChanged();
             }
         }

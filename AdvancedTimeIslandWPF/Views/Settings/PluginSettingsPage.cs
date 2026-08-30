@@ -651,6 +651,63 @@ public partial class PluginSettingsPage : UserControl
             };
             FloatingScheduleLayerItem.Switcher = layerComboBox;
 
+            // 悬浮窗层级设置频率（ComboBox 4 档，参考 ClassIsland.WindowTopmostRecheckMode：0 层级变化/1 前台变化/2 50ms/3 1ms）
+            var recheckComboWpf = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
+            // 0
+            recheckComboWpf.Items.Add("窗口层级变化时（默认）");
+            // 1
+            recheckComboWpf.Items.Add("前台窗口变化时");
+            // 2 — 带 ⚠ 警告色（Orange）
+            var warn50 = new System.Windows.Controls.StackPanel { Orientation = Orientation.Horizontal };
+            warn50.Children.Add(new TextBlock { Text = "每 50ms", VerticalAlignment = VerticalAlignment.Center });
+            warn50.Children.Add(new TextBlock
+            {
+                Text = " ⚠",
+                FontSize = 18,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x8C, 0x5A)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, -3, 0, -3),
+                ToolTip = "较高频率可能带来性能占用与轻微闪烁，仅当置顶频繁丢失时使用。"
+            });
+            recheckComboWpf.Items.Add(warn50);
+            // 3 — 带 ⚠ 强警告色（OrangeRed）
+            var warn1 = new System.Windows.Controls.StackPanel { Orientation = Orientation.Horizontal };
+            warn1.Children.Add(new TextBlock { Text = "每 1ms", VerticalAlignment = VerticalAlignment.Center });
+            warn1.Children.Add(new TextBlock
+            {
+                Text = " ⚠",
+                FontSize = 18,
+                Foreground = new SolidColorBrush(Color.FromRgb(0xFF, 0x4A, 0x34)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(0, -3, 0, -3),
+                ToolTip = "极高频率重设：明显占用 UI 线程、可能导致主窗口/悬浮窗闪烁，仅作极端调试用途。"
+            });
+            recheckComboWpf.Items.Add(warn1);
+            static int ModeToIndexWpf(FloatingTopmostRefreshMode m) => m switch
+            {
+                FloatingTopmostRefreshMode.OnWindowZOrderChanged => 0,
+                FloatingTopmostRefreshMode.OnForegroundWindowChanged => 1,
+                FloatingTopmostRefreshMode.Every50Ms => 2,
+                FloatingTopmostRefreshMode.Every1Ms => 3,
+                _ => 0
+            };
+            static FloatingTopmostRefreshMode IndexToModeWpf(int i) => i switch
+            {
+                0 => FloatingTopmostRefreshMode.OnWindowZOrderChanged,
+                1 => FloatingTopmostRefreshMode.OnForegroundWindowChanged,
+                2 => FloatingTopmostRefreshMode.Every50Ms,
+                3 => FloatingTopmostRefreshMode.Every1Ms,
+                _ => FloatingTopmostRefreshMode.OnWindowZOrderChanged
+            };
+            recheckComboWpf.SelectedIndex = ModeToIndexWpf(
+                _settings?.FloatingScheduleTopmostRefreshMode ?? FloatingTopmostRefreshMode.OnWindowZOrderChanged);
+            recheckComboWpf.SelectionChanged += (s, e) =>
+            {
+                if (_settings != null && s is ComboBox cb)
+                    _settings.FloatingScheduleTopmostRefreshMode = IndexToModeWpf(cb.SelectedIndex);
+            };
+            FloatingScheduleTopmostRefreshItem.Switcher = recheckComboWpf;
+
             // 背景不透明度
             var opacityNumeric = new WpfNumericUpDown
             {
