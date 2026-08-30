@@ -10,16 +10,25 @@
         <GenerateTargetFrameworkAttribute>false</GenerateTargetFrameworkAttribute>
     </PropertyGroup>
 
+    <PropertyGroup>
+        <!-- ClassIsland 宿主平台 = Windows。本插件所有 Win32 点击穿透/拖拽/指针命中代码都使用 `#if WINDOWS` 编译守卫；
+             此处无条件 define WINDOWS，保证以下两种构建场景结果一致：
+               1) 直接 `dotnet build -c Release`（不传 -r → RID=empty）——AGENTS.md 三构建命令属于此场景；
+               2) Build-Package.ps1 传 `-r win-x64` 时再额外 define PLATFORM_WINDOWS，旧代码保持兼容。 -->
+        <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+    </PropertyGroup>
+
     <PropertyGroup Condition="'$(RuntimeIdentifier)' == 'win-x64'">
         <DefineConstants>$(DefineConstants);PLATFORM_WINDOWS</DefineConstants>
     </PropertyGroup>
 
     <PropertyGroup>
         <!-- 按目标框架选择 SDK：
-             net10.0（Misha 新版）使用 ClassIsland.PluginSdk/Core 2.1.1；
+             net10.0（Misha 新版）使用 ClassIsland.PluginSdk/Core 2.1.1.1
+             （2.1.1.1 起档案模型破坏性更改，低于 2.1.1.1 编译的插件无法加载）；
              net8.0（兼容版，支持旧版 ClassIsland）使用 1.7.106.2-dev-v2。
              由 Build-Package.ps1 通过 -p:TargetFramework 切换构建。 -->
-        <ClassIslandPluginSdkVersion Condition="'$(TargetFramework)' == 'net10.0'">2.1.1</ClassIslandPluginSdkVersion>
+        <ClassIslandPluginSdkVersion Condition="'$(TargetFramework)' == 'net10.0'">2.1.1.1</ClassIslandPluginSdkVersion>
         <ClassIslandPluginSdkVersion Condition="'$(TargetFramework)' != 'net10.0'">1.7.106.2-dev-v2</ClassIslandPluginSdkVersion>
     </PropertyGroup>
 

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -7,6 +7,21 @@ public enum LongitudeDisplayMode
 {
     Decimal,
     Dms
+}
+
+/// <summary>
+/// 悬浮窗层级
+/// </summary>
+public enum FloatingScheduleWindowLayer
+{
+    /// <summary>
+    /// 置底
+    /// </summary>
+    Bottom = 0,
+    /// <summary>
+    /// 置顶（不推荐）
+    /// </summary>
+    Topmost = 1
 }
 
 /// <summary>
@@ -40,6 +55,16 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableShengXiao = true;
     private bool _enableFestival = true;
     private string? _cachedVersion;
+    private bool _enableFloatingSchedule = false;
+    private FloatingScheduleWindowLayer _floatingScheduleWindowLayer = FloatingScheduleWindowLayer.Bottom;
+    private int _floatingSchedulePositionX = 100;
+    private int _floatingSchedulePositionY = 100;
+    private bool _floatingScheduleClickThrough = false;
+    private bool _floatingScheduleHoverFade = false;
+    private bool _floatingScheduleHoverFadeReverse = false;
+    private double _floatingScheduleOpacity = 0.85;
+    private double _floatingScheduleFontScale = 18.0;
+    private bool _floatingScheduleEnableFullTeacherName = false;
 
     public string? CachedVersion
     {
@@ -450,6 +475,170 @@ public class PluginSettings : INotifyPropertyChanged
             if (_enableExperimentalFeatures != value)
             {
                 _enableExperimentalFeatures = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用悬浮时间表
+    /// </summary>
+    public bool EnableFloatingSchedule
+    {
+        get => _enableFloatingSchedule;
+        set
+        {
+            if (_enableFloatingSchedule != value)
+            {
+                _enableFloatingSchedule = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮时间表窗口层级（置底/置顶）
+    /// </summary>
+    public FloatingScheduleWindowLayer FloatingScheduleWindowLayer
+    {
+        get => _floatingScheduleWindowLayer;
+        set
+        {
+            if (_floatingScheduleWindowLayer != value)
+            {
+                _floatingScheduleWindowLayer = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮时间表窗口位置X
+    /// </summary>
+    public int FloatingSchedulePositionX
+    {
+        get => _floatingSchedulePositionX;
+        set
+        {
+            if (_floatingSchedulePositionX != value)
+            {
+                _floatingSchedulePositionX = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮时间表窗口位置Y
+    /// </summary>
+    public int FloatingSchedulePositionY
+    {
+        get => _floatingSchedulePositionY;
+        set
+        {
+            if (_floatingSchedulePositionY != value)
+            {
+                _floatingSchedulePositionY = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮背景不透明度（0完全透明 ~ 1完全不透明；仅作用卡片背景，不影响文字与进度条透明度）
+    /// </summary>
+    public double FloatingScheduleOpacity
+    {
+        get => _floatingScheduleOpacity;
+        set
+        {
+            if (Math.Abs(_floatingScheduleOpacity - value) > 0.001)
+            {
+                _floatingScheduleOpacity = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮时间表课程名字号（单位 pt，范围 8~32，默认 18；其他文字字号会按相对差值自动计算）
+    /// </summary>
+    public double FloatingScheduleFontScale
+    {
+        get => _floatingScheduleFontScale;
+        set
+        {
+            if (Math.Abs(_floatingScheduleFontScale - value) > 0.001)
+            {
+                _floatingScheduleFontScale = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 启用教师全名（不推荐，默认false）：关闭显示"X老师"，开启直接显示 TeacherName 全名（例：张三 而非 张老师）。
+    /// 当科目 TeacherName 为空/空白时，不显示教师名。
+    /// </summary>
+    public bool FloatingScheduleEnableFullTeacherName
+    {
+        get => _floatingScheduleEnableFullTeacherName;
+        set
+        {
+            if (_floatingScheduleEnableFullTeacherName != value)
+            {
+                _floatingScheduleEnableFullTeacherName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮窗启用"点击穿透"：开启后鼠标事件会直接穿透到下方窗口，同时关闭悬浮窗拖拽交互。
+    /// 通过 GWL_EXSTYLE 加 WS_EX_TRANSPARENT | WS_EX_LAYERED 实现。
+    /// </summary>
+    public bool FloatingScheduleClickThrough
+    {
+        get => _floatingScheduleClickThrough;
+        set
+        {
+            if (_floatingScheduleClickThrough != value)
+            {
+                _floatingScheduleClickThrough = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮窗启用"指针移入淡化"：参考 ClassIsland 主窗体淡化实现，开启后指针位于悬浮窗区域时（与 Reverse 取异或）
+    /// 容器 Opacity 降到 0.05，离开后恢复为用户设置的 FloatingScheduleOpacity。
+    /// </summary>
+    public bool FloatingScheduleHoverFade
+    {
+        get => _floatingScheduleHoverFade;
+        set
+        {
+            if (_floatingScheduleHoverFade != value)
+            {
+                _floatingScheduleHoverFade = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮窗"指针移入淡化"反转：开启后变为"指针在窗口外时淡化，移入时恢复不透明"。
+    /// 与 ClassIsland Settings.IsMouseInFadingReversed 同义。
+    /// </summary>
+    public bool FloatingScheduleHoverFadeReverse
+    {
+        get => _floatingScheduleHoverFadeReverse;
+        set
+        {
+            if (_floatingScheduleHoverFadeReverse != value)
+            {
+                _floatingScheduleHoverFadeReverse = value;
                 OnPropertyChanged();
             }
         }

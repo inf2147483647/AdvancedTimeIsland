@@ -681,6 +681,173 @@ public class PluginSettingsPage : UserControl
 
             mainPanel.Children.Add(generalExpander);
 
+            // ---------- 悬浮时间表 ----------
+            var floatingExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(floatingExpander, "Header", "悬浮时间表");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(floatingExpander, "Description", "在桌面显示半透明悬浮窗，以表格形式呈现当前启用的时间表与上课进度");
+
+            var floatingIcon = FluentAvaloniaCompatibilityHelper.CreateSymbolIconSource("Calendar");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(floatingExpander, "IconSource", floatingIcon);
+
+            // 项 1: 启用开关
+            var enabled = _settings?.EnableFloatingSchedule ?? false;
+            var enableToggle = CreateToggleSwitch(enabled, isOn =>
+            {
+                if (_settings != null) _settings.EnableFloatingSchedule = isOn;
+            });
+            enableToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            enableToggle.VerticalAlignment = VerticalAlignment.Center;
+            AddSettingsExpanderItem(floatingExpander,
+                "启用悬浮时间表",
+                "打开后在桌面显示半透明悬浮课表窗口，关闭后窗口自动隐藏",
+                enableToggle);
+
+            // 项 2: 悬浮窗层级 (ComboBox)
+            var layerComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Right };
+            layerComboBox.Items.Add("置底");
+            layerComboBox.Items.Add("置顶（不推荐）");
+            int layerIdx = (_settings?.FloatingScheduleWindowLayer ?? FloatingScheduleWindowLayer.Bottom) == FloatingScheduleWindowLayer.Bottom ? 0 : 1;
+            layerComboBox.SelectedIndex = layerIdx;
+            layerComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_settings != null && s is ComboBox cb)
+                    _settings.FloatingScheduleWindowLayer = cb.SelectedIndex == 1
+                        ? FloatingScheduleWindowLayer.Topmost
+                        : FloatingScheduleWindowLayer.Bottom;
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "悬浮窗层级",
+                "默认置底不会遮挡其他窗口；不推荐置顶，可能遮挡应用",
+                layerComboBox);
+
+            // 项 3: 背景不透明度 (NumericUpDown)
+            var opacityBox = new NumericUpDown
+            {
+                Width = 160,
+                Minimum = 0.0m,
+                Maximum = 1.0m,
+                Increment = 0.05m,
+                Value = (decimal?)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.85, 0.0, 1.0),
+                FormatString = "F2",
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            opacityBox.ValueChanged += (s, e) =>
+            {
+                if (_settings != null && e.NewValue is { } v)
+                    _settings.FloatingScheduleOpacity = Math.Clamp((double)v, 0.0, 1.0);
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "背景不透明度",
+                "仅作用于卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.85",
+                opacityBox);
+
+            // 项 4: 课程名字号 (NumericUpDown 整数)
+            var fontScaleBox = new NumericUpDown
+            {
+                Width = 160,
+                Minimum = 8m,
+                Maximum = 32m,
+                Increment = 1m,
+                Value = (decimal?)Math.Clamp(Math.Round(_settings?.FloatingScheduleFontScale ?? 18.0), 8.0, 32.0),
+                FormatString = "F0",
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            fontScaleBox.ValueChanged += (s, e) =>
+            {
+                if (_settings != null && e.NewValue is { } v)
+                    _settings.FloatingScheduleFontScale = Math.Clamp(Math.Round((double)v), 8.0, 32.0);
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "课程名字号",
+                "课程名字体大小（单位 pt，范围 8 ~ 32，默认 18）；表头/时间/老师文字会按相对差值自动缩放",
+                fontScaleBox);
+
+            // 项 5: 启用教师全名 (ToggleSwitch)
+            var teacherFullToggle = CreateToggleSwitch(
+                _settings?.FloatingScheduleEnableFullTeacherName ?? false, isOn =>
+                {
+                    if (_settings != null) _settings.FloatingScheduleEnableFullTeacherName = isOn;
+                });
+            teacherFullToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            teacherFullToggle.VerticalAlignment = VerticalAlignment.Center;
+            AddSettingsExpanderItem(floatingExpander,
+                "启用教师全名（不推荐）",
+                "关闭时显示\"X老师\"（如：张老师）；开启后直接显示完整教师名（如：张三）。\n当科目未填写教师信息时不显示教师名。",
+                teacherFullToggle);
+
+            // 项 6: 启用点击穿透 (ToggleSwitch)
+            var clickThroughToggle = CreateToggleSwitch(
+                _settings?.FloatingScheduleClickThrough ?? false, isOn =>
+                {
+                    if (_settings != null) _settings.FloatingScheduleClickThrough = isOn;
+                });
+            clickThroughToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            clickThroughToggle.VerticalAlignment = VerticalAlignment.Center;
+            AddSettingsExpanderItem(floatingExpander,
+                "启用点击穿透",
+                "开启后，悬浮窗对鼠标点击事件完全透明，点击会命中下方窗口；同时拖拽悬浮窗功能会临时关闭（关闭穿透后恢复）。",
+                clickThroughToggle);
+
+            // 项 7: 指针移入淡化 (ToggleSwitch)
+            var hoverFadeToggle = CreateToggleSwitch(
+                _settings?.FloatingScheduleHoverFade ?? false, isOn =>
+                {
+                    if (_settings != null) _settings.FloatingScheduleHoverFade = isOn;
+                });
+            hoverFadeToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            hoverFadeToggle.VerticalAlignment = VerticalAlignment.Center;
+            AddSettingsExpanderItem(floatingExpander,
+                "指针移入淡化",
+                "参考 ClassIsland 主窗体淡化功能：当鼠标指针移动到悬浮窗区域上时，整体不透明度降到 5%；移出后恢复用户设置的不透明度。",
+                hoverFadeToggle);
+
+            // 项 8: 指针移入淡化（反转）(ToggleSwitch)
+            var hoverFadeReverseToggle = CreateToggleSwitch(
+                (_settings?.FloatingScheduleHoverFadeReverse ?? false) &&
+                (_settings?.FloatingScheduleHoverFade ?? false), isOn =>
+                {
+                    // 仅当淡化主开关启用时才写入：避免"反转开但主开关关"的无效组合
+                    if (_settings == null) return;
+                    if (_settings.FloatingScheduleHoverFade)
+                        _settings.FloatingScheduleHoverFadeReverse = isOn;
+                });
+            hoverFadeReverseToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            hoverFadeReverseToggle.VerticalAlignment = VerticalAlignment.Center;
+            // 需求 #3：淡化主开关关闭时，反转开关置灰禁用并自动切到 false；主开关打开时恢复可用
+            //  —— 用 PropertyChanged 事件而不是 ToggleSwitch 的回调，保证两边（用户手动设置 / 磁盘加载默认值 / 其它代码改属性）都能同步。
+            static void SyncReverseEnabled(ToggleSwitch rev, PluginSettings? s)
+            {
+                if (rev == null || s == null) return;
+                if (!s.FloatingScheduleHoverFade)
+                {
+                    rev.IsEnabled = false;
+                    rev.IsChecked = false;
+                    s.FloatingScheduleHoverFadeReverse = false;
+                }
+                else
+                {
+                    rev.IsEnabled = true;
+                }
+            }
+            SyncReverseEnabled(hoverFadeReverseToggle, _settings);
+            if (_settings != null)
+            {
+                _settings.PropertyChanged += (_, e) =>
+                {
+                    if (e.PropertyName == nameof(PluginSettings.FloatingScheduleHoverFade) ||
+                        e.PropertyName == nameof(PluginSettings.FloatingScheduleHoverFadeReverse))
+                    {
+                        SyncReverseEnabled(hoverFadeReverseToggle, _settings);
+                    }
+                };
+            }
+            AddSettingsExpanderItem(floatingExpander,
+                "指针移入淡化（反转）",
+                "当启用指针移入淡化后再开启本项：变为\"指针在悬浮窗外时淡化，移入窗口内恢复不透明\"。适用于\"常驻淡化，仅在操作时清晰\"的场景。",
+                hoverFadeReverseToggle);
+
+            mainPanel.Children.Add(floatingExpander);
+
             // 实验性功能开关 - 使用 SettingsExpander
             var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
             _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggled);

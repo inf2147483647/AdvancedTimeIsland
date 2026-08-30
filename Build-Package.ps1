@@ -41,18 +41,20 @@ function Test-RestoreNeeded {
         $assets = Get-Content -Raw $assetsPath | ConvertFrom-Json -ErrorAction Stop
         if (-not $assets -or -not $assets.targets) { return $true }
 
-        $tfKey = if ($RuntimeIdentifier) { "$TargetFramework/$RuntimeIdentifier" } else { $TargetFramework }
-        $altTfKey = $TargetFramework
-
-        $targetsObj = $assets.targets.PSObject.Properties
-        foreach ($t in $targetsObj) {
-            if ($t.Name -ieq $tfKey -or $t.Name -ieq $altTfKey) {
-                return $false
+        if ($RuntimeIdentifier) {
+            $needle = "$TargetFramework/$RuntimeIdentifier"
+            foreach ($t in $assets.targets.PSObject.Properties) {
+                if ($t.Name -ieq $needle) { return $false }
+            }
+        } else {
+            $needle = $TargetFramework + '/'
+            foreach ($t in $assets.targets.PSObject.Properties) {
+                if ($t.Name -ieq $TargetFramework) { return $false }
+                if ($t.Name.StartsWith($needle, [StringComparison]::OrdinalIgnoreCase)) { return $false }
             }
         }
         return $true
-    }
-    catch {
+    } catch {
         return $true
     }
 }

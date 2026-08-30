@@ -1,5 +1,6 @@
 using System;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Linq;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
@@ -565,6 +566,13 @@ public partial class PluginSettingsPage : UserControl
     {
         _settings = settings ?? Plugin.Instance?.Settings;
         InitializeComponent();
+        try { InitializePageContent(); }
+        catch (Exception ex)
+        {
+            // 内层 InitializePageContent 本身已有 try/catch 并会显示红色错误 UI；
+            // 外层兜底仅记录调试日志，避免极端情况下完全无排错线索。
+            Debug.WriteLine($"[PluginSettingsPage] InitializePageContent 外层异常: {ex}");
+        }
     }
 
     private void InitializePageContent()
@@ -614,6 +622,147 @@ public partial class PluginSettingsPage : UserControl
                 SettingsControl.IsOnProperty, typeof(SettingsControl));
             easterEggDescriptor.AddValueChanged(EasterEggItem, (s, e) => OnEasterEggToggled(EasterEggItem.IsOn));
             EasterEggItem.Visibility = isEasterEggEnabled ? Visibility.Visible : Visibility.Collapsed;
+
+            // ========== 悬浮时间表 ==========
+            // 启用开关
+            var enableFloating = _settings?.EnableFloatingSchedule ?? false;
+            EnableFloatingScheduleItem.IsOn = enableFloating;
+            var enableFloatingDescriptor = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            enableFloatingDescriptor.AddValueChanged(EnableFloatingScheduleItem,
+                (s, e) =>
+                {
+                    if (_settings != null)
+                        _settings.EnableFloatingSchedule = EnableFloatingScheduleItem.IsOn;
+                });
+
+            // 悬浮窗层级
+            var layerComboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+            layerComboBox.Items.Add("置底");
+            layerComboBox.Items.Add("置顶（不推荐）");
+            layerComboBox.SelectedIndex = (_settings?.FloatingScheduleWindowLayer ?? FloatingScheduleWindowLayer.Bottom) ==
+                                         FloatingScheduleWindowLayer.Topmost ? 1 : 0;
+            layerComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_settings == null) return;
+                _settings.FloatingScheduleWindowLayer = layerComboBox.SelectedIndex == 1
+                    ? FloatingScheduleWindowLayer.Topmost
+                    : FloatingScheduleWindowLayer.Bottom;
+            };
+            FloatingScheduleLayerItem.Switcher = layerComboBox;
+
+            // 背景不透明度
+            var opacityNumeric = new WpfNumericUpDown
+            {
+                Width = 155,
+                Minimum = 0.0m,
+                Maximum = 1.0m,
+                Increment = 0.05m,
+                FormatString = "0.00",
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Value = (decimal)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.85, 0.0, 1.0)
+            };
+            opacityNumeric.ValueChanged += (s, e) =>
+            {
+                if (_settings == null || !opacityNumeric.Value.HasValue) return;
+                _settings.FloatingScheduleOpacity = Math.Clamp((double)opacityNumeric.Value.Value, 0.0, 1.0);
+            };
+            FloatingScheduleOpacityItem.Switcher = opacityNumeric;
+
+            // 课程名字号
+            var fontScaleNumeric = new WpfNumericUpDown
+            {
+                Width = 155,
+                Minimum = 8m,
+                Maximum = 32m,
+                Increment = 1m,
+                FormatString = "F0",
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Value = (decimal)Math.Clamp(Math.Round(_settings?.FloatingScheduleFontScale ?? 18.0), 8.0, 32.0)
+            };
+            fontScaleNumeric.ValueChanged += (s, e) =>
+            {
+                if (_settings == null || !fontScaleNumeric.Value.HasValue) return;
+                _settings.FloatingScheduleFontScale = Math.Clamp(Math.Round((double)fontScaleNumeric.Value.Value), 8.0, 32.0);
+            };
+            FloatingScheduleFontScaleItem.Switcher = fontScaleNumeric;
+
+            // 启用教师全名（不推荐）
+            var enableFullName = _settings?.FloatingScheduleEnableFullTeacherName ?? false;
+            FloatingScheduleFullTeacherNameItem.IsOn = enableFullName;
+            var fullTeacherDescriptor = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            fullTeacherDescriptor.AddValueChanged(FloatingScheduleFullTeacherNameItem,
+                (s, e) =>
+                {
+                    if (_settings != null)
+                        _settings.FloatingScheduleEnableFullTeacherName = FloatingScheduleFullTeacherNameItem.IsOn;
+                });
+
+            // 启用点击穿透
+            FloatingScheduleClickThroughItem.IsOn = _settings?.FloatingScheduleClickThrough ?? false;
+            var clickThroughDesc = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            clickThroughDesc.AddValueChanged(FloatingScheduleClickThroughItem,
+                (s, e) =>
+                {
+                    if (_settings != null)
+                        _settings.FloatingScheduleClickThrough = FloatingScheduleClickThroughItem.IsOn;
+                });
+
+            // 指针移入淡化
+            FloatingScheduleHoverFadeItem.IsOn = _settings?.FloatingScheduleHoverFade ?? false;
+            var hoverFadeDesc = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            hoverFadeDesc.AddValueChanged(FloatingScheduleHoverFadeItem,
+                (s, e) =>
+                {
+                    if (_settings != null)
+                    {
+                        _settings.FloatingScheduleHoverFade = FloatingScheduleHoverFadeItem.IsOn;
+                        // 需求 #3：主开关关闭时同步把反转开关置 false + 置灰；主开关打开时恢复可用
+                        if (!FloatingScheduleHoverFadeItem.IsOn)
+                        {
+                            FloatingScheduleHoverFadeReverseItem.IsEnabled = false;
+                            FloatingScheduleHoverFadeReverseItem.IsOn = false;
+                            if (_settings.FloatingScheduleHoverFadeReverse)
+                                _settings.FloatingScheduleHoverFadeReverse = false;
+                        }
+                        else
+                        {
+                            FloatingScheduleHoverFadeReverseItem.IsEnabled = true;
+                        }
+                    }
+                });
+
+            // 指针移入淡化（反转）
+            //   初始化：如果主开关未开，反转直接置 false + 置灰
+            if (!(_settings?.FloatingScheduleHoverFade ?? false))
+            {
+                FloatingScheduleHoverFadeReverseItem.IsOn = false;
+                FloatingScheduleHoverFadeReverseItem.IsEnabled = false;
+                if (_settings != null && _settings.FloatingScheduleHoverFadeReverse)
+                    _settings.FloatingScheduleHoverFadeReverse = false;
+            }
+            else
+            {
+                FloatingScheduleHoverFadeReverseItem.IsEnabled = true;
+                FloatingScheduleHoverFadeReverseItem.IsOn = _settings.FloatingScheduleHoverFadeReverse;
+            }
+            var hoverFadeRevDesc = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            hoverFadeRevDesc.AddValueChanged(FloatingScheduleHoverFadeReverseItem,
+                (s, e) =>
+                {
+                    if (_settings == null) return;
+                    // 需求 #3：主开关未开时反转开关任何操作都无效（先强制拉回 false 再忽略）
+                    if (!_settings.FloatingScheduleHoverFade)
+                    {
+                        FloatingScheduleHoverFadeReverseItem.IsOn = false;
+                        return;
+                    }
+                    _settings.FloatingScheduleHoverFadeReverse = FloatingScheduleHoverFadeReverseItem.IsOn;
+                });
         }
         catch (Exception ex)
         {

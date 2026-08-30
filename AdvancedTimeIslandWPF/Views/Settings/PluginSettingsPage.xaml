@@ -87,6 +87,62 @@
             </materialDesign:Card>
 
             <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="CalendarTextOutline" Text="悬浮时间表" Margin="0 0 0 8" />
+
+            <!-- 悬浮时间表设置 -->
+            <materialDesign:Card Margin="0 0 0 6" HorizontalAlignment="Stretch">
+                <StackPanel Margin="16">
+                    <ci:SettingsControl x:Name="EnableFloatingScheduleItem"
+                                         IconGlyph="CalendarClock"
+                                         Header="启用悬浮时间表"
+                                         Description="在桌面显示半透明悬浮窗，呈现今日课程时间表"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleLayerItem"
+                                         IconGlyph="LayersOutline"
+                                         Header="悬浮窗层级"
+                                         Description="默认为置底。置顶会遮挡其他窗口，不推荐"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleOpacityItem"
+                                         IconGlyph="Opacity"
+                                         Header="背景不透明度"
+                                         Description="仅作用卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.85"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleFontScaleItem"
+                                         IconGlyph="FormatSize"
+                                         Header="课程名字号"
+                                         Description="课程名字体大小（单位 pt，范围 8 ~ 32，默认 18）；表头/时间/老师文字会按相对差值自动缩放"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleFullTeacherNameItem"
+                                         IconGlyph="AccountEditOutline"
+                                         Header="启用教师全名（不推荐）"
+                                         Description="关闭时显示&quot;X老师&quot;（如：张老师）；开启后直接显示完整教师名（如：张三）。当科目未填写教师信息时不显示教师名。"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleClickThroughItem"
+                                         IconGlyph="TapIn"
+                                         Header="启用点击穿透"
+                                         Description="开启后，悬浮窗对鼠标点击完全透明（点击会命中下方窗口），同时关闭悬浮窗拖拽（关闭穿透后恢复）。"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleHoverFadeItem"
+                                         IconGlyph="ColorPicker"
+                                         Header="指针移入淡化"
+                                         Description="参考 ClassIsland 主窗体淡化：当鼠标指针进入悬浮窗区域时，整体不透明度降到 5%；移出后恢复用户设置的背景不透明度。"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleHoverFadeReverseItem"
+                                         IconGlyph="SwapVertical"
+                                         Header="指针移入淡化（反转）"
+                                         Description="仅在上一项启用时生效：反转淡化触发方向（指针在悬浮窗&#x2D;外&#x2D;时淡化，移入窗口内恢复不透明）。"
+                                         Margin="0,8,0,0" />
+                </StackPanel>
+            </materialDesign:Card>
+
+            <Separator Margin="0 16 0 8" />
             <ci:IconText Kind="FlaskOutline" Text="实验性功能" Margin="0 0 0 8" />
 
             <!-- 实验性功能 -->
