@@ -50,12 +50,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private const uint SWP_NOACTIVATE = 0x0010;
     private const uint SWP_NOZORDER_AV = 0x0004;
     private const uint SWP_NOSENDCHANGING_AV = 0x0400;
+    // 【★ 彻底置底】SetWindowPos 完整标志：SWP_NOOWNERZORDER/SWP_NOREPOSITION = 0x0200（同值），
+    //  防止递归影响 owner 窗口/重排；对齐 ClassIsland WindowPlatformService.Bottommost 实现。
+    private const uint SWP_NOOWNERZORDER_AV = 0x0200;
+    private const uint SWP_NOREPOSITION_AV = 0x0200;
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
     // 用户文档 要点6：WS_EX_COMPOSITED 启用 DWM 双缓冲合成；WS_EX_LAYERED 分层透明窗提示（长期有益，仍保留）
     private const int WS_EX_COMPOSITED_AV = 0x02000000;
     private const int WS_EX_LAYERED_AV    = 0x00080000;
     private const int WS_EX_TRANSPARENT_AV = 0x00000020;   // 点击穿透：Win32 消息投递前系统跳过命中测试，直接透到下一层窗口
+    // 【★ 彻底置底】WS_EX_NOACTIVATE = 0x08000000：窗口点击/拖拽不激活（不获得焦点）。
+    //  置底窗口一旦被激活，Windows 会强制提升其 z-order（SetWindowPos 压回后仍会再被提升），
+    //  即使每 1ms 重设也"压不住"（DispatcherTimer 1ms 实际受系统时钟分辨率 ~15.6ms 限制）。
+    //  置底时加该位 → 窗口永不激活 → 永不被提升 → 真正彻底置底。
+    private const int WS_EX_NOACTIVATE_AV = 0x08000000;
 
     // Per-Monitor V2 DPI 兜底（长期有益，保留）
     [DllImport("user32.dll")]
@@ -162,8 +171,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   1 OnForegroundWindowChanged → 反射宿主 IWindowPlatformService.ForegroundWindowChanged
     //   2 Every50Ms / 3 Every1Ms → DispatcherTimer
     private DispatcherTimer? _topmostRefreshTimerAv;
-    private object? _windowPlatformServiceAv;                // Mode 1：宿主 IWindowPlatformService 实例，Detach 需 -= 事件
+    private object? _windowPlatformServiceAv;                // Mode 1：宿主 IWindowPlatformService/IWindowRuleService 实例，Detach 需 -= 事件/Unregister
     private Delegate? _foregroundWindowChangedHandlerAv;     // Mode 1：实际 EventHandler<FWCEA>，保存为 Delegate 以便反射 -=
+    // ForegroundWindowChanged 订阅方式：0 = IWindowRuleService.ForegroundWindowChanged event；1 = IWindowPlatformService.Register/Unregister 方法
+    private int _fgSubModeAv = 0;
+    private System.Reflection.MethodInfo? _fgUnregisterMethodAv;   // 方式 1：UnregisterForegroundWindowChangedEvent 方法，Detach 时调用
     // Mode 0（Win32 子类化）：保存旧 WndProc、子类化 hwnd、以及 WndProc 委托引用（防止 GC 回收导致 CallbackOnCollectedDelegate）
     private IntPtr _topmostOldWndProcAv = IntPtr.Zero;
     private IntPtr _topmostHookedHwndAv = IntPtr.Zero;
@@ -751,6 +763,78 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //    - 非 Windows 下 Mode=0 退化为 Mode=1（ForegroundWindowChanged）。
 
     /// <summary>
+    /// Mode 0/1 共用：订阅宿主"前台窗口变化"事件（ForegroundWindowChanged）。
+    ///  注意：宿主 IWindowPlatformService 的 ForegroundWindowChanged 是 Register/UnregisterForegroundWindowChangedEvent
+    ///        **方法**（非 event）；真正的 event 在 IWindowRuleService.ForegroundWindowChanged
+    ///        （ClassIsland.Core.Abstractions.Services.IWindowRuleService，宿主 MainWindow 也用它）。
+    ///  同时尝试 1.x/2.x 命名空间；失败仅 LogDebug（Mode 2/3 定时器 + ApplyWindowLayer PropertyChanged 仍兜底）。
+    /// </summary>
+    private void AttachForegroundWindowChangedAv()
+    {
+        if (IAppHost.Host?.Services == null) { _logger.LogDebug("AttachForegroundWindowChangedAv: IAppHost.Host.Services 为空，跳过"); return; }
+        try
+        {
+            var handlerMethod = new Action<object?, EventArgs?>(OnForegroundWindowChangedForTopmostAv);
+            // 首选：IWindowRuleService.ForegroundWindowChanged event（ClassIsland.Core.Abstractions.Services.IWindowRuleService）
+            var tRuleSvc = FindHostServiceType("ClassIsland.Core.Abstractions.Services.IWindowRuleService")
+                        ?? FindHostServiceType("ClassIsland.Core.Services.IWindowRuleService")
+                        ?? FindHostServiceType("ClassIsland.Services.WindowRuleService")
+                        ?? FindHostServiceType("ClassIsland.Core.Services.WindowRuleService");
+            if (tRuleSvc != null)
+            {
+                var svc = IAppHost.Host.Services.GetService(tRuleSvc);
+                var evt = svc?.GetType().GetEvent("ForegroundWindowChanged", BindingFlags.Instance | BindingFlags.Public);
+                if (evt?.EventHandlerType != null)
+                {
+                    var deleg = Delegate.CreateDelegate(evt.EventHandlerType, this, handlerMethod.Method, throwOnBindFailure: false);
+                    if (deleg != null)
+                    {
+                        evt.AddEventHandler(svc, deleg);
+                        _windowPlatformServiceAv = svc;
+                        _foregroundWindowChangedHandlerAv = deleg;
+                        _fgSubModeAv = 0;
+                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnForegroundWindowChanged;
+                        _logger.LogDebug("AttachForegroundWindowChangedAv: 已订阅 IWindowRuleService.ForegroundWindowChanged");
+                        return;
+                    }
+                }
+            }
+            // 兜底：IWindowPlatformService.Register/UnregisterForegroundWindowChangedEvent 方法（1.x 兼容）
+            var tWinPlatform = FindHostServiceType("ClassIsland.Services.IWindowPlatformService")
+                            ?? FindHostServiceType("ClassIsland.Core.Services.IWindowPlatformService")
+                            ?? FindHostServiceType("ClassIsland.Services.WindowPlatformService")
+                            ?? FindHostServiceType("ClassIsland.Core.Services.WindowPlatformService");
+            if (tWinPlatform != null)
+            {
+                var svcP = IAppHost.Host.Services.GetService(tWinPlatform);
+                var mReg = svcP?.GetType().GetMethod("RegisterForegroundWindowChangedEvent", BindingFlags.Instance | BindingFlags.Public);
+                var mUnreg = svcP?.GetType().GetMethod("UnregisterForegroundWindowChangedEvent", BindingFlags.Instance | BindingFlags.Public);
+                if (svcP != null && mReg != null && mUnreg != null && mReg.GetParameters().Length == 1)
+                {
+                    var paramType = mReg.GetParameters()[0].ParameterType;   // EventHandler<ForegroundWindowChangedEventArgs>
+                    var delegP = Delegate.CreateDelegate(paramType, this, handlerMethod.Method, throwOnBindFailure: false);
+                    if (delegP != null)
+                    {
+                        mReg.Invoke(svcP, new object[] { delegP });
+                        _windowPlatformServiceAv = svcP;
+                        _foregroundWindowChangedHandlerAv = delegP;
+                        _fgSubModeAv = 1;
+                        _fgUnregisterMethodAv = mUnreg;
+                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnForegroundWindowChanged;
+                        _logger.LogDebug("AttachForegroundWindowChangedAv: 已注册 IWindowPlatformService.RegisterForegroundWindowChangedEvent");
+                        return;
+                    }
+                }
+            }
+            _logger.LogDebug("AttachForegroundWindowChangedAv: ForegroundWindowChanged 订阅失败（event + Register 方法均不可用）");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "AttachForegroundWindowChangedAv 异常（忽略）");
+        }
+    }
+
+    /// <summary>
     /// Detach 悬浮窗层级重设所有触发源（4 模式清理三件套）。安全：重复调用/从未 Attach 都不会抛。
     /// </summary>
     private void DetachTopmostRefreshAv()
@@ -761,19 +845,30 @@ public class FloatingScheduleService : IHostedService, IDisposable
             try { _topmostRefreshTimerAv?.Stop(); } catch { /* ignore */ }
             _topmostRefreshTimerAv = null;
 
-            // ---- Mode 1：宿主 IWindowPlatformService.ForegroundWindowChanged 退订 ----
+            // ---- Mode 1：宿主 ForegroundWindowChanged 退订（区分 event / Register 方法两种订阅方式）----
             if (_windowPlatformServiceAv != null && _foregroundWindowChangedHandlerAv != null)
             {
                 try
                 {
-                    var evt = _windowPlatformServiceAv.GetType().GetEvent("ForegroundWindowChanged",
-                        BindingFlags.Instance | BindingFlags.Public);
-                    evt?.RemoveEventHandler(_windowPlatformServiceAv, _foregroundWindowChangedHandlerAv);
+                    if (_fgSubModeAv == 1 && _fgUnregisterMethodAv != null)
+                    {
+                        // IWindowPlatformService.UnregisterForegroundWindowChangedEvent(handler)
+                        _fgUnregisterMethodAv.Invoke(_windowPlatformServiceAv, new object[] { _foregroundWindowChangedHandlerAv });
+                    }
+                    else
+                    {
+                        // IWindowRuleService.ForegroundWindowChanged -= handler
+                        var evt = _windowPlatformServiceAv.GetType().GetEvent("ForegroundWindowChanged",
+                            BindingFlags.Instance | BindingFlags.Public);
+                        evt?.RemoveEventHandler(_windowPlatformServiceAv, _foregroundWindowChangedHandlerAv);
+                    }
                 }
-                catch (Exception ex) { _logger.LogDebug(ex, "DetachTopmostRefreshAv -= ForegroundWindowChanged 异常（忽略）"); }
+                catch (Exception ex) { _logger.LogDebug(ex, "DetachTopmostRefreshAv 退订 ForegroundWindowChanged 异常（忽略）"); }
             }
             _windowPlatformServiceAv = null;
             _foregroundWindowChangedHandlerAv = null;
+            _fgSubModeAv = 0;
+            _fgUnregisterMethodAv = null;
 
             // ---- Mode 0：Win32 解子类（恢复旧 WndProc）----
 #if WINDOWS
@@ -813,48 +908,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 case FloatingTopmostRefreshMode.OnWindowZOrderChanged:
 #if WINDOWS
-                    var hwnd = w.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-                    if (hwnd != IntPtr.Zero)
                     {
-                        // 子类化：保存委托引用 → SetWindowLong 替换 WndProc
-                        _topmostWndProcDelegateAv = TopmostWndProcHookAv;
-                        _topmostOldWndProcAv = SetWindowLong(hwnd, GWLP_WNDPROC_AV,
-                            System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_topmostWndProcDelegateAv));
-                        _topmostHookedHwndAv = hwnd;
-                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnWindowZOrderChanged;
-                        _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnWindowZOrderChanged (Win32 子类化 hwnd=0x{0})", hwnd.ToString("X"));
-                        return;
+                        var hwnd = w.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+                        if (hwnd != IntPtr.Zero)
+                        {
+                            // 子类化：拦截 WM_WINDOWPOSCHANGED（捕获"窗口自身 z-order 变化"）
+                            _topmostWndProcDelegateAv = TopmostWndProcHookAv;
+                            _topmostOldWndProcAv = SetWindowLong(hwnd, GWLP_WNDPROC_AV,
+                                System.Runtime.InteropServices.Marshal.GetFunctionPointerForDelegate(_topmostWndProcDelegateAv));
+                            _topmostHookedHwndAv = hwnd;
+                        }
                     }
 #endif
-                    // 非 Windows 或 hwnd 拿不到：退化为 Mode=1 OnForegroundWindowChanged
-                    _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnWindowZOrderChanged 不可用（非 Windows 或无 hwnd），退化为 OnForegroundWindowChanged");
-                    goto case FloatingTopmostRefreshMode.OnForegroundWindowChanged;
+                    // 同时订阅 ForegroundWindowChanged（兜底）：
+                    //  窗口层级变化（被激活/被 Topmost 顶掉）主要由"前台窗口变化"引起，
+                    //  WM_WINDOWPOSCHANGED 只在"自身 z-order 变化"时触发（子类化可能被宿主窗口系统覆盖）。
+                    AttachForegroundWindowChangedAv();
+                    _currentTopmostModeAv = FloatingTopmostRefreshMode.OnWindowZOrderChanged;
+                    _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnWindowZOrderChanged（Win32 子类化 + ForegroundWindowChanged 兜底）");
+                    break;
 
                 case FloatingTopmostRefreshMode.OnForegroundWindowChanged:
-                    {
-                        if (IAppHost.Host?.Services == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 但 IAppHost.Host.Services 为空，跳过"); break; }
-                        var tWinPlatform = FindHostServiceType("ClassIsland.Services.IWindowPlatformService")
-                                        ?? FindHostServiceType("ClassIsland.Core.Services.IWindowPlatformService")
-                                        ?? FindHostServiceType("ClassIsland.Services.WindowPlatformService")
-                                        ?? FindHostServiceType("ClassIsland.Core.Services.WindowPlatformService");
-                        if (tWinPlatform == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 找不到 IWindowPlatformService 类型，跳过"); break; }
-                        var svc = IAppHost.Host.Services.GetService(tWinPlatform);
-                        if (svc == null) { _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 拿不到 IWindowPlatformService 实例，跳过"); break; }
-
-                        // 找到 ForegroundWindowChanged 事件 → 构建同签名 EventHandler<T> 委托 → +=
-                        var evt = svc.GetType().GetEvent("ForegroundWindowChanged", BindingFlags.Instance | BindingFlags.Public);
-                        if (evt == null) { _logger.LogDebug("AttachTopmostRefreshAv: 事件 ForegroundWindowChanged 未找到，跳过"); break; }
-                        var handlerType = evt.EventHandlerType;   // 期望 EventHandler<ForegroundWindowChangedEventArgs>
-                        var handlerMethod = new Action<object?, EventArgs?>(OnForegroundWindowChangedForTopmostAv);
-                        var deleg = Delegate.CreateDelegate(handlerType!, this, handlerMethod.Method, throwOnBindFailure: false);
-                        if (deleg == null) { _logger.LogDebug("AttachTopmostRefreshAv: 创建 ForegroundWindowChanged 委托失败，跳过"); break; }
-                        evt.AddEventHandler(svc, deleg);
-
-                        _windowPlatformServiceAv = svc;
-                        _foregroundWindowChangedHandlerAv = deleg;
-                        _currentTopmostModeAv = FloatingTopmostRefreshMode.OnForegroundWindowChanged;
-                        _logger.LogDebug("AttachTopmostRefreshAv: Mode=OnForegroundWindowChanged 已订阅");
-                    }
+                    // 宿主 IWindowRuleService.ForegroundWindowChanged（修复：IWindowPlatformService 的 ForegroundWindowChanged 是方法非 event）
+                    AttachForegroundWindowChangedAv();
                     break;
 
                 case FloatingTopmostRefreshMode.Every50Ms:
@@ -1188,8 +1264,38 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
                 if (hwnd != IntPtr.Zero)
                 {
-                    var insert = layer == FloatingScheduleWindowLayer.Topmost ? HWND_TOPMOST : HWND_BOTTOM;
-                    SetWindowPos(hwnd, insert, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
+                    if (layer == FloatingScheduleWindowLayer.Topmost)
+                    {
+                        // 置顶：清除 WS_EX_NOACTIVATE（允许交互激活），SetWindowPos 提到最前
+                        //  【对齐 ClassIsland】完整 SWP 标志（SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/SWP_NOREPOSITION）
+                        //  防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
+                        try
+                        {
+                            var exT = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
+                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exT & ~WS_EX_NOACTIVATE_AV));
+                        }
+                        catch { }
+                        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                            SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
+                    }
+                    else
+                    {
+                        // 【★ 彻底置底】
+                        //  1) 加 WS_EX_NOACTIVATE：置底窗口点击/拖拽不激活 → 永不被 Windows 提升 z-order
+                        //     （激活提升是置底失效的主因：即使每 1ms 重设，激活提升发生在两次重设之间且优先级更高）
+                        //  2) 完整 SWP 标志（对齐 ClassIsland Bottommost）：SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/
+                        //     SWP_NOREPOSITION 防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
+                        try
+                        {
+                            var exB = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
+                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exB | WS_EX_NOACTIVATE_AV));
+                        }
+                        catch { }
+                        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                            SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
+                    }
                     return;
                 }
             }

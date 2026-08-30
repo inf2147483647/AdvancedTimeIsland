@@ -700,7 +700,7 @@ public partial class PluginSettingsPage : UserControl
                 _ => FloatingTopmostRefreshMode.OnWindowZOrderChanged
             };
             recheckComboWpf.SelectedIndex = ModeToIndexWpf(
-                _settings?.FloatingScheduleTopmostRefreshMode ?? FloatingTopmostRefreshMode.OnWindowZOrderChanged);
+                _settings?.FloatingScheduleTopmostRefreshMode ?? FloatingTopmostRefreshMode.Every50Ms);
             recheckComboWpf.SelectionChanged += (s, e) =>
             {
                 if (_settings != null && s is ComboBox cb)
