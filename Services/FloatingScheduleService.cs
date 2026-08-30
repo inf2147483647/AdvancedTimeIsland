@@ -1989,6 +1989,76 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _hardSyncHighlightStartTicksAv = -1;
                 _hardSyncHighlightEndTicksAv = -1;
             }
+
+            // ===== 【★ 用户报告：悬浮窗初始化以进度条 0% 为假快照 → 后续异常】集中兜底 =====
+            //  根因（与 Experience 601376 "多写入源覆盖"同构）：
+            //   RefreshSchedule 有 6 处调用（StartInternal 冷启动 / Settings 开开关 / 5s 硬清理 / EXIT 同步 / DebugTime / needRefresh Post），
+            //   但仅 DebugTime(L717-773) 和 needRefresh(L2224-2329) 两处知道"RefreshSchedule 之后必须立刻写真实 ratio 到新 UI indicator"，
+            //   其余 4 处漏掉 → 新 UI indicator Width = 构造默认 0、indicator.Tag = null →
+            //   首次 LayoutUpdated 触发时 L1438 fallback `Tag is double r ? r : 0.0` = 0.0 → indicator.Width = 0 * host.Width = 0（假 0% 快照）。
+            //   500ms 后 UpdateProgress 才修正，期间 0% 会被用户感知为"进度条卡住"，并与后续硬校验/PropertyChanged 触发的 RefreshSchedule 叠加造成视觉跳变或状态误判。
+            //  修复（集中兜底 = Experience 601376 "清空数据源同步 progress/currentIndex" 思想一致）：
+            //   在 RefreshSchedule 末尾（StartOrStopTimer 之前）**无条件同步 Apply 一次"本帧真实 ratio"**。此时 host.Bounds.Width 通常仍=0（尚未布局），
+            //   ApplyProgressRatioAv 走 else 分支把 ratio 缓存到 indicator.Tag → 布局就绪后 LayoutUpdated 回调 L1438 读 cached=Tag=真实值，不会再 fallback 到 0.0。
+            try
+            {
+                var svc = _lessonsService;
+                if (svc != null)
+                {
+                    var sRaw = ReflectProp(svc, "CurrentState");
+                    TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
+                    bool onC = s == TimeState.OnClass;
+                    bool brk = s == TimeState.Breaking;
+
+                    // -- 课间进度条 --
+                    if (brk)
+                    {
+                        var bx = ReflectProp(svc, "CurrentTimeLayoutItem");
+                        if (bx != null && ReflectGetTimeType(bx) == 1 && _currentBreakProgressIndicator != null)
+                        {
+                            var bs = ReflectGetStartTime(bx);
+                            var be = ReflectGetEndTime(bx);
+                            double tb = (be - bs).TotalSeconds;
+                            if (tb > 0)
+                            {
+                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                double breakRatio = Math.Clamp((nn - bs).TotalSeconds / tb, 0.0, 1.0);
+                                ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, breakRatio);
+                            }
+                            else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+                        }
+                        else if (_currentBreakProgressIndicator != null)
+                            ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+                    }
+                    else if (_currentBreakProgressIndicator != null)
+                        ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+
+                    // -- 当前课进度条 --
+                    if (onC)
+                    {
+                        var lx = ReflectProp(svc, "CurrentTimeLayoutItem");
+                        if (lx != null && _currentProgressIndicator != null)
+                        {
+                            var st = ReflectGetStartTime(lx);
+                            var ed = ReflectGetEndTime(lx);
+                            double t = (ed - st).TotalSeconds;
+                            if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
+                            else
+                            {
+                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                double classProgressRatio = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
+                                ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, classProgressRatio);
+                            }
+                        }
+                        else if (_currentProgressIndicator != null)
+                            ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
+                    }
+                    else if (_currentProgressIndicator != null)
+                        ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
+                }
+            }
+            catch { /* 绝对兜底：即使 Apply 失败，下一次 500ms UpdateProgress Tick 也会修正，不能影响 RefreshSchedule 主流程 */ }
+
             StartOrStopTimer();
         }
         catch (Exception ex)
@@ -2093,6 +2163,35 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 long sdkHiEnd   = ReflectGetEndTime(curLi).Ticks;
                 if (sdkHiStart != _hardSyncHighlightStartTicksAv || sdkHiEnd != _hardSyncHighlightEndTicksAv)
                     stateOrBreakChanged = true;
+            }
+
+            // 【★ 修复：连续上课/连续课间 时间点状态变化不重置进度条】
+            //  根因（Experience 601376「多写入源覆盖 + 数据源断档 progress 未归零」同构）：
+            //   SDK CurrentTimeLayoutItem 在 C1→C2 / B1→B2 跨越边界点后有 1-2 Tick（500ms~1s）的滞后。
+            //   滞后窗口内，onClass/breaking 快照仍为 true，常规 Apply 路径仍拿「旧 LayoutItem」算比率：
+            //     elapsed = (now - oldItem.Start).TotalSeconds   →   elapsed > oldItem.TotalSeconds
+            //     Math.Clamp(elapsed/total, 0, 1) = 1.0 → 连写 1-2 Tick indicator.Width = W*1.0（100%），
+            //   覆盖掉 RefreshSchedule 末尾本应写入的新段 0.x%，用户感知「进度条卡在最后不重置」。
+            //  修复（真实时间兜底检测，对齐 Experience 601376「timeList 清空时同步 progress=0」的「数据源-当前值-UI 三者一致」原则）：
+            //   当 Plugin.GetCurrentTime() (真实 now) 已超过 SDK 当前 LayoutItem 的 End + 50ms Tolerance 时，
+            //   强制 stateOrBreakChanged=true → needRefresh 立刻触发 → RefreshSchedule 全量重建，
+            //   一旦 SDK 推进到 C2/B2，新 UI 的 indicator.Tag 会被集中 Apply 写为 C2/B2 的 0.x%。
+            //   50ms 容忍度用于排除 C1.End == C2.Start 边界点"now 恰好等于 End"的误触发（边界点不应该算超时）。
+            const double EndOverrunToleranceSecAv = 0.05;
+            if (!stateOrBreakChanged)
+            {
+                if (onClass && curLi != null)
+                {
+                    var eCur = ReflectGetEndTime(curLi);
+                    if (now.TimeOfDay.TotalSeconds - eCur.TotalSeconds > EndOverrunToleranceSecAv)
+                        stateOrBreakChanged = true;
+                }
+                else if (breaking && bLi != null)
+                {
+                    var eBrk = ReflectGetEndTime(bLi);
+                    if (now.TimeOfDay.TotalSeconds - eBrk.TotalSeconds > EndOverrunToleranceSecAv)
+                        stateOrBreakChanged = true;
+                }
             }
 
             // 【5s 全量强制刷新（用户：任何情况下每 5s 刷新，而不是兜底）】
