@@ -125,7 +125,36 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private long _breakRowExitPendingBreakStart = -1;
     private long _breakRowExitPendingBreakEnd = -1;
     private CancellationTokenSource? _breakRowExitCtsAv;
+    // 【新增】ENTER 动画专用 CTS：与 EXIT CTS 对称，防止"连续 RefreshSchedule 重建/EXIT 清理/5s 硬清理/DebugTime 清理"
+    //        路径下，旧 FireEnter 动画还在异步等待执行（DispatcherPriority.Loaded Post）→ 拿到的控件是"前一次 RefreshSchedule
+    //        构建的旧 UI，已被新 RefreshSchedule 替换出 Children，但 AnimateBreakRowEnterAv 起点 Opacity=0 + TT.Y=-24
+    //        会先写旧控件本地值 → Avalonia 动画优先级会覆盖同控件后续 Write → 用户看到「课间先正常 0.5-1s 再向上位移 24px 淡入」。
+    // 保证：RefreshSchedule #N 开始前，任何 RefreshSchedule #<N 排队的 ENTER CTS 被 Cancel → AnimateBreakRowEnterAv
+    //      开头 ct.ThrowIfCancellationRequested 会抛 OperationCanceled → Finish 兜底写 Y=0/Opacity=1，控件不残留 Y=-24。
+    private CancellationTokenSource? _breakRowEnterCtsAv;
     private List<Control>? _currentBreakRowVisualsAv;
+
+    // ========== 调试时间即时刷新（响应宿主 SettingsService.DebugTimeOffsetSeconds / TimeOffsetSeconds 变化）==========
+    //  兜底：上次 RefreshSchedule 成功构建课表时的 Date。用于 500ms Tick 中检测"日期跳变"（跨天调试）但 PropertyChanged 丢失场景。
+    //  初始值 = MinValue：首次启动不触发"dateChanged 强制 Refresh"（否则 sentinel=-1 已经会 Refresh，重复调浪费）。
+    private DateTime _lastRefreshDate = DateTime.MinValue;
+    // 宿主 SettingsService：反射 IAppHost.GetService<SettingsService>() 结果。Stop/关闭开关必须 Detach，防止插件被 SettingsService（宿主 singleton）强引用滞留内存。
+    private object? _hostSettingsServiceAv;
+    // 宿主 SettingsService.Settings：INotifyPropertyChanged 源，保存引用以便 Detach 时 -=
+    private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjAv;
+    private PropertyChangedEventHandler? _hostSettingsChangedHandlerAv;
+
+    // ========== 5s 全量同步硬兜底（用户方案：每 5s 检查一次当前时间表状态并同步）==========
+    //  策略（对齐 Experience 1279696 "双定时器分层"思想）：复用现有 500ms 轻量 Timer，
+    //   - 500ms Tick：只更新进度条 ratio + 常规 state/breakTicks/date 变化检测（高频、轻量）
+    //   - 每 10 Tick = 5s：额外跑一次"完整 SDK 状态一致性校验"（全量比对 CurrentState + LayoutItem + Date + 高亮行 Start/End）
+    //     → 不一致就强制 RefreshSchedule（解决极罕见的"PropertyChanged 丢失 + Date 没变 + state/breakTicks 恰好相同但 UI 错位"的一致性黑洞）
+    private const int HardSyncTickIntervalAv = 10;   // 500ms * 10 = 5 秒
+    private int _hardSyncTickCounterAv = 0;
+    // 5s 硬校验前一次记录的"当前高亮课 Start/End Ticks"。用于 OnClass 状态时比对 SDK CurrentTimeLayoutItem 是否被 UI 漏同步（stateCode 相同但高亮错）。
+    //  初始值 = -1：表示"上一轮 RefreshSchedule 未记录到高亮课"。
+    private long _hardSyncHighlightStartTicksAv = -1;
+    private long _hardSyncHighlightEndTicksAv = -1;
 
     public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger)
     {
@@ -462,6 +491,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 RefreshSchedule();  // 填 UI 内容：_containerBorder.Child 赋值；SizeToContent 决定窗口尺寸
                 ApplyWindowLayer(); // 再次兜底：RefreshSchedule 会重建 _containerBorder 子树，确保 Win32 z-order 正确
                 StartOrStopTimer(); // _window.IsVisible==true 才会启动
+                // 【修复：调试时间不立刻刷新 - 即时事件监听】
+                //  窗口建立后立刻订阅宿主 SettingsService.Settings.PropertyChanged，
+                //  当 DebugTimeOffsetSeconds / TimeOffsetSeconds 变化时立刻 UI 线程 Post Refresh（<=1 UI 帧，远快于 500ms Timer）。
+                EnsureHostSettingsSubscriptionAv();
             }
         });
     }
@@ -476,6 +509,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _hoverFadeTimer = null;
         _fadeAvCts?.Cancel();
         _fadeAvCts = null;
+        // 【修复：调试时间不立刻刷新 - 退订宿主 Settings PropertyChanged 防止内存泄漏】
+        //  SettingsService 是宿主 singleton，若插件实例作为 PropertyChanged.target 被它持有，插件/悬浮窗会在关闭开关后无法 GC。
+        DetachHostSettingsSubscriptionAv();
         // （重置方案A → 系统原生拖拽在窗口销毁时由系统自动释放，不需要手动清理；此处只做收尾）
         try { _window?.Close(); } catch { }
         _window = null;
@@ -485,6 +521,262 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _currentBreakProgressIndicator = null;
         _currentBreakProgressHost = null;
         _currentBreakLayoutItem = null;
+        // 【5s 硬兜底复位】Stop 时清零计数与高亮快照，下次 EnableFloatingSchedule=true 从零开始同步
+        _hardSyncTickCounterAv = 0;
+        _hardSyncHighlightStartTicksAv = -1;
+        _hardSyncHighlightEndTicksAv = -1;
+        // 【修复：课间向上位移 0.5-1s】Stop 时 Cancel+Dispose 仍在飞的 ENTER/EXIT 动画 CTS，避免异步动画回调访问旧 UI（Dispose 后可能已 null/detached）
+        try { _breakRowEnterCtsAv?.Cancel(); } catch { /* ignore */ }
+        try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
+        try
+        {
+            var oldEnter = System.Threading.Interlocked.Exchange(ref _breakRowEnterCtsAv, null);
+            oldEnter?.Dispose();
+        } catch { /* ignore */ }
+        try
+        {
+            var oldExit = System.Threading.Interlocked.Exchange(ref _breakRowExitCtsAv, null);
+            oldExit?.Dispose();
+        } catch { /* ignore */ }
+    }
+
+    // ===================== 宿主 SettingsService 调试时间变更订阅（Ava 端）=====================
+    //  目的：当用户在 ClassIsland 设置-调试-调试时间偏移（DebugPage / ClockSettingsPage）修改
+    //        DebugTimeOffsetSeconds / TimeOffsetSeconds 时，<=1 UI 帧内立刻 Post RefreshSchedule，
+    //        而不是等 500ms Timer 下一 Tick 检测到 stateOrBreakChanged 才触发（用户感知为"时间表没立刻刷新"）。
+    //  退订：必须在 Stop() / EnableFloatingSchedule=false 分支 Detach，防止宿主 singleton 强引用插件对象导致内存泄漏。
+
+    /// <summary>
+    /// 尝试拿宿主 SettingsService 并订阅 Settings.PropertyChanged。
+    /// 拿不到时仅 LogWarning，不会抛——下一 Tick 的 dateChanged 兜底 + sentinel=-1 强制 Refresh 仍可保证功能（延迟<=500ms）。
+    /// </summary>
+    private void EnsureHostSettingsSubscriptionAv()
+    {
+        // 已订阅：直接返回，避免重复 += 造成多次回调
+        if (_hostSettingsChangedHandlerAv != null) return;
+        if (IAppHost.Host == null) return;
+
+        try
+        {
+            var sp = IAppHost.Host.Services;
+            // 与 TryStartWithRetryAsync 保持一致：先用 FindHostServiceType 拿 Type，避免直接 typeof JIT TypeLoadException 无法被 try 保护
+            var tSettingsSvc = FindHostServiceType("ClassIsland.Services.SettingsService")
+                            ?? FindHostServiceType("ClassIsland.Core.Services.SettingsService");
+            object? settingsSvc = null;
+            if (tSettingsSvc != null)
+                settingsSvc = sp.GetService(tSettingsSvc);
+
+            if (settingsSvc == null)
+            {
+                // 兜底：部分宿主可能把 SettingsService 注册为实现自身 interface，尝试反射公开接口
+                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: 获取 SettingsService 失败，调试时间将依赖 500ms Tick 兜底刷新");
+                return;
+            }
+
+            // 反射拿 .Settings 属性（类型 = ClassIsland.Models.Settings，实现了 INotifyPropertyChanged）
+            var propSettings = settingsSvc.GetType().GetProperty("Settings",
+                BindingFlags.Instance | BindingFlags.Public);
+            if (propSettings == null)
+            {
+                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 属性未找到，调试时间将依赖 500ms Tick 兜底刷新");
+                return;
+            }
+            var settingsObj = propSettings.GetValue(settingsSvc);
+            if (settingsObj is not System.ComponentModel.INotifyPropertyChanged npcSettings)
+            {
+                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 未实现 INotifyPropertyChanged，调试时间将依赖 500ms Tick 兜底刷新");
+                return;
+            }
+
+            // 成功：保存引用，构造 handler 并 +=
+            _hostSettingsServiceAv = settingsSvc;
+            _hostSettingsObjAv = npcSettings;
+            _hostSettingsChangedHandlerAv = OnHostSettingsDebugTimeChangedAv;
+            npcSettings.PropertyChanged += _hostSettingsChangedHandlerAv;
+            _logger.LogInformation("EnsureHostSettingsSubscriptionAv: 已订阅宿主 SettingsService.Settings.PropertyChanged（调试时间即时刷新已启用）");
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "EnsureHostSettingsSubscriptionAv 异常，调试时间将依赖 500ms Tick 兜底刷新");
+            // 失败兜底：把部分已赋值字段清零，避免 Detach 时 -= 空目标或错误目标
+            _hostSettingsChangedHandlerAv = null;
+            _hostSettingsObjAv = null;
+            _hostSettingsServiceAv = null;
+        }
+    }
+
+    /// <summary>
+    /// Detach 宿主 Settings PropertyChanged 订阅（Stop / 关闭 EnableFloatingSchedule 时调用）。
+    /// 安全：重复调用或从未 Attach 都不会抛错。
+    /// </summary>
+    private void DetachHostSettingsSubscriptionAv()
+    {
+        try
+        {
+            if (_hostSettingsChangedHandlerAv != null && _hostSettingsObjAv != null)
+            {
+                _hostSettingsObjAv.PropertyChanged -= _hostSettingsChangedHandlerAv;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "DetachHostSettingsSubscriptionAv -= PropertyChanged 异常（忽略）");
+        }
+        finally
+        {
+            // 全部清零，保证下次 Ensure 会重新 Attach
+            _hostSettingsChangedHandlerAv = null;
+            _hostSettingsObjAv = null;
+            _hostSettingsServiceAv = null;
+        }
+    }
+
+    /// <summary>
+    /// 宿主 Settings.Settings 属性变化回调：
+    ///  当变化属性名属于"影响 ExactTimeService 返回值"的集合
+    ///   → 立刻 UI 线程 Post：失效本地缓存 sentinel → RefreshSchedule → 同步 Apply 一次 ratio。
+    /// </summary>
+    private void OnHostSettingsDebugTimeChangedAv(object? sender, PropertyChangedEventArgs e)
+    {
+        if (string.IsNullOrEmpty(e.PropertyName)) return;
+        // 覆盖所有"会改变 Plugin.GetCurrentTime() 结果"的设置项：
+        //   - DebugTimeOffsetSeconds：调试页加减偏移（不保存，用户调时间表立刻看效果的核心）
+        //   - TimeOffsetSeconds：时钟页全局时间偏移
+        //   - DebugTimeSpeed：调试页时间倍速（倍速变化会导致进度条百分比跳变，需要重建进度条 Width）
+        //   - ExactTimeServer / IsExactTimeEnabled：启用/禁用 NTP 或切换 NTP 服务器，基准时间跳变
+        bool isTimeRelated =
+            e.PropertyName == "DebugTimeOffsetSeconds" ||
+            e.PropertyName == "TimeOffsetSeconds" ||
+            e.PropertyName == "DebugTimeSpeed" ||
+            e.PropertyName == "ExactTimeServer" ||
+            e.PropertyName == "IsExactTimeEnabled";
+        if (!isTimeRelated) return;
+
+        // Post 到 UI 线程，优先级 = Loaded：等待宿主 DebugPage 的 DebugTimeOffsetSeconds 赋值 + PropertyChanged 同步走完，
+        // 这样 Plugin.GetCurrentTime() 能拿到最新偏移；同时比用户"再操作下一步"更早执行（下一帧可见）。
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (_window == null || _containerBorder == null) return;
+            try
+            {
+                // 【修复 #1 (Code Review)：调试时间变更 Post 前取消正在进行的 EXIT 动画，防止 EXIT onCompleted 用旧 pending 快照脏覆盖新 Refresh 的正确快照】
+                //  场景：课间→上课 EXIT 250ms 窗口中途，用户突然调 DebugTimeOffsetSeconds。
+                //  若不取消 EXIT：EXIT onCompleted 会执行 `_lastRefreshStateCode = _breakRowExitPendingStateCode`（旧值），
+                //  覆盖本方法刚写入的"新调试时间"正确 state 快照 → 紧接着 EXIT onCompleted 又 RefreshSchedule 校正回来，
+                //  用户视角 = UI 闪烁两次 + 冗余整表重建 2 次。
+                //  处理：Cancel EXIT CTS（使 AnimateBreakRowExitAv 的 WhenAny(token) 立刻取消 → 旧 onCompleted 永远不会被触发），
+                //        并清所有 EXIT 动画标志 + 旧 visuals/indicator 引用。
+                // 【修复：课间向上位移 0.5-1s】同时 Cancel ENTER CTS：在"时间跳变"场景，若前一 RefreshSchedule #N-1
+                //   还在排队的 FireEnter（DispatcherPriority.Loaded 异步）没执行完，会拿旧 UI 的控件引用写 TT.Y=-24 / Opacity=0，
+                //   而本方法紧接着 RefreshSchedule #N 会新建一套 children → 旧 children 从 visual tree 移除但动画的
+                //   FillMode.Forward 仍会保留本地值覆盖 → 用户"先正常 → 0.5-1s 向上位移"。这里 Cancel ENTER CTS 彻底封死。
+                try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
+                try { _breakRowEnterCtsAv?.Cancel(); } catch { /* ignore */ }
+                // （Dispose 旧 CTS：防止 Token 引用滞留旧动画对象）
+                try
+                {
+                    if (_breakRowExitCtsAv != null)
+                    {
+                        var oldCts = _breakRowExitCtsAv;
+                        _breakRowExitCtsAv = null;
+                        oldCts.Dispose();
+                    }
+                }
+                catch { /* ignore */ }
+                try
+                {
+                    if (_breakRowEnterCtsAv != null)
+                    {
+                        var oldEnter = _breakRowEnterCtsAv;
+                        _breakRowEnterCtsAv = null;
+                        oldEnter.Dispose();
+                    }
+                }
+                catch { /* ignore */ }
+                _breakRowExitAnimatingAv = false;
+                _wasBreakLastTickAv = false;
+                _breakRowExitPendingStateCode = -1;
+                _breakRowExitPendingBreakStart = -1;
+                _breakRowExitPendingBreakEnd = -1;
+                _currentBreakRowVisualsAv = null;
+                _currentBreakProgressIndicator = null;
+                _currentBreakProgressHost = null;
+
+                // ① 失效缓存 sentinel：
+                //   - _lastRefreshStateCode = -1：RefreshSchedule 内部 isColdStartAv=true，跳过任何课间 ENTER 动画（直接显示最终态，避免 250ms Opacity=0 起点造成"时间表瞬间消失"误判）。
+                //   - _lastRefreshBreakStartTicks / _lastRefreshBreakEndTicks = -1：保证下一次 UpdateProgress 检测 stateOrBreakChanged 即使 PropertyChanged 丢了事件也会命中。
+                //   - _lastRefreshDate = MinValue：sentinel Date 也失效，Date 兜底检测不会再误触发。
+                _lastRefreshStateCode = -1;
+                _lastRefreshBreakStartTicks = -1;
+                _lastRefreshBreakEndTicks = -1;
+                _lastRefreshDate = DateTime.MinValue;
+
+                // ② 同步 RefreshSchedule：重建整表（Date 锚用 Plugin.GetCurrentTime().Date = 最新调试偏移后的今天）
+                RefreshSchedule();
+
+                // ③ 同步 Apply 一次"当前真实 ratio"（needRefresh 分支的镜像逻辑）：
+                //   原因：RefreshSchedule 构建的新进度条 indicator Width = 构造默认 0；若不立刻写 ratio，
+                //         用户视角"进度条一瞬间为空"，下一帧（500ms 后）UpdateProgress 才补上。
+                try
+                {
+                    var svc = _lessonsService;
+                    if (svc == null) return;
+                    var sRaw = ReflectProp(svc, "CurrentState");
+                    TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
+                    bool onC = s == TimeState.OnClass;
+                    bool brk = s == TimeState.Breaking;
+
+                    // -- 课间进度条 --
+                    if (brk)
+                    {
+                        var bx = ReflectProp(svc, "CurrentTimeLayoutItem");
+                        if (bx != null && ReflectGetTimeType(bx) == 1 && _currentBreakProgressIndicator != null)
+                        {
+                            var bs = ReflectGetStartTime(bx);
+                            var be = ReflectGetEndTime(bx);
+                            double tb = (be - bs).TotalSeconds;
+                            if (tb > 0)
+                            {
+                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                double rb = Math.Clamp((nn - bs).TotalSeconds / tb, 0.0, 1.0);
+                                ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, rb);
+                            }
+                            else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+                        }
+                        else if (_currentBreakProgressIndicator != null)
+                            ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+                    }
+                    else if (_currentBreakProgressIndicator != null)
+                        ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
+
+                    // -- 当前课进度条 --
+                    if (onC)
+                    {
+                        var lx = ReflectProp(svc, "CurrentTimeLayoutItem");
+                        if (lx != null && _currentProgressIndicator != null)
+                        {
+                            var st = ReflectGetStartTime(lx);
+                            var ed = ReflectGetEndTime(lx);
+                            double t = (ed - st).TotalSeconds;
+                            if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
+                            else
+                            {
+                                var nn = Plugin.GetCurrentTime().TimeOfDay;
+                                double p = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
+                                ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, p);
+                            }
+                        }
+                        else ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
+                    }
+                    else ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
+                }
+                catch { /* 忽略：下一帧 UpdateProgress 会兜底继续写 ratio */ }
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "OnHostSettingsDebugTimeChangedAv Post RefreshSchedule 异常（忽略）");
+            }
+        }, DispatcherPriority.Loaded);
     }
 
     private void EnsureWindow()
@@ -503,6 +795,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             Opacity = 1.0, // 整窗保持不透明；背景不透明度仅作用于卡片背景刷 Alpha（文字/进度条不被淡化）
             Position = new PixelPoint(_settings.FloatingSchedulePositionX, _settings.FloatingSchedulePositionY),
             MinWidth = 150,
+            // ===== 修复：超长教师名把窗口撑成 600-800 px 横条（用户最新要求：教师列必须完整展示 15 汉字）=====
+            // 规格层 MaxWidth = 820 px 兜底（820 ≈ 外框 26 + ColSpacing 14 + 课师Margin 16 + 课程列 180 + 教师 322.5 + 时间 141 + 浮点余量 20.5）
+            // 分层（Experience 100019838）：外层只挡住窗口野蛮生长，单一事实宽度来源=内层教师列 pt×系数。
+            //   - FontScale=32 极端 → teacher=29 pt × 21.5 = 623.5 px；820 - 26-14-16-623.5-141 = -0.5（课程列仍由外层 Window.MaxWidth 裁剪至 Star 列 ≥ 0，不反向撑出窗口）
+            //   - FontScale=默认 18 → teacher=15×21.5=322.5 px；820 - 26-14-16-322.5-141 = 300.5 px 课程列（14+ 字中文，充足）
+            MaxWidth = 820
         };
         // 跨版本 Avalonia 兼容：SystemDecorations 枚举在不同 SDK 内嵌的 Avalonia 中
         // 命名空间/类型名可能变化，用反射尝试设置 None 值隐藏系统标题栏
@@ -732,12 +1030,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         ApplyClickThrough();      // 窗口打开时强制应用点击穿透状态
                         ApplyHoverFade(force: true); // 并同步指针淡化状态
                         StartOrStopTimer();
+                        // 【修复：调试时间不立刻刷新】开关打开时立刻订阅宿主 Settings.PropertyChanged
+                        EnsureHostSettingsSubscriptionAv();
                     });
                 }
                 else
                 {
                     Dispatcher.UIThread.Post(() =>
                     {
+                        // 【修复：调试时间不立刻刷新 - 防内存泄漏】开关关闭时先 Detach 宿主 Settings 订阅（SettingsService 是宿主 singleton）
+                        DetachHostSettingsSubscriptionAv();
                         HideWindow();
                         StartOrStopTimer();
                     });
@@ -1155,6 +1457,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_window == null || _containerBorder == null) return;
 
+        // 【修复：初始化时处于课间无法显示时间表】冷启动 sentinel 识别（必须在顶部重置 -1 之前捕获）
+        //   _lastRefreshStateCode == -1 表示"从未成功构建过 UI"（冷启动 / Stop→Start 首次重建），
+        //   此时若处于 Breaking 时段：跳过 ENTER 250ms 淡入动画直接落地 Opacity=1/Y=0，防止 250ms 内
+        //   课间行 Opacity 被先置 0 → 用户启动时感知为「课间行消失 / 时间表卡住不更新」；
+        //   同时动画时钟 FillMode.Forward 如未正确走完，元素永久保持透明造成 bug 现象。
+        bool isColdStartAv = _lastRefreshStateCode == -1;
+
         var accentColor = GetAccentColor();
         var accentBrush = new SolidColorBrush(accentColor);
         // 字号：课程名=fontSize；其余按相对差值：表头-2、时间-1、老师-3
@@ -1197,17 +1506,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _containerBorder.Background = bg;
             _containerBorder.BorderBrush = sep;
 
-            // ---- 获取今日课表（优先：ILessonsService.CurrentClassPlan / GetClassPlanByDate(DateTime.Today)）----
+            // ---- 获取今日课表（优先：ILessonsService.CurrentClassPlan / GetClassPlanByDate(调试偏移后的今天)）----
+            //  【修复：调试时间调整不立刻刷新时间表 - Date 锚点】
+            //  原来用 DateTime.Today（本地系统日期，不会随 DebugTimeOffsetSeconds 跨天变化），
+            //  改为 Plugin.GetCurrentTime().Date（走宿主 ExactTimeService，包含 DebugTimeOffsetSeconds + TimeOffsetSeconds 偏移），
+            //  这样"调试把日期调到另一天（跨86400秒）"时 ClassPlan 能立刻抓目标日期课表，而不是停留在系统日期课。
+            DateTime todayBase = Plugin.GetCurrentTime().Date;
             object? classPlan = ReflectProp(_lessonsService, "CurrentClassPlan");
             if (classPlan == null)
             {
                 classPlan = InvokeGeneric(_lessonsService, "GetCurrentClassPlan");
                 if (classPlan == null)
                 {
-                    classPlan = InvokeGeneric(_lessonsService, "GetClassPlanByDate", DateTime.Today);
+                    classPlan = InvokeGeneric(_lessonsService, "GetClassPlanByDate", todayBase);
                     if (classPlan == null)
                     {
-                        classPlan = InvokeGeneric(_lessonsService, "GetClassPlan", DateTime.Today);
+                        classPlan = InvokeGeneric(_lessonsService, "GetClassPlan", todayBase);
                     }
                 }
             }
@@ -1285,8 +1599,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //    2) SDK.CurrentTimeLayoutItem.TimeType == 1（是一个课间项目）；
             //    3) 该课间的 StartTime >= 第一节课的 StartTime（未开始时不显示，避免课前假课间）；
             //    4) 该课间的 EndTime   <= 最后一节课的 EndTime（已结束后不显示，避免放学后假课间）；
-            //    5) 找到「相邻课程对 classRows[i] 与 classRows[i+1]」：前者 End == 课间 Start；后者 Start == 课间 End；
-            //       满足时 => 展示位置 = 在 classRows[i] 之后插入一行"课间休息"。
+            //    5) 【修复：连续多课间（B1-B2-B3）不显示后续课间】
+            //       旧算法：要求"相邻课程对 classRows[i].End==课间.Start && classRows[i+1].Start==课间.End 同时命中"才能插入。
+            //       ——3 个连续课间时，B2/B3 既不等于前一节课 End 又不等于后一节课 Start → 永远找不着插入位置（breakInsertAfterClassIdx=-1）。
+            //       新算法（鲁棒兼容任意多连续课间，且对"单课间"场景与原算法完全等价，无破坏性变更）：
+            //         a) i_max_end_le_bs  = classRows 中最后一个满足 End <= 当前课间 Start 的索引  (= 前一个上课课)
+            //         b) i_min_start_ge_be = classRows 中第一个满足 Start >= 当前课间 End 的索引   (= 后一个上课课)
+            //         c) 合法：i_max_end_le_bs >= 0 && i_min_start_ge_be < Count && i_max_end_le_bs < i_min_start_ge_be
+            //         d) 插入位置 = i_max_end_le_bs（在上一节课后面插入当前课间行）
             int breakInsertAfterClassIdx = -1;
             object? breakLayoutItem = null;
             TimeSpan breakStart = default;
@@ -1303,19 +1623,31 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     var lastEnd = ReflectGetEndTime(_currentClassRows[_currentClassRows.Count - 1].LayoutItem);
                     if (bs >= firstStart && be <= lastEnd)
                     {
-                        for (int i = 0; i < _currentClassRows.Count - 1; i++)
+                        // ---- 新算法（鲁棒兼容连续课间）：按"前后上课课"定位插入位置 ----
+                        //  a) 前一节课：最后一个 End <= bs 的上课行
+                        int iMaxEndLeBs = -1;
+                        for (int k = 0; k < _currentClassRows.Count; k++)
                         {
-                            var prevEnd = ReflectGetEndTime(_currentClassRows[i].LayoutItem);
-                            var nextStart = ReflectGetStartTime(_currentClassRows[i + 1].LayoutItem);
-                            if (prevEnd == bs && nextStart == be)
-                            {
-                                breakInsertAfterClassIdx = i;
-                                breakLayoutItem = bLi;
-                                breakStart = bs;
-                                breakEnd = be;
-                                breakNameText = ReflectGetBreakNameText(bLi);
-                                break;
-                            }
+                            if (ReflectGetEndTime(_currentClassRows[k].LayoutItem) <= bs) iMaxEndLeBs = k;
+                            else break;   // classRows 按时间升序，一旦超就不用继续
+                        }
+                        //  b) 后一节课：第一个 Start >= be 的上课行
+                        int iMinStartGeBe = _currentClassRows.Count;
+                        for (int k = _currentClassRows.Count - 1; k >= 0; k--)
+                        {
+                            if (ReflectGetStartTime(_currentClassRows[k].LayoutItem) >= be) iMinStartGeBe = k;
+                            else break;   // 反向扫描同样：时间升序，小于 be 就停
+                        }
+                        //  c) 合法性：前一节课 必须在 后一节课 之前
+                        if (iMaxEndLeBs >= 0 && iMinStartGeBe < _currentClassRows.Count &&
+                            iMaxEndLeBs < iMinStartGeBe)
+                        {
+                            //  d) 插入位置 = 在前一节课后面（无论是 1 个课间 中间 还是 N 个连续课间 中间，都正确）
+                            breakInsertAfterClassIdx = iMaxEndLeBs;
+                            breakLayoutItem = bLi;
+                            breakStart = bs;
+                            breakEnd = be;
+                            breakNameText = ReflectGetBreakNameText(bLi);
                         }
                     }
                 }
@@ -1409,7 +1741,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     }
                     else
                     {
-                        var surname = subject!.GetFirstName();
+                        // 【新增：外国姓名国家前缀】优先本地 TeacherNameHelper：
+                        //   例如 【美国】William Jefferson Clinton → 剥除【美国】→ 取最后单词 Clinton → "Clinton 老师"；
+                        //   中文名（含复姓）保持 SDK 语义（张三 → 张 / 欧阳夏雪 → 欧阳）；
+                        //   Helper 返回空白时回退 SDK Subject.GetFirstName()，保证与历史行为完全兼容。
+                        var surnameFromHelper = TeacherNameHelper.ExtractTeacherShortName(teacherFull);
+                        var surname = !string.IsNullOrWhiteSpace(surnameFromHelper)
+                            ? surnameFromHelper
+                            : subject!.GetFirstName();
                         if (!string.IsNullOrWhiteSpace(surname))
                         {
                             teacherLine = surname + "老师";
@@ -1445,15 +1784,34 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
                 if (!string.IsNullOrEmpty(teacherLine))
                 {
+                    int teacherFontSize = Math.Max(8, fontSize - 3);
+                    // ===== 修复：教师列完整展示 15 汉字（用户最新要求）=====
+                    // 单一事实来源：教师列宽 MaxWidth = teacherFontSizePt × 21.5
+                    //   推导：CJK 全角 YaHei 方块字 = fontSize pt × (96/72) = px ≈ pt×1.333 px/字；15 字 = pt×1.333×15 = pt×20；
+                    //   加 7.5% 余量（少民·点号半角/阿语混排/不同 DPI/YAHEI ·≈0.8字 实测 15字ASCII 200.7px=13.38pt?→实际 15字英文名 316px /15pt=21.04 需要 21.1，取 21.5 给 1.5% 安全）→ 系数 21.5。
+                    //   基准 15 pt → 322.5 px：
+                    //     * 4 字欧阳夏雪 80 px（占 24.8%，大量余量）
+                    //     * 10 字少民阿卜杜拉·本·塔里克 169.63 px（52.6%，仍有一半余量）
+                    //     * 15 字纯 CJK 15×20=300 px ≤ 322.5 ✅ 完整
+                    //     * 15 字 ASCII 极端半角 200.7 px ≤ 322.5 ✅ 完整
+                    //     * 英文名 30 字符 Dr. Christopher van der Saar PhD = 316.13 px ≤ 322.5 ✅ 完整（普通外籍教师姓名范畴）
+                    //     * 英文名 ≥ 35 字 Prof. Konstantinos Papadopoulos-Evans 仍严格限制，末尾省略 + ToolTip 完整显示
+                    //   FontScale=8 → teacher 8×21.5=172 px；FontScale=32 → teacher 29×21.5=623.5 px，外层 820 兜底完整。
+                    var teacherMaxW = teacherFontSize * 21.5;
                     var teacherTb = new TextBlock
                     {
                         Text = teacherLine,
-                        FontSize = Math.Max(8, fontSize - 3),
+                        FontSize = teacherFontSize,
                         Foreground = subFg,
                         HorizontalAlignment = HorizontalAlignment.Right,
                         VerticalAlignment = VerticalAlignment.Center,
+                        TextTrimming = TextTrimming.CharacterEllipsis,
+                        TextWrapping = TextWrapping.NoWrap,
+                        MaxWidth = teacherMaxW,
                         Margin = new Thickness(8, 0, 0, 0)
                     };
+                    // 悬停显示完整教师名（与 SizeToContent 上限解耦：展示层只做裁剪，信息不丢失）
+                    try { Avalonia.Controls.ToolTip.SetTip(teacherTb, teacherLine); } catch { /* ignore */ }
                     Grid.SetColumn(teacherTb, 1);
                     Grid.SetRow(teacherTb, 0);
                     coursePanel.Children.Add(teacherTb);
@@ -1565,29 +1923,72 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //   只在"上一帧不是 Breaking && 当前不是 EXIT 动画进行中 && 本次构建确实产出了课间行 3 元素"时播放 ENTER，
             //   避免"SDK 内部课间切课间（同 break）RefreshSchedule 重建"、"EXIT 动画结束 RefreshSchedule 又回到 Breaking"
             //   等场景下不必要的重放动画。
+            //   【例外：isColdStartAv 冷启动】跳过 ENTER，直接写本地 Opacity=1/Y=0，保证用户能立刻看到最终态
+            //   【★ 修复：初始化时课间文本 250ms 透明卡在上一课里】
+            //      时序 bug：启动时 StartInternal.Post 显式调用 RefreshSchedule #1（sentinel=-1 → isColdStartAv=true → 跳过 ENTER，正确）；
+            //                紧接着 500ms Timer 第一 Tick UpdateProgress：stateOrBreakChanged = Breaking code - (-1) = true → Post RefreshSchedule #2；
+            //                RefreshSchedule #2 入口 _lastRefreshStateCode 已被 #1 写为 Breaking int → isColdStartAv=false；
+            //                同时 #1 由 StartInternal.Post 直接调，不走 UpdateProgress，finally 同步 _wasBreakLastTickAv=true 没执行；
+            //                所以 RefreshSchedule #2 看到 _wasBreakLastTickAv=false（字段初始值）→ 命中 ENTER → 课间行 250ms Opacity=0 淡入！
+            //                250ms 内用户只有上一课 C0 文本可见 → 误认为"课间文本卡在上一课文本里"。
+            //      修复策略：用局部变量 prevWasBreakAv 先保存 ENTER 判断时的原始快照（=本次 RefreshSchedule 被调用时刻的上一帧快照），
+            //                再立刻把字段 _wasBreakLastTickAv 写为 true（只要本次构建确实产出了课间行）。
+            //                这样 ENTER 判断用"调用时刻的快照"保证正常"非 break→break"场景仍正确命中 ENTER；
+            //                而写字段保证下一次 RefreshSchedule 调用时看到"上次已在 break 中"→ 跳过 ENTER（修复初始化 2 次重建的 bug）。
             _currentBreakRowVisualsAv = builtBreakVisualsAv;
-            if (builtBreakVisualsAv != null && !_wasBreakLastTickAv && !_breakRowExitAnimatingAv)
+            if (builtBreakVisualsAv != null)
             {
-                // 【修复 #3】去掉冗余 enterCts（从未 Cancel/CancelAfter），直接使用 EXIT CTS Token 作为 ENTER 的唯一外部取消源：
-                //   - 如果 ENTER 动画 250ms 窗口内 SDK 触发 EXIT：Token 会被 Cancel → ENTER 立即落地最终 Opacity=1/Y=0，视觉衔接平滑；
-                //   - 没有 EXIT 则传 CancellationToken.None，等同于 ENTER 动画不会被外部中断。
-                //   省去原 linkedCTS 的额外分配与 40ms 超时双重叠加（AnimateBreakRowEnterAv 内部已有 290ms 渲染兜底）。
-                async void FireEnter()
+                // (1) 先快照"本次 RefreshSchedule 被调时刻的上一帧状态"（保留：保证 3 步快照语义，避免初始化连续重建误判其他分支）
+                _ = _wasBreakLastTickAv; // （保留读取以兼容旧快照模式语义，实际 ENTER 动画已删除）
+
+                // (2) ★ 立刻写字段 = true：只要本次构建产出课间行 → 锁定"在 break 中"
+                //     —— 下次 RefreshSchedule（下一 Tick / 5s 强制 / PropertyChanged Post）看到"上一帧已是 break"
+                _wasBreakLastTickAv = true;
+
+                // (3) 用户要求：删除「淡化渐变以外的所有动画」→ ENTER 不再执行任何 250ms TranslateY/淡入，
+                //     直接落地最终淡化可见状态：Opacity=1 / TT.Y=0（无论冷启动或过渡，立即渲染）。
+                EnsureBreakRowTransformAv(builtBreakVisualsAv);
+                foreach (var el in builtBreakVisualsAv)
                 {
+                    try { el.Opacity = 1.0; } catch { /* ignore */ }
                     try
                     {
-                        var ct = _breakRowExitCtsAv?.Token ?? CancellationToken.None;
-                        await AnimateBreakRowEnterAv(builtBreakVisualsAv, ct);
+                        if (el.RenderTransform is TranslateTransform ttAv) ttAv.Y = 0.0;
                     }
-                    catch { /* 动画失败兜底：不抛到未捕获域 */ }
+                    catch { /* ignore */ }
                 }
-                Dispatcher.UIThread.Post(FireEnter, DispatcherPriority.Loaded);
+            }
+            else
+            {
+                // 本次没构建课间行（非 Breaking：None/OnClass/AfterSchool...）→ 写 false，保留状态机语义（EXIT 已删，仅作标记）
+                _wasBreakLastTickAv = false;
+                _currentBreakProgressIndicator = null;
+                _currentBreakProgressHost = null;
+                _currentBreakLayoutItem = null;
             }
             // ---- 构建完成后记录"本次刷新时的状态快照" ----
             //  下一帧 UpdateProgress 以这里作为基线；这样 Breaking→OnClass 或 OnClass→Breaking 等状态切换能立刻触发重建。
             _lastRefreshStateCode = (int)curState;
             _lastRefreshBreakStartTicks = breakInsertAfterClassIdx >= 0 && breakLayoutItem != null ? breakStart.Ticks : -1;
             _lastRefreshBreakEndTicks   = breakInsertAfterClassIdx >= 0 && breakLayoutItem != null ? breakEnd.Ticks   : -1;
+            // 【修复：调试时间不立刻刷新 - Date 兜底快照】
+            //  记录本次 RefreshSchedule 构建时的调试时间 Date（非系统 DateTime.Today），
+            //  500ms Tick 检测 dateChanged 时以此为基线，跨天调试跳转即使 PropertyChanged 事件丢失也能在下一 Tick 强制 needRefresh。
+            _lastRefreshDate = Plugin.GetCurrentTime().Date;
+            // 【5s 硬兜底快照同步】RefreshSchedule 构建成功 → 同步"当前 UI 高亮课"的 Start/End 到 5s 校验基线
+            //  这样 5s 硬校验时，把 SDK 最新 CurrentTimeLayoutItem 的 Start/End 与这里写入的"UI 实际高亮快照"做比对，
+            //  能捕获极罕见"stateCode 碰巧相同但 _currentOnClassIndex 高亮索引错位"的一致性黑洞。
+            if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count)
+            {
+                var hiLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
+                _hardSyncHighlightStartTicksAv = ReflectGetStartTime(hiLi).Ticks;
+                _hardSyncHighlightEndTicksAv = ReflectGetEndTime(hiLi).Ticks;
+            }
+            else
+            {
+                _hardSyncHighlightStartTicksAv = -1;
+                _hardSyncHighlightEndTicksAv = -1;
+            }
             StartOrStopTimer();
         }
         catch (Exception ex)
@@ -1636,6 +2037,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // ---- 指针淡化每帧先判断（悬浮窗可能在点击穿透/或 PointerEntered 不可用，只能每帧拉）----
             ApplyHoverFade();
 
+            // 【修复：调试时间不立刻刷新 - Date 跳变兜底】
+            //  每 Tick 先取一次"调试时间完整 DateTime"（包含 DebugTimeOffsetSeconds/TimeOffsetSeconds 偏移）。
+            //  - 用途1：dateChanged 检测（跨天调试、NTP 回跳、系统时间改）→ 强制 stateOrBreakChanged=true。
+            //  - 用途2：后续所有 .TimeOfDay 比率计算可复用 now，避免每 Tick 调多次 Plugin.GetCurrentTime()（减少宿主 ExactTimeService 开销）。
+            var now = Plugin.GetCurrentTime();
+
             var curStateRaw = ReflectProp(_lessonsService, "CurrentState");
             TimeState curState = curStateRaw != null ? (TimeState)curStateRaw : TimeState.None;
             bool onClass = curState == TimeState.OnClass;
@@ -1662,135 +2069,113 @@ public class FloatingScheduleService : IHostedService, IDisposable
                                        breakStartTicks != _lastRefreshBreakStartTicks ||
                                        breakEndTicks != _lastRefreshBreakEndTicks;
 
-            // ======== 【新增 Ava】课间行 EXIT 动画：Breaking→非 Breaking 先移除动画再 RefreshSchedule ========
+            // 【修复：调试时间不立刻刷新 - Date 跳变兜底强制 Refresh】
+            //  场景：用户在调试页调 DebugTimeOffsetSeconds += 86400（跨1天），或系统时间被 NTP 回拨/拨快超过一天。
+            //  即使宿主 SettingsService.Settings.PropertyChanged 事件丢失（极端场景），500ms Tick 内检测到 now.Date 与
+            //  上次 RefreshSchedule 记录的 _lastRefreshDate 不一致 → 直接把 stateOrBreakChanged 置 true，
+            //  这样 needRefresh=true 会触发 RefreshSchedule，ClassPlan 会用新 todayBase 抓取目标日期课表。
+            //  注意：_lastRefreshDate==MinValue 代表首次启动（从未 Refresh 成功过），此时不强制（sentinel=-1 已经会强制 Refresh）。
+            if (_lastRefreshDate != DateTime.MinValue && now.Date != _lastRefreshDate)
+                stateOrBreakChanged = true;
+
+            // 【修复：连续课程 C1→C2→C3 高亮不刷新（对称连续课间问题）】
+            //  根因：UpdateProgress 原本只比对 stateCode + breakStartTicks/breakEndTicks。
+            //        当多节课首尾相接连续（C1.End=C2.Start）时，SDK CurrentState 始终=OnClass → stateCode 相同；
+            //        非 Breaking → breakStartTicks/EndTicks 始终=-1 相同。
+            //        结果：C1→C2 切换时 stateOrBreakChanged=FALSE → needRefresh 不触发 → UI 高亮永久停在 C1，直到 5s 硬刷新。
+            //        用户要求"立刻不出现类似连续课间的问题" → 不能依赖 5s 兜底，必须在 500ms Tick 级即时检测。
+            //  修复：OnClass 状态时：SDK CurrentTimeLayoutItem (TimeType=0) Start/End ↔ 当前 UI 高亮快照（RefreshSchedule 末尾写入的 _hardSyncHighlight）
+            //        任一方不匹配 → stateOrBreakChanged=true → 下一帧 needRefresh → RefreshSchedule 立刻切高亮。
+            //  EXIT 动画窗口跳过：连续课程切换都是 OnClass→OnClass，不会进入 EXIT；但为代码对称仍跳过（保持 EXIT 250ms 动画时序完整）。
+            if (onClass && curLi != null && !_breakRowExitAnimatingAv)
+            {
+                long sdkHiStart = ReflectGetStartTime(curLi).Ticks;
+                long sdkHiEnd   = ReflectGetEndTime(curLi).Ticks;
+                if (sdkHiStart != _hardSyncHighlightStartTicksAv || sdkHiEnd != _hardSyncHighlightEndTicksAv)
+                    stateOrBreakChanged = true;
+            }
+
+            // 【5s 全量强制刷新（用户：任何情况下每 5s 刷新，而不是兜底）】
+            //  对齐 Experience 1279696 双定时器分层（低频做重数据刷新） + Experience 1034846 到点必刷（不得用比对/动画阻断）：
+            //   · 500ms Tick（高频轻量）：进度条 ratio 更新 + state/breakTicks/date 变化 → 即时 needRefresh 触发（保持 500ms 级灵敏度）
+            //   · 每 10 Tick = 5s（低频全量）：【无条件】强制 RefreshSchedule 重建整表
+            //     ✅ 无论"是否刚刷新过/EXIT 动画是否在进行/SDK 状态是否变化"—— 每 5s 必刷，用户要求绝对保证时间表与宿主最新 ClassPlan/LessonsService 状态同步。
+            //     保护：5s 到点先强制清理正在进行的 EXIT 动画（Cancel CTS + 清所有标志/pending），避免 250ms 后 onCompleted 脏覆盖（与 DebugTime Post 开头完全对称）；
+            //           串行性保证：DispatcherTimer Tick 与 RefreshSchedule 都在 UI 线程跑，无重入（回调返回前 Timer 不会再发下一 Tick）。
+            _hardSyncTickCounterAv = (_hardSyncTickCounterAv + 1) % HardSyncTickIntervalAv;
+            if (_hardSyncTickCounterAv == 0)
+            {
+                //  (1) 强制清理 EXIT 动画：与 OnHostSettingsDebugTimeChangedAv Post 开头完全一致的复位块（无条件执行，即使 EXIT 没在跑也安全）
+                // 【修复：课间向上位移 0.5-1s】同步清理 ENTER CTS：每 10 Tick = 5s 强制重建前，Cancel 任何前 5s 内排队的 FireEnter
+                //    （DispatcherPriority.Loaded 异步，若 UI 线程繁忙，排队 FireEnter 可能在 RefreshSchedule #N 替换 UI 之后才执行）
+                // 【★ 修复：3-10s 向上位移（5s 硬清理 ENTER 假命中）】
+                //   根因：之前此处无条件 `_wasBreakLastTickAv = false;`，但本 Tick 顶部 L2043 刚根据 SDK CurrentState 算出 breaking 布尔快照
+                //         （此刻用户若仍在 Breaking 时段，breaking=true）；紧接着 RefreshSchedule ENTER 块的 prevWasBreakAv=L1910 会读
+                //         清理后被抹零的字段 → 取到"假非-break→break 过渡"的 prevWasBreakAv=false → 命中 ENTER 写 Y=-24/Opacity=0 起点。
+                //         时间窗口：启动后第 1 次 5s 到点、第 2 次 10s 到点、CrossPlugin 3s 彩蛋定时器若触发 PropertyChanged→RefreshSchedule →
+                //         与用户报告「先正常显示，约 3-10s 后向上位移」完全一致。
+                //   修复：_wasBreakLastTickAv 不得一刀切 false，必须写=本 Tick 刚算出的真实 breaking 快照 → 若此刻 Breaking=true → ENTER 快照
+                //         prevWasBreakAv=true → ENTER 判断短路不触发 → 不写 Y=-24 起点。DebugTime/Stop 两处写 false 合理（sentinel=-1 使 isColdStartAv=true 短路 ENTER）。
+                try
+                {
+                    try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
+                    try { _breakRowEnterCtsAv?.Cancel(); } catch { /* ignore */ }
+                    try
+                    {
+                        var oldCts = System.Threading.Interlocked.Exchange(ref _breakRowExitCtsAv, null);
+                        oldCts?.Dispose();
+                    }
+                    catch { /* ignore */ }
+                    try
+                    {
+                        var oldEnter = System.Threading.Interlocked.Exchange(ref _breakRowEnterCtsAv, null);
+                        oldEnter?.Dispose();
+                    }
+                    catch { /* ignore */ }
+                    _breakRowExitAnimatingAv = false;
+                    // 【★ 关键修复行】写入本 Tick 的真实 breaking 快照（不是永远 false）
+                    _wasBreakLastTickAv = breaking;
+                    _breakRowExitPendingStateCode = -1;
+                    _breakRowExitPendingBreakStart = -1;
+                    _breakRowExitPendingBreakEnd = -1;
+                    _currentBreakRowVisualsAv = null;
+                    _currentBreakProgressIndicator = null;
+                    _currentBreakProgressHost = null;
+                }
+                catch { /* ignore：所有引用/CTS 操作本不抛，这里只是绝对兜底保证下面 RefreshSchedule 必执行 */ }
+
+                //  (2) 【核心要求】任何情况下每 5s 全量重建时间表
+                RefreshSchedule();
+            }
+
+            // ======== 【用户：删除淡化渐变动画以外的所有动画 Ava】课间 EXIT 不再播放 250ms TranslateY/淡出，直接整表重建 ========
+            //   原实现：Breaking→非Breaking 先 EXIT 250ms 动画再回调 RefreshSchedule。现改为同步：
+            //   立即写 pending 快照 + 复位 EXIT/ENTER 标志 + 调 RefreshSchedule()；淡化 Opacity 1↔0 的保留不影响（课间行 UI 被从 Children 移除自然"消失"，淡化仅用于 Hover）。
             if (_wasBreakLastTickAv && !breaking && !_breakRowExitAnimatingAv &&
                 _currentBreakRowVisualsAv != null && _currentBreakRowVisualsAv.Count > 0)
             {
-                _breakRowExitAnimatingAv = true;
-                _breakRowExitPendingStateCode = stateCode;
-                _breakRowExitPendingBreakStart = breakStartTicks;
-                _breakRowExitPendingBreakEnd = breakEndTicks;
-                // 阻断本次 stateOrBreakChanged 触发 needRefresh，延后到 EXIT 动画结束回调统一重建
                 stateOrBreakChanged = false;
-
-                // 取消旧 EXIT CTS（安全地释放上一轮可能还残留的 token 引用）
                 try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
-                var newCts = new CancellationTokenSource();
-                _breakRowExitCtsAv = newCts;
-
-                var visualsToExit = _currentBreakRowVisualsAv;
-                // async void fire-and-forget：动画 250ms，结束后 Post RefreshSchedule。
-                //   Finish 回调 100% 触发（AnimateBreakRowExitAv 用 WhenAny+Task.Delay 双保险），因此不会泄漏。
-                async void FireExit()
+                try { _breakRowEnterCtsAv?.Cancel(); } catch { /* ignore */ }
+                try
                 {
-                    try
-                    {
-                        await AnimateBreakRowExitAv(visualsToExit, newCts.Token, () =>
-                        {
-                            // 必须在 UI 线程写快照 + RefreshSchedule + 复位标志
-                            Dispatcher.UIThread.Post(() =>
-                            {
-                                _lastRefreshStateCode = _breakRowExitPendingStateCode;
-                                _lastRefreshBreakStartTicks = _breakRowExitPendingBreakStart;
-                                _lastRefreshBreakEndTicks = _breakRowExitPendingBreakEnd;
-                                // 【修复 #2】复位标志顺序放在 RefreshSchedule 之前：
-                                //   若 SDK 状态在 EXIT 250ms 窗口内极端抖动回 Breaking，RefreshSchedule 内部 ENTER 判断能正确走到播放动画，
-                                //   而不会因 _breakRowExitAnimatingAv==true / _wasBreakLastTickAv==true 被挡住。
-                                _breakRowExitAnimatingAv = false;
-                                _wasBreakLastTickAv = false;
-                                // 清除已离场旧 visuals 引用：防止 RefreshSchedule 构建的新课间行（若存在）被此字段残留值"误判仍有旧行"
-                                _currentBreakRowVisualsAv = null;
-                                _currentBreakProgressIndicator = null;
-                                _currentBreakProgressHost = null;
-                                RefreshSchedule();
-                                // Ava Post 中 RefreshSchedule 本身同步完成，紧接跑一次 ratio（对齐 needRefresh 分支的行为）
-                                try
-                                {
-                                    var svc = _lessonsService;
-                                    if (svc != null)
-                                    {
-                                        var sRaw = ReflectProp(svc, "CurrentState");
-                                        TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
-                                        bool onC = s == TimeState.OnClass;
-                                        bool brk = s == TimeState.Breaking;
-                                        if (brk)
-                                        {
-                                            var bx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                                            if (bx != null && ReflectGetTimeType(bx) == 1 && _currentBreakProgressIndicator != null)
-                                            {
-                                                var bs = ReflectGetStartTime(bx);
-                                                var be = ReflectGetEndTime(bx);
-                                                double tb = (be - bs).TotalSeconds;
-                                                if (tb > 0)
-                                                {
-                                                    var nn = Plugin.GetCurrentTime().TimeOfDay;
-                                                    double rb = Math.Clamp((nn - bs).TotalSeconds / tb, 0.0, 1.0);
-                                                    ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, rb);
-                                                }
-                                                else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-                                            }
-                                            else if (_currentBreakProgressIndicator != null)
-                                                ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-                                        }
-                                        else if (_currentBreakProgressIndicator != null)
-                                            ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-                                        if (onC)
-                                        {
-                                            var lx = ReflectProp(svc, "CurrentTimeLayoutItem");
-                                            if (lx != null && _currentProgressIndicator != null)
-                                            {
-                                                var st = ReflectGetStartTime(lx);
-                                                var ed = ReflectGetEndTime(lx);
-                                                double t = (ed - st).TotalSeconds;
-                                                if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
-                                                else
-                                                {
-                                                    var nn = Plugin.GetCurrentTime().TimeOfDay;
-                                                    double p = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
-                                                    ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, p);
-                                                }
-                                            }
-                                            else ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
-                                        }
-                                        else ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
-                                    }
-                                }
-                                catch { /* 忽略 */ }
-                                // 复位 EXIT CTS 状态
-                                if (ReferenceEquals(_breakRowExitCtsAv, newCts))
-                                {
-                                    try { newCts.Dispose(); } catch { /* ignore */ }
-                                    _breakRowExitCtsAv = null;
-                                }
-                            }, DispatcherPriority.Loaded);
-                        });
-                    }
-                    catch
-                    {
-                        // 极端异常：强制复位 EXIT 标志，避免永久卡死"动画中"状态
-                        Dispatcher.UIThread.Post(() =>
-                        {
-                            if (ReferenceEquals(_breakRowExitCtsAv, newCts))
-                            {
-                                try { newCts.Dispose(); } catch { /* ignore */ }
-                                _breakRowExitCtsAv = null;
-                            }
-                            // 【修复 #2 兜底分支】与 onCompleted 同顺序：先写快照 + 复位标志 + 清旧引用，再 RefreshSchedule
-                            _breakRowExitAnimatingAv = false;
-                            _wasBreakLastTickAv = false;
-                            _currentBreakRowVisualsAv = null;
-                            _currentBreakProgressIndicator = null;
-                            _currentBreakProgressHost = null;
-                            _lastRefreshStateCode = _breakRowExitPendingStateCode;
-                            _lastRefreshBreakStartTicks = _breakRowExitPendingBreakStart;
-                            _lastRefreshBreakEndTicks = _breakRowExitPendingBreakEnd;
-                            // 紧急兜底：直接 RefreshSchedule 让 UI 与当前状态对齐（哪怕跳过动画）
-                            try { RefreshSchedule(); }
-                            catch { /* ignore */ }
-                        }, DispatcherPriority.Loaded);
-                    }
-                }
-                Dispatcher.UIThread.Post(FireExit, DispatcherPriority.Loaded);
+                    var oldExit = System.Threading.Interlocked.Exchange(ref _breakRowExitCtsAv, null);
+                    oldExit?.Dispose();
+                } catch { /* ignore */ }
+                try
+                {
+                    var oldEnter = System.Threading.Interlocked.Exchange(ref _breakRowEnterCtsAv, null);
+                    oldEnter?.Dispose();
+                } catch { /* ignore */ }
+                _breakRowExitAnimatingAv = false;
+                _wasBreakLastTickAv = false;
+                _currentBreakRowVisualsAv = null;
+                _currentBreakProgressIndicator = null;
+                _currentBreakProgressHost = null;
+                _lastRefreshStateCode = stateCode;
+                _lastRefreshBreakStartTicks = breakStartTicks;
+                _lastRefreshBreakEndTicks = breakEndTicks;
+                try { RefreshSchedule(); } catch { /* ignore */ }
             }
 
             // ---- 时间表状态变化 → 触发 RefreshSchedule 重建高亮行与进度条位置 ----
@@ -1910,8 +2295,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 var breakTotal = (breakEnd - breakStart).TotalSeconds;
                 if (breakTotal > 0)
                 {
-                    var now = Plugin.GetCurrentTime().TimeOfDay;
-                    var bElapsed = (now - breakStart).TotalSeconds;
+                    // 复用 UpdateProgress 开头已拿到的 now（含最新 DebugTimeOffset 偏移），省一次 ExactTimeService 调用；并避免 CS0136 同名 shadow
+                    var nn = now.TimeOfDay;
+                    var bElapsed = (nn - breakStart).TotalSeconds;
                     double ratio = Math.Clamp(bElapsed / breakTotal, 0.0, 1.0);
                     ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, ratio);
                 }
@@ -1971,11 +2357,31 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static async Task AnimateBreakRowEnterAv(List<Control> elements, CancellationToken ct)
     {
         if (elements.Count == 0) return;
+        // 【修复：课间向上位移 0.5-1s】Ava 端取消路径：在写 Opacity=0/TT.Y=-24 起点之前抛。
+        //   —— 与 WPF AnimateBreakRowEnterWpf 首行 ct.IsCancellationRequested 完全同构。
+        //      只要 RefreshSchedule #N 重建前 Cancel ENTER CTS → 本 FireEnter 到这里立刻走 OperationCanceled
+        //      → 外层 catch 吞 → 不再写 -24/0 → 不闪烁位移。
+        if (ct.IsCancellationRequested) { throw new OperationCanceledException(ct); }
         EnsureBreakRowTransformAv(elements);
 
         // 统一先落地"动画起点"本地值，避免第 0 帧闪现控件默认 Opacity=1/Y=0
         foreach (var el in elements)
         {
+            // 循环途中（理论上 UI 线程不会被抢，但绝对兜底）也检查
+            if (ct.IsCancellationRequested)
+            {
+                // 走到一半 Cancel：立即把已经落到起点的元素拉回最终态 1/0（防"一半位移一半不位移"中间态残留）
+                foreach (var e in elements)
+                {
+                    try
+                    {
+                        e.Opacity = 1.0;
+                        if (e.RenderTransform is TranslateTransform ttR) ttR.Y = 0.0;
+                    }
+                    catch { /* ignore */ }
+                }
+                throw new OperationCanceledException(ct);
+            }
             el.Opacity = 0.0;
             if (el.RenderTransform is TranslateTransform tt) tt.Y = BreakRowEnterTranslatePxAv;
         }

@@ -1,0 +1,10 @@
+C:\Users\Administrator\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPF\AdvancedTimeIslandWPF.csproj : warning NU1701: 已使用“.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1”而不是项目目标框架“net8.0-windows7.0”还原包“unvell.ReoGridWPF.dll 2.2.0”。此包可能与项目不完全兼容。
+  AdvancedTimeIslandWPF -> C:\Users\Administrator\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPF\bin\Debug\net8.0-windows\AdvancedTimeIsland.dll
+
+已成功生成。
+
+C:\Users\Administrator\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPF\AdvancedTimeIslandWPF.csproj : warning NU1701: 已使用“.NETFramework,Version=v4.6.1, .NETFramework,Version=v4.6.2, .NETFramework,Version=v4.7, .NETFramework,Version=v4.7.1, .NETFramework,Version=v4.7.2, .NETFramework,Version=v4.8, .NETFramework,Version=v4.8.1”而不是项目目标框架“net8.0-windows7.0”还原包“unvell.ReoGridWPF.dll 2.2.0”。此包可能与项目不完全兼容。
+    1 个警告
+    0 个错误
+
+已用时间 00:00:01.42
