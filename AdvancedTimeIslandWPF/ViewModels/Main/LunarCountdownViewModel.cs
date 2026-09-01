@@ -384,11 +384,33 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
 
         if (activeItems.Count == 0)
         {
+            // 全部农历倒计时已结束：优先显示三段式"农历倒计时 + 最后完成的名称 + 已结束"，
+            // 取 IsCompleted 且目标时间戳最大的项的名称；无完成项或名称为空时回退为单行"农历倒计时已结束"
+            var lastCompletedName = _settings.CountdownItems
+                .Where(item => item.IsCompleted)
+                .OrderByDescending(item => item.GetTargetTimestamp())
+                .FirstOrDefault()?.Name;
+
+            if (string.IsNullOrWhiteSpace(lastCompletedName))
+            {
+                return new LunarCountdownDisplayData
+                {
+                    Text1 = string.Empty,
+                    Name = string.Empty,
+                    Text3 = "农历倒计时已结束",
+                    Time = string.Empty,
+                    Text4 = string.Empty,
+                    IsAllCompleted = true,
+                    IsEmpty = false,
+                    CurrentItem = null
+                };
+            }
+
             return new LunarCountdownDisplayData
             {
-                Text1 = _settings.Text1,
-                Name = string.Empty,
-                Text3 = "农历倒计时已结束",
+                Text1 = "农历倒计时",
+                Name = lastCompletedName,
+                Text3 = "已结束",
                 Time = string.Empty,
                 Text4 = string.Empty,
                 IsAllCompleted = true,

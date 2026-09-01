@@ -767,6 +767,35 @@ public partial class PluginSettingsPage : UserControl
                         _settings.FloatingScheduleClickThrough = FloatingScheduleClickThroughItem.IsOn;
                 });
 
+            // 贴边自动隐藏
+            FloatingScheduleEdgeHideItem.IsOn = _settings?.FloatingScheduleEdgeHide ?? false;
+            var edgeHideDesc = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            edgeHideDesc.AddValueChanged(FloatingScheduleEdgeHideItem,
+                (s, e) =>
+                {
+                    if (_settings != null)
+                        _settings.FloatingScheduleEdgeHide = FloatingScheduleEdgeHideItem.IsOn;
+                });
+
+            // 贴边隐藏延迟时间（秒，0~60，步长1，精确0.1，默认3）
+            var edgeDelayNumeric = new WpfNumericUpDown
+            {
+                Width = 155,
+                Minimum = 0.0m,
+                Maximum = 60.0m,
+                Increment = 1.0m,
+                FormatString = "0.0",
+                HorizontalAlignment = HorizontalAlignment.Left,
+                Value = (decimal)Math.Clamp(_settings?.FloatingScheduleEdgeHideDelay ?? 3.0, 0.0, 60.0)
+            };
+            edgeDelayNumeric.ValueChanged += (s, e) =>
+            {
+                if (_settings == null || !edgeDelayNumeric.Value.HasValue) return;
+                _settings.FloatingScheduleEdgeHideDelay = Math.Clamp((double)edgeDelayNumeric.Value.Value, 0.0, 60.0);
+            };
+            FloatingScheduleEdgeHideDelayItem.Switcher = edgeDelayNumeric;
+
             // 指针移入淡化
             FloatingScheduleHoverFadeItem.IsOn = _settings?.FloatingScheduleHoverFade ?? false;
             var hoverFadeDesc = DependencyPropertyDescriptor.FromProperty(

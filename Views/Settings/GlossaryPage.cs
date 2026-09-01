@@ -1,4 +1,7 @@
 using System;
+using System.Collections.Generic;
+using System.ComponentModel;
+using System.Linq;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -7,19 +10,32 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Models;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
 public class GlossaryPage : UserControl
 {
-    private List<TextBlock>? _paragraphTextBlocks;
-    private List<TextBlock>? _heading2TextBlocks;
-    private List<TextBlock>? _heading3TextBlocks;
-    private List<TextBlock>? _listItemTextBlocks;
-    private List<Border>? _quoteBorders;
-    private List<TextBlock>? _quoteTextBlocks;
-    private Border? _markdownSectionBorder;
-    private List<Border>? _separatorBorders;
+    /// <summary>
+    /// 收集一段 markdown 渲染产生的控件引用，便于主题切换时统一更新颜色
+    /// </summary>
+    private sealed class MarkdownStyleRefs
+    {
+        public Border? SectionBorder;
+        public List<TextBlock> ParagraphTextBlocks { get; } = new();
+        public List<TextBlock> Heading2TextBlocks { get; } = new();
+        public List<TextBlock> Heading3TextBlocks { get; } = new();
+        public List<TextBlock> ListItemTextBlocks { get; } = new();
+        public List<Border> QuoteBorders { get; } = new();
+        public List<TextBlock> QuoteTextBlocks { get; } = new();
+        public List<Border> SeparatorBorders { get; } = new();
+    }
+
+    private readonly PluginSettings? _settings;
+    private StackPanel? _mainPanel;
+    private readonly MarkdownStyleRefs _baseRefs = new();
+    private MarkdownStyleRefs? _experimentalRefs;
+    private Border? _experimentalSection;
 
     private static IBrush GetAccentBrush()
     {
@@ -34,9 +50,14 @@ public class GlossaryPage : UserControl
         return Brushes.DodgerBlue;
     }
 
-    public GlossaryPage()
+    public GlossaryPage(PluginSettings? settings = null)
     {
+        _settings = settings;
         InitializeComponent();
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
     }
 
     private void InitializeComponent()
@@ -47,14 +68,14 @@ public class GlossaryPage : UserControl
             BringIntoViewOnFocusChange = false
         };
 
-        var mainPanel = new StackPanel
+        _mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Thickness(16),
             Spacing = 16
         };
 
-        mainPanel.Children.Add(new TextBlock
+        _mainPanel.Children.Add(new TextBlock
         {
             Text = "专业名词解释",
             FontSize = 28,
@@ -64,7 +85,286 @@ public class GlossaryPage : UserControl
             Margin = new Thickness(0, 0, 0, 8)
         });
 
-        var markdownContent = @"## Unix时间戳
+        _mainPanel.Children.Add(CreateMarkdownSection(BaseMarkdown, _baseRefs));
+
+        RebuildExperimentalSection();
+
+        scrollViewer.Content = _mainPanel;
+        Content = scrollViewer;
+    }
+
+    /// <summary>
+    /// 根据实验性功能开关重建实验词条段落
+    /// </summary>
+    private void RebuildExperimentalSection()
+    {
+        if (_mainPanel == null) return;
+
+        // 清理旧控件引用，避免主题更新列表指向已移除的控件
+        if (_experimentalSection != null)
+        {
+            _mainPanel.Children.Remove(_experimentalSection);
+            _experimentalSection = null;
+        }
+        _experimentalRefs = null;
+
+        if (!(_settings?.EnableExperimentalFeatures ?? false)) return;
+
+        var refs = new MarkdownStyleRefs();
+        _experimentalSection = CreateMarkdownSection(ExperimentalMarkdown, refs);
+        _experimentalRefs = refs;
+        _mainPanel.Children.Add(_experimentalSection);
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            RebuildExperimentalSection();
+        }
+    }
+
+    private Border CreateMarkdownSection(string markdownText, MarkdownStyleRefs refs)
+    {
+        var section = new Border
+        {
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(20),
+            CornerRadius = new CornerRadius(6),
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
+        };
+        refs.SectionBorder = section;
+
+        var content = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 10
+        };
+
+        var lines = markdownText.Split('\n');
+        var paragraphBuffer = new List<string>();
+
+        void FlushParagraph()
+        {
+            if (paragraphBuffer.Count == 0) return;
+            var paragraphText = string.Join(" ", paragraphBuffer).Trim();
+            paragraphBuffer.Clear();
+            if (string.IsNullOrWhiteSpace(paragraphText)) return;
+
+            var tb = BuildInlineTextBlock(paragraphText, 13, ThemeHelper.GetSubTextBrush(), false);
+            refs.ParagraphTextBlocks.Add(tb);
+            content.Children.Add(tb);
+        }
+
+        foreach (var rawLine in lines)
+        {
+            var line = rawLine.TrimEnd('\r');
+
+            if (string.IsNullOrWhiteSpace(line))
+            {
+                FlushParagraph();
+                content.Children.Add(new Border { Height = 4 });
+                continue;
+            }
+
+            if (line.StartsWith("## "))
+            {
+                FlushParagraph();
+                var h2 = new TextBlock
+                {
+                    Text = line.Substring(3).Trim(),
+                    FontSize = 21,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = GetAccentBrush(),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 12, 0, 4)
+                };
+                refs.Heading2TextBlocks.Add(h2);
+                content.Children.Add(h2);
+                continue;
+            }
+
+            if (line.StartsWith("### "))
+            {
+                FlushParagraph();
+                var h3 = new TextBlock
+                {
+                    Text = line.Substring(4).Trim(),
+                    FontSize = 16,
+                    FontWeight = FontWeight.Bold,
+                    Foreground = ThemeHelper.GetLightBlueBrush(),
+                    TextWrapping = TextWrapping.Wrap,
+                    Margin = new Thickness(0, 6, 0, 2)
+                };
+                refs.Heading3TextBlocks.Add(h3);
+                content.Children.Add(h3);
+                continue;
+            }
+
+            if (line.StartsWith("---"))
+            {
+                FlushParagraph();
+                var sep = new Border
+                {
+                    Height = 1,
+                    Background = ThemeHelper.GetSeparatorBrush(),
+                    Margin = new Thickness(0, 8, 0, 8)
+                };
+                refs.SeparatorBorders.Add(sep);
+                content.Children.Add(sep);
+                continue;
+            }
+
+            if (line.StartsWith("> "))
+            {
+                FlushParagraph();
+                var accentBrush = GetAccentBrush();
+                var quotePanel = new Border
+                {
+                    BorderBrush = accentBrush is SolidColorBrush sb ? sb : new SolidColorBrush(Color.Parse("#1E90FF")),
+                    BorderThickness = new Thickness(3, 0, 0, 0),
+                    Padding = new Thickness(10, 6, 6, 6),
+                    Margin = new Thickness(0, 4, 0, 4),
+                    Background = ThemeHelper.GetQuoteBackgroundBrush(),
+                    Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetYellowBrush(), false)
+                };
+                refs.QuoteBorders.Add(quotePanel);
+                refs.QuoteTextBlocks.Add((TextBlock)quotePanel.Child);
+                content.Children.Add(quotePanel);
+                continue;
+            }
+
+            if (line.StartsWith("- ") || line.StartsWith("* "))
+            {
+                FlushParagraph();
+                var itemPanel = new StackPanel
+                {
+                    Orientation = Orientation.Horizontal,
+                    Spacing = 6,
+                    Margin = new Thickness(8, 0, 0, 0)
+                };
+                itemPanel.Children.Add(new TextBlock
+                {
+                    Text = "•",
+                    FontSize = 13,
+                    Foreground = GetAccentBrush(),
+                    FontWeight = FontWeight.Bold
+                });
+                var itemText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetSubTextBrush(), false);
+                refs.ListItemTextBlocks.Add(itemText);
+                itemPanel.Children.Add(itemText);
+                content.Children.Add(itemPanel);
+                continue;
+            }
+
+            paragraphBuffer.Add(line.Trim());
+        }
+
+        FlushParagraph();
+
+        section.Child = content;
+        return section;
+    }
+
+    private TextBlock BuildInlineTextBlock(string text, double fontSize, IBrush defaultBrush, bool isItalic)
+    {
+        var cleanText = text.Replace("**", "").Replace("`", "");
+
+        return new TextBlock
+        {
+            Text = cleanText,
+            FontSize = fontSize,
+            Foreground = defaultBrush,
+            TextWrapping = TextWrapping.Wrap,
+            FontStyle = isItalic ? FontStyle.Italic : FontStyle.Normal
+        };
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        if (_settings != null)
+        {
+            // 页签切换会触发 detach/attach：重新挂载时恢复订阅（先退订再订阅防止重复），保证开关切换即时刷新
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            _settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
+    }
+
+    protected override void OnInitialized()
+    {
+        base.OnInitialized();
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        }
+    }
+
+    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnDetachedFromVisualTree(e);
+        if (Application.Current != null)
+        {
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        }
+        if (_settings != null)
+        {
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+        }
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        UpdateThemeColors();
+    }
+
+    private void UpdateThemeColors()
+    {
+        ApplyTheme(_baseRefs);
+        if (_experimentalRefs != null)
+        {
+            ApplyTheme(_experimentalRefs);
+        }
+    }
+
+    private static void ApplyTheme(MarkdownStyleRefs refs)
+    {
+        if (refs.SectionBorder != null)
+            refs.SectionBorder.Background = ThemeHelper.GetCardBackgroundBrush();
+
+        foreach (var border in refs.SeparatorBorders)
+        {
+            border.Background = ThemeHelper.GetSeparatorBrush();
+        }
+
+        foreach (var border in refs.QuoteBorders)
+        {
+            border.Background = ThemeHelper.GetQuoteBackgroundBrush();
+        }
+
+        foreach (var tb in refs.ParagraphTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetSubTextBrush();
+        }
+        foreach (var tb in refs.Heading3TextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetLightBlueBrush();
+        }
+        foreach (var tb in refs.ListItemTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetSubTextBrush();
+        }
+        foreach (var tb in refs.QuoteTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetYellowBrush();
+        }
+    }
+
+    /// <summary>
+    /// 基础词条（始终显示）
+    /// </summary>
+    private const string BaseMarkdown = @"## Unix时间戳
 
 世界统一的时间，是指格林威治时间1970年01月01日00时00分00秒（北京时间1970年01月01日08时00分00秒）起至现在的总秒数（不考虑**闰秒**），它的核心作用是确保唯一性和顺序：在计算机系统中，它能精确记录事件发生的时刻，并且因为时间一直向前，每个时间戳都是独一无二的。
 
@@ -108,11 +408,12 @@ public class GlossaryPage : UserControl
 
 ## 1% Low 帧率
 
-统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。
+统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。";
 
----
-
-## 汉服
+    /// <summary>
+    /// 实验性词条（仅当开启实验性功能时显示）
+    /// </summary>
+    private const string ExperimentalMarkdown = @"## 汉服
 
 全称""汉民族传统服饰""，是汉族流传数千年的传统服饰体系，**并非单指汉朝的衣服**。
 
@@ -132,248 +433,4 @@ public class GlossaryPage : UserControl
 ## 女装
 
 女装是以女性人体数据和女子号型标准为基础，以女性为主要目标穿着者，并在特定文化中被归为女性服饰符号的服装类别；其边界随时代和文化而变化，并不存在绝对固定的标准。";
-
-        mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
-
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
-    }
-
-    private Border CreateMarkdownSection(string markdownText)
-    {
-        _paragraphTextBlocks = new List<TextBlock>();
-        _heading2TextBlocks = new List<TextBlock>();
-        _heading3TextBlocks = new List<TextBlock>();
-        _listItemTextBlocks = new List<TextBlock>();
-        _quoteBorders = new List<Border>();
-        _quoteTextBlocks = new List<TextBlock>();
-
-        var section = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(20),
-            CornerRadius = new CornerRadius(6),
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
-        };
-        _markdownSectionBorder = section;
-
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 10
-        };
-
-        var lines = markdownText.Split('\n');
-        var paragraphBuffer = new System.Collections.Generic.List<string>();
-
-        void FlushParagraph()
-        {
-            if (paragraphBuffer.Count == 0) return;
-            var paragraphText = string.Join(" ", paragraphBuffer).Trim();
-            paragraphBuffer.Clear();
-            if (string.IsNullOrWhiteSpace(paragraphText)) return;
-
-            var tb = BuildInlineTextBlock(paragraphText, 13, ThemeHelper.GetSubTextBrush(), false);
-            _paragraphTextBlocks.Add(tb);
-            content.Children.Add(tb);
-        }
-
-        foreach (var rawLine in lines)
-        {
-            var line = rawLine.TrimEnd('\r');
-
-            if (string.IsNullOrWhiteSpace(line))
-            {
-                FlushParagraph();
-                content.Children.Add(new Border { Height = 4 });
-                continue;
-            }
-
-            if (line.StartsWith("## "))
-            {
-                FlushParagraph();
-                var h2 = new TextBlock
-                {
-                    Text = line.Substring(3).Trim(),
-                    FontSize = 21,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = GetAccentBrush(),
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 12, 0, 4)
-                };
-                _heading2TextBlocks.Add(h2);
-                content.Children.Add(h2);
-                continue;
-            }
-
-            if (line.StartsWith("### "))
-            {
-                FlushParagraph();
-                var h3 = new TextBlock
-                {
-                    Text = line.Substring(4).Trim(),
-                    FontSize = 16,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = ThemeHelper.GetLightBlueBrush(),
-                    TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 6, 0, 2)
-                };
-                _heading3TextBlocks.Add(h3);
-                content.Children.Add(h3);
-                continue;
-            }
-
-            if (line.StartsWith("---"))
-            {
-                FlushParagraph();
-                var sep = new Border
-                {
-                    Height = 1,
-                    Background = ThemeHelper.GetSeparatorBrush(),
-                    Margin = new Thickness(0, 8, 0, 8)
-                };
-                _separatorBorders?.Add(sep);
-                content.Children.Add(sep);
-                continue;
-            }
-
-            if (line.StartsWith("> "))
-            {
-                FlushParagraph();
-                var accentBrush = GetAccentBrush();
-                var quotePanel = new Border
-                {
-                    BorderBrush = accentBrush is SolidColorBrush sb ? sb : new SolidColorBrush(Color.Parse("#1E90FF")),
-                    BorderThickness = new Thickness(3, 0, 0, 0),
-                    Padding = new Thickness(10, 6, 6, 6),
-                    Margin = new Thickness(0, 4, 0, 4),
-                    Background = ThemeHelper.GetQuoteBackgroundBrush(),
-                    Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetYellowBrush(), false)
-                };
-                _quoteBorders.Add(quotePanel);
-                _quoteTextBlocks.Add((TextBlock)quotePanel.Child);
-                content.Children.Add(quotePanel);
-                continue;
-            }
-
-            if (line.StartsWith("- ") || line.StartsWith("* "))
-            {
-                FlushParagraph();
-                var itemPanel = new StackPanel
-                {
-                    Orientation = Orientation.Horizontal,
-                    Spacing = 6,
-                    Margin = new Thickness(8, 0, 0, 0)
-                };
-                itemPanel.Children.Add(new TextBlock
-                {
-                    Text = "•",
-                    FontSize = 13,
-                    Foreground = GetAccentBrush(),
-                    FontWeight = FontWeight.Bold
-                });
-                var itemText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetSubTextBrush(), false);
-                _listItemTextBlocks.Add(itemText);
-                itemPanel.Children.Add(itemText);
-                content.Children.Add(itemPanel);
-                continue;
-            }
-
-            paragraphBuffer.Add(line.Trim());
-        }
-
-        FlushParagraph();
-
-        section.Child = content;
-        return section;
-    }
-
-    private TextBlock BuildInlineTextBlock(string text, double fontSize, IBrush defaultBrush, bool isItalic)
-    {
-        var cleanText = text.Replace("**", "").Replace("`", "");
-
-        return new TextBlock
-        {
-            Text = cleanText,
-            FontSize = fontSize,
-            Foreground = defaultBrush,
-            TextWrapping = TextWrapping.Wrap,
-            FontStyle = isItalic ? FontStyle.Italic : FontStyle.Normal
-        };
-    }
-
-    protected override void OnInitialized()
-    {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
-    }
-
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void UpdateThemeColors()
-    {
-        if (_markdownSectionBorder != null)
-            _markdownSectionBorder.Background = ThemeHelper.GetCardBackgroundBrush();
-
-        if (_separatorBorders != null)
-        {
-            foreach (var border in _separatorBorders)
-            {
-                border.Background = ThemeHelper.GetSeparatorBrush();
-            }
-        }
-
-        if (_quoteBorders != null)
-        {
-            foreach (var border in _quoteBorders)
-            {
-                border.Background = ThemeHelper.GetQuoteBackgroundBrush();
-            }
-        }
-
-        if (_paragraphTextBlocks != null)
-        {
-            foreach (var tb in _paragraphTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetSubTextBrush();
-            }
-        }
-        if (_heading3TextBlocks != null)
-        {
-            foreach (var tb in _heading3TextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetLightBlueBrush();
-            }
-        }
-        if (_listItemTextBlocks != null)
-        {
-            foreach (var tb in _listItemTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetSubTextBrush();
-            }
-        }
-        if (_quoteTextBlocks != null)
-        {
-            foreach (var tb in _quoteTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetYellowBrush();
-            }
-        }
-    }
 }

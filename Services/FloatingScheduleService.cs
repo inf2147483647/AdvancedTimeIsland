@@ -115,6 +115,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  用本列表按"now ∈ 哪个课间项的 [Start, End)"定位 → 每个课间分别走进度。
     private readonly List<object> _breakItemsAv = new();
 
+    // 【课表分隔线·档案组件】档案中用户手动插入的"分隔线"对象（TimeType==2，StartTime==EndTime 时间点语义），
+    //  按 Start 升序；RefreshSchedule 构建时从 classPlan 收集。分隔线只画在档案定义的位置（不是每个课间都画）。
+    private readonly List<object> _separatorItemsAv = new();
+
+    // 【课表行分隔线】跨两列的 3px 分隔线控件集合（每个档案分隔线组件对应一条），
+    //  深色主题白色 / 浅色主题黑色；订阅 ActualThemeVariantChanged 动态更新颜色，Stop 退订防泄漏。
+    private readonly List<Border> _breakSeparatorLinesAv = new();
+    private EventHandler? _breakSeparatorThemeHandlerAv;
+
     private CancellationTokenSource? _retryCts;
     private DispatcherTimer? _timer;                      // 500ms 进度刷新（原保持不变）
     private DispatcherTimer? _hoverFadeTimer;             // 50ms 高频轮询：指针淡化判定
@@ -136,6 +145,42 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     // 拖拽状态（重置方案A → 只保留 SizeToContent 冻结状态 + Windows hwnd 引用；其余全删）
     private SizeToContent _preDragAvSizeMode;
+
+    // ========== 统一指针拖拽（鼠标 / 触摸 / 数位板笔 共用一套） ==========
+    //  参考 UWP/WinUI 的"统一 Pointer 事件模型"：不再为每种输入设备分别写逻辑，
+    //  也不再走 Win32 HTCAPTION（只支持鼠标）或 Window.BeginMoveDrag（触摸会异步抛
+    //  "BeginMoveDrag Failed" 崩溃）。改为：PointerPressed 里 e.Pointer.Capture(容器) 锁定指针，
+    //  PointerMoved 里按"指针屏幕像素位移"直接写 Window.Position，PointerReleased / PointerCaptureLost 收尾。
+    //  Avalonia 的鼠标/触摸/笔都会触发同一套 PointerXxx 路由事件，故一套代码即可同时支持三种设备。
+    //
+    //  坐标：Window.Position 与 PointToScreen 均为物理像素；用 PointToScreen(e.GetPosition(_window))
+    //  取指针真实屏幕像素位置（该值与窗口自身位置无关，见 PointerMoved 推导），位移 = 当前屏幕位 - 按下屏幕位，
+    //  叠加到按下时的窗口位置即得新位置。全程以"按下瞬间"为基准做绝对位移，避免增量累加漂移与 DPI 反馈回环。
+    private bool _dragActiveAv;
+    private IPointer? _dragPointerAv;
+    private PixelPoint _dragStartScreenPxAv;    // 按下瞬间指针的屏幕物理像素位置
+    private PixelPoint _dragStartWindowPxAv;    // 按下瞬间窗口位置（物理像素）
+
+    // ========== 贴边自动隐藏（FloatingScheduleEdgeHide） ==========
+    //  窗口贴近任一屏幕边缘 <8px → 沿该边滑出屏幕，只保留约 6px 可见条；
+    //  光标进入可见条 → 200ms 平移滑回原位；光标离开且仍贴边 → 再滑回隐藏。
+    //  仅改 Position，不动 z-order / 扩展样式，与 WS_EX_NOACTIVATE 置底模式和点击穿透共存。
+    private const int EdgeHideThresholdAv = 8;      // 判定"贴边"的距离阈值（设备像素）
+    private const int EdgeHideVisibleStripAv = 6;   // 隐藏后保留的可见条宽度（设备像素）
+    private const int EdgeHideAnimMsAv = 200;       // 滑入/滑出动画时长
+    private const int EdgeHideEvalDelayMsAv = 250;  // PositionChanged 防抖：拖拽过程中位置持续变化，停止 250ms 后才评估贴边
+    private bool _edgeDockedAv;                     // 已贴边（记录原始位置，等待滑出/已滑出/已滑回 循环中）
+    private bool _edgeHiddenAv;                     // 当前处于"滑出隐藏"状态
+    private bool _edgeAnimatingAv;                  // 滑入/滑出动画进行中（期间 PositionChanged 不持久化、不重复评估）
+    private int _edgeSlideGenAv;                    // 动画代际号：旧动画被取消后其 finally 不误清新动画状态标志
+    private string? _edgeSideAv;                    // 贴靠的边："left"/"right"/"top"/"bottom"
+    private PixelPoint _edgeDockedPosAv;            // 贴边前的原始位置（滑回目标）
+    private PixelPoint _edgeHiddenPosAv;            // 滑出隐藏后的目标位置
+    private CancellationTokenSource? _edgeAnimCtsAv;    // 取消正在进行的滑入/滑出动画
+    private CancellationTokenSource? _edgeEvalCtsAv;    // 取消防抖中的延迟评估
+    // 【贴边隐藏延迟】判定贴边后，等待 FloatingScheduleEdgeHideDelay 秒再滑出隐藏（给用户移开光标的时间）。
+    private CancellationTokenSource? _edgeSlideOutDelayCtsAv;   // 取消"延迟滑出隐藏"等待
+    private bool _edgeSlideOutPendingAv;                        // 是否已安排一次延迟滑出（防 50ms 轮询重复调度）
 
     // ========== 课间行 ENTER / EXIT 动画（Avalonia 端，严格与 WPF 端对齐 250ms + TranslateY±24 + CubicEase）==========
     private const int BreakRowAnimationMsAv = 250;
@@ -632,6 +677,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _hoverFadeTimer = null;
         _fadeAvCts?.Cancel();
         _fadeAvCts = null;
+        // 【贴边隐藏】Stop 取消滑入/滑出与防抖 CTS，防止异步动画回调访问已销毁窗口
+        try { _edgeAnimCtsAv?.Cancel(); } catch { }
+        try { _edgeEvalCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
         // 【修复：调试时间不立刻刷新 - 退订宿主 Settings PropertyChanged 防止内存泄漏】
@@ -646,6 +694,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _currentBreakProgressIndicator = null;
         _currentBreakProgressHost = null;
         _currentBreakLayoutItem = null;
+        // 【课表行休息分隔线】退订主题事件 + 清空线登记，防止 Application 单例强引用插件导致泄漏
+        UnsubscribeBreakSeparatorThemeAv();
+        _breakSeparatorLinesAv.Clear();
         // 【5s 硬兜底复位】Stop 时清零计数，下次 EnableFloatingSchedule=true 从零开始同步
         _hardSyncTickCounterAv = 0;
         // 【修复：课间向上位移 0.5-1s】Stop 时 Cancel+Dispose 仍在飞的 ENTER/EXIT 动画 CTS，避免异步动画回调访问旧 UI（Dispose 后可能已 null/detached）
@@ -1194,6 +1245,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 初次打开时强制应用点击穿透 + 指针淡化（Host 可能在打开前就保存了配置）
             ApplyClickThrough();
             ApplyHoverFade(force: true);
+            // 【贴边隐藏】初次打开若保存的位置已贴边，防抖 250ms（等 SizeToContent 完成布局）后评估滑出
+            ScheduleEdgeEvalAv();
         };
         _window.Closing += (_, e) =>
         {
@@ -1207,11 +1260,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             // 方案A 系统原生 HTCAPTION 拖拽：不再手动维护 _isDragging（已删除）；
             // 任何位置变化（含最大化/最小化/系统拖拽）都直接持久化到设置，简化逻辑。
-            if (_window?.IsVisible == true)
+            // 【贴边隐藏】滑入/滑出动画过程中与隐藏态下不持久化，避免把"隐藏位"当成用户位置保存。
+            if (_window?.IsVisible == true && !_edgeAnimatingAv && !_edgeHiddenAv)
             {
                 _settings.FloatingSchedulePositionX = e.Point.X;
                 _settings.FloatingSchedulePositionY = e.Point.Y;
             }
+            // 【贴边隐藏】非拖拽中（防抖 250ms 后）评估是否贴边 → 滑出隐藏
+            ScheduleEdgeEvalAv();
         };
 
         _containerBorder = new Border
@@ -1224,11 +1280,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
             BorderThickness = new Thickness(1)
         };
 
-        // 拖拽（重置为方案A → 系统原生 HTCAPTION 拖拽：PointerPressed 时注册释放通知 + 触发系统拖拽开始）
-        //  Windows：经典 ReleaseCapture + SendMessage(WM_NCLBUTTONDOWN, HTCAPTION)
-        //  非 Windows：Avalonia Window.DragMove()（跨平台等价实现）
+        // 拖拽（统一指针事件模型：鼠标 / 触摸 / 数位板笔 共用一套手动拖拽，见 ContainerBorder_PointerPressed 注释）
         _containerBorder.PointerPressed += ContainerBorder_PointerPressed;
         _containerBorder.PointerReleased += ContainerBorder_PointerReleased;
+        _containerBorder.PointerMoved += ContainerBorder_PointerMoved;
+        _containerBorder.PointerCaptureLost += ContainerBorder_PointerCaptureLost;
 
         _window.Content = _containerBorder;
     }
@@ -1269,10 +1325,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         // 置顶：清除 WS_EX_NOACTIVATE（允许交互激活），SetWindowPos 提到最前
                         //  【对齐 ClassIsland】完整 SWP 标志（SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/SWP_NOREPOSITION）
                         //  防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
+                        // 【修复闪烁】每 50ms/1ms Tick 都会走到这里；若目标扩展样式与当前值相同则跳过 SetWindowLong，
+                        //  避免反复写入相同 GWL_EXSTYLE 强制 DWM 重评估 WS_EX_LAYERED/COMPOSITED 合成分层造成视觉闪烁。
                         try
                         {
                             var exT = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exT & ~WS_EX_NOACTIVATE_AV));
+                            var targetT = exT & ~WS_EX_NOACTIVATE_AV;
+                            if (targetT != exT)
+                                SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetT);
                         }
                         catch { }
                         SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
@@ -1286,10 +1346,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         //     （激活提升是置底失效的主因：即使每 1ms 重设，激活提升发生在两次重设之间且优先级更高）
                         //  2) 完整 SWP 标志（对齐 ClassIsland Bottommost）：SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/
                         //     SWP_NOREPOSITION 防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
+                        // 【修复闪烁】同上：值未变化时不写 GWL_EXSTYLE，防止 DWM 反复重评估合成分层导致闪烁
                         try
                         {
                             var exB = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exB | WS_EX_NOACTIVATE_AV));
+                            var targetB = exB | WS_EX_NOACTIVATE_AV;
+                            if (targetB != exB)
+                                SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetB);
                         }
                         catch { }
                         SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
@@ -1329,97 +1392,125 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 #endif
 
-    // ===================== 拖拽（重置：用户文档 二.5 方案A — 交给系统原生 HTCAPTION 拖拽，代码极简）=====================
-    // 为什么彻底放弃之前的手动 SetCapture+GetCursorPos+SetWindowPos（方案B）？
-    //   1) 多轮迭代后代码量从 30 行 膨胀到 600+ 行（子类化/GC handle/DllImport 12 项/节流/缓存/去重/捕获有效性校验……）—— 用户明确指令"越来越复杂需要重置"；
-    //   2) 方案A（系统原生 HTCAPTION）已在 Win32 内优化了 30 年：Per-Monitor V2 DPI 自动、跨屏自动、Snap 兼容自动、DWM 合成时序自动、32/64位自动、客户区边界自动；
-    //   3) 文档二.5 硬性规则：两套拖拽只能二选一；本方案A是系统独占 HTCAPTION 链路，完全避免"两套并行（头号元凶）、坐标单位冲突、双重缩放回环"等人为 bug。
-    //
-    // 保留的有益优化（仍然执行）：Down 前切 SizeToContent.Manual（防 Auto 布局重排合成抖动）；结束后恢复 SizeToContent + ApplyWindowLayer 补 z-order + 保存当前 Position。
+    // ===================== 拖拽（统一指针事件模型：鼠标 / 触摸 / 数位板笔 共用一套）=====================
+    //  为什么放弃 Win32 HTCAPTION（方案A）与 Window.BeginMoveDrag：
+    //   1) HTCAPTION（ReleaseCapture + SendMessage WM_NCLBUTTONDOWN/HTCAPTION）只走"鼠标"消息链路，
+    //      触摸（WM_POINTER/WM_TOUCH）与数位板笔无法进入该模态拖拽循环 → 触摸屏拖不动；
+    //   2) Window.BeginMoveDrag 在 Avalonia Win32 后端内部 Post 到 Dispatcher 异步执行"捕获鼠标"，
+    //      触摸指针无法完成捕获 → 异步抛 InvalidOperationException("BeginMoveDrag Failed")，try/catch 捕不到
+    //      → 冒泡成宿主 ClassIsland Critical 崩溃（2026/9/1 9:48:59 日志）。
+    //  统一模型（参考 UWP/WinUI PointerPressed/Moved/Released + Capture）：
+    //   Avalonia 的鼠标、触摸、笔都触发同一套 PointerXxx 路由事件，故一套手动拖拽即可同时支持三种设备：
+    //   Down 时 Capture 指针并记录"按下瞬间指针屏幕像素位 + 窗口像素位"，Move 时按指针屏幕位移写 Window.Position，
+    //   Up / CaptureLost 收尾。坐标全程用物理像素（PointToScreen 与 Window.Position 同单位），DPI/跨屏天然正确。
 
     private void ContainerBorder_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_window == null) return;
-        // 【新增】点击穿透模式下，完全禁止任何本地交互（也包含拖拽），保证用户点击一定会穿透到下方窗口。
+        // 点击穿透模式下，完全禁止任何本地交互（也包含拖拽），保证用户点击一定会穿透到下方窗口。
         if (_settings.FloatingScheduleClickThrough) return;
-        var props = e.GetCurrentPoint(_containerBorder).Properties;
-        // 仅响应鼠标左键或触摸
-        if (!props.IsLeftButtonPressed && e.Pointer.Type != PointerType.Touch) return;
 
-        // 1) 先冻结 SizeToContent.Auto：否则拖动过程中若 Auto 测量触发，会让透明悬浮窗每移动一次重测量 → 桌面合成器抖动
-        _preDragAvSizeMode = _window.SizeToContent;
-        if (_preDragAvSizeMode != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
+        var point = e.GetCurrentPoint(_containerBorder);
+        // 仅响应：鼠标左键按下 / 触摸 / 笔（数位板）。右键、中键不拖拽。
+        bool isMouseLeft = e.Pointer.Type == PointerType.Mouse && point.Properties.IsLeftButtonPressed;
+        bool isTouchOrPen = e.Pointer.Type == PointerType.Touch || e.Pointer.Type == PointerType.Pen;
+        if (!isMouseLeft && !isTouchOrPen) return;
+
+        // 已有拖拽进行中（另一指针正在拖）→ 忽略多指/多设备的第二触点，避免争抢位置。
+        if (_dragActiveAv) return;
 
         try
         {
-#if WINDOWS
-            // Windows：经典 ReleaseCapture + SendMessage(WM_NCLBUTTONDOWN, HTCAPTION)
-            //   效果完全等价于 WPF Window.DragMove()：同步阻塞，系统内部进入模态消息循环处理 HTCAPTION 拖拽，
-            //   直到用户松开鼠标左键 SendMessage 才返回；所有坐标/DPI/跨屏/合成由系统处理。
-            if (OperatingSystem.IsWindows())
-            {
-                // Avalonia 11 (含 net8.0/net10.0) Window.TryGetPlatformHandle 签名：无参，返回 IPlatformHandle?
-                //  注：老版本是 TryGetPlatformHandle(out handle) 返回 bool；这里用 TryGetPlatformHandle() ?.Handle 同时兼容两种写法
-                //   （Avalonia 11.x 中 Window.TryGetPlatformHandle() 返回 IPlatformHandle? ，可直接读 Handle）
-                var platHandle = _window.TryGetPlatformHandle();
-                var hwnd = platHandle?.Handle ?? IntPtr.Zero;
-                if (hwnd != IntPtr.Zero)
-                {
-                    ReleaseCapture();
-                    SendMessage(hwnd, WM_NCLBUTTONDOWN, HTCAPTION, IntPtr.Zero);
-                }
-                else
-                {
-                    // 理论不会发生；兜底走 Avalonia 跨平台 BeginMoveDrag(e)
-                    _window.BeginMoveDrag(e);
-                }
-            }
-            else
-#endif
-            {
-                // 非 Windows（Linux/macOS）：走 Avalonia 跨平台 Window.BeginMoveDrag(PointerPressedEventArgs)
-                //   （等价于 WPF DragMove()；Avalonia 11+ 官方跨平台系统原生拖拽 API）
-                _window.BeginMoveDrag(e);
-            }
+            // 冻结 SizeToContent.Auto：否则拖动过程中若 Auto 测量触发，会让透明悬浮窗每移动一次重测量 → 桌面合成器抖动
+            _preDragAvSizeMode = _window.SizeToContent;
+            if (_preDragAvSizeMode != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
+
+            _dragActiveAv = true;
+            _dragPointerAv = e.Pointer;
+            // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
+            _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
+            _dragStartWindowPxAv = _window.Position;
+
+            try { e.Pointer.Capture(_containerBorder); }
+            catch (Exception ex) { _logger.LogDebug(ex, "统一拖拽 Capture 失败，将依赖事件冒泡继续。"); }
+
+            try { e.Handled = true; } catch { }
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "启动系统原生拖拽 DragMove/SendMessage(HTCAPTION) 提前退出（按下后立即失焦/释放等）安全忽略。");
+            _logger.LogDebug(ex, "统一拖拽启动失败，安全忽略。");
+            EndDragAv();   // 回滚状态（含恢复 SizeToContent）
         }
-        finally
-        {
-            // 兜底恢复（若用户按下后立即失焦，原生拖拽可能不进入 Released 路径）
-            try
-            {
-                if (_window != null && _window.SizeToContent != _preDragAvSizeMode)
-                    _window.SizeToContent = _preDragAvSizeMode;
-            }
-            catch { /* ignore */ }
-        }
+        // 注意：不在这里恢复 SizeToContent —— 拖拽在 PointerPressed 返回后仍要继续，
+        //   结束统一由 PointerReleased / PointerCaptureLost → EndDragAv 处理。
+    }
 
-        try { e.Handled = true; } catch { }
+    // 【统一拖拽】PointerMoved：指针真实屏幕像素位移叠加到按下时的窗口位置。
+    //   PointToScreen(e.GetPosition(_window)) 恒等于"指针当前真实屏幕像素位"（与窗口自身位置无关），
+    //   故位移 = 当前 - 按下，纯指针移动量；新窗口位 = 按下窗口位 + 位移。以按下瞬间为绝对基准，避免增量漂移/DPI 回环。
+    private void ContainerBorder_PointerMoved(object? sender, PointerEventArgs e)
+    {
+        if (!_dragActiveAv || _window == null) return;
+        if (_dragPointerAv != null && !ReferenceEquals(e.Pointer, _dragPointerAv)) return;
+
+        try
+        {
+            var curScreenPx = _window.PointToScreen(e.GetPosition(_window));
+            _window.Position = new PixelPoint(
+                _dragStartWindowPxAv.X + (curScreenPx.X - _dragStartScreenPxAv.X),
+                _dragStartWindowPxAv.Y + (curScreenPx.Y - _dragStartScreenPxAv.Y));
+            e.Handled = true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "统一拖拽更新窗口位置失败，结束本次拖拽。");
+            EndDragAv();
+        }
+    }
+
+    // 【统一拖拽】指针失去捕获（如系统弹窗抢走）→ 立即收尾，防止状态残留。
+    private void ContainerBorder_PointerCaptureLost(object? sender, PointerCaptureLostEventArgs e)
+    {
+        if (!_dragActiveAv) return;
+        if (_dragPointerAv != null && !ReferenceEquals(e.Pointer, _dragPointerAv)) return;
+        EndDragAv();
+    }
+
+    // 【统一拖拽】收尾：释放标记 + 恢复 SizeToContent + 补 z-order + 保存位置 + 贴边评估。
+    //   幂等：_dragActiveAv=false 时直接返回（Released 与 CaptureLost 可能先后触发）。
+    private void EndDragAv()
+    {
+        if (!_dragActiveAv) return;
+        _dragActiveAv = false;
+        try { _dragPointerAv?.Capture(null); } catch { }
+        _dragPointerAv = null;
+
+        if (_window == null) return;
+        try
+        {
+            if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
+            try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
+            _settings.FloatingSchedulePositionX = _window.Position.X;
+            _settings.FloatingSchedulePositionY = _window.Position.Y;
+            ScheduleEdgeEvalAv();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "拖拽结束恢复 SizeToContent/SavePosition 出错，忽略。");
+        }
     }
 
     private void ContainerBorder_PointerReleased(object? sender, PointerReleasedEventArgs e)
     {
         if (_window == null) return;
 
-        try
+        // 【统一拖拽】本次拖拽由该指针发起 → 结束并收尾（EndDragAv 内恢复 SizeToContent + 补 z-order + 存位置 + 贴边评估）。
+        //   非拖拽发起指针的 Released（如点击穿透外的杂散释放）→ 无状态需处理，直接忽略。
+        if (_dragActiveAv && (_dragPointerAv == null || ReferenceEquals(e.Pointer, _dragPointerAv)))
         {
-            // 恢复 SizeToContent（拖动期间冻结 Manual 防止测量抖动）
-            if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
-            // 结束后再应用一次 z-order：拖动过程中系统原生 HTCAPTION 不改变 z-order，但若用户设置 Bottommost/Topmost 层变化，ApplyWindowLayer 强制补齐
-            try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
-            // 保存当前悬浮窗位置（下次启动初始化 Left/Position 用）
-            _settings.FloatingSchedulePositionX = _window.Position.X;
-            _settings.FloatingSchedulePositionY = _window.Position.Y;
+            EndDragAv();
+            try { e.Handled = true; } catch { }
         }
-        catch (Exception ex)
-        {
-            _logger.LogDebug(ex, "拖拽结束恢复 SizeToContent/SavePosition 出错，忽略。");
-        }
-
-        try { e.Handled = true; } catch { }
     }
 
     // ===================== 设置变更 =====================
@@ -1501,6 +1592,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
             case nameof(PluginSettings.FloatingScheduleHoverFadeReverse):
                 Dispatcher.UIThread.Post(() => ApplyHoverFade(force: true));
                 break;
+            case nameof(PluginSettings.FloatingScheduleEdgeHide):
+                // 【贴边隐藏】开启：立即调度一次评估（当前若已贴边则滑出）；关闭：恢复贴边前位置并清空全部状态
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_settings.FloatingScheduleEdgeHide)
+                        EvaluateEdgeDockAv();
+                    else
+                        DisableEdgeHideAv();
+                });
+                break;
         }
     }
 
@@ -1544,6 +1645,324 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _containerBorder.IsHitTestVisible = !through;
         }
         catch { /* ignore */ }
+    }
+
+    // ==================================== 贴边自动隐藏（FloatingScheduleEdgeHide）====================================
+    //  触发评估：拖拽结束（PointerReleased）与 PositionChanged（250ms 防抖，等效"非拖拽中"）。
+    //  行为：窗口与任一屏幕工作区边缘距离 <8px → 记录原始贴边位置，沿该边滑出（200ms 平移动画），
+    //        只保留约 6px 可见条；50ms _hoverFadeTimer Tick 轮询光标：进入可见条 → 滑回原位；离开 → 再滑回隐藏。
+    //  约束：只改 Window.Position，不碰 z-order / GWL_EXSTYLE（与 WS_EX_NOACTIVATE 置底、点击穿透共存）。
+    private int _edgeHoverTicksAv;                  // 光标在/离开可见条的连续稳定 Tick 计数（去抖）
+    private bool _edgeHoverLastInAv;                // 上一次 Tick 光标是否在可见条/窗口内
+
+    /// <summary>
+    /// 取窗口在屏幕上的设备像素尺寸（宽,高）。
+    /// Window.Position / Screen.WorkingArea 都是设备像素，而 FrameSize/Bounds 是 DIP，
+    /// 非 100% 缩放下直接混用会错位；用容器 PointToScreen（返回设备像素）换算得到真实设备像素尺寸。
+    /// 悬浮窗无边框、content 填满窗口，故 container 的屏幕矩形 ≈ 窗口矩形。
+    /// </summary>
+    private bool TryGetWindowDeviceSizeAv(out int w, out int h)
+    {
+        w = h = 0;
+        try
+        {
+            if (_window == null || _containerBorder == null) return false;
+            var tl = _containerBorder.PointToScreen(new Point(0, 0));
+            var br = _containerBorder.PointToScreen(
+                new Point(_containerBorder.Bounds.Width, _containerBorder.Bounds.Height));
+            w = br.X - tl.X;
+            h = br.Y - tl.Y;
+            return w > 0 && h > 0;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>PositionChanged / PointerReleased 后防抖调度贴边评估（拖拽过程中位置持续变化，停止 250ms 后才评估）。</summary>
+    private void ScheduleEdgeEvalAv()
+    {
+        if (!_settings.FloatingScheduleEdgeHide) return;
+        if (_edgeAnimatingAv) return;   // 滑入/滑出动画自身触发的 PositionChanged 不再评估
+        // 注意：只 Cancel 旧 CTS 不 Dispose —— 旧动画 Task.Delay(ct) 可能仍在 await，
+        //  Cancel 后立刻 Dispose 会让其抛 ObjectDisposedException 而非 OperationCanceledException。无链接注册的 CTS 交给 GC。
+        try { _edgeEvalCtsAv?.Cancel(); } catch { /* ignore */ }
+        _edgeEvalCtsAv = new CancellationTokenSource();
+        _ = EdgeEvalDelayedAv(_edgeEvalCtsAv.Token);
+    }
+
+    private async Task EdgeEvalDelayedAv(CancellationToken ct)
+    {
+        try
+        {
+            await Task.Delay(EdgeHideEvalDelayMsAv, ct);
+            if (!ct.IsCancellationRequested) EvaluateEdgeDockAv();
+        }
+        catch (OperationCanceledException) { /* 新一次拖拽/移动接管评估，正常取消 */ }
+        catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏延迟评估异常，忽略。"); }
+    }
+
+    /// <summary>评估当前窗口是否贴边：贴边 → 记录原始位置并滑出隐藏；不贴边 → 解除贴边状态。</summary>
+    private void EvaluateEdgeDockAv()
+    {
+        if (_window == null || !_window.IsVisible) return;
+        if (!_settings.FloatingScheduleEdgeHide) return;
+        if (_edgeAnimatingAv) return;
+        try
+        {
+            // 取窗口所在屏幕（对齐 ClassIsland MainWindow 用法：TopLevel.Screens 实例属性 + ScreenFromWindow）
+            var screen = _window.Screens?.ScreenFromWindow(_window);
+            if (screen == null) return;
+            var wa = screen.WorkingArea;
+            if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return;
+            var pos = _window.Position;
+            // 已处于隐藏态且位置就是隐藏目标 → 无需处理
+            if (_edgeHiddenAv && pos == _edgeHiddenPosAv) return;
+
+            // 与四边的距离（可为负=已越过边缘）；取 <阈值 中最小的边
+            int dLeft = pos.X - wa.X;
+            int dRight = (wa.X + wa.Width) - (pos.X + w);
+            int dTop = pos.Y - wa.Y;
+            int dBottom = (wa.Y + wa.Height) - (pos.Y + h);
+            string? side = null;
+            int best = EdgeHideThresholdAv;
+            if (dLeft < best) { best = dLeft; side = "left"; }
+            if (dRight < best) { best = dRight; side = "right"; }
+            if (dTop < best) { best = dTop; side = "top"; }
+            if (dBottom < best) { best = dBottom; side = "bottom"; }
+
+            if (side == null)
+            {
+                // 不贴边 → 解除贴边状态（窗口已在用户放置位置，无需移动）
+                if (_edgeDockedAv)
+                {
+                    _edgeDockedAv = false;
+                    _edgeHiddenAv = false;
+                    _edgeSideAv = null;
+                    _edgeHoverTicksAv = 0;
+                    _edgeHoverLastInAv = false;
+                }
+                // 【贴边隐藏延迟】不再贴边 → 取消挂起的延迟滑出
+                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                _edgeSlideOutPendingAv = false;
+                return;
+            }
+
+            // 贴边：当前位置若不是隐藏目标位（= 用户拖到的原始贴边位置）→ 记录为滑回目标
+            if (!_edgeDockedAv || pos != _edgeHiddenPosAv)
+            {
+                _edgeDockedPosAv = pos;
+                _edgeSideAv = side;
+                _edgeDockedAv = true;
+                _edgeHoverTicksAv = 0;
+                _edgeHoverLastInAv = true;   // 刚拖完视为光标在窗口附近，避免立即回滑
+            }
+
+            // 计算滑出后的隐藏位置：沿贴靠边移出，只保留 EdgeHideVisibleStripAv 像素可见条
+            int hx = _edgeDockedPosAv.X, hy = _edgeDockedPosAv.Y;
+            switch (side)
+            {
+                case "left": hx = wa.X - w + EdgeHideVisibleStripAv; break;
+                case "right": hx = wa.X + wa.Width - EdgeHideVisibleStripAv; break;
+                case "top": hy = wa.Y - h + EdgeHideVisibleStripAv; break;
+                case "bottom": hy = wa.Y + wa.Height - EdgeHideVisibleStripAv; break;
+            }
+            _edgeHiddenPosAv = new PixelPoint(hx, hy);
+            // 【贴边隐藏延迟】刚判定贴边不立即滑出，等待用户设置的延迟秒数（默认 3s）后再滑出；
+            //  等待期间若光标进入可见条 / 用户拖走 / 关闭开关，延迟任务会被取消或重新校验后放弃。
+            if (!_edgeHiddenAv && !_edgeSlideOutPendingAv)
+                ScheduleEdgeSlideOutAv();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏评估异常，忽略。"); }
+    }
+
+    /// <summary>发起一次滑入/滑出平移动画（200ms，CubicEaseOut 风格插值；不阻塞 UI 线程）。</summary>
+    private void EdgeSlideToAv(PixelPoint target, bool willBeHidden)
+    {
+        if (_window == null) return;
+        try { _edgeAnimCtsAv?.Cancel(); } catch { }
+        try { _edgeAnimCtsAv?.Dispose(); } catch { }
+        _edgeAnimCtsAv = new CancellationTokenSource();
+        _edgeAnimatingAv = true;
+        int myGen = ++_edgeSlideGenAv;
+        var from = _window.Position;
+        if (from == target)
+        {
+            // 已在目标位：直接落状态，不起动画
+            _edgeAnimatingAv = false;
+            _edgeHiddenAv = willBeHidden;
+            return;
+        }
+        _ = RunEdgeSlideAsync(_window, from, target, myGen, willBeHidden, _edgeAnimCtsAv.Token);
+    }
+
+    private async Task RunEdgeSlideAsync(Window w, PixelPoint from, PixelPoint to, int myGen, bool willBeHidden, CancellationToken ct)
+    {
+        try
+        {
+            var sw = System.Diagnostics.Stopwatch.StartNew();
+            while (true)
+            {
+                ct.ThrowIfCancellationRequested();
+                double t = sw.ElapsedMilliseconds / (double)EdgeHideAnimMsAv;
+                if (t >= 1.0) { w.Position = to; break; }
+                double eased = 1 - Math.Pow(1 - t, 3);   // CubicEaseOut
+                w.Position = new PixelPoint(
+                    (int)Math.Round(from.X + (to.X - from.X) * eased),
+                    (int)Math.Round(from.Y + (to.Y - from.Y) * eased));
+                // await 续体经 Avalonia DispatcherSynchronizationContext 回到 UI 线程写 Position，无需 Post
+                await Task.Delay(16, ct);
+            }
+            _edgeHiddenAv = willBeHidden;
+            _edgeHoverTicksAv = 0;
+            _edgeHoverLastInAv = !willBeHidden;  // 滑出后先按"光标不在条内"起算，滑回后按"在窗口内"起算
+        }
+        catch (OperationCanceledException)
+        {
+            // 方向切换：新动画从当前中间位置接管，正常取消
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "贴边滑入/滑出动画异常，直接落到目标位置。");
+            try { w.Position = to; _edgeHiddenAv = willBeHidden; } catch { }
+        }
+        finally
+        {
+            // 只有"仍是最新一次动画"才清标志（被新动画取消的旧动画不得覆盖新动画的 animating 状态）
+            if (myGen == _edgeSlideGenAv) _edgeAnimatingAv = false;
+        }
+    }
+
+    /// <summary>光标是否在当前窗口"屏幕内可见部分"（隐藏态=6px 可见条）内。仅 Windows 有全局光标查询。</summary>
+    private bool IsPointerInEdgeStripAv()
+    {
+        if (_window == null || !_window.IsVisible) return false;
+#if WINDOWS
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                if (!GetCursorPos(out var pt)) return false;
+                var screen = _window.Screens?.ScreenFromWindow(_window);
+                if (screen == null) return false;
+                var wa = screen.WorkingArea;
+                if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return false;
+                var pos = _window.Position;
+                // 窗口矩形与工作区交集 = 用户实际可见部分（隐藏态下即约 6px 可见条）
+                int x1 = Math.Max(pos.X, wa.X), y1 = Math.Max(pos.Y, wa.Y);
+                int x2 = Math.Min(pos.X + w, wa.X + wa.Width), y2 = Math.Min(pos.Y + h, wa.Y + wa.Height);
+                if (x2 <= x1 || y2 <= y1) return false;
+                return pt.X >= x1 && pt.X < x2 && pt.Y >= y1 && pt.Y < y2;
+            }
+            catch { return false; }
+        }
+#endif
+        // 非 Windows：无全局光标轮询兜底（与 IsPointerInWindowAv 同策略），贴边隐藏退化为"只隐藏不滑回"
+        return false;
+    }
+
+    /// <summary>50ms 轮询（挂在 _hoverFadeTimer Tick 上）：光标进入可见条 → 滑回原位；离开且仍贴边 → 再滑回隐藏。</summary>
+    private void UpdateEdgeHoverAv()
+    {
+        if (!_settings.FloatingScheduleEdgeHide) return;
+        if (_window == null || !_window.IsVisible) return;
+        if (!_edgeDockedAv || _edgeAnimatingAv) return;
+        try
+        {
+            bool inStrip = IsPointerInEdgeStripAv();
+            if (inStrip == _edgeHoverLastInAv) _edgeHoverTicksAv++;
+            else { _edgeHoverLastInAv = inStrip; _edgeHoverTicksAv = 1; }
+            if (_edgeHoverTicksAv < 2) return;   // ~100ms 去抖，防光标贴边抖动来回触发
+
+            if (_edgeHiddenAv && inStrip)
+            {
+                // 滑回原位；同时取消任何挂起的延迟滑出（光标已回来）
+                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                _edgeSlideOutPendingAv = false;
+                EdgeSlideToAv(_edgeDockedPosAv, willBeHidden: false);   // 滑回原位
+            }
+            else if (!_edgeHiddenAv && !inStrip && !_edgeSlideOutPendingAv)
+            {
+                // 【贴边隐藏延迟】光标离开可见条 → 延迟用户设置的秒数后再滑回隐藏（而非立即）
+                ScheduleEdgeSlideOutAv();
+            }
+            else if (!_edgeHiddenAv && inStrip && _edgeSlideOutPendingAv)
+            {
+                // 光标又回到可见条 → 取消挂起的延迟滑出
+                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                _edgeSlideOutPendingAv = false;
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏光标轮询异常，忽略。"); }
+    }
+
+    /// <summary>读取"贴边隐藏延迟时间"（秒，0~60，精确 0.1）并换算为毫秒；异常/未设时回退默认 3 秒。</summary>
+    private int GetEdgeHideDelayMsAv()
+    {
+        try
+        {
+            var sec = Math.Clamp(_settings.FloatingScheduleEdgeHideDelay, 0.0, 60.0);
+            return (int)Math.Round(sec * 1000.0);
+        }
+        catch { return 3000; }
+    }
+
+    /// <summary>
+    /// 安排一次"延迟滑出隐藏"：等待 GetEdgeHideDelayMsAv() 毫秒后，若仍贴边、未隐藏、光标不在可见条内、
+    /// 且此间未被新的滑回请求取消，则执行滑出。重复调用会取消上一次未完成的等待（以最后一次为准）。
+    /// </summary>
+    private void ScheduleEdgeSlideOutAv()
+    {
+        if (!_settings.FloatingScheduleEdgeHide) return;
+        try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+        _edgeSlideOutDelayCtsAv = new CancellationTokenSource();
+        _edgeSlideOutPendingAv = true;
+        _ = EdgeSlideOutDelayedAv(_edgeSlideOutDelayCtsAv.Token);
+    }
+
+    private async Task EdgeSlideOutDelayedAv(CancellationToken ct)
+    {
+        int delayMs = GetEdgeHideDelayMsAv();
+        try
+        {
+            if (delayMs > 0) await Task.Delay(delayMs, ct);
+            else ct.ThrowIfCancellationRequested();
+        }
+        catch (OperationCanceledException) { return; }   // 被取消（滑回/新一次调度/关闭）——不再滑出
+        catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏延迟等待异常，忽略。"); return; }
+
+        _edgeSlideOutPendingAv = false;
+        // 延迟到点后重新校验状态：仍贴边、未隐藏、未在动画中、光标不在可见条内 → 才滑出
+        if (!_settings.FloatingScheduleEdgeHide) return;
+        if (_window == null || !_window.IsVisible) return;
+        if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimatingAv) return;
+        if (IsPointerInEdgeStripAv()) return;   // 光标已回到可见条 → 取消滑出（改由 hover 轮询滑回）
+        EdgeSlideToAv(_edgeHiddenPosAv, willBeHidden: true);
+    }
+
+    /// <summary>关闭贴边隐藏：取消动画与防抖、恢复贴边前位置并持久化、清空全部状态。</summary>
+    private void DisableEdgeHideAv()
+    {
+        try { _edgeEvalCtsAv?.Cancel(); } catch { }
+        try { _edgeAnimCtsAv?.Cancel(); } catch { }
+        try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }   // 【贴边隐藏延迟】取消未完成的延迟滑出
+        _edgeSlideOutPendingAv = false;
+        try
+        {
+            if (_edgeDockedAv && _window != null && _window.IsVisible)
+            {
+                // 恢复窗口到贴边前位置（动画中/隐藏态时位置不是用户位置）
+                if (_edgeHiddenAv || _edgeAnimatingAv)
+                    _window.Position = _edgeDockedPosAv;
+                _settings.FloatingSchedulePositionX = _edgeDockedPosAv.X;
+                _settings.FloatingSchedulePositionY = _edgeDockedPosAv.Y;
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "关闭贴边隐藏恢复位置异常，忽略。"); }
+        _edgeDockedAv = false;
+        _edgeHiddenAv = false;
+        _edgeAnimatingAv = false;
+        _edgeSideAv = null;
+        _edgeHoverTicksAv = 0;
+        _edgeHoverLastInAv = false;
     }
 
     // ==================================== 指针移入淡化（参考 ClassIsland MainWindow.UpdateFadeStatus/GetMouseStatusByPos）====================================
@@ -1761,7 +2180,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 {
                     Interval = TimeSpan.FromMilliseconds(50)
                 };
-                _hoverFadeTimer.Tick += (_, _) => ApplyHoverFade();
+                _hoverFadeTimer.Tick += (_, _) =>
+                {
+                    ApplyHoverFade();
+                    UpdateEdgeHoverAv();   // 【贴边隐藏】复用 50ms 轮询：光标进入可见条滑回 / 离开滑回隐藏
+                };
             }
             if (!_hoverFadeTimer.IsEnabled) _hoverFadeTimer.Start();
         }
@@ -1852,6 +2275,58 @@ public class FloatingScheduleService : IHostedService, IDisposable
         hostGrid.ColumnDefinitions[1].Width = new GridLength(Math.Max(0.0, 1.0 - ratio), GridUnitType.Star);
     }
 
+    // ===================== 课表行休息分隔线（3px）辅助 =====================
+    /// <summary>分隔线画刷：深色主题白色、浅色主题黑色（随主题深浅自适应）。</summary>
+    private static IBrush GetBreakSeparatorBrushAv()
+    {
+        try
+        {
+            var app = Application.Current;
+            bool dark = app?.ActualThemeVariant == ThemeVariant.Dark;
+            return dark ? Brushes.White : Brushes.Black;
+        }
+        catch { return Brushes.Black; }
+    }
+
+    /// <summary>首次创建分隔线时订阅 ActualThemeVariantChanged，动态更新已建线颜色（幂等，重复调用只订阅一次）。</summary>
+    private void EnsureBreakSeparatorThemeSubAv()
+    {
+        if (_breakSeparatorThemeHandlerAv != null) return;
+        var app = Application.Current;
+        if (app == null) return;
+        _breakSeparatorThemeHandlerAv = (_, _) => UpdateBreakSeparatorColorsAv();
+        app.ActualThemeVariantChanged += _breakSeparatorThemeHandlerAv;
+    }
+
+    /// <summary>退订主题事件并清空线控件登记（无分隔线 / Stop 时调用，防泄漏）。</summary>
+    private void UnsubscribeBreakSeparatorThemeAv()
+    {
+        if (_breakSeparatorThemeHandlerAv == null) return;
+        try
+        {
+            var appAv = Application.Current;
+            if (appAv != null)
+                appAv.ActualThemeVariantChanged -= _breakSeparatorThemeHandlerAv;
+        }
+        catch { }
+        _breakSeparatorThemeHandlerAv = null;
+    }
+
+    /// <summary>主题深浅切换时把当前所有分隔线的颜色刷新一遍（白色↔黑色）。</summary>
+    private void UpdateBreakSeparatorColorsAv()
+    {
+        try
+        {
+            if (_breakSeparatorLinesAv.Count == 0) return;
+            var brush = GetBreakSeparatorBrushAv();
+            foreach (var line in _breakSeparatorLinesAv)
+            {
+                try { line.Background = brush; } catch { /* ignore */ }
+            }
+        }
+        catch { /* ignore */ }
+    }
+
     // ===================== 课表 UI 构建 =====================
     private void RefreshSchedule()
     {
@@ -1877,6 +2352,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _currentBreakProgressIndicator = null;
         _currentBreakProgressHost = null;
         _currentBreakLayoutItem = null;
+        _breakSeparatorLinesAv.Clear();   // 【课表行休息分隔线】本次重建的线控件重新登记（旧线随 _containerBorder.Child 替换出树）
         List<Control>? builtBreakVisualsAv = null;   // 【新增课间动画】本次构建命中的课间行 3 个视觉单元（若未命中课间则为 null）
         // 进度刷新缓存重置：保证 UpdateProgress 在本帧"按本次 RefreshSchedule 构建结果"作为基线比较
         _lastRefreshStateCode = -1;
@@ -1936,15 +2412,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 var validRaw = ReflectGetValidTimeLayoutItems(classPlan);
                 var validItems = new List<object>();
                 // 【★ 连续课间分别走进度】同步收集课间项（TimeType==1），供课间进度条"每个课间分别走"
+                // 【课表分隔线·档案组件】同步收集档案分隔线对象（TimeType==2），供分隔线绘制
                 _breakItemsAv.Clear();
+                _separatorItemsAv.Clear();
                 foreach (var x in validRaw)
                 {
                     if (x == null) continue;
                     if (ReflectGetTimeType(x) == 0) validItems.Add(x);
                     else if (ReflectGetTimeType(x) == 1) _breakItemsAv.Add(x);
+                    else if (ReflectGetTimeType(x) == 2) _separatorItemsAv.Add(x);
                 }
                 validItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
                 _breakItemsAv.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+                _separatorItemsAv.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
 
                 var classesList = ReflectGetClasses(classPlan);
 
@@ -2111,6 +2591,26 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
 
             // ---- 构建 Grid ----
+            // 【课表分隔线·档案组件】先算"分隔线插入位置集合"（HashSet 天然去重）：
+            //  数据源 = 档案中用户手动插入的分隔线对象（_separatorItemsAv，TimeType==2，StartTime==EndTime 时间点语义），
+            //  而不是每个课间都画线。对每个分隔线 s，找 _currentClassRows 中最后一个 End <= s.Start 的索引 i → 在第 i 行之后插一条线；
+            //  多条分隔线命中同一 i（如都落在同一节课后）→ 只插一条线。
+            //  注意：线作为独立 Grid 行插入，_currentClassRows 索引与 _currentOnClassIndex 均不受影响。
+            var sepAfterRowsAv = new HashSet<int>();
+            foreach (var s in _separatorItemsAv)
+            {
+                var sStart = ReflectGetStartTime(s);
+                int iMaxEndLeBs = -1;
+                for (int k = 0; k < _currentClassRows.Count; k++)
+                {
+                    if (ReflectGetEndTime(_currentClassRows[k].LayoutItem) <= sStart) iMaxEndLeBs = k;
+                    else break;   // classRows 按时间升序，一旦超过就不用继续
+                }
+                // 只在"两节课之间"插线：i 必须是有效行且不是最后一行
+                if (iMaxEndLeBs >= 0 && iMaxEndLeBs < _currentClassRows.Count - 1)
+                    sepAfterRowsAv.Add(iMaxEndLeBs);
+            }
+
             var grid = new Grid
             {
                 ColumnDefinitions = ColumnDefinitions.Parse("Auto, *"),
@@ -2234,7 +2734,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     //     * 15 字纯 CJK 15×20=300 px ≤ 322.5 ✅ 完整
                     //     * 15 字 ASCII 极端半角 200.7 px ≤ 322.5 ✅ 完整
                     //     * 英文名 30 字符 Dr. Christopher van der Saar PhD = 316.13 px ≤ 322.5 ✅ 完整（普通外籍教师姓名范畴）
-                    //     * 英文名 ≥ 35 字 Prof. Konstantinos Papadopoulos-Evans 仍严格限制，末尾省略 + ToolTip 完整显示
                     //   FontScale=8 → teacher 8×21.5=172 px；FontScale=32 → teacher 29×21.5=623.5 px，外层 820 兜底完整。
                     var teacherMaxW = teacherFontSize * 21.5;
                     var teacherTb = new TextBlock
@@ -2249,8 +2748,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         MaxWidth = teacherMaxW,
                         Margin = new Thickness(8, 0, 0, 0)
                     };
-                    // 悬停显示完整教师名（与 SizeToContent 上限解耦：展示层只做裁剪，信息不丢失）
-                    try { Avalonia.Controls.ToolTip.SetTip(teacherTb, teacherLine); } catch { /* ignore */ }
                     Grid.SetColumn(teacherTb, 1);
                     Grid.SetRow(teacherTb, 0);
                     coursePanel.Children.Add(teacherTb);
@@ -2354,10 +2851,32 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         breakCellL, breakCellR, breakHost,
                     };
                 }
+
+                // 【课表行休息分隔线】第 i 行与第 i+1 行之间存在课间 → 追加一条 3px 分隔线行（跨两列）。
+                //  作为独立 Grid 行插在本行所有子行（进度条/课间行）之后，_currentClassRows 索引与高亮/进度定位不受影响。
+                if (sepAfterRowsAv.Contains(i))
+                {
+                    grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                    var sepRowIdx = grid.RowDefinitions.Count - 1;
+                    var sepBorderAv = new Border
+                    {
+                        Height = 3,
+                        Background = GetBreakSeparatorBrushAv(),
+                        Margin = new Thickness(0, 1, 0, 1)
+                    };
+                    Grid.SetColumnSpan(sepBorderAv, 2);
+                    Grid.SetRow(sepBorderAv, sepRowIdx);
+                    grid.Children.Add(sepBorderAv);
+                    _breakSeparatorLinesAv.Add(sepBorderAv);
+                    EnsureBreakSeparatorThemeSubAv();   // 首次建线时订阅主题切换（Stop 退订防泄漏）
+                }
             }
 
             _containerBorder.Child = grid;
             _rootContent = grid;
+            // 【课表行休息分隔线】本次重建无分隔线 → 退订主题事件（旧线已随 Child 替换出树，防泄漏）
+            if (_breakSeparatorLinesAv.Count == 0)
+                UnsubscribeBreakSeparatorThemeAv();
             // ---- 【新增课间动画】登记新建课间行视觉单元；如需 ENTER 动画 fire-and-forget 启动 ----
             //   只在"上一帧不是 Breaking && 当前不是 EXIT 动画进行中 && 本次构建确实产出了课间行 3 元素"时播放 ENTER，
             //   避免"SDK 内部课间切课间（同 break）RefreshSchedule 重建"、"EXIT 动画结束 RefreshSchedule 又回到 Breaking"

@@ -465,7 +465,7 @@ public partial class AboutPage : SettingsPageBase
                     tabItem.Content = pluginSettings;
                     break;
                 case "Glossary":
-                    tabItem.Content = new GlossaryPage();
+                    tabItem.Content = new GlossaryPage(_pluginSettings);
                     break;
                 case "EasterEgg":
                     tabItem.Content = new EasterEggPage(_pluginSettings);

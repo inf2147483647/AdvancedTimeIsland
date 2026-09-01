@@ -1,24 +1,91 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.Windows;
+using System.ComponentModel;
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using AdvancedTimeIsland.Models;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
 public partial class GlossaryPage : UserControl
 {
-    public GlossaryPage()
+    private readonly PluginSettings? _settings;
+    private Card? _experimentalCard;
+
+    public GlossaryPage(PluginSettings? settings = null)
     {
+        _settings = settings;
         InitializeComponent();
         RenderMarkdownContent();
+        RebuildExperimentalSection();
+        if (_settings != null)
+        {
+            // 页签切换会触发 Unloaded/Loaded：Loaded 时订阅、Unloaded 时退订，
+            // 既保证开关切换即时刷新，又避免长期持有引用造成内存泄漏
+            Loaded += OnPageLoaded;
+            Unloaded += OnPageUnloaded;
+        }
+    }
+
+    private void OnPageLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (_settings != null)
+        {
+            // 先退订再订阅，防止 Loaded 多次触发导致重复订阅
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            _settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
+    }
+
+    private void OnPageUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (_settings != null)
+        {
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+        }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            RebuildExperimentalSection();
+        }
+    }
+
+    /// <summary>
+    /// 根据实验性功能开关重建实验词条卡片
+    /// </summary>
+    private void RebuildExperimentalSection()
+    {
+        if (_experimentalCard != null)
+        {
+            MainPanel.Children.Remove(_experimentalCard);
+            _experimentalCard = null;
+        }
+
+        if (!(_settings?.EnableExperimentalFeatures ?? false)) return;
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        RenderMarkdownInto(panel, ExperimentalMarkdown);
+        _experimentalCard = new Card
+        {
+            Margin = new Thickness(0, 0, 0, 6),
+            Content = panel
+        };
+        MainPanel.Children.Add(_experimentalCard);
     }
 
     private void RenderMarkdownContent()
     {
         ContentPanel.Children.Clear();
-        RenderMarkdownInto(ContentPanel, MarkdownContent);
+        RenderMarkdownInto(ContentPanel, BaseMarkdown);
     }
 
-    private const string MarkdownContent = @"## Unix时间戳
+    /// <summary>
+    /// 基础词条（始终显示）
+    /// </summary>
+    private const string BaseMarkdown = @"## Unix时间戳
 
 世界统一的时间，是指格林威治时间1970年01月01日00时00分00秒（北京时间1970年01月01日08时00分00秒）起至现在的总秒数（不考虑**闰秒**），它的核心作用是确保唯一性和顺序：在计算机系统中，它能精确记录事件发生的时刻，并且因为时间一直向前，每个时间戳都是独一无二的。
 
@@ -62,11 +129,12 @@ public partial class GlossaryPage : UserControl
 
 ## 1% Low 帧率
 
-统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。
+统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。";
 
----
-
-## 汉服
+    /// <summary>
+    /// 实验性词条（仅当开启实验性功能时显示）
+    /// </summary>
+    private const string ExperimentalMarkdown = @"## 汉服
 
 全称""汉民族传统服饰""，是汉族流传数千年的传统服饰体系，**并非单指汉朝的衣服**。
 

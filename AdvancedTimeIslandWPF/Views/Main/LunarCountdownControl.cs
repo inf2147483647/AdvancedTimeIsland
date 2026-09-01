@@ -260,9 +260,10 @@ public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>
         }
         else if (vm.IsAllCompleted)
         {
-            tbText1.Text = "";
-            tbName.Text = "";
-            tbText3.Text = "农历倒计时已结束";
+            // 结束状态由 ViewModel 计算（三段式或回退单行），此处直接呈现
+            tbText1.Text = vm.Text1Display;
+            tbName.Text = vm.NameDisplay;
+            tbText3.Text = vm.Text3Display;
             tbTime.Text = "";
             tbText4.Text = "";
         }

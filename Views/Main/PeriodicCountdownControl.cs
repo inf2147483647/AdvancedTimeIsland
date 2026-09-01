@@ -242,9 +242,10 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         }
         else if (vm.IsAllCompleted)
         {
-            tbText1.Text = "";
-            tbText2.Text = "";
-            tbText3.Text = "倒计时已结束";
+            // 结束状态由 ViewModel 计算（三段式或回退单行），此处直接呈现
+            tbText1.Text = vm.Text1Display;
+            tbText2.Text = vm.Text2Display;
+            tbText3.Text = vm.Text3Display;
             tbTime.Text = "";
             tbText4.Text = "";
         }

@@ -134,6 +134,18 @@
                                          Description="开启后，悬浮窗对鼠标点击完全透明（点击会命中下方窗口），同时关闭悬浮窗拖拽（关闭穿透后恢复）。"
                                          Margin="0,8,0,0" />
 
+                    <ci:SettingsControl x:Name="FloatingScheduleEdgeHideItem"
+                                         IconGlyph="ArrowCollapseHorizontal"
+                                         Header="贴边自动隐藏"
+                                         Description="开启后，悬浮时间表贴近屏幕边缘（&lt;8px）时沿该边滑出、只保留约 6px 可见条；指针移入可见条滑回，离开后再次隐藏。"
+                                         Margin="0,8,0,0" />
+
+                    <ci:SettingsControl x:Name="FloatingScheduleEdgeHideDelayItem"
+                                         IconGlyph="AvTimer"
+                                         Header="贴边隐藏延迟时间（秒）"
+                                         Description="判定贴边（且指针离开）后等待本时长再滑出隐藏；范围 0 ~ 60，步长 1，精确到 0.1，默认 3 秒；0 表示立即隐藏。仅在开启贴边自动隐藏时生效。"
+                                         Margin="0,8,0,0" />
+
                     <ci:SettingsControl x:Name="FloatingScheduleHoverFadeItem"
                                          IconGlyph="ColorPicker"
                                          Header="指针移入淡化"

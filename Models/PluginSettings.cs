@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -89,6 +89,8 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleOpacity = 0.85;
     private double _floatingScheduleFontScale = 18.0;
     private bool _floatingScheduleEnableFullTeacherName = false;
+    private bool _floatingScheduleEdgeHide = false;
+    private double _floatingScheduleEdgeHideDelay = 3.0;
     private FloatingTopmostRefreshMode _floatingScheduleTopmostRefreshMode = FloatingTopmostRefreshMode.Every50Ms;
 
     public string? CachedVersion
@@ -613,6 +615,42 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleEnableFullTeacherName != value)
             {
                 _floatingScheduleEnableFullTeacherName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 贴边自动隐藏：开启后，悬浮时间表被拖到（或初始位于）贴近屏幕边缘（<8px）时，
+    /// 会沿该边滑出屏幕、只保留约 6px 可见条；鼠标指针移入可见条区域时滑回原位，
+    /// 指针离开后再次滑回隐藏。关闭时恢复贴边前位置并停止该逻辑。
+    /// </summary>
+    public bool FloatingScheduleEdgeHide
+    {
+        get => _floatingScheduleEdgeHide;
+        set
+        {
+            if (_floatingScheduleEdgeHide != value)
+            {
+                _floatingScheduleEdgeHide = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 贴边隐藏延迟时间（秒）：判定窗口贴边后，等待本时长再滑出隐藏；光标离开可见条后同样延迟本时长再滑回隐藏。
+    /// 范围 0 ~ 60，步长 1，精确到 0.1，默认 3 秒。0 表示立即隐藏。仅在 FloatingScheduleEdgeHide 开启时生效。
+    /// </summary>
+    public double FloatingScheduleEdgeHideDelay
+    {
+        get => _floatingScheduleEdgeHideDelay;
+        set
+        {
+            var v = Math.Clamp(value, 0.0, 60.0);
+            if (Math.Abs(_floatingScheduleEdgeHideDelay - v) > 0.001)
+            {
+                _floatingScheduleEdgeHideDelay = v;
                 OnPropertyChanged();
             }
         }

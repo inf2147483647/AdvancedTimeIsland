@@ -927,6 +927,40 @@ public class PluginSettingsPage : UserControl
                 "当启用指针移入淡化后再开启本项：变为\"指针在悬浮窗外时淡化，移入窗口内恢复不透明\"。适用于\"常驻淡化，仅在操作时清晰\"的场景。",
                 hoverFadeReverseToggle);
 
+            // 项 9: 贴边自动隐藏 (ToggleSwitch)
+            var edgeHideToggle = CreateToggleSwitch(
+                _settings?.FloatingScheduleEdgeHide ?? false, isOn =>
+                {
+                    if (_settings != null) _settings.FloatingScheduleEdgeHide = isOn;
+                });
+            edgeHideToggle.HorizontalAlignment = HorizontalAlignment.Right;
+            edgeHideToggle.VerticalAlignment = VerticalAlignment.Center;
+            AddSettingsExpanderItem(floatingExpander,
+                "贴边自动隐藏",
+                "开启后，把悬浮时间表拖到贴近屏幕边缘（<8px）时会自动滑出屏幕、只保留约 6px 可见条；\n鼠标移入可见条区域时滑回原位，离开后再次隐藏。关闭时恢复贴边前位置。",
+                edgeHideToggle);
+
+            // 项 10: 贴边隐藏延迟时间 (NumericUpDown，秒，0~60，步长1，精确0.1，默认3)
+            var edgeDelayBox = new NumericUpDown
+            {
+                Width = 160,
+                Minimum = 0.0m,
+                Maximum = 60.0m,
+                Increment = 1.0m,
+                Value = (decimal?)Math.Clamp(_settings?.FloatingScheduleEdgeHideDelay ?? 3.0, 0.0, 60.0),
+                FormatString = "F1",
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            edgeDelayBox.ValueChanged += (s, e) =>
+            {
+                if (_settings != null && e.NewValue is { } v)
+                    _settings.FloatingScheduleEdgeHideDelay = Math.Clamp((double)v, 0.0, 60.0);
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "贴边隐藏延迟时间（秒）",
+                "判定贴边后等待本时长再滑出隐藏（光标离开可见条后同样延迟再隐藏）；\n范围 0 ~ 60，步长 1，精确到 0.1，默认 3 秒；0 表示立即隐藏。仅在开启贴边自动隐藏时生效。",
+                edgeDelayBox);
+
             mainPanel.Children.Add(floatingExpander);
 
             // 实验性功能开关 - 使用 SettingsExpander

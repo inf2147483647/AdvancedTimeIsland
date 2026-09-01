@@ -386,11 +386,32 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
 
         if (activeItems.Count == 0)
         {
+            // 全部倒计时已结束：优先显示三段式"倒计时 + 最后完成的名称 + 已结束"，
+            // 周期性倒计时取上一周期目标时间戳最大的项的名称；名称为空时回退为单行"倒计时已结束"
+            var lastCompletedName = _settings.CountdownItems
+                .OrderByDescending(item => item.GetPreviousTargetTimestamp(now))
+                .FirstOrDefault()?.Name;
+
+            if (string.IsNullOrWhiteSpace(lastCompletedName))
+            {
+                return new PeriodicCountdownDisplayData
+                {
+                    Text1 = string.Empty,
+                    Text2 = string.Empty,
+                    Text3 = "倒计时已结束",
+                    Time = string.Empty,
+                    Text4 = string.Empty,
+                    IsAllCompleted = true,
+                    IsEmpty = false,
+                    CurrentItem = null
+                };
+            }
+
             return new PeriodicCountdownDisplayData
             {
-                Text1 = _settings.Text1,
-                Text2 = string.Empty,
-                Text3 = "倒计时已结束",
+                Text1 = "倒计时",
+                Text2 = lastCompletedName,
+                Text3 = "已结束",
                 Time = string.Empty,
                 Text4 = string.Empty,
                 IsAllCompleted = true,

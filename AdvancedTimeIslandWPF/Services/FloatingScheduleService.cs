@@ -52,6 +52,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
     //  连续课间 B1→B2→B3（首尾相接）时，课对空隙 = 总长度（进度条会走总长度）。
     //  用本列表按"now ∈ 哪个课间项的 [Start, End)"定位 → 每个课间分别走进度。
     private readonly List<object> _breakItemsWpf = new List<object>();
+    // 【课表分隔线·档案组件】档案中用户手动插入的"分隔线"对象（TimeType==2，StartTime==EndTime 时间点语义），
+    //  按 Start 升序；RefreshSchedule 构建时从 classPlan 收集。分隔线只画在档案定义的位置（不是每个课间都画）。
+    private readonly List<object> _separatorItemsWpf = new List<object>();
     private readonly DispatcherTimer _refreshTimer;
     private bool _disposed;
     private CancellationTokenSource? _startRetryCts;
@@ -375,7 +378,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
         {
             Interval = TimeSpan.FromMilliseconds(50)
         };
-        _hoverFadeTimer.Tick += (_, _) => ApplyHoverFade();
+        _hoverFadeTimer.Tick += (_, _) =>
+        {
+            ApplyHoverFade();
+            // 【贴边自动隐藏】复用同一 50ms 轮询推进状态机（不新增计时器）
+            try { UpdateEdgeHideWpf(); } catch { /* ignore */ }
+        };
     }
 
     // 指针淡化高频轮询（DispatcherPriority.Normal：比后台进度刷新高，保证鼠标交互优先响应）
@@ -610,6 +618,21 @@ public class FloatingScheduleService : IDisposable, IHostedService
         {
             ApplyClickThrough();
         }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleEdgeHide))
+        {
+            // 贴边自动隐藏开关变更：即时响应（UI 线程）——关闭恢复位置并停止逻辑，开启立即评估贴边
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(() =>
+            {
+                if (!_settings.FloatingScheduleEdgeHide) RestoreEdgePositionWpf();
+                else UpdateEdgeHideWpf();
+            });
+        }
         else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleHoverFade) ||
                  e.PropertyName == nameof(PluginSettings.FloatingScheduleHoverFadeReverse))
         {
@@ -684,6 +707,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         // 允许拖拽整个容器区域（重置为「方案A：交给系统原生 HTCAPTION 拖拽」，Window.DragMove() 内部走系统拖拽链路，代码极简、无抖动）
         _containerBorder.MouseLeftButtonDown += OnContainerMouseLeftButtonDown;
+        // 【修复触摸无法拖动】WPF 的 MouseLeftButtonDown 对触摸输入不触发（触摸走 Touch/Pointer 事件），
+        //  触摸屏用户按下后 DragMove 链路根本不会启动 → 追加 Touch 事件手动实现拖拽。
+        _containerBorder.TouchDown += OnContainerTouchDown;
+        _containerBorder.TouchMove += OnContainerTouchMove;
+        _containerBorder.TouchUp += OnContainerTouchUp;
 
         _window.Content = _containerBorder;
 
@@ -743,9 +771,16 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private void OnWindowLocationChanged(object? sender, EventArgs e)
     {
         if (_window == null) return;
-        // 保存位置
-        _settings.FloatingSchedulePositionX = (int)Math.Round(_window.Left);
-        _settings.FloatingSchedulePositionY = (int)Math.Round(_window.Top);
+        // 保存位置；【贴边自动隐藏】仅当位置变化由"滑出/滑回动画"驱动（非用户拖拽）时，
+        //  不持久化隐藏位、改写正常位，避免重启后窗口停在屏幕外；用户主动拖拽时保存实际位置。
+        double lx = _window.Left, ty = _window.Top;
+        if ((_edgeHiddenWpf || _edgeAnimatingWpf) && _touchDragIdWpf < 0 && !_mouseDraggingWpf)
+        {
+            lx = _edgeNormalLeftWpf;
+            ty = _edgeNormalTopWpf;
+        }
+        _settings.FloatingSchedulePositionX = (int)Math.Round(lx);
+        _settings.FloatingSchedulePositionY = (int)Math.Round(ty);
     }
 
     private void OnContainerMouseLeftButtonDown(object sender, MouseButtonEventArgs e)
@@ -754,6 +789,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         // 【新增】点击穿透模式下，禁止 WPF 处理任何拖拽（否则 DragMove 会强制吞掉本应穿透的消息）
         if (_settings.FloatingScheduleClickThrough) return;
+        // 【触摸/鼠标互斥】触摸拖拽进行中（触摸被提升为鼠标消息时两链路可能并行）：跳过，交给触摸链路
+        if (_touchDragIdWpf >= 0) return;
 
         // ========== 用户文档 二.5 方案A（重置：彻底简化）：交给系统原生 HTCAPTION 拖拽 ==========
         //  为什么比之前的手动 SetWindowPos 方案好？
@@ -761,6 +798,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
         //  2) 代码量从 300+ 行复杂手动节流/缓存/捕获/DllImport → 降到 3 行核心：DragMove()
         //  3) 不再有"两套拖拽并行（文档二.5元凶）、双重缩放（文档一.3.2）、坐标单位冲突（文档一.2）、消息重入（文档二.6）"
         //  保留的有益优化：拖动前冻结 SizeToContent.Manual（防止 Auto 尺寸在拖的过程中做重测量造成合成抖动）
+        _mouseDraggingWpf = true;   // 标记模态拖拽中：贴边隐藏状态机在此期间暂停
         _preDragSizeToContent = _window.SizeToContent;
         _preDragTopmost = _window.Topmost;
         if (_preDragSizeToContent != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
@@ -774,6 +812,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "Window.DragMove() 提前退出（一般是按下后立即被其他窗口抢焦点或释放鼠标），安全忽略。");
+        }
+        finally
+        {
+            // 【健壮性】无论 DragMove 正常返回还是抛异常，都复位拖拽标志，避免贴边逻辑被永久暂停
+            _mouseDraggingWpf = false;
         }
 
         // ===== DragMove 返回 = 一次拖动结束，恢复状态 =====
@@ -789,7 +832,370 @@ public class FloatingScheduleService : IDisposable, IHostedService
             _logger.LogDebug(ex, "拖动结束恢复 SizeToContent/Topmost/z-order 出错，忽略。");
         }
 
+        // 拖拽结束 → 立即评估贴边自动隐藏
+        try { UpdateEdgeHideWpf(); } catch { /* ignore */ }
+
         e.Handled = true;
+    }
+
+    // ========== 【修复触摸无法拖动】Touch 事件手动拖拽链路 ==========
+    //  WPF 的 MouseLeftButtonDown 对触摸输入不触发（触摸走 Touch/Pointer 事件），
+    //  因此为 _containerBorder 追加 TouchDown/TouchMove/TouchUp：
+    //  TouchDown 记录触点相对窗口左上角的 DIP 偏移并 CaptureTouch；
+    //  TouchMove 把触点屏幕坐标换算为 DIP（PresentationSource.TransformFromDevice）更新 Window.Left/Top；
+    //  TouchUp 释放捕获并恢复 SizeToContent/z-order（与鼠标链路"冻结/恢复"语义一致）。
+    //  鼠标 DragMove 链路保持原样不变。
+    private int _touchDragIdWpf = -1;                 // 当前拖拽触摸点 Id（-1 = 无触摸拖拽）
+    private double _touchOffsetXWpf;                  // 触点相对窗口左上角的 DIP 偏移 X
+    private double _touchOffsetYWpf;                  // 触点相对窗口左上角的 DIP 偏移 Y
+    private SizeToContent _preTouchSizeToContent;     // 触摸拖拽前 SizeToContent（结束后恢复）
+    private bool _preTouchTopmost;                    // 触摸拖拽前 Topmost（结束后恢复）
+
+    private void OnContainerTouchDown(object sender, TouchEventArgs e)
+    {
+        if (_window == null || _containerBorder == null) return;
+        // 点击穿透模式下禁止拖拽（与鼠标链路首行 return 一致）
+        if (_settings.FloatingScheduleClickThrough) return;
+        // 鼠标模态 DragMove 进行中（触摸被提升为鼠标消息时两链路可能并行）：跳过，交给鼠标链路
+        if (_mouseDraggingWpf) return;
+        // 已有触点在拖：忽略多指后续触点
+        if (_touchDragIdWpf >= 0) return;
+
+        try
+        {
+            var p = e.GetTouchPoint(_window).Position;
+            _touchOffsetXWpf = p.X;
+            _touchOffsetYWpf = p.Y;
+            _touchDragIdWpf = e.TouchDevice.Id;
+            // 捕获触点：手指移出窗口边界仍能持续收到 Move/Up
+            _containerBorder.CaptureTouch(e.TouchDevice);
+
+            // 拖拽期间冻结 SizeToContent（与鼠标链路同样处理：防止 Auto 尺寸在拖的过程中重测量造成合成抖动）
+            _preTouchSizeToContent = _window.SizeToContent;
+            _preTouchTopmost = _window.Topmost;
+            if (_preTouchSizeToContent != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "TouchDown 启动触摸拖拽失败，安全忽略。");
+            _touchDragIdWpf = -1;
+        }
+        e.Handled = true;
+    }
+
+    private void OnContainerTouchMove(object sender, TouchEventArgs e)
+    {
+        if (_touchDragIdWpf < 0 || _window == null) return;
+        if (e.TouchDevice.Id != _touchDragIdWpf) return;
+        try
+        {
+            // 触点相对窗口的 DIP 坐标 → PointToScreen 得屏幕物理像素 → TransformFromDevice 换算屏幕 DIP，
+            // 再减去按下时记录的相对偏移即得窗口新位置（手指始终"按住"窗口内同一点）
+            var rel = e.GetTouchPoint(_window).Position;
+            var screenDevice = _window.PointToScreen(rel);
+            var src = PresentationSource.FromVisual(_window);
+            Point screenDip;
+            if (src?.CompositionTarget != null)
+                screenDip = src.CompositionTarget.TransformFromDevice.Transform(screenDevice);
+            else
+                screenDip = screenDevice;   // 兜底：拿不到 DPI 变换信息时按 1:1 处理
+            _window.Left = screenDip.X - _touchOffsetXWpf;
+            _window.Top = screenDip.Y - _touchOffsetYWpf;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "TouchMove 移动窗口失败，安全忽略。");
+        }
+        e.Handled = true;
+    }
+
+    private void OnContainerTouchUp(object sender, TouchEventArgs e)
+    {
+        if (_touchDragIdWpf < 0 || _window == null) return;
+        if (e.TouchDevice.Id != _touchDragIdWpf) return;
+        _touchDragIdWpf = -1;
+
+        try { _containerBorder?.ReleaseTouchCapture(e.TouchDevice); } catch { /* ignore */ }
+
+        // 恢复触摸拖拽前状态（与鼠标 DragMove 结束恢复逻辑同构）
+        try
+        {
+            if (_window.SizeToContent != _preTouchSizeToContent) _window.SizeToContent = _preTouchSizeToContent;
+            if (_window.Topmost != _preTouchTopmost) _window.Topmost = _preTouchTopmost;
+            ApplyWindowLayer();
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "触摸拖拽结束恢复 SizeToContent/Topmost/z-order 出错，忽略。");
+        }
+
+        // 拖拽结束 → 立即评估贴边自动隐藏
+        try { UpdateEdgeHideWpf(); } catch { /* ignore */ }
+        e.Handled = true;
+    }
+
+    // ========== 贴边自动隐藏（FloatingScheduleEdgeHide）==========
+    //  规则：窗口距所在屏幕工作区任一边缘 < 8px → 沿该边滑出，只留约 6px 可见条；
+    //        光标进入可见条（= 隐藏态窗口矩形，屏幕内部分即 6px 条）→ 200ms 平移动画滑回；
+    //        滑回后光标离开窗口区域 → 再次滑出隐藏。
+    //  实现：复用 50ms 指针淡化轮询 Timer 做状态机推进（不新增计时器、不阻塞 UI）；
+    //        动画用 DoubleAnimation 操作 Window.Left/Top；
+    //        屏幕工作区优先 Win32 MonitorFromWindow+GetMonitorInfo（多屏正确，不引入 WinForms 依赖）。
+    private const double EdgeHideNearThresholdDip = 8.0;   // 距屏幕边缘 < 8px 判定贴边
+    private const double EdgeHideVisibleStripDip = 6.0;    // 隐藏后保留可见条约 6px
+    private const int EdgeHideAnimMs = 200;                // 滑入/滑出平移动画时长
+
+    private bool _edgeHiddenWpf;            // 当前是否处于"滑出隐藏"状态
+    private int _edgeSideWpf;               // 贴靠边：0=无 1=左 2=右 3=上 4=下
+    private double _edgeNormalLeftWpf;      // 隐藏前的正常位置 Left
+    private double _edgeNormalTopWpf;       // 隐藏前的正常位置 Top
+    private bool _edgeAnimatingWpf;         // 滑移动画进行中（轮询期间跳过，防重入）
+    private bool _mouseDraggingWpf;         // 鼠标 DragMove 模态循环进行中（期间暂停贴边逻辑）
+    // 【贴边隐藏延迟】判定"贴边且光标已离开"后，等待 FloatingScheduleEdgeHideDelay 秒再滑出隐藏
+    //  （给用户移开光标/继续操作的时间；延迟期间光标回到窗口内或窗口被拖走则取消）。
+    //  实现：50ms 轮询状态机 + 截止时间戳（不新增计时器）。
+    private bool _edgeSlideOutPendingWpf;   // 是否已安排一次延迟滑出
+    private DateTime _edgeSlideOutDueWpf;   // 延迟滑出的到期时刻（UtcNow 基准）
+    private double _edgeHiddenTargetLeftWpf; // 延迟到期后要滑到的隐藏位 Left
+    private double _edgeHiddenTargetTopWpf;  // 延迟到期后要滑到的隐藏位 Top
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT_WPF
+    {
+        public int Left;
+        public int Top;
+        public int Right;
+        public int Bottom;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct MONITORINFO_WPF
+    {
+        public int cbSize;
+        public RECT_WPF rcMonitor;
+        public RECT_WPF rcWork;
+        public uint dwFlags;
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr MonitorFromWindow(IntPtr hwnd, uint dwFlags);
+
+    [DllImport("user32.dll")]
+    private static extern bool GetMonitorInfo(IntPtr hMonitor, ref MONITORINFO_WPF lpmi);
+
+    private const uint MONITOR_DEFAULTTONEAREST_WPF = 2;
+
+    /// <summary>
+    /// 取窗口所在屏幕（最近监视器）的工作区，物理像素 → 经窗口 PresentationSource 换算为 DIP。
+    /// </summary>
+    private bool TryGetWorkAreaDipWpf(out double left, out double top, out double right, out double bottom)
+    {
+        left = top = right = bottom = 0;
+        if (_window == null) return false;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle;
+            if (hwnd == IntPtr.Zero) return false;
+            var mi = new MONITORINFO_WPF();
+            mi.cbSize = Marshal.SizeOf<MONITORINFO_WPF>();
+            var hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST_WPF);
+            if (hMon == IntPtr.Zero || !GetMonitorInfo(hMon, ref mi)) return false;
+
+            var src = PresentationSource.FromVisual(_window);
+            if (src?.CompositionTarget == null)
+            {
+                // 兜底：拿不到 DPI 变换信息时按 1:1 处理（96 DPI 常见场景）
+                left = mi.rcWork.Left; top = mi.rcWork.Top; right = mi.rcWork.Right; bottom = mi.rcWork.Bottom;
+                return true;
+            }
+            var f = src.CompositionTarget.TransformFromDevice;
+            var tl = f.Transform(new Point(mi.rcWork.Left, mi.rcWork.Top));
+            var br = f.Transform(new Point(mi.rcWork.Right, mi.rcWork.Bottom));
+            left = tl.X; top = tl.Y; right = br.X; bottom = br.Y;
+            return true;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 检测窗口当前贴靠的屏幕边缘。返回 0=不贴边；out 返回"若隐藏应滑到的目标位置"。
+    /// </summary>
+    private int DetectEdgeWpf(out double hideLeft, out double hideTop)
+    {
+        hideLeft = hideTop = 0;
+        if (_window == null) return 0;
+        if (!TryGetWorkAreaDipWpf(out var wl, out var wt, out var wr, out var wb)) return 0;
+
+        double w = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
+        double h = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
+        if (w <= 0 || h <= 0) return 0;
+
+        double dl = _window.Left - wl;
+        double dr = wr - (_window.Left + w);
+        double dt = _window.Top - wt;
+        double db = wb - (_window.Top + h);
+
+        // 取距离最小且 < 阈值的一边
+        int side = 0;
+        double best = EdgeHideNearThresholdDip;
+        if (dl < best) { best = dl; side = 1; }
+        if (dr < best) { best = dr; side = 2; }
+        if (dt < best) { best = dt; side = 3; }
+        if (db < best) { best = db; side = 4; }
+        if (side == 0) return 0;
+
+        hideLeft = _window.Left;
+        hideTop = _window.Top;
+        switch (side)
+        {
+            case 1: hideLeft = wl - w + EdgeHideVisibleStripDip; break;   // 左：滑出，右缘留 6px 可见条
+            case 2: hideLeft = wr - EdgeHideVisibleStripDip; break;       // 右：滑出，左缘留 6px 可见条
+            case 3: hideTop = wt - h + EdgeHideVisibleStripDip; break;    // 上：滑出，下缘留 6px
+            case 4: hideTop = wb - EdgeHideVisibleStripDip; break;        // 下：滑出，上缘留 6px
+        }
+        return side;
+    }
+
+    /// <summary>
+    /// 200ms DoubleAnimation 平移窗口到目标位置；动画结束清动画时钟并落地本地值（与淡化动画同套路）。
+    /// </summary>
+    private void AnimateWindowPosWpf(double toLeft, double toTop)
+    {
+        if (_window == null) return;
+        bool leftChanged = Math.Abs(_window.Left - toLeft) > 0.5;
+        bool topChanged = Math.Abs(_window.Top - toTop) > 0.5;
+        if (!leftChanged && !topChanged) return;
+
+        _edgeAnimatingWpf = true;
+        int remaining = (leftChanged ? 1 : 0) + (topChanged ? 1 : 0);
+        var win = _window;
+        void FinishOne()
+        {
+            if (System.Threading.Interlocked.Decrement(ref remaining) != 0) return;
+            try
+            {
+                // 清除动画时钟 → 写本地值落地，避免动画值优先级导致后续直接赋值失效
+                win.BeginAnimation(Window.LeftProperty, null);
+                win.BeginAnimation(Window.TopProperty, null);
+                win.Left = toLeft;
+                win.Top = toTop;
+            }
+            catch { /* ignore */ }
+            _edgeAnimatingWpf = false;
+        }
+
+        var dur = TimeSpan.FromMilliseconds(EdgeHideAnimMs);
+        var ease = new CubicEase { EasingMode = EasingMode.EaseInOut };
+        if (leftChanged)
+        {
+            var a = new DoubleAnimation(toLeft, dur) { FillBehavior = FillBehavior.HoldEnd, EasingFunction = ease };
+            a.Completed += (_, _) => FinishOne();
+            win.BeginAnimation(Window.LeftProperty, a);
+        }
+        if (topChanged)
+        {
+            var b = new DoubleAnimation(toTop, dur) { FillBehavior = FillBehavior.HoldEnd, EasingFunction = ease };
+            b.Completed += (_, _) => FinishOne();
+            win.BeginAnimation(Window.TopProperty, b);
+        }
+    }
+
+    /// <summary>
+    /// 立即恢复贴边前正常位置（开关关闭 / Stop 时调用，无动画）。
+    /// </summary>
+    private void RestoreEdgePositionWpf()
+    {
+        if (_window == null) return;
+        if (!_edgeHiddenWpf && _edgeSideWpf == 0) return;
+        bool wasHidden = _edgeHiddenWpf;
+        _edgeHiddenWpf = false;
+        _edgeSideWpf = 0;
+        _edgeSlideOutPendingWpf = false;   // 【贴边隐藏延迟】取消挂起的延迟滑出
+        if (!wasHidden) return;
+        try
+        {
+            _window.BeginAnimation(Window.LeftProperty, null);
+            _window.BeginAnimation(Window.TopProperty, null);
+            _window.Left = _edgeNormalLeftWpf;
+            _window.Top = _edgeNormalTopWpf;
+        }
+        catch { /* ignore */ }
+    }
+
+    /// <summary>读取"贴边隐藏延迟时间"（秒，0~60，精确 0.1）；异常/未设时回退默认 3 秒。</summary>
+    private double GetEdgeHideDelaySecWpf()
+    {
+        try { return Math.Clamp(_settings.FloatingScheduleEdgeHideDelay, 0.0, 60.0); }
+        catch { return 3.0; }
+    }
+
+    /// <summary>
+    /// 贴边隐藏状态机推进（50ms Timer Tick 调用 + 拖拽结束/开关变更即时调用）。
+    /// 与点击穿透（WS_EX_TRANSPARENT）/指针淡化（Opacity）完全独立，互不干扰。
+    /// </summary>
+    private void UpdateEdgeHideWpf()
+    {
+        if (_window == null || !_window.IsVisible) return;
+        // 拖拽中（鼠标模态 DragMove / 触摸）或滑移动画进行中：跳过本轮
+        if (_mouseDraggingWpf || _touchDragIdWpf >= 0 || _edgeAnimatingWpf) return;
+
+        if (!_settings.FloatingScheduleEdgeHide)
+        {
+            // 开关关闭：若仍处隐藏态则恢复位置并停止逻辑；同时取消挂起的延迟滑出
+            _edgeSlideOutPendingWpf = false;
+            RestoreEdgePositionWpf();
+            return;
+        }
+
+        if (_edgeHiddenWpf)
+        {
+            // 隐藏中：窗口在屏幕内的部分即 ~6px 可见条，光标进入（命中窗口矩形）→ 滑回正常位
+            if (IsPointerInWindowWpf())
+            {
+                _edgeHiddenWpf = false;
+                AnimateWindowPosWpf(_edgeNormalLeftWpf, _edgeNormalTopWpf);
+            }
+            return;
+        }
+
+        var side = DetectEdgeWpf(out var hl, out var ht);
+        if (side == 0)
+        {
+            // 不再贴边（被拖走/分辨率变化等）：清理状态 + 取消挂起的延迟滑出
+            _edgeSideWpf = 0;
+            _edgeSlideOutPendingWpf = false;
+            return;
+        }
+        _edgeSideWpf = side;
+
+        if (IsPointerInWindowWpf())
+        {
+            // 光标在窗口内 → 取消挂起的延迟滑出（刚滑回时或用户正在操作）
+            _edgeSlideOutPendingWpf = false;
+            return;
+        }
+
+        // 贴边且光标不在窗口内：
+        // 【贴边隐藏延迟】先记录正常位与滑出目标位，安排/等待延迟，到期后才真正滑出隐藏。
+        _edgeNormalLeftWpf = _window.Left;
+        _edgeNormalTopWpf = _window.Top;
+        if (!_edgeSlideOutPendingWpf)
+        {
+            _edgeSlideOutPendingWpf = true;
+            _edgeSlideOutDueWpf = DateTime.UtcNow.AddSeconds(GetEdgeHideDelaySecWpf());
+            _edgeHiddenTargetLeftWpf = hl;
+            _edgeHiddenTargetTopWpf = ht;
+            return;
+        }
+        if (DateTime.UtcNow >= _edgeSlideOutDueWpf)
+        {
+            _edgeSlideOutPendingWpf = false;
+            _edgeHiddenWpf = true;
+            AnimateWindowPosWpf(_edgeHiddenTargetLeftWpf, _edgeHiddenTargetTopWpf);
+        }
     }
 
     private void ShowWindow()
@@ -836,6 +1242,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
         _currentBreakLayoutItem = null;
         _currentProgressClassIndex = -1;
         _currentRowLayoutItems.Clear();
+        // 【贴边自动隐藏 / 触摸拖拽】窗口销毁：复位全部瞬态，防止下次启动残留旧状态
+        _edgeHiddenWpf = false;
+        _edgeSideWpf = 0;
+        _edgeAnimatingWpf = false;
+        _mouseDraggingWpf = false;
+        _touchDragIdWpf = -1;
     }
 
     private void ApplyOpacity()
@@ -878,7 +1290,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     try
                     {
                         var exT = (int)GetWindowLong(hwnd, GWL_EXSTYLE);
-                        SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exT & ~WS_EX_NOACTIVATE));
+                        // 【修复闪烁】先读当前 exStyle，仅当确实带 WS_EX_NOACTIVATE 时才清除：
+                        //  Every50Ms/Every1Ms 层级刷新模式下，每 Tick 无条件 SetWindowLong 写入相同扩展样式
+                        //  会强制 DWM 重新评估分层窗口 → 悬浮窗高频闪烁。
+                        if ((exT & WS_EX_NOACTIVATE) != 0)
+                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exT & ~WS_EX_NOACTIVATE));
                     }
                     catch { }
                     _window.Topmost = true;
@@ -896,7 +1312,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     try
                     {
                         var exB = (int)GetWindowLong(hwnd, GWL_EXSTYLE);
-                        SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exB | WS_EX_NOACTIVATE));
+                        // 【修复闪烁】同上：仅当当前不带 WS_EX_NOACTIVATE 时才置位，消除每 Tick 冗余 Win32 样式写入。
+                        if ((exB & WS_EX_NOACTIVATE) == 0)
+                            SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)(exB | WS_EX_NOACTIVATE));
                     }
                     catch { }
                     _window.Topmost = false;
@@ -1240,15 +1658,19 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 var validItemsRaw = ReflectGetValidTimeLayoutItems(classPlan);
                 var validItems = new List<object>();
                 // 【★ 连续课间分别走进度】同步收集课间项（TimeType==1），供课间进度条"每个课间分别走"
+                // 【课表分隔线·档案组件】同步收集档案分隔线对象（TimeType==2），供分隔线绘制
                 _breakItemsWpf.Clear();
+                _separatorItemsWpf.Clear();
                 foreach (var x in validItemsRaw)
                 {
                     if (x == null) continue;
                     if (ReflectGetTimeType(x) == 0) validItems.Add(x);
                     else if (ReflectGetTimeType(x) == 1) _breakItemsWpf.Add(x);
+                    else if (ReflectGetTimeType(x) == 2) _separatorItemsWpf.Add(x);
                 }
                 validItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
                 _breakItemsWpf.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+                _separatorItemsWpf.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
 
                 var classesList = ReflectGetClasses(classPlan);
 
@@ -1489,6 +1911,26 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 //  500ms Tick 检测 dateChanged 时以此为基线，跨天调试跳转即使 PropertyChanged 丢失也能下一 Tick 强制 needRefresh=true。
                 _lastWpfRefreshDate = GetClassIslandNow().Date;
 
+                // ---------- 分隔线（3px）位置计算 ----------
+                // 【课表分隔线·档案组件】数据源 = 档案中用户手动插入的分隔线对象（_separatorItemsWpf，TimeType==2），
+                //  而不是每个课间都画线。对每个分隔线 s，找最后一个 End <= s.Start 的课程索引 i（classRows 时间升序，遇 > 即 break）；
+                //  要求 i+1 存在（分隔线必须夹在两节课之间）。多条分隔线命中同一 i → HashSet 天然去重，只插一条。
+                //  主题色：深色=白 / 浅色=黑；主题变化由 OnThemeChanged → RefreshSchedule 整表重建自动更新，
+                //  无需单独订阅事件（重建即全新控件，无泄漏风险）。
+                var breakSeparatorAfterWpf = new HashSet<int>();
+                foreach (var s in _separatorItemsWpf)
+                {
+                    var sT = ReflectGetStartTime(s);
+                    int idx = -1;
+                    for (int k = 0; k < classRows.Count; k++)
+                    {
+                        if (ReflectGetEndTime(classRows[k].LayoutItem) <= sT) idx = k;
+                        else break;
+                    }
+                    if (idx >= 0 && idx < classRows.Count - 1)
+                        breakSeparatorAfterWpf.Add(idx);
+                }
+
                 for (int i = 0; i < classRows.Count; i++)
                 {
                     rowIndex++;
@@ -1579,8 +2021,6 @@ public class FloatingScheduleService : IDisposable, IHostedService
                             MaxWidth = teacherMaxWpf,
                             Margin = new Thickness(8, 0, 0, 0)
                         };
-                        // 悬停显示完整教师名（展示层裁剪不丢失信息，与 SizeToContent 规格解耦）
-                        try { System.Windows.Controls.ToolTipService.SetToolTip(teacherText, teacherTitle); } catch { /* ignore */ }
                         Grid.SetColumn(teacherText, 1);
                         courseNameGrid.Children.Add(teacherText);
                     }
@@ -1770,6 +2210,28 @@ public class FloatingScheduleService : IDisposable, IHostedService
                             breakCellR,
                             breakHost,
                         };
+                    }
+
+                    // ---------- 课间分隔线（3px）：第 i 节课与下一节课之间存在课间 → 在该行间隙插横向分隔线 ----------
+                    //  放在课间插入行之后，保证"课程行 → (课间行) → 分隔线 → 下一课程行"顺序；
+                    //  仅追加新行，不改动既有 rowIndex/进度条/高亮锚定逻辑。
+                    if (breakSeparatorAfterWpf.Contains(i))
+                    {
+                        rowIndex++;
+                        table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+                        var sepLine = new Border
+                        {
+                            Height = 3,
+                            // 深色主题白色、浅色主题黑色（随主题重建自动更新）
+                            Background = isDark ? Brushes.White : Brushes.Black,
+                            Margin = new Thickness(0, 1, 0, 1),
+                            CornerRadius = new CornerRadius(1.5),
+                            HorizontalAlignment = HorizontalAlignment.Stretch
+                        };
+                        Grid.SetRow(sepLine, rowIndex);
+                        Grid.SetColumn(sepLine, 0);
+                        Grid.SetColumnSpan(sepLine, 2);   // 跨整行（两列）
+                        table.Children.Add(sepLine);
                     }
                 }
 
