@@ -683,12 +683,15 @@ public partial class PluginSettingsPage : UserControl
                 ToolTip = "极高频率重设：明显占用 UI 线程、可能导致主窗口/悬浮窗闪烁，仅作极端调试用途。"
             });
             recheckComboWpf.Items.Add(warn1);
+            // 4 - 每 2s（最省资源的低频档）
+            recheckComboWpf.Items.Add("每 2s");
             static int ModeToIndexWpf(FloatingTopmostRefreshMode m) => m switch
             {
                 FloatingTopmostRefreshMode.OnWindowZOrderChanged => 0,
                 FloatingTopmostRefreshMode.OnForegroundWindowChanged => 1,
                 FloatingTopmostRefreshMode.Every50Ms => 2,
                 FloatingTopmostRefreshMode.Every1Ms => 3,
+                FloatingTopmostRefreshMode.Every2s => 4,
                 _ => 0
             };
             static FloatingTopmostRefreshMode IndexToModeWpf(int i) => i switch
@@ -697,6 +700,7 @@ public partial class PluginSettingsPage : UserControl
                 1 => FloatingTopmostRefreshMode.OnForegroundWindowChanged,
                 2 => FloatingTopmostRefreshMode.Every50Ms,
                 3 => FloatingTopmostRefreshMode.Every1Ms,
+                4 => FloatingTopmostRefreshMode.Every2s,
                 _ => FloatingTopmostRefreshMode.OnWindowZOrderChanged
             };
             recheckComboWpf.SelectedIndex = ModeToIndexWpf(

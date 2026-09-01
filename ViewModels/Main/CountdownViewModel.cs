@@ -411,14 +411,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
         if (activeItems.Count == 0)
         {
-            // 全部倒计时已结束：优先显示三段式"倒计时 + 最后完成的名称 + 已结束"，
-            // 取 IsCompleted 且 TargetTimestamp 最大的项的名称；无完成项或名称为空时回退为单行"倒计时已结束"
-            var lastCompletedName = _settings.CountdownItems
-                .Where(item => item.IsCompleted)
-                .OrderByDescending(item => item.TargetTimestamp)
-                .FirstOrDefault()?.Name;
+            // 全部倒计时已结束：显示「{组件内所有倒计时的名称（空格分隔）} 已结束」（去掉原固定前缀"倒计时"）。
+            var displayName = string.Join(" ",
+                _settings.CountdownItems
+                    .Select(i => i?.Name?.Trim())
+                    .Where(n => !string.IsNullOrEmpty(n)));
 
-            if (string.IsNullOrWhiteSpace(lastCompletedName))
+            if (string.IsNullOrEmpty(displayName))
             {
                 return new CountdownDisplayData
                 {
@@ -435,8 +434,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
             return new CountdownDisplayData
             {
-                Text1 = "倒计时",
-                Text2 = lastCompletedName,
+                Text1 = string.Empty,
+                Text2 = displayName,
                 Text3 = "已结束",
                 Time = string.Empty,
                 Text4 = string.Empty,

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -44,7 +44,11 @@ public enum FloatingTopmostRefreshMode
     /// <summary>
     /// 3 - 每 1ms：DispatcherTimer 极高频率周期性重设（注意性能占用与闪烁风险）。
     /// </summary>
-    Every1Ms = 3
+    Every1Ms = 3,
+    /// <summary>
+    /// 4 - 每 2s：DispatcherTimer 低频周期性重设（对改层级即时性要求低时，最省资源）。
+    /// </summary>
+    Every2s = 4
 }
 
 /// <summary>

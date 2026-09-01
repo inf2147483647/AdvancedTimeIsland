@@ -773,12 +773,15 @@ public class PluginSettingsPage : UserControl
                     warn1Text
                 }
             });
+            // 4 - 每 2s（最省资源的低频档）
+            recheckComboBox.Items.Add(new TextBlock { Text = "每 2s" });
             int InitRecheckIndexFromMode(FloatingTopmostRefreshMode m) => m switch
             {
                 FloatingTopmostRefreshMode.OnWindowZOrderChanged => 0,
                 FloatingTopmostRefreshMode.OnForegroundWindowChanged => 1,
                 FloatingTopmostRefreshMode.Every50Ms => 2,
                 FloatingTopmostRefreshMode.Every1Ms => 3,
+                FloatingTopmostRefreshMode.Every2s => 4,
                 _ => 0
             };
             FloatingTopmostRefreshMode ModeFromRecheckIndex(int idx) => idx switch
@@ -787,6 +790,7 @@ public class PluginSettingsPage : UserControl
                 1 => FloatingTopmostRefreshMode.OnForegroundWindowChanged,
                 2 => FloatingTopmostRefreshMode.Every50Ms,
                 3 => FloatingTopmostRefreshMode.Every1Ms,
+                4 => FloatingTopmostRefreshMode.Every2s,
                 _ => FloatingTopmostRefreshMode.OnWindowZOrderChanged
             };
             recheckComboBox.SelectedIndex = InitRecheckIndexFromMode(

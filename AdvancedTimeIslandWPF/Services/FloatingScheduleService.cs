@@ -114,6 +114,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
+    // 【修复闪烁·z-order 条件断言】GetWindow(GW_HWNDFIRST/GW_HWNDLAST)：判断本窗口当前是否已处于
+    //  topmost/bottommost 链首/末位。稳态时定时器 Tick 跳过 SetWindowPos，消除"每 50ms/1ms 重设
+    //  z-order → DWM 重合成 → 闪烁"（同 Avalonia 端）。
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    private const uint GW_HWNDFIRST_WPF = 0;
+    private const uint GW_HWNDLAST_WPF = 2;
+
     // Per-Monitor V2 DPI 兜底：防止在宿主 DPI 上下文未正确继承时出现缩放错位
     // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
     [DllImport("user32.dll")]
@@ -771,6 +779,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private void OnWindowLocationChanged(object? sender, EventArgs e)
     {
         if (_window == null) return;
+        // 【触摸/鼠标拖动不上报】拖拽过程中每帧写 Left/Top 都会触发本回调（每帧做 JSON 写盘 =
+        //  触摸拖动卡顿/延迟的主要开销）。拖拽中直接返回不上报：
+        //  - 触摸收尾（OnContainerTouchUp）会先复位 _touchDragIdWpf 再补应用尾帧 → 触发本回调保存最终位置；
+        //  - 鼠标收尾 DragMove finally 复位 _mouseDraggingWpf 后再 ClampWindowToScreenWpf → 同样保存最终位置。
+        if (_touchDragIdWpf >= 0 || _mouseDraggingWpf) return;
+
         // 保存位置；【贴边自动隐藏】仅当位置变化由"滑出/滑回动画"驱动（非用户拖拽）时，
         //  不持久化隐藏位、改写正常位，避免重启后窗口停在屏幕外；用户主动拖拽时保存实际位置。
         double lx = _window.Left, ty = _window.Top;
@@ -799,6 +813,10 @@ public class FloatingScheduleService : IDisposable, IHostedService
         //  3) 不再有"两套拖拽并行（文档二.5元凶）、双重缩放（文档一.3.2）、坐标单位冲突（文档一.2）、消息重入（文档二.6）"
         //  保留的有益优化：拖动前冻结 SizeToContent.Manual（防止 Auto 尺寸在拖的过程中做重测量造成合成抖动）
         _mouseDraggingWpf = true;   // 标记模态拖拽中：贴边隐藏状态机在此期间暂停
+        // 【拖动期间不运行贴边隐藏倒计时】拖动开始即取消挂起的延迟滑出（到期时间戳标志清空）：
+        //  否则延迟=0 时倒计时随时到期、把窗口滑出隐藏，与正在进行的拖动打架。
+        //  拖动结束后 UpdateEdgeHideWpf 会按"松手位置"重新评估，非贴边则不隐藏。
+        _edgeSlideOutPendingWpf = false;
         _preDragSizeToContent = _window.SizeToContent;
         _preDragTopmost = _window.Topmost;
         if (_preDragSizeToContent != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
@@ -826,6 +844,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
             if (_window.Topmost != _preDragTopmost) _window.Topmost = _preDragTopmost;
             // 结束后重新应用 z-order 层（DragMove 内部移动过程中不改变 z-order，结束后确保仍是设置里的 Topmost/Bottom）
             ApplyWindowLayer();
+            // 【不出屏】系统 DragMove 允许把窗口拖出屏幕；返回后对最终位置 clamp 回所在屏幕工作区
+            //  （隐藏/动画态跳过：那两种状态窗口本就该部分移出屏幕）
+            ClampWindowToScreenWpf();
         }
         catch (Exception ex)
         {
@@ -850,6 +871,15 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private double _touchOffsetYWpf;                  // 触点相对窗口左上角的 DIP 偏移 Y
     private SizeToContent _preTouchSizeToContent;     // 触摸拖拽前 SizeToContent（结束后恢复）
     private bool _preTouchTopmost;                    // 触摸拖拽前 Topmost（结束后恢复）
+    // 【拖动 CPU 优化 + 不出屏】触摸 Move 事件高频（120~240Hz），每事件写 Left/Top 触发布局+渲染 →
+    //  节流到 ~60fps；尾帧记入 pending，TouchUp 时补应用。目标位置 clamp 到所在屏幕工作区（窗口完整可见）。
+    private long _lastTouchMoveTickWpf;
+    private double _pendingTouchLeftWpf, _pendingTouchTopWpf;
+    private bool _pendingTouchValidWpf;
+    // 【修复：触摸拖动后桌面图标/悬浮窗严重闪烁】拖动期间每 ~16ms 写 Left/Top 移动窗口，同时
+    //  _topmostRefreshTimerWpf（50ms/1ms 定时）频繁 SetWindowPos(HWND_TOPMOST/BOTTOM) 重设 z-order，
+    //  与拖动位移争抢 DWM 桌面合成 → 桌面反复重绘闪烁。拖动期间抑制 z-order/exstyle 重设，结束恢复。
+    private bool _suppressTopmostRefreshWpf;
 
     private void OnContainerTouchDown(object sender, TouchEventArgs e)
     {
@@ -867,6 +897,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
             _touchOffsetXWpf = p.X;
             _touchOffsetYWpf = p.Y;
             _touchDragIdWpf = e.TouchDevice.Id;
+            _suppressTopmostRefreshWpf = true;   // 【修复：拖动闪烁】拖动期间抑制 z-order/exstyle 重设（TouchUp 恢复）
+            // 【拖动期间不运行贴边隐藏倒计时】拖动开始取消挂起的延迟滑出（同鼠标链路，防 delay=0 与拖动打架）
+            _edgeSlideOutPendingWpf = false;
+            _lastTouchMoveTickWpf = 0;        // 【CPU 节流】首个 Move 事件立即应用
+            _pendingTouchValidWpf = false;
             // 捕获触点：手指移出窗口边界仍能持续收到 Move/Up
             _containerBorder.CaptureTouch(e.TouchDevice);
 
@@ -899,8 +934,24 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 screenDip = src.CompositionTarget.TransformFromDevice.Transform(screenDevice);
             else
                 screenDip = screenDevice;   // 兜底：拿不到 DPI 变换信息时按 1:1 处理
-            _window.Left = screenDip.X - _touchOffsetXWpf;
-            _window.Top = screenDip.Y - _touchOffsetYWpf;
+            double targetLeft = screenDip.X - _touchOffsetXWpf;
+            double targetTop = screenDip.Y - _touchOffsetYWpf;
+            ClampDragTargetWpf(ref targetLeft, ref targetTop);   // 【不出屏】限制在工作区内
+
+            // 【CPU 节流】触摸 Move 高频（120~240Hz）→ 限制 ~60fps 写位置；尾帧记 pending，TouchUp 补应用
+            long now = Environment.TickCount64;
+            if (now - _lastTouchMoveTickWpf < 16)
+            {
+                _pendingTouchLeftWpf = targetLeft;
+                _pendingTouchTopWpf = targetTop;
+                _pendingTouchValidWpf = true;
+                e.Handled = true;
+                return;
+            }
+            _lastTouchMoveTickWpf = now;
+            _pendingTouchValidWpf = false;
+            _window.Left = targetLeft;
+            _window.Top = targetTop;
         }
         catch (Exception ex)
         {
@@ -909,13 +960,61 @@ public class FloatingScheduleService : IDisposable, IHostedService
         e.Handled = true;
     }
 
+    /// <summary>
+    /// 【拖动不出屏】把拖拽目标位置（DIP）clamp 到窗口所在屏幕工作区，保证时间表完整显示在屏幕内。
+    /// clamp 后窗口贴在工作区边缘（距离=0 &lt; 8px 阈值）→ 拖到边缘松手仍正常触发贴边滑出。
+    /// 取不到工作区/尺寸信息时原样返回（功能降级但不阻塞拖动）。
+    /// </summary>
+    private void ClampDragTargetWpf(ref double left, ref double top)
+    {
+        try
+        {
+            if (_window == null) return;
+            if (!TryGetWorkAreaDipWpf(out var wl, out var wt, out var wr, out var wb)) return;
+            double w = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
+            double h = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
+            if (w <= 0 || h <= 0) return;
+            double maxL = wl + Math.Max(0, wr - wl - w);
+            double maxT = wt + Math.Max(0, wb - wt - h);
+            left = Math.Clamp(left, wl, maxL);
+            top = Math.Clamp(top, wt, maxT);
+        }
+        catch { /* 保持原值 */ }
+    }
+
+    /// <summary>
+    /// 【不出屏】把窗口当前位置 clamp 回所在屏幕工作区（系统 DragMove 结束后调用）。
+    /// 隐藏/滑移动画态跳过——那两种状态窗口本就部分移出屏幕，由贴边状态机管理。
+    /// </summary>
+    private void ClampWindowToScreenWpf()
+    {
+        try
+        {
+            if (_window == null) return;
+            if (_edgeHiddenWpf || _edgeAnimatingWpf) return;
+            double l = _window.Left, t = _window.Top;
+            ClampDragTargetWpf(ref l, ref t);
+            if (Math.Abs(l - _window.Left) > 0.5) _window.Left = l;
+            if (Math.Abs(t - _window.Top) > 0.5) _window.Top = t;
+        }
+        catch { /* 忽略 */ }
+    }
+
     private void OnContainerTouchUp(object sender, TouchEventArgs e)
     {
         if (_touchDragIdWpf < 0 || _window == null) return;
         if (e.TouchDevice.Id != _touchDragIdWpf) return;
         _touchDragIdWpf = -1;
+        _suppressTopmostRefreshWpf = false;   // 【修复：拖动闪烁】恢复 z-order 刷新（紧随其后的 ApplyWindowLayer 会重设一次）
 
         try { _containerBorder?.ReleaseTouchCapture(e.TouchDevice); } catch { /* ignore */ }
+
+        // 【CPU 节流】补应用被节流丢弃的尾帧位置，保证窗口最终停在手指松开处
+        if (_pendingTouchValidWpf)
+        {
+            try { _window.Left = _pendingTouchLeftWpf; _window.Top = _pendingTouchTopWpf; } catch { }
+            _pendingTouchValidWpf = false;
+        }
 
         // 恢复触摸拖拽前状态（与鼠标 DragMove 结束恢复逻辑同构）
         try
@@ -941,7 +1040,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
     //  实现：复用 50ms 指针淡化轮询 Timer 做状态机推进（不新增计时器、不阻塞 UI）；
     //        动画用 DoubleAnimation 操作 Window.Left/Top；
     //        屏幕工作区优先 Win32 MonitorFromWindow+GetMonitorInfo（多屏正确，不引入 WinForms 依赖）。
-    private const double EdgeHideNearThresholdDip = 8.0;   // 距屏幕边缘 < 8px 判定贴边
+    private const double EdgeHideNearThresholdDip = 1.0;   // 距屏幕边缘 < 1px 判定贴边（需真正贴到边才隐藏）
     private const double EdgeHideVisibleStripDip = 6.0;    // 隐藏后保留可见条约 6px
     private const int EdgeHideAnimMs = 200;                // 滑入/滑出平移动画时长
 
@@ -1171,15 +1270,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
         }
         _edgeSideWpf = side;
 
-        if (IsPointerInWindowWpf())
-        {
-            // 光标在窗口内 → 取消挂起的延迟滑出（刚滑回时或用户正在操作）
-            _edgeSlideOutPendingWpf = false;
-            return;
-        }
-
-        // 贴边且光标不在窗口内：
-        // 【贴边隐藏延迟】先记录正常位与滑出目标位，安排/等待延迟，到期后才真正滑出隐藏。
+        // 【悬停不阻止隐藏】不再因"光标在窗口内"取消/跳过滑出——鼠标悬停时间表照样会在延迟到期后滑出。
+        //  唯一阻止隐藏的是"正在拖动"（本方法开头 _mouseDraggingWpf || _touchDragIdWpf>=0 已 return）。
+        //  记录正常位（滑回目标）与滑出目标位，安排/等待延迟，到期后才真正滑出隐藏。
         _edgeNormalLeftWpf = _window.Left;
         _edgeNormalTopWpf = _window.Top;
         if (!_edgeSlideOutPendingWpf)
@@ -1277,6 +1370,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
         System.Threading.Interlocked.Increment(ref _inApplyWindowLayerWpf);
         try
         {
+            if (_suppressTopmostRefreshWpf) return;   // 【修复：拖动闪烁】拖动期间抑制 z-order/exstyle 重设（TouchUp 时恢复并重设一次）
             try
             {
                 var hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle;
@@ -1298,9 +1392,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     }
                     catch { }
                     _window.Topmost = true;
-                    SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW |
-                        SWP_NOSENDCHANGING | SWP_NOOWNERZORDER | SWP_NOREPOSITION);
+                    // 【修复闪烁·z-order 条件断言】已在 z-order 链顶端（GW_HWNDFIRST==hwnd）→ 跳过 SetWindowPos，
+                    //  消除每 Tick 重设 z-order 导致的 DWM 重合成闪烁；仅被其它 topmost 窗口抢占时才重设一次。
+                    bool needTopWpf = true;
+                    try { needTopWpf = GetWindow(hwnd, GW_HWNDFIRST_WPF) != hwnd; } catch { }
+                    if (needTopWpf)
+                        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW |
+                            SWP_NOSENDCHANGING | SWP_NOOWNERZORDER | SWP_NOREPOSITION);
                 }
                 else
                 {
@@ -1318,9 +1417,13 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     }
                     catch { }
                     _window.Topmost = false;
-                    SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
-                        SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW |
-                        SWP_NOSENDCHANGING | SWP_NOOWNERZORDER | SWP_NOREPOSITION);
+                    // 【修复闪烁·z-order 条件断言】已在 z-order 链底端（GW_HWNDLAST==hwnd）→ 跳过重设（同上）。
+                    bool needBottomWpf = true;
+                    try { needBottomWpf = GetWindow(hwnd, GW_HWNDLAST_WPF) != hwnd; } catch { }
+                    if (needBottomWpf)
+                        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW |
+                            SWP_NOSENDCHANGING | SWP_NOOWNERZORDER | SWP_NOREPOSITION);
                 }
             }
             catch
@@ -2212,7 +2315,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
                         };
                     }
 
-                    // ---------- 课间分隔线（3px）：第 i 节课与下一节课之间存在课间 → 在该行间隙插横向分隔线 ----------
+                    // ---------- 课间分隔线（2px，70% 不透明）：第 i 节课与下一节课之间存在课间 → 在该行间隙插横向分隔线 ----------
                     //  放在课间插入行之后，保证"课程行 → (课间行) → 分隔线 → 下一课程行"顺序；
                     //  仅追加新行，不改动既有 rowIndex/进度条/高亮锚定逻辑。
                     if (breakSeparatorAfterWpf.Contains(i))
@@ -2221,11 +2324,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
                         table.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
                         var sepLine = new Border
                         {
-                            Height = 3,
+                            Height = 2,
                             // 深色主题白色、浅色主题黑色（随主题重建自动更新）
                             Background = isDark ? Brushes.White : Brushes.Black,
+                            Opacity = 0.7,   // 【分隔线】70% 不透明
                             Margin = new Thickness(0, 1, 0, 1),
-                            CornerRadius = new CornerRadius(1.5),
+                            CornerRadius = new CornerRadius(1),
                             HorizontalAlignment = HorizontalAlignment.Stretch
                         };
                         Grid.SetRow(sepLine, rowIndex);
@@ -3178,8 +3282,15 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
                 case FloatingTopmostRefreshMode.Every50Ms:
                 case FloatingTopmostRefreshMode.Every1Ms:
+                case FloatingTopmostRefreshMode.Every2s:
                     {
-                        var intervalMs = mode == FloatingTopmostRefreshMode.Every50Ms ? 50 : 1;
+                        // 周期化层级刷新：50ms / 1ms / 2s（Every2s 为最省资源的低频档）
+                        var intervalMs = mode switch
+                        {
+                            FloatingTopmostRefreshMode.Every50Ms => 50,
+                            FloatingTopmostRefreshMode.Every1Ms => 1,
+                            _ => 2000
+                        };
                         _topmostRefreshTimerWpf = new DispatcherTimer(System.Windows.Threading.DispatcherPriority.Background)
                         {
                             Interval = TimeSpan.FromMilliseconds(intervalMs)

@@ -42,6 +42,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
+    // 【修复闪烁·z-order 条件断言】GetWindow(GW_HWNDFIRST/GW_HWNDLAST)：判断本窗口当前是否已处于
+    //  topmost/bottommost 链的首/末位。稳态（已到位）时定时器 Tick 直接跳过 SetWindowPos，
+    //  从根源消除"每 50ms/1ms 重设 z-order → DWM 重合成 → 窗口闪烁"。
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
+    private const uint GW_HWNDFIRST_AV = 0;
+    private const uint GW_HWNDLAST_AV = 2;
+
     private static readonly IntPtr HWND_BOTTOM = new IntPtr(1);
     private static readonly IntPtr HWND_TOPMOST = new IntPtr(-1);
     private static readonly IntPtr HWND_TOP_AV = new IntPtr(0);
@@ -160,24 +168,43 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private IPointer? _dragPointerAv;
     private PixelPoint _dragStartScreenPxAv;    // 按下瞬间指针的屏幕物理像素位置
     private PixelPoint _dragStartWindowPxAv;    // 按下瞬间窗口位置（物理像素）
+    // 【拖动 CPU 优化】触摸/笔的 PointerMoved 可达 120~240Hz，每事件写 Window.Position 会触发
+    //  布局+合成，CPU 占用高。节流到 ~60fps（16ms）；节流丢弃的尾帧在 Released 时补应用一次，
+    //  保证窗口最终停在指针松开位置。
+    private long _lastDragMoveTickAv;           // 上次实际应用位置的 Environment.TickCount64
+    private PixelPoint _dragPendingPosAv;       // 被节流丢弃的"最新目标位置"（Released 时补应用）
+    private bool _dragPendingValidAv;
+    // 【修复：触摸拖动后桌面图标/悬浮窗严重闪烁】
+    //   根因：拖动时每 ~16ms _window.Position 移动带 WS_EX_COMPOSITED|WS_EX_LAYERED 的窗口，同时
+    //   _topmostRefreshTimerAv（50ms/1ms 定时）频繁 SetWindowPos(HWND_TOPMOST/BOTTOM) 重设 z-order，
+    //   两者在 DWM 桌面合成上争抢 → explorer 反复重绘桌面 → 悬浮窗与桌面图标一起闪烁。
+    //   修复：拖动期间抑制 z-order/exstyle 重设（_suppressTopmostRefreshAv=true 时 ApplyWindowLayer 直接跳过），
+    //   结束拖拽（EndDragAv）再恢复重设一次。系统移动窗口自身会保持其所在层，拖动这短暂时间不重设 z-order 无副作用。
+    private bool _suppressTopmostRefreshAv;
 
     // ========== 贴边自动隐藏（FloatingScheduleEdgeHide） ==========
-    //  窗口贴近任一屏幕边缘 <8px → 沿该边滑出屏幕，只保留约 6px 可见条；
+    //  窗口贴近任一屏幕边缘 <1px → 沿该边滑出屏幕，只保留约 6px 可见条（需真正贴到边才隐藏）；
     //  光标进入可见条 → 200ms 平移滑回原位；光标离开且仍贴边 → 再滑回隐藏。
     //  仅改 Position，不动 z-order / 扩展样式，与 WS_EX_NOACTIVATE 置底模式和点击穿透共存。
-    private const int EdgeHideThresholdAv = 8;      // 判定"贴边"的距离阈值（设备像素）
+    private const int EdgeHideThresholdAv = 1;      // 判定"贴边"的距离阈值（设备像素）
     private const int EdgeHideVisibleStripAv = 6;   // 隐藏后保留的可见条宽度（设备像素）
     private const int EdgeHideAnimMsAv = 200;       // 滑入/滑出动画时长
     private const int EdgeHideEvalDelayMsAv = 250;  // PositionChanged 防抖：拖拽过程中位置持续变化，停止 250ms 后才评估贴边
     private bool _edgeDockedAv;                     // 已贴边（记录原始位置，等待滑出/已滑出/已滑回 循环中）
     private bool _edgeHiddenAv;                     // 当前处于"滑出隐藏"状态
     private bool _edgeAnimatingAv;                  // 滑入/滑出动画进行中（期间 PositionChanged 不持久化、不重复评估）
-    private int _edgeSlideGenAv;                    // 动画代际号：旧动画被取消后其 finally 不误清新动画状态标志
     private string? _edgeSideAv;                    // 贴靠的边："left"/"right"/"top"/"bottom"
     private PixelPoint _edgeDockedPosAv;            // 贴边前的原始位置（滑回目标）
     private PixelPoint _edgeHiddenPosAv;            // 滑出隐藏后的目标位置
-    private CancellationTokenSource? _edgeAnimCtsAv;    // 取消正在进行的滑入/滑出动画
     private CancellationTokenSource? _edgeEvalCtsAv;    // 取消防抖中的延迟评估
+    // 【贴边滑移动画·帧率优化】原 async Task.Delay(16) 循环：Task.Delay 受系统时钟分辨率（~15.6ms）影响，
+    //  实际帧距 ≈ 16+15.6 ≈ 32ms → 仅 ~30fps 且续体调度有抖动。改用 DispatcherPriority.Render 的
+    //  DispatcherTimer（Avalonia 官方动画同款模式）：每个渲染帧 Tick 一次，与 DWM 合成节拍对齐 → 满帧率平滑滑动。
+    private DispatcherTimer? _edgeSlideTimerAv;
+    private PixelPoint _edgeAnimFromAv;
+    private PixelPoint _edgeAnimTargetAv;
+    private bool _edgeAnimWillHideAv;
+    private long _edgeAnimStartTicksAv;
     // 【贴边隐藏延迟】判定贴边后，等待 FloatingScheduleEdgeHideDelay 秒再滑出隐藏（给用户移开光标的时间）。
     private CancellationTokenSource? _edgeSlideOutDelayCtsAv;   // 取消"延迟滑出隐藏"等待
     private bool _edgeSlideOutPendingAv;                        // 是否已安排一次延迟滑出（防 50ms 轮询重复调度）
@@ -677,8 +704,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _hoverFadeTimer = null;
         _fadeAvCts?.Cancel();
         _fadeAvCts = null;
-        // 【贴边隐藏】Stop 取消滑入/滑出与防抖 CTS，防止异步动画回调访问已销毁窗口
-        try { _edgeAnimCtsAv?.Cancel(); } catch { }
+        // 【贴边隐藏】Stop 停止滑入/滑出动画计时器与防抖 CTS，防止回调访问已销毁窗口
+        StopEdgeSlideTimerAv();
+        _edgeAnimatingAv = false;
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
@@ -986,8 +1014,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
                 case FloatingTopmostRefreshMode.Every50Ms:
                 case FloatingTopmostRefreshMode.Every1Ms:
+                case FloatingTopmostRefreshMode.Every2s:
                     {
-                        var intervalMs = mode == FloatingTopmostRefreshMode.Every50Ms ? 50 : 1;
+                        // 周期化层级刷新：50ms / 1ms / 2s（Every2s 为最省资源的低频档）
+                        var intervalMs = mode switch
+                        {
+                            FloatingTopmostRefreshMode.Every50Ms => 50,
+                            FloatingTopmostRefreshMode.Every1Ms => 1,
+                            _ => 2000
+                        };
                         _topmostRefreshTimerAv = new DispatcherTimer(DispatcherPriority.Background)
                         {
                             Interval = TimeSpan.FromMilliseconds(intervalMs)
@@ -1258,8 +1293,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
         };
         _window.PositionChanged += (_, e) =>
         {
-            // 方案A 系统原生 HTCAPTION 拖拽：不再手动维护 _isDragging（已删除）；
-            // 任何位置变化（含最大化/最小化/系统拖拽）都直接持久化到设置，简化逻辑。
+            // 拖拽中直接短路：既不上报（持久化）也不触发贴边评估。
+            //  否则拖动时每 ~16ms 写一次 Position 都会触发本回调——不仅做 JSON 写盘 IO，
+            //  还会"取消+重建"一次贴边防抖 DispatcherTimer/CTS，是触摸拖动卡顿/延迟的主要开销来源。
+            //  拖动结束 EndDragAv 会统一保存位置并重新评估贴边，这里跳过完全安全。
+            if (_dragActiveAv) return;
+
+            // 任何位置变化（最大化/最小化/系统拖拽/贴边滑回）都持久化到设置。
             // 【贴边隐藏】滑入/滑出动画过程中与隐藏态下不持久化，避免把"隐藏位"当成用户位置保存。
             if (_window?.IsVisible == true && !_edgeAnimatingAv && !_edgeHiddenAv)
             {
@@ -1313,6 +1353,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         System.Threading.Interlocked.Increment(ref _inApplyWindowLayerAv);
         try
         {
+            // 【修复：触摸拖动后桌面闪烁】拖动期间抑制 z-order/exstyle 重设：
+            //  否则 50ms/1ms 定时器会在窗口被 SetWindowPos 移动的同时再 SetWindowPos(HWND_TOPMOST/BOTTOM)，
+            //  与拖动位移争抢 DWM 桌面合成 → 桌面图标/悬浮窗反复重绘闪烁。
+            //  拖拽结束（EndDragAv）会先置 false 再调用本方法恢复 z-order，故拖动暂停重设安全无副作用。
+            if (_suppressTopmostRefreshAv) return;
             var layer = _settings.FloatingScheduleWindowLayer;
 #if WINDOWS
             try
@@ -1335,9 +1380,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
                                 SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetT);
                         }
                         catch { }
-                        SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
-                            SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
+                        // 【修复闪烁·z-order 条件断言（闪烁主因）】GetWindow(GW_HWNDFIRST)==hwnd 说明本窗口已处于
+                        //  z-order 链顶端 → 稳态下直接跳过 SetWindowPos，消除"每 50ms/1ms 重设 z-order → DWM 反复
+                        //  重合成 → 窗口闪烁"。仅当被其它 topmost 窗口抢占（first != hwnd）时才重设一次，重设后下一
+                        //  Tick 即恢复稳态，调用频率从 20~1000 次/秒降到"仅实际变化时"。GetWindow 失败返回 Zero → 保守重设。
+                        bool needTopAv = true;
+                        try { needTopAv = GetWindow(hwnd, GW_HWNDFIRST_AV) != hwnd; } catch { }
+                        if (needTopAv)
+                            SetWindowPos(hwnd, HWND_TOPMOST, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                                SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
                     }
                     else
                     {
@@ -1355,9 +1407,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
                                 SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetB);
                         }
                         catch { }
-                        SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
-                            SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
-                            SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
+                        // 【修复闪烁·z-order 条件断言】GetWindow(GW_HWNDLAST)==hwnd → 已在 z-order 链底端，跳过重设（同上）。
+                        bool needBottomAv = true;
+                        try { needBottomAv = GetWindow(hwnd, GW_HWNDLAST_AV) != hwnd; } catch { }
+                        if (needBottomAv)
+                            SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
+                                SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
+                                SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
                     }
                     return;
                 }
@@ -1427,6 +1483,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
             _dragActiveAv = true;
             _dragPointerAv = e.Pointer;
+            _suppressTopmostRefreshAv = true;   // 【修复：拖动闪烁】拖动期间抑制 z-order/exstyle 重设（EndDragAv 恢复）
+            // 【拖动期间不运行贴边隐藏倒计时】拖动开始立即取消任何挂起的延迟滑出倒计时：
+            //  否则延迟=0 时倒计时随时会归零、把窗口滑出隐藏，与正在进行的拖动打架。
+            //  （拖动结束后 EndDragAv → ScheduleEdgeEvalAv 会按"松手位置"重新评估，非贴边则不隐藏）
+            try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+            _edgeSlideOutPendingAv = false;
+            _lastDragMoveTickAv = 0;      // 【拖动 CPU 节流】首个 Moved 事件立即应用
+            _dragPendingValidAv = false;
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
             _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
             _dragStartWindowPxAv = _window.Position;
@@ -1448,6 +1512,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 【统一拖拽】PointerMoved：指针真实屏幕像素位移叠加到按下时的窗口位置。
     //   PointToScreen(e.GetPosition(_window)) 恒等于"指针当前真实屏幕像素位"（与窗口自身位置无关），
     //   故位移 = 当前 - 按下，纯指针移动量；新窗口位 = 按下窗口位 + 位移。以按下瞬间为绝对基准，避免增量漂移/DPI 回环。
+    //   【CPU 节流】触摸/笔事件 120~240Hz，每事件写 Position 触发布局+合成 → 节流到 ~60fps；
+    //   被丢弃的尾帧记录到 _dragPendingPosAv，EndDrag（Released/CaptureLost）时补应用，位置不丢。
+    //   【不出屏】目标位置 clamp 到所在屏幕工作区（窗口完整可见）；贴边隐藏激活时跳过 clamp
+    //   （隐藏态窗口本来就要移出屏，由贴边状态机管理）。
     private void ContainerBorder_PointerMoved(object? sender, PointerEventArgs e)
     {
         if (!_dragActiveAv || _window == null) return;
@@ -1456,9 +1524,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try
         {
             var curScreenPx = _window.PointToScreen(e.GetPosition(_window));
-            _window.Position = new PixelPoint(
+            var target = new PixelPoint(
                 _dragStartWindowPxAv.X + (curScreenPx.X - _dragStartScreenPxAv.X),
                 _dragStartWindowPxAv.Y + (curScreenPx.Y - _dragStartScreenPxAv.Y));
+            target = ClampDragTargetToScreenAv(target);
+
+            long now = Environment.TickCount64;
+            if (now - _lastDragMoveTickAv < 16)   // ~60fps 节流：尾帧记入 pending，Released 时补应用
+            {
+                _dragPendingPosAv = target;
+                _dragPendingValidAv = true;
+                e.Handled = true;
+                return;
+            }
+            _lastDragMoveTickAv = now;
+            _dragPendingValidAv = false;
+            _window.Position = target;
             e.Handled = true;
         }
         catch (Exception ex)
@@ -1466,6 +1547,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _logger.LogDebug(ex, "统一拖拽更新窗口位置失败，结束本次拖拽。");
             EndDragAv();
         }
+    }
+
+    /// <summary>
+    /// 【拖动不出屏】把拖拽目标位置 clamp 到窗口所在屏幕的工作区，保证时间表完整显示在屏幕内。
+    /// 贴边隐藏不受影响：clamp 后窗口贴在工作区边缘（距离=0 < 1px 阈值）→ 拖完仍正常触发贴边滑出。
+    /// 取不到屏幕/尺寸信息时原样返回（功能降级但不阻塞拖动）。
+    /// </summary>
+    private PixelPoint ClampDragTargetToScreenAv(PixelPoint target)
+    {
+        try
+        {
+            if (_window == null) return target;
+            var screen = _window.Screens?.ScreenFromWindow(_window);
+            if (screen == null) return target;
+            if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return target;
+            var wa = screen.WorkingArea;
+            int maxX = wa.X + Math.Max(0, wa.Width - w);
+            int maxY = wa.Y + Math.Max(0, wa.Height - h);
+            return new PixelPoint(
+                Math.Clamp(target.X, wa.X, maxX),
+                Math.Clamp(target.Y, wa.Y, maxY));
+        }
+        catch { return target; }
     }
 
     // 【统一拖拽】指针失去捕获（如系统弹窗抢走）→ 立即收尾，防止状态残留。
@@ -1482,12 +1586,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (!_dragActiveAv) return;
         _dragActiveAv = false;
+        _suppressTopmostRefreshAv = false;   // 【修复：拖动闪烁】恢复 z-order 刷新（紧随其后的 ApplyWindowLayer 会重设一次）
         try { _dragPointerAv?.Capture(null); } catch { }
         _dragPointerAv = null;
 
         if (_window == null) return;
         try
         {
+            // 【拖动 CPU 节流】补应用被节流丢弃的尾帧位置，保证窗口最终停在指针松开处
+            if (_dragPendingValidAv)
+            {
+                _window.Position = _dragPendingPosAv;
+                _dragPendingValidAv = false;
+            }
             if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
             try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
             _settings.FloatingSchedulePositionX = _window.Position.X;
@@ -1649,7 +1760,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     // ==================================== 贴边自动隐藏（FloatingScheduleEdgeHide）====================================
     //  触发评估：拖拽结束（PointerReleased）与 PositionChanged（250ms 防抖，等效"非拖拽中"）。
-    //  行为：窗口与任一屏幕工作区边缘距离 <8px → 记录原始贴边位置，沿该边滑出（200ms 平移动画），
+    //  行为：窗口与任一屏幕工作区边缘距离 <1px → 记录原始贴边位置，沿该边滑出（200ms 平移动画），
     //        只保留约 6px 可见条；50ms _hoverFadeTimer Tick 轮询光标：进入可见条 → 滑回原位；离开 → 再滑回隐藏。
     //  约束：只改 Window.Position，不碰 z-order / GWL_EXSTYLE（与 WS_EX_NOACTIVATE 置底、点击穿透共存）。
     private int _edgeHoverTicksAv;                  // 光标在/离开可见条的连续稳定 Tick 计数（去抖）
@@ -1778,11 +1889,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void EdgeSlideToAv(PixelPoint target, bool willBeHidden)
     {
         if (_window == null) return;
-        try { _edgeAnimCtsAv?.Cancel(); } catch { }
-        try { _edgeAnimCtsAv?.Dispose(); } catch { }
-        _edgeAnimCtsAv = new CancellationTokenSource();
+        StopEdgeSlideTimerAv();
         _edgeAnimatingAv = true;
-        int myGen = ++_edgeSlideGenAv;
         var from = _window.Position;
         if (from == target)
         {
@@ -1791,44 +1899,60 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _edgeHiddenAv = willBeHidden;
             return;
         }
-        _ = RunEdgeSlideAsync(_window, from, target, myGen, willBeHidden, _edgeAnimCtsAv.Token);
+        _edgeAnimFromAv = from;
+        _edgeAnimTargetAv = target;
+        _edgeAnimWillHideAv = willBeHidden;
+        _edgeAnimStartTicksAv = Environment.TickCount64;
+        if (_edgeSlideTimerAv == null)
+        {
+            // Render 优先级：每个渲染帧 Tick 一次（与 Avalonia 内置动画系统同款驱动模式），
+            //  帧距 ≈ 显示器刷新周期（60Hz→16.7ms），不再受 Task.Delay 时钟粒度（~15.6ms 额外延迟）拖累。
+            _edgeSlideTimerAv = new DispatcherTimer(DispatcherPriority.Render)
+            {
+                Interval = TimeSpan.FromMilliseconds(1)   // Render 优先级下 1ms 间隔即"每帧一次"
+            };
+            _edgeSlideTimerAv.Tick += EdgeSlideTimer_Tick;
+        }
+        _edgeSlideTimerAv.Start();
     }
 
-    private async Task RunEdgeSlideAsync(Window w, PixelPoint from, PixelPoint to, int myGen, bool willBeHidden, CancellationToken ct)
+    private void EdgeSlideTimer_Tick(object? sender, EventArgs e)
     {
+        if (_window == null) { StopEdgeSlideTimerAv(); _edgeAnimatingAv = false; return; }
         try
         {
-            var sw = System.Diagnostics.Stopwatch.StartNew();
-            while (true)
+            double t = (Environment.TickCount64 - _edgeAnimStartTicksAv) / (double)EdgeHideAnimMsAv;
+            if (t >= 1.0)
             {
-                ct.ThrowIfCancellationRequested();
-                double t = sw.ElapsedMilliseconds / (double)EdgeHideAnimMsAv;
-                if (t >= 1.0) { w.Position = to; break; }
-                double eased = 1 - Math.Pow(1 - t, 3);   // CubicEaseOut
-                w.Position = new PixelPoint(
-                    (int)Math.Round(from.X + (to.X - from.X) * eased),
-                    (int)Math.Round(from.Y + (to.Y - from.Y) * eased));
-                // await 续体经 Avalonia DispatcherSynchronizationContext 回到 UI 线程写 Position，无需 Post
-                await Task.Delay(16, ct);
+                StopEdgeSlideTimerAv();
+                _window.Position = _edgeAnimTargetAv;
+                _edgeHiddenAv = _edgeAnimWillHideAv;
+                _edgeHoverTicksAv = 0;
+                _edgeHoverLastInAv = !_edgeAnimWillHideAv;  // 滑出后按"光标不在条内"起算，滑回后按"在窗口内"起算
+                _edgeAnimatingAv = false;
+                return;
             }
-            _edgeHiddenAv = willBeHidden;
-            _edgeHoverTicksAv = 0;
-            _edgeHoverLastInAv = !willBeHidden;  // 滑出后先按"光标不在条内"起算，滑回后按"在窗口内"起算
-        }
-        catch (OperationCanceledException)
-        {
-            // 方向切换：新动画从当前中间位置接管，正常取消
+            double eased = 1 - Math.Pow(1 - t, 3);   // CubicEaseOut
+            _window.Position = new PixelPoint(
+                (int)Math.Round(_edgeAnimFromAv.X + (_edgeAnimTargetAv.X - _edgeAnimFromAv.X) * eased),
+                (int)Math.Round(_edgeAnimFromAv.Y + (_edgeAnimTargetAv.Y - _edgeAnimFromAv.Y) * eased));
         }
         catch (Exception ex)
         {
             _logger.LogDebug(ex, "贴边滑入/滑出动画异常，直接落到目标位置。");
-            try { w.Position = to; _edgeHiddenAv = willBeHidden; } catch { }
+            try { StopEdgeSlideTimerAv(); _window.Position = _edgeAnimTargetAv; _edgeHiddenAv = _edgeAnimWillHideAv; } catch { }
+            _edgeAnimatingAv = false;
         }
-        finally
+    }
+
+    /// <summary>停止滑移动画计时器（若存在）。幂等。</summary>
+    private void StopEdgeSlideTimerAv()
+    {
+        try
         {
-            // 只有"仍是最新一次动画"才清标志（被新动画取消的旧动画不得覆盖新动画的 animating 状态）
-            if (myGen == _edgeSlideGenAv) _edgeAnimatingAv = false;
+            if (_edgeSlideTimerAv != null && _edgeSlideTimerAv.IsEnabled) _edgeSlideTimerAv.Stop();
         }
+        catch { }
     }
 
     /// <summary>光标是否在当前窗口"屏幕内可见部分"（隐藏态=6px 可见条）内。仅 Windows 有全局光标查询。</summary>
@@ -1874,22 +1998,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
             if (_edgeHiddenAv && inStrip)
             {
-                // 滑回原位；同时取消任何挂起的延迟滑出（光标已回来）
-                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
-                _edgeSlideOutPendingAv = false;
+                // 滑回原位（隐藏态下光标进入可见条 → 展示）
                 EdgeSlideToAv(_edgeDockedPosAv, willBeHidden: false);   // 滑回原位
+                return;
             }
-            else if (!_edgeHiddenAv && !inStrip && !_edgeSlideOutPendingAv)
-            {
-                // 【贴边隐藏延迟】光标离开可见条 → 延迟用户设置的秒数后再滑回隐藏（而非立即）
+            // 【悬停不阻止隐藏】只要贴边且未隐藏且无挂起滑出 → 安排延迟滑出（ScheduleEdgeSlideOutAv 内部
+            //  仅被"正在拖动"阻止；光标悬停窗口/可见条不再取消或阻止滑出）。
+            if (!_edgeHiddenAv && !_edgeSlideOutPendingAv)
                 ScheduleEdgeSlideOutAv();
-            }
-            else if (!_edgeHiddenAv && inStrip && _edgeSlideOutPendingAv)
-            {
-                // 光标又回到可见条 → 取消挂起的延迟滑出
-                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
-                _edgeSlideOutPendingAv = false;
-            }
         }
         catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏光标轮询异常，忽略。"); }
     }
@@ -1906,12 +2022,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 安排一次"延迟滑出隐藏"：等待 GetEdgeHideDelayMsAv() 毫秒后，若仍贴边、未隐藏、光标不在可见条内、
-    /// 且此间未被新的滑回请求取消，则执行滑出。重复调用会取消上一次未完成的等待（以最后一次为准）。
+    /// 安排一次"延迟滑出隐藏"：等待 GetEdgeHideDelayMsAv() 毫秒后，若仍贴边、未隐藏、且当前没在拖动，
+    /// 则执行滑出。重复调用会取消上一次未完成的等待（以最后一次为准）。
+    /// 【拖动阻止隐藏】_dragActiveAv 时直接返回：用户正在拖窗口，不打断。
+    /// 【悬停不阻止隐藏】不再因"光标在窗口内"而取消——鼠标悬停时间表照样会在延迟到期后滑出。
     /// </summary>
     private void ScheduleEdgeSlideOutAv()
     {
         if (!_settings.FloatingScheduleEdgeHide) return;
+        if (_dragActiveAv) return;   // 拖动中 → 不安排隐藏
         try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
         _edgeSlideOutDelayCtsAv = new CancellationTokenSource();
         _edgeSlideOutPendingAv = true;
@@ -1923,18 +2042,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
         int delayMs = GetEdgeHideDelayMsAv();
         try
         {
-            if (delayMs > 0) await Task.Delay(delayMs, ct);
-            else ct.ThrowIfCancellationRequested();
+            if (delayMs > 0)
+                await Task.Delay(delayMs, ct);
+            else if (ct.IsCancellationRequested)
+                ct.ThrowIfCancellationRequested();   // 0 秒且已被取消（如拖动开始）→ 直接放弃，不再滑出
+            // delayMs==0 且未取消 → 无等待，落到下方校验并立即执行滑出（0 秒 = 立即隐藏，与 WPF 到期时间戳语义对齐）
         }
-        catch (OperationCanceledException) { return; }   // 被取消（滑回/新一次调度/关闭）——不再滑出
+        catch (OperationCanceledException) { return; }   // 被取消（拖动开始/滑回/新一次调度/关闭）——不再滑出
         catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏延迟等待异常，忽略。"); return; }
 
         _edgeSlideOutPendingAv = false;
-        // 延迟到点后重新校验状态：仍贴边、未隐藏、未在动画中、光标不在可见条内 → 才滑出
+        // 延迟到点后重新校验状态：仍贴边、未隐藏、未在动画中、未在拖动 → 才滑出
         if (!_settings.FloatingScheduleEdgeHide) return;
         if (_window == null || !_window.IsVisible) return;
         if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimatingAv) return;
-        if (IsPointerInEdgeStripAv()) return;   // 光标已回到可见条 → 取消滑出（改由 hover 轮询滑回）
+        if (_dragActiveAv) return;   // 【拖动阻止隐藏】用户仍在拖动 → 放弃本次滑出（松手后由 EndDrag 重新调度）
         EdgeSlideToAv(_edgeHiddenPosAv, willBeHidden: true);
     }
 
@@ -1942,7 +2064,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void DisableEdgeHideAv()
     {
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
-        try { _edgeAnimCtsAv?.Cancel(); } catch { }
+        StopEdgeSlideTimerAv();   // 【贴边动画·帧率优化】停掉 Render 计时器
         try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }   // 【贴边隐藏延迟】取消未完成的延迟滑出
         _edgeSlideOutPendingAv = false;
         try
@@ -2852,7 +2974,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     };
                 }
 
-                // 【课表行休息分隔线】第 i 行与第 i+1 行之间存在课间 → 追加一条 3px 分隔线行（跨两列）。
+                // 【课表行休息分隔线】第 i 行与第 i+1 行之间存在课间 → 追加一条 2px 分隔线行（跨两列，70% 不透明）。
                 //  作为独立 Grid 行插在本行所有子行（进度条/课间行）之后，_currentClassRows 索引与高亮/进度定位不受影响。
                 if (sepAfterRowsAv.Contains(i))
                 {
@@ -2860,8 +2982,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     var sepRowIdx = grid.RowDefinitions.Count - 1;
                     var sepBorderAv = new Border
                     {
-                        Height = 3,
+                        Height = 2,
                         Background = GetBreakSeparatorBrushAv(),
+                        Opacity = 0.7,   // 【分隔线】70% 不透明
                         Margin = new Thickness(0, 1, 0, 1)
                     };
                     Grid.SetColumnSpan(sepBorderAv, 2);
