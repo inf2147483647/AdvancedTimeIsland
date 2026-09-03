@@ -22,7 +22,13 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// <summary>
 /// 关于页面
 /// </summary>
+#if NET10_0_OR_GREATER
+// CI2 2.x：与"时间表悬浮窗"页同属 AdvancedTimeIsland 导航分组（仿 SystemTools 子页面结构）
+[SettingsPageInfo("AdvancedTimeIsland", "主设置")]
+[Group("advancedtimeisland.main")]
+#else
 [SettingsPageInfo("AdvancedTimeIsland", "AdvancedTimeIsland 设置")]
+#endif
 public class AboutPage : SettingsPageBase
 {
     private static SolidColorBrush GetAccentBrush()

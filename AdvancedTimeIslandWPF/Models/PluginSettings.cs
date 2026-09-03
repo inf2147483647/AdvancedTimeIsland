@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -115,10 +115,14 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleOpacity = 0.85;
     private double _floatingScheduleFontScale = 18.0;
     private bool _floatingScheduleEnableFullTeacherName = false;
+    private bool _floatingScheduleShowTeacher = true;
     private bool _floatingScheduleEdgeHide = false;
     private double _floatingScheduleEdgeHideDelay = 3.0;
     private FloatingTopmostRefreshMode _floatingScheduleTopmostRefreshMode = FloatingTopmostRefreshMode.Every50Ms;
     private FloatingScheduleHideMode _floatingScheduleHideMode = FloatingScheduleHideMode.FollowHost;
+    private bool _floatingScheduleRandomTitle = false;
+    private bool _floatingScheduleRandomTitleEnhanced = false;
+    private bool _floatingSchedulePreventCapture = false;
 
     public string? CachedVersion
     {
@@ -648,6 +652,23 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// 悬浮窗是否显示教师名（默认 true）。关闭后悬浮窗不显示任何教师信息，
+    /// 此时 <see cref="FloatingScheduleEnableFullTeacherName"/> 不生效（保存值保留，重新开启后恢复）。
+    /// </summary>
+    public bool FloatingScheduleShowTeacher
+    {
+        get => _floatingScheduleShowTeacher;
+        set
+        {
+            if (_floatingScheduleShowTeacher != value)
+            {
+                _floatingScheduleShowTeacher = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
     /// 贴边自动隐藏：开启后，悬浮时间表被拖到（或初始位于）贴近屏幕边缘（&lt;8px）时，
     /// 会沿该边滑出屏幕、只保留约 6px 可见条；鼠标指针移入可见条区域时滑回原位，
     /// 指针离开后再次滑回隐藏。关闭时恢复贴边前位置并停止该逻辑。
@@ -763,6 +784,58 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleHideMode != value)
             {
                 _floatingScheduleHideMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 随机窗口名（默认 false）：开启后悬浮窗窗口标题改为随机字符串，
+    /// 防止学校弹窗拦截工具按标题识别并拦截时间表悬浮窗。
+    /// </summary>
+    public bool FloatingScheduleRandomTitle
+    {
+        get => _floatingScheduleRandomTitle;
+        set
+        {
+            if (_floatingScheduleRandomTitle != value)
+            {
+                _floatingScheduleRandomTitle = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 增强随机模式（默认 false，仅在 <see cref="FloatingScheduleRandomTitle"/> 开启时生效）：
+    /// 开启后每 1 秒重新设置一次随机窗口标题。
+    /// </summary>
+    public bool FloatingScheduleRandomTitleEnhanced
+    {
+        get => _floatingScheduleRandomTitleEnhanced;
+        set
+        {
+            if (_floatingScheduleRandomTitleEnhanced != value)
+            {
+                _floatingScheduleRandomTitleEnhanced = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 防止截图（默认 false）：开启后其他应用（截屏/录屏工具）无法捕获悬浮窗内容，
+    /// 捕获结果中悬浮窗不显示、透出下方内容（Win32 SetWindowDisplayAffinity WDA_EXCLUDEFROMCAPTURE；
+    /// 低于 Win10 2004 回退 WDA_MONITOR——捕获中悬浮窗区域显示为黑色）。
+    /// </summary>
+    public bool FloatingSchedulePreventCapture
+    {
+        get => _floatingSchedulePreventCapture;
+        set
+        {
+            if (_floatingSchedulePreventCapture != value)
+            {
+                _floatingSchedulePreventCapture = value;
                 OnPropertyChanged();
             }
         }

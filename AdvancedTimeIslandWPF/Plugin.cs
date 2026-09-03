@@ -1517,6 +1517,7 @@ public class Plugin : PluginBase
         }
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
+        services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();

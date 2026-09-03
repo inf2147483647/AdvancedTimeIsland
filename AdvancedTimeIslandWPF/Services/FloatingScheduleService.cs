@@ -56,6 +56,10 @@ public class FloatingScheduleService : IDisposable, IHostedService
     //  按 Start 升序；RefreshSchedule 构建时从 classPlan 收集。分隔线只画在档案定义的位置（不是每个课间都画）。
     private readonly List<object> _separatorItemsWpf = new List<object>();
     private readonly DispatcherTimer _refreshTimer;
+    // ========== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）==========
+    //   开启：窗口标题改为随机字符串（防学校弹窗拦截工具按标题识别拦截）；
+    //   增强随机模式：每 1s DispatcherTimer 重新随机一次标题。关闭：恢复默认标题。
+    private DispatcherTimer? _randomTitleTimerWpf;
     private bool _disposed;
     private CancellationTokenSource? _startRetryCts;
 
@@ -138,6 +142,16 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private const int WS_EX_COMPOSITED = 0x02000000;
     private const int WS_EX_LAYERED    = 0x00080000;
     private const int WS_EX_TRANSPARENT = 0x00000020;  // 点击穿透：系统命中测试直接跳过本窗口
+
+    // ========== 防止截图（SetWindowDisplayAffinity）==========
+    //   WDA_EXCLUDEFROMCAPTURE(0x11)：Win10 2004+ 截屏/录屏结果中该窗口完全不可见（透出下方内容，非黑块）。
+    //   低于 2004 不支持 0x11（API 返回失败），回退 WDA_MONITOR(0x01)：捕获中该窗口渲染为黑色矩形
+    //   （内容不泄露，但形状可见），仍优于完全可捕获。
+    [DllImport("user32.dll")]
+    private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+    private const uint WDA_NONE_WPF = 0x00000000;
+    private const uint WDA_MONITOR_WPF = 0x00000001;
+    private const uint WDA_EXCLUDEFROMCAPTURE_WPF = 0x00000011;
 
     // ========== SDK API 兼容反射辅助方法（兼容不同版本 ClassIsland 1.x SDK 属性名差异）==========
     private static TimeSpan ReflectGetStartTime(object item)
@@ -486,6 +500,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 EnsureHostSettingsSubscriptionWpf();
                 // 【h4】悬浮窗层级重设频率 Attach：Show 后 hwnd 已建立，按 Settings 模式启动 4 路触发之一
                 AttachTopmostRefreshWpf(_window!, _settings.FloatingScheduleTopmostRefreshMode);
+                // 【随机窗口名】按设置启动 1s 增强随机定时器（EnsureWindow 已应用初始标题）
+                StartOrStopRandomTitleTimerWpf();
             });
         }
     }
@@ -506,6 +522,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
         DetachHostSettingsSubscriptionWpf();
         _refreshTimer.Stop();
         _hoverFadeTimer?.Stop();
+        // 【随机窗口名】Stop 停止并释放 1s 随机标题定时器
+        try { _randomTitleTimerWpf?.Stop(); } catch { }
+        _randomTitleTimerWpf = null;
         // 【5s 硬兜底复位（WPF）】Stop 清零计数，下次 EnableFloatingSchedule=true 从零开始同步
         _hardSyncTickCounterWpf = 0;
         // 【修复：课间向上位移 0.5-1s】Stop 时 Cancel ENTER/EXIT 动画飞在任务（EXIT 调清标志：与 5s 硬清理/DebugTime 清理完全同构）
@@ -629,7 +648,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
         {
             RefreshSchedule();
         }
-        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleEnableFullTeacherName))
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleEnableFullTeacherName)
+              || e.PropertyName == nameof(PluginSettings.FloatingScheduleShowTeacher))
         {
             RefreshSchedule();
         }
@@ -656,6 +676,114 @@ public class FloatingScheduleService : IDisposable, IHostedService
                  e.PropertyName == nameof(PluginSettings.FloatingScheduleHoverFadeReverse))
         {
             ApplyHoverFade(force: true);
+        }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleRandomTitle) ||
+                 e.PropertyName == nameof(PluginSettings.FloatingScheduleRandomTitleEnhanced))
+        {
+            // 【随机窗口名】任一开关变化：立即按当前组合重设标题 + 启停 1s 增强定时器
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(() =>
+            {
+                ApplyRandomTitleWpf();
+                StartOrStopRandomTitleTimerWpf();
+            });
+        }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingSchedulePreventCapture))
+        {
+            // 【防止截图】开关变化：立即应用/清除窗口捕获亲和性
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(ApplyPreventCaptureWpf);
+        }
+    }
+
+    // ==================================== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）====================================
+    //   开启：悬浮窗 Title 改为随机字符串；增强模式每 1s 重新随机。
+    //   关闭：恢复默认标题（WPF 无边框窗默认空串）并停止定时器。仅改 Title，不碰 z-order / exStyle。
+
+    /// <summary>生成随机字符串（字符集与长度随机，参考 ClassIslandHide.GetRandomString）。</summary>
+    private static string GetRandomTitleStringWpf()
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-={}|:\"<>?[]\\;',./~`";
+        var bytes = new byte[64];
+        System.Security.Cryptography.RandomNumberGenerator.Fill(bytes);
+        var len = 8 + (Math.Abs(BitConverter.ToInt32(bytes, 0)) % 24);
+        var sb = new System.Text.StringBuilder(len);
+        for (int i = 0; i < len; i++)
+            sb.Append(chars[bytes[8 + i % 56] % chars.Length]);
+        return sb.ToString();
+    }
+
+    /// <summary>按当前设置应用窗口标题（随机/默认）；窗口不存在时安全跳过。</summary>
+    private void ApplyRandomTitleWpf()
+    {
+        if (_window == null) return;
+        try
+        {
+            _window.Title = _settings.FloatingScheduleRandomTitle ? GetRandomTitleStringWpf() : string.Empty;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ApplyRandomTitleWpf: 设置悬浮窗标题失败（忽略）");
+        }
+    }
+
+    /// <summary>启动/停止 1s 增强随机标题定时器（仅 RandomTitle+Enhanced 同时开启时运行）。</summary>
+    private void StartOrStopRandomTitleTimerWpf()
+    {
+        var shouldRun = _settings.FloatingScheduleRandomTitle && _settings.FloatingScheduleRandomTitleEnhanced;
+        if (shouldRun)
+        {
+            if (_randomTitleTimerWpf == null)
+            {
+                _randomTitleTimerWpf = new DispatcherTimer(DispatcherPriority.Background)
+                {
+                    Interval = TimeSpan.FromSeconds(1)
+                };
+                _randomTitleTimerWpf.Tick += (_, _) => ApplyRandomTitleWpf();
+            }
+            if (!_randomTitleTimerWpf.IsEnabled) _randomTitleTimerWpf.Start();
+        }
+        else
+        {
+            try { _randomTitleTimerWpf?.Stop(); } catch { }
+        }
+    }
+
+    // ==================================== 防止截图（FloatingSchedulePreventCapture）====================================
+    //   Win32 SetWindowDisplayAffinity：开启 → WDA_EXCLUDEFROMCAPTURE（截屏/录屏结果中窗口不可见，透出下方内容）；
+    //   低于 Win10 2004 回退 WDA_MONITOR（捕获中为黑色矩形）；关闭 → WDA_NONE。affinity 与 HWND 绑定，窗口重建后需重设，故应用点挂在 OnWindowLoaded 与设置变更两处。
+    private void ApplyPreventCaptureWpf()
+    {
+        if (_window == null) return;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle;
+            if (hwnd == IntPtr.Zero) return;   // hwnd 尚未建立（Show 之前），由 OnWindowLoaded 兜底
+            if (_settings.FloatingSchedulePreventCapture)
+            {
+                // 优先 WDA_EXCLUDEFROMCAPTURE（截屏结果中窗口不可见、透出下方内容）；
+                // 失败（Win10 低于 2004）回退 WDA_MONITOR——捕获中渲染为黑色矩形，内容仍不泄露。
+                if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE_WPF))
+                    SetWindowDisplayAffinity(hwnd, WDA_MONITOR_WPF);
+            }
+            else
+            {
+                SetWindowDisplayAffinity(hwnd, WDA_NONE_WPF);
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ApplyPreventCaptureWpf: SetWindowDisplayAffinity 失败（忽略）");
         }
     }
 
@@ -736,6 +864,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         ApplyOpacity();
         ApplyThemeColors();
+
+        // 【随机窗口名】窗口建立时按设置应用标题（RandomTitle 开=随机串，关=默认空标题）
+        ApplyRandomTitleWpf();
     }
 
     private void OnWindowLoaded(object sender, RoutedEventArgs e)
@@ -773,6 +904,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         // 加载完成后首次应用淡化状态（此时 ActualWidth / Win32 矩形已可用）
         try { ApplyHoverFade(force: true); } catch { /* ignore */ }
+        // 【防止截图】hwnd 已建立，按设置应用窗口捕获亲和性（affinity 绑定 HWND，窗口重建需重设）
+        try { ApplyPreventCaptureWpf(); } catch { /* ignore */ }
     }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
@@ -2293,9 +2426,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     Grid.SetColumn(nameText, 0);
                     courseNameGrid.Children.Add(nameText);
 
-                    // 老师名
+                    // 老师名（关闭"显示教师"时整列不渲染）
                     var teacherTitle = string.Empty;
-                    if (subject != null && !string.IsNullOrWhiteSpace(subject.TeacherName))
+                    if (_settings.FloatingScheduleShowTeacher && subject != null && !string.IsNullOrWhiteSpace(subject.TeacherName))
                     {
                         if (_settings.FloatingScheduleEnableFullTeacherName)
                         {
