@@ -608,6 +608,17 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 ApplyWindowLayer();
             });
         }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleHideMode))
+        {
+            // 悬浮窗隐藏模式切换：UI 线程即时重评一次并应用
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(ApplyShouldHideWpf);
+        }
         else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleOpacity))
         {
             // 背景不透明度仅作用于卡片背景刷 Alpha，需整体刷新 UI 应用颜色；同时指针淡化需要重新应用 Opacity。
@@ -1288,6 +1299,209 @@ public class FloatingScheduleService : IDisposable, IHostedService
             _edgeSlideOutPendingWpf = false;
             _edgeHiddenWpf = true;
             AnimateWindowPosWpf(_edgeHiddenTargetLeftWpf, _edgeHiddenTargetTopWpf);
+        }
+    }
+
+    // ============ 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能，WPF 端）============
+    private bool IsHostHideSettingOnWpf(string propName)
+    {
+        try
+        {
+            if (_hostSettingsObjWpf == null) return false;
+            var pi = _hostSettingsObjWpf.GetType().GetProperty(propName,
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            return pi?.GetValue(_hostSettingsObjWpf) is bool b && b;
+        }
+        catch { return false; }
+    }
+
+    private bool HostMainWindowIsVisibleWpf()
+    {
+        try
+        {
+            var mw = System.Windows.Application.Current?.MainWindow;
+            return mw == null || mw.IsVisible;    // 拿不到主窗口 → 视为可见，不隐藏
+        }
+        catch { return true; }
+    }
+
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT_WPF lpRect);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+
+    /// <summary>前台窗口是否为桌面（Progman/WorkerW）。是 → 不算最大化/全屏（与 ClassIsland 语义一致）。</summary>
+    private static bool IsDesktopForegroundWpf()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            var sb = new System.Text.StringBuilder(256);
+            GetClassName(h, sb, sb.Capacity);
+            return sb.ToString() is "WorkerW" or "Progman";
+        }
+        catch { return false; }
+    }
+
+    /// <summary>取窗口所在屏幕的设备像素工作区边界（物理像素）。</summary>
+    private bool TryGetWorkAreaDevicePxWpf(out RECT_WPF rc)
+    {
+        rc = default;
+        if (_window == null) return false;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle;
+            if (hwnd == IntPtr.Zero) return false;
+            var mi = new MONITORINFO_WPF();
+            mi.cbSize = Marshal.SizeOf<MONITORINFO_WPF>();
+            var hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST_WPF);
+            if (hMon == IntPtr.Zero || !GetMonitorInfo(hMon, ref mi)) return false;
+            rc = mi.rcWork;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>取窗口所在屏幕的监视器完整边界（物理像素）。</summary>
+    private bool TryGetMonitorBoundsDevicePxWpf(out RECT_WPF rc)
+    {
+        rc = default;
+        if (_window == null) return false;
+        try
+        {
+            var hwnd = new System.Windows.Interop.WindowInteropHelper(_window).Handle;
+            if (hwnd == IntPtr.Zero) return false;
+            var mi = new MONITORINFO_WPF();
+            mi.cbSize = Marshal.SizeOf<MONITORINFO_WPF>();
+            var hMon = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST_WPF);
+            if (hMon == IntPtr.Zero || !GetMonitorInfo(hMon, ref mi)) return false;
+            rc = mi.rcMonitor;
+            return true;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>前台窗口是否为"最大化"（窗口矩形覆盖所在屏幕工作区，物理像素比对）。</summary>
+    private bool IsForegroundWindowMaximizedWpf()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return false;
+            if (IsDesktopForegroundWpf()) return false;
+            if (!GetWindowRect(h, out var wnd)) return false;
+            if (!TryGetWorkAreaDevicePxWpf(out var wa)) return false;
+            return ContainsRect(wa, wnd);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>前台窗口是否为"全屏"（窗口矩形覆盖整个监视器边界）。</summary>
+    private bool IsForegroundWindowFullscreenWpf()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return false;
+            if (IsDesktopForegroundWpf()) return false;
+            if (!GetWindowRect(h, out var wnd)) return false;
+            if (!TryGetMonitorBoundsDevicePxWpf(out var mon)) return false;
+            return ContainsRect(mon, wnd);
+        }
+        catch { return false; }
+    }
+
+    /// <summary>outer 是否覆盖 inner 矩形（inner 全部落在 outer 内）。</summary>
+    private static bool ContainsRect(RECT_WPF outer, RECT_WPF inner)
+    {
+        return outer.Left <= inner.Left && outer.Top <= inner.Top &&
+               outer.Right >= inner.Right && outer.Bottom >= inner.Bottom;
+    }
+
+    /// <summary>解析并缓存宿主 IRulesetService 实例。</summary>
+    private object? ResolveHostRulesetServiceWpf()
+    {
+        try
+        {
+            if (IAppHost.Host == null) return null;
+            var t = FindHostServiceTypeWpf("ClassIsland.Core.Abstractions.Services.IRulesetService");
+            if (t == null) return null;
+            return IAppHost.Host.Services.GetService(t);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>高级模式：复用宿主隐藏规则集 HideRules 经 IRulesetService.IsRulesetSatisfied 判定。</summary>
+    private bool IsHideRulesSatisfiedWpf()
+    {
+        try
+        {
+            _hostRulesetServiceWpf ??= ResolveHostRulesetServiceWpf();
+            if (_hostRulesetServiceWpf == null) return false;
+            if (_hostSettingsObjWpf == null) return false;
+            var piRules = _hostSettingsObjWpf.GetType().GetProperty("HideRules",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            var rules = piRules?.GetValue(_hostSettingsObjWpf);
+            if (rules == null) return false;
+            var m = _hostRulesetServiceWpf.GetType().GetMethod("IsRulesetSatisfied",
+                System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public);
+            if (m == null) return false;
+            var r = m.Invoke(_hostRulesetServiceWpf, new[] { rules });
+            return r is bool b && b;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>按当前隐藏模式计算"是否应隐藏悬浮窗"。期望隐藏 → true；任何异常 → false（不隐藏）。</summary>
+    private bool EvaluateShouldHideWpf()
+    {
+        try
+        {
+            switch (_settings.FloatingScheduleHideMode)
+            {
+                case FloatingScheduleHideMode.FollowHost:
+                    return !HostMainWindowIsVisibleWpf();
+                case FloatingScheduleHideMode.Basic:
+                {
+                    if (IsHostHideSettingOnWpf("HideOnClass"))
+                    {
+                        var ls = IAppHost.TryGetService<ClassIsland.Core.Abstractions.Services.ILessonsService>();
+                        if (ls != null && ls.CurrentState == ClassIsland.Shared.Enums.TimeState.OnClass) return true;
+                    }
+                    if (IsHostHideSettingOnWpf("HideOnMaxWindow") && IsForegroundWindowMaximizedWpf()) return true;
+                    if (IsHostHideSettingOnWpf("HideOnFullscreen") && IsForegroundWindowFullscreenWpf()) return true;
+                    return false;
+                }
+                case FloatingScheduleHideMode.Advanced:
+                    return IsHideRulesSatisfiedWpf();
+                case FloatingScheduleHideMode.Never:
+                default:
+                    return false;
+            }
+        }
+        catch { return false; }
+    }
+
+    /// <summary>检查并应用隐藏/显示，仅在"期望状态"与"当前实际状态"不同且非拖拽中时执行 Hide/Show。</summary>
+    private void ApplyShouldHideWpf()
+    {
+        if (_window == null || !_settings.EnableFloatingSchedule) return;
+        if (_mouseDraggingWpf || _touchDragIdWpf >= 0 || _edgeAnimatingWpf) return;   // 拖动/滑移中不打断
+        bool wantHide = EvaluateShouldHideWpf();
+        bool currentlyHidden = !_window.IsVisible;
+        if (wantHide == currentlyHidden) return;
+        if (wantHide)
+        {
+            // 若正处于贴边滑出隐藏态：先恢复到贴边前位置再隐藏，避免恢复时闪现
+            if (_edgeHiddenWpf) { _window.Left = _edgeNormalLeftWpf; _window.Top = _edgeNormalTopWpf; }
+            HideWindow();
+        }
+        else
+        {
+            ShowWindow();
+            RefreshSchedule();
         }
     }
 
@@ -2561,6 +2775,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjWpf;
     private PropertyChangedEventHandler? _hostSettingsChangedHandlerWpf;
 
+    // ========== 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能，WPF 端）==========
+    //  模式（FloatingScheduleHideMode）：FollowHost=0 跟随主界面隐藏规则；Basic=1 基础模式；
+    //    Advanced=2 高级模式(复用宿主规则集)；Never=3 从不隐藏。检测走反射/宿主 DI，异常时保守"不隐藏"。
+    private object? _hostRulesetServiceWpf;      // 缓存宿主 IRulesetService 实例
+
     // ========== 悬浮窗层级重设频率 4 模式（WPF 端，严格与 Ava 端对齐）==========
     //   0 OnWindowZOrderChanged → Win32 子类化 WM_WINDOWPOSCHANGED
     //   1 OnForegroundWindowChanged → 反射宿主 IWindowPlatformService.ForegroundWindowChanged
@@ -2721,6 +2940,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private void UpdateProgress()
     {
+        // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（放在窗口可见性守卫之前，确保隐藏态下也能及时重显）
+        ApplyShouldHideWpf();
         if (_window == null || !_window.IsVisible) return;
 
         bool breaking = false;  // 提升到 try 外以便 finally 内同步 _wasBreakLastTickWpf

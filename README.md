@@ -307,4 +307,3 @@ git push origin main
 - [ ] 多时间点支持：单个触发器可添加任意多个时间点，无需重复创建多条自动化规则
 - [ ] 触发日志统计：完整记录每次触发的时间、状态与详情，支持统计查看、一键清空
 
-本项目基于 GNU Lesser General Public License v3.0 获得许可

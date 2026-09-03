@@ -712,6 +712,37 @@ public partial class PluginSettingsPage : UserControl
             };
             FloatingScheduleTopmostRefreshItem.Switcher = recheckComboWpf;
 
+            // 悬浮窗隐藏模式（"隐藏悬浮窗"功能）
+            var hideModeComboWpf = new ComboBox { Width = 240, HorizontalAlignment = HorizontalAlignment.Left };
+            hideModeComboWpf.Items.Add("跟随主界面隐藏规则（默认）");
+            hideModeComboWpf.Items.Add("基础模式");
+            hideModeComboWpf.Items.Add("高级模式（规则集）");
+            hideModeComboWpf.Items.Add("从不隐藏");
+            static int HideModeToIndexWpf(FloatingScheduleHideMode m) => m switch
+            {
+                FloatingScheduleHideMode.FollowHost => 0,
+                FloatingScheduleHideMode.Basic => 1,
+                FloatingScheduleHideMode.Advanced => 2,
+                FloatingScheduleHideMode.Never => 3,
+                _ => 0
+            };
+            static FloatingScheduleHideMode HideIndexToModeWpf(int i) => i switch
+            {
+                0 => FloatingScheduleHideMode.FollowHost,
+                1 => FloatingScheduleHideMode.Basic,
+                2 => FloatingScheduleHideMode.Advanced,
+                3 => FloatingScheduleHideMode.Never,
+                _ => FloatingScheduleHideMode.FollowHost
+            };
+            hideModeComboWpf.SelectedIndex = HideModeToIndexWpf(
+                _settings?.FloatingScheduleHideMode ?? FloatingScheduleHideMode.FollowHost);
+            hideModeComboWpf.SelectionChanged += (s, e) =>
+            {
+                if (_settings != null && s is ComboBox cb)
+                    _settings.FloatingScheduleHideMode = HideIndexToModeWpf(cb.SelectedIndex);
+            };
+            FloatingScheduleHideModeItem.Switcher = hideModeComboWpf;
+
             // 背景不透明度
             var opacityNumeric = new WpfNumericUpDown
             {

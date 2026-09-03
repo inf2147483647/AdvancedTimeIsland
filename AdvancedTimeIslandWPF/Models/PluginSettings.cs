@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -52,6 +52,29 @@ public enum FloatingTopmostRefreshMode
 }
 
 /// <summary>
+/// 悬浮窗隐藏模式（时间表悬浮窗"隐藏悬浮窗"功能）。
+/// </summary>
+public enum FloatingScheduleHideMode
+{
+    /// <summary>
+    /// 0 - 跟随 ClassIsland 主界面隐藏规则（默认）：主窗口隐藏时悬浮窗同步隐藏。
+    /// </summary>
+    FollowHost = 0,
+    /// <summary>
+    /// 1 - 基础模式：复用 ClassIsland 的"上课时隐藏 / 前台窗口最大化时隐藏 / 前台窗口全屏时隐藏"三个开关独立判定。
+    /// </summary>
+    Basic = 1,
+    /// <summary>
+    /// 2 - 高级模式（规则集）：复用 ClassIsland 的隐藏规则集 HideRules，经宿主 IRulesetService.IsRulesetSatisfied 判定。
+    /// </summary>
+    Advanced = 2,
+    /// <summary>
+    /// 3 - 从不隐藏：悬浮窗不受任何隐藏规则影响。
+    /// </summary>
+    Never = 3
+}
+
+/// <summary>
 /// 插件全局设置
 /// </summary>
 public class PluginSettings : INotifyPropertyChanged
@@ -95,6 +118,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleEdgeHide = false;
     private double _floatingScheduleEdgeHideDelay = 3.0;
     private FloatingTopmostRefreshMode _floatingScheduleTopmostRefreshMode = FloatingTopmostRefreshMode.Every50Ms;
+    private FloatingScheduleHideMode _floatingScheduleHideMode = FloatingScheduleHideMode.FollowHost;
 
     public string? CachedVersion
     {
@@ -722,6 +746,23 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleTopmostRefreshMode != value)
             {
                 _floatingScheduleTopmostRefreshMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 悬浮窗隐藏模式（跟随 ClassIsland 主界面隐藏规则[默认] / 基础模式 / 高级模式·规则集 / 从不隐藏）。
+    /// 基础与高级模式均复用 ClassIsland 主界面的隐藏开关与隐藏规则集，插件端不单独配置条件。
+    /// </summary>
+    public FloatingScheduleHideMode FloatingScheduleHideMode
+    {
+        get => _floatingScheduleHideMode;
+        set
+        {
+            if (_floatingScheduleHideMode != value)
+            {
+                _floatingScheduleHideMode = value;
                 OnPropertyChanged();
             }
         }

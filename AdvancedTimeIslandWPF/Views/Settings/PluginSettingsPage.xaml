@@ -110,6 +110,12 @@
                                          Description="ClassIsland 在什么时候重新设置悬浮窗层级（置底/置顶）。用于防止其他窗口挤占悬浮窗层级；高频设置会带来性能占用并可能导致界面轻微闪烁。"
                                          Margin="0,8,0,0" />
 
+                    <ci:SettingsControl x:Name="FloatingScheduleHideModeItem"
+                                         IconGlyph="EyeOffOutline"
+                                         Header="隐藏悬浮窗"
+                                         Description="在什么条件下自动隐藏悬浮窗。跟随主界面隐藏规则（默认）/ 基础模式 / 高级模式（规则集）/ 从不隐藏；基础与高级模式均复用 ClassIsland 主界面的隐藏开关与规则集。"
+                                         Margin="0,8,0,0" />
+
                     <ci:SettingsControl x:Name="FloatingScheduleOpacityItem"
                                          IconGlyph="Opacity"
                                          Header="背景不透明度"

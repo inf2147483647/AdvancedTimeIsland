@@ -238,6 +238,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjAv;
     private PropertyChangedEventHandler? _hostSettingsChangedHandlerAv;
 
+    // ========== 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能）==========
+    //  模式（FloatingScheduleHideMode）：FollowHost=0 跟随主界面隐藏规则；Basic=1 基础模式；
+    //    Advanced=2 高级模式(复用宿主规则集)；Never=3 从不隐藏。检测走反射/宿主 DI，异常时保守"不隐藏"。
+    private Avalonia.Controls.Window? _hostMainWndAv;      // 缓存宿主主窗口（解析失败→"跟随"时不遮蔽）
+    private object? _hostRulesetServiceAv;                 // 缓存宿主 IRulesetService 实例
+
     // ========== 悬浮窗层级重设频率 4 模式（Avalonia 端）==========
     //   0 OnWindowZOrderChanged → Win32 子类化 WM_WINDOWPOSCHANGED（非 Windows 退化 Mode 1）
     //   1 OnForegroundWindowChanged → 反射宿主 IWindowPlatformService.ForegroundWindowChanged
@@ -1683,6 +1689,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     ApplyWindowLayer();
                 });
                 break;
+            case nameof(PluginSettings.FloatingScheduleHideMode):
+                // 模式切换：立刻重评一次"是否应隐藏"并即时应用
+                Dispatcher.UIThread.Post(ApplyShouldHideAv);
+                break;
             case nameof(PluginSettings.FloatingScheduleOpacity):
                 // 背景不透明度作用在卡片背景刷 Alpha，需要重建 UI 刷新颜色；
                 // 同时"指针淡化"会叠加到容器 Opacity，这里也强制重算一次。
@@ -2087,6 +2097,191 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _edgeHoverLastInAv = false;
     }
 
+    // ============ 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能，Avalonia 端）============
+    //  全部判定走反射/宿主 DI；任何异常或拿不到宿主资源时保守"不隐藏"，避免误遮蔽悬浮窗内容。
+    private bool IsHostHideSettingOnAv(string propName)
+    {
+        try { return ReflectProp(_hostSettingsObjAv, propName) is bool b && b; }
+        catch { return false; }
+    }
+
+    /// <summary>解析并缓存宿主主窗口对象（仅用于读取 IsVisible）。</summary>
+    private Avalonia.Controls.Window? ResolveHostMainWindowAv()
+    {
+        try
+        {
+            var lifetime = Application.Current?.ApplicationLifetime;
+            if (lifetime == null) return null;
+            if (lifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                return desktop.MainWindow;
+            if (lifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime single)
+                return single.MainView as Avalonia.Controls.Window;
+            var p = lifetime.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public);
+            return p?.GetValue(lifetime) as Avalonia.Controls.Window;
+        }
+        catch { return null; }
+    }
+
+    private bool HostMainWindowIsVisibleAv()
+    {
+        try
+        {
+            _hostMainWndAv ??= ResolveHostMainWindowAv();
+            if (_hostMainWndAv == null) return true;   // 拿不到主窗口 → 视为可见，不隐藏
+            return _hostMainWndAv.IsVisible;
+        }
+        catch { return true; }
+    }
+
+#if WINDOWS
+    [DllImport("user32.dll")]
+    private static extern IntPtr GetForegroundWindow();
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowRect(IntPtr hWnd, out RECT_HIDE_AV lpRect);
+    [DllImport("user32.dll", CharSet = CharSet.Auto)]
+    private static extern int GetClassName(IntPtr hWnd, System.Text.StringBuilder lpClassName, int nMaxCount);
+    [StructLayout(LayoutKind.Sequential)]
+    private struct RECT_HIDE_AV { public int Left, Top, Right, Bottom; }
+
+    /// <summary>前台窗口是否为桌面（Progman/WorkerW）。是 → 不算最大化/全屏（与 ClassIsland 语义一致）。</summary>
+    private static bool IsDesktopForegroundAv()
+    {
+        try
+        {
+            var h = GetForegroundWindow();
+            var sb = new System.Text.StringBuilder(256);
+            GetClassName(h, sb, sb.Capacity);
+            var name = sb.ToString();
+            return name is "WorkerW" or "Progman";
+        }
+        catch { return false; }
+    }
+#endif
+
+    /// <summary>前台窗口是否为"最大化"（其窗口矩形覆盖所在屏幕工作区）。多屏/分屏均正确。</summary>
+    private bool IsForegroundWindowMaximizedAv()
+    {
+#if WINDOWS
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return false;
+            if (IsDesktopForegroundAv()) return false;
+            if (!GetWindowRect(h, out var rc)) return false;
+            var screen = _window?.Screens?.ScreenFromWindow(_window);
+            if (screen == null) return false;
+            var wnd = new PixelRect(rc.Left, rc.Top, Math.Max(0, rc.Right - rc.Left), Math.Max(0, rc.Bottom - rc.Top));
+            return screen.WorkingArea.Contains(wnd);
+        }
+        catch { return false; }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>前台窗口是否为"全屏"（其窗口矩形覆盖所在屏幕完整边界）。</summary>
+    private bool IsForegroundWindowFullscreenAv()
+    {
+#if WINDOWS
+        try
+        {
+            var h = GetForegroundWindow();
+            if (h == IntPtr.Zero) return false;
+            if (IsDesktopForegroundAv()) return false;
+            if (!GetWindowRect(h, out var rc)) return false;
+            var screen = _window?.Screens?.ScreenFromWindow(_window);
+            if (screen == null) return false;
+            var wnd = new PixelRect(rc.Left, rc.Top, Math.Max(0, rc.Right - rc.Left), Math.Max(0, rc.Bottom - rc.Top));
+            return screen.Bounds.Contains(wnd);
+        }
+        catch { return false; }
+#else
+        return false;
+#endif
+    }
+
+    /// <summary>解析并缓存宿主 IRulesetService 实例。</summary>
+    private object? ResolveHostRulesetServiceAv()
+    {
+        try
+        {
+            if (IAppHost.Host == null) return null;
+            var t = FindHostServiceType("ClassIsland.Core.Abstractions.Services.IRulesetService");
+            if (t == null) return null;
+            return IAppHost.Host.Services.GetService(t);
+        }
+        catch { return null; }
+    }
+
+    /// <summary>高级模式：复用宿主隐藏规则集 HideRules 经 IRulesetService.IsRulesetSatisfied 判定。</summary>
+    private bool IsHideRulesSatisfiedAv()
+    {
+        try
+        {
+            _hostRulesetServiceAv ??= ResolveHostRulesetServiceAv();
+            if (_hostRulesetServiceAv == null) return false;
+            var rules = ReflectProp(_hostSettingsObjAv, "HideRules");
+            if (rules == null) return false;
+            var m = _hostRulesetServiceAv.GetType().GetMethod("IsRulesetSatisfied",
+                BindingFlags.Instance | BindingFlags.Public);
+            if (m == null) return false;
+            var r = m.Invoke(_hostRulesetServiceAv, new[] { rules });
+            return r is bool b && b;
+        }
+        catch { return false; }
+    }
+
+    /// <summary>按当前隐藏模式计算"是否应隐藏悬浮窗"。期望隐藏 → true；任何异常 → false（不隐藏）。</summary>
+    private bool EvaluateShouldHideAv()
+    {
+        try
+        {
+            switch (_settings.FloatingScheduleHideMode)
+            {
+                case FloatingScheduleHideMode.FollowHost:
+                    return !HostMainWindowIsVisibleAv();
+                case FloatingScheduleHideMode.Basic:
+                {
+                    if (IsHostHideSettingOnAv("HideOnClass"))
+                    {
+                        var s = ReflectProp(_lessonsService, "CurrentState");
+                        if (s is TimeState ts && ts == TimeState.OnClass) return true;
+                    }
+                    if (IsHostHideSettingOnAv("HideOnMaxWindow") && IsForegroundWindowMaximizedAv()) return true;
+                    if (IsHostHideSettingOnAv("HideOnFullscreen") && IsForegroundWindowFullscreenAv()) return true;
+                    return false;
+                }
+                case FloatingScheduleHideMode.Advanced:
+                    return IsHideRulesSatisfiedAv();
+                case FloatingScheduleHideMode.Never:
+                default:
+                    return false;
+            }
+        }
+        catch { return false; }
+    }
+
+    /// <summary>检查并应用隐藏/显示，仅在"期望状态"与"当前实际状态"不同且非拖拽中时执行 Hide/Show。</summary>
+    private void ApplyShouldHideAv()
+    {
+        if (_window == null || !_settings.EnableFloatingSchedule) return;
+        if (_dragActiveAv || _edgeAnimatingAv) return;      // 拖动/滑移中不打断
+        bool wantHide = EvaluateShouldHideAv();
+        bool currentlyHidden = !_window.IsVisible;
+        if (wantHide == currentlyHidden) return;
+        if (wantHide)
+        {
+            // 若正处于贴边滑出隐藏态：先恢复到贴边前位置再隐藏，避免恢复时闪现
+            try { if (_edgeHiddenAv) _window.Position = _edgeDockedPosAv; } catch { /* ignore */ }
+            HideWindow();
+        }
+        else
+        {
+            ShowWindow();
+            RefreshSchedule();
+        }
+    }
+
     // ==================================== 指针移入淡化（参考 ClassIsland MainWindow.UpdateFadeStatus/GetMouseStatusByPos）====================================
     //  淡化规则与 ClassIsland 完全一致：
     //     IsFaded = 启用淡化  &&  (IsPointerIn  ^  IsMouseInFadingReversed)
@@ -2282,7 +2477,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private void StartOrStopTimer()
     {
-        var shouldRun = _settings.EnableFloatingSchedule && _window?.IsVisible == true;
+        // 【修复：规则集不再满足后未恢复显示】仅以主开关决定定时器是否运行。
+        //  若再叠加 _window.IsVisible==true，则 HideWindow 后定时器被 Stop，UpdateProgress→ApplyShouldHideAv
+        //  不再轮询，隐藏在条件解除后永远无法重显。现在窗口隐藏期间定时器保持运行，周期性重评隐藏/显示。
+        var shouldRun = _settings.EnableFloatingSchedule;
         if (shouldRun)
         {
             if (_timer == null)
@@ -3168,6 +3366,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private void UpdateProgress()
     {
+        // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（基础/高级模式复用宿主设置与规则集、跟随模式查主窗口可见性）
+        ApplyShouldHideAv();
         if (_lessonsService == null) return;
         bool breaking = false;   // 提升到 try 外，供 finally 同步 _wasBreakLastTickAv 快照
         try

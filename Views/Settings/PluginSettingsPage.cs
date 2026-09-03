@@ -805,6 +805,44 @@ public class PluginSettingsPage : UserControl
                 "ClassIsland 在什么时候重新把悬浮窗设回用户选择的层级（置底/置顶）。用于防止其他窗口挤占悬浮窗层级。\n高频设置会带来性能占用，并可能导致界面轻微闪烁。",
                 recheckComboBox);
 
+            // 项: 悬浮窗隐藏模式（"隐藏悬浮窗"功能）
+            var hideModeComboBox = new ComboBox
+            {
+                Width = 220,
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            hideModeComboBox.Items.Add(new TextBlock { Text = "跟随主界面隐藏规则（默认）", VerticalAlignment = VerticalAlignment.Center });
+            hideModeComboBox.Items.Add(new TextBlock { Text = "基础模式", VerticalAlignment = VerticalAlignment.Center });
+            hideModeComboBox.Items.Add(new TextBlock { Text = "高级模式（规则集）", VerticalAlignment = VerticalAlignment.Center });
+            hideModeComboBox.Items.Add(new TextBlock { Text = "从不隐藏", VerticalAlignment = VerticalAlignment.Center });
+            int InitHideIndexFromMode(FloatingScheduleHideMode m) => m switch
+            {
+                FloatingScheduleHideMode.FollowHost => 0,
+                FloatingScheduleHideMode.Basic => 1,
+                FloatingScheduleHideMode.Advanced => 2,
+                FloatingScheduleHideMode.Never => 3,
+                _ => 0
+            };
+            FloatingScheduleHideMode HideModeFromIndex(int idx) => idx switch
+            {
+                0 => FloatingScheduleHideMode.FollowHost,
+                1 => FloatingScheduleHideMode.Basic,
+                2 => FloatingScheduleHideMode.Advanced,
+                3 => FloatingScheduleHideMode.Never,
+                _ => FloatingScheduleHideMode.FollowHost
+            };
+            hideModeComboBox.SelectedIndex = InitHideIndexFromMode(
+                _settings?.FloatingScheduleHideMode ?? FloatingScheduleHideMode.FollowHost);
+            hideModeComboBox.SelectionChanged += (s, e) =>
+            {
+                if (_settings != null && s is ComboBox cb)
+                    _settings.FloatingScheduleHideMode = HideModeFromIndex(cb.SelectedIndex);
+            };
+            AddSettingsExpanderItem(floatingExpander,
+                "隐藏悬浮窗",
+                "在什么条件下自动隐藏悬浮窗。\n· 跟随主界面隐藏规则：主窗口隐藏时悬浮窗同步隐藏。\n· 基础模式：复用 ClassIsland 的\"上课时隐藏 / 前台窗口最大化时隐藏 / 前台窗口全屏时隐藏\"三个开关独立判定。\n· 高级模式（规则集）：复用 ClassIsland 主界面的隐藏规则集（在 ClassIsland 设置中编辑规则）。",
+                hideModeComboBox);
+
             // 项 3: 背景不透明度 (NumericUpDown)
             var opacityBox = new NumericUpDown
             {
