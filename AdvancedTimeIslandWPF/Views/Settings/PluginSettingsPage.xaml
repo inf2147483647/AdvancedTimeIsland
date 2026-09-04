@@ -31,9 +31,11 @@
                              Description="点击管理各类功能的启用状态"
                              Margin="0 0 0 6">
                 <ci:SettingsCard.Switcher>
-                    <Button Content="管理启用的功能..."
-                            Width="165"
-                            Click="OnManageFeaturesClick" />
+                    <StackPanel Orientation="Horizontal">
+                        <Button Content="管理启用的功能..."
+                                Style="{DynamicResource MaterialDesignFlatButton}"
+                                Click="OnManageFeaturesClick" />
+                    </StackPanel>
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
 
@@ -111,6 +113,8 @@
                     Content="回声洞"
                     Margin="0,12,0,0"
                     Visibility="Collapsed"
+                    Style="{DynamicResource MaterialDesignFlatButton}"
+                    HorizontalAlignment="Left"
                     Click="OnEchoHoleButtonClick" />
             <TextBlock x:Name="EchoHoleDisplayText"
                        FontSize="13"

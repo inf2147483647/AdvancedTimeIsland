@@ -40,7 +40,7 @@
                              Margin="0 0 0 6">
                 <ci:SettingsCard.Switcher>
                     <Button Content="开始"
-                            Padding="16 8"
+                            Style="{DynamicResource MaterialDesignFlatButton}"
                             Click="ButtonCrash_OnClick" />
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
@@ -51,7 +51,7 @@
                              Margin="0 0 0 6">
                 <ci:SettingsCard.Switcher>
                     <Button Content="开始"
-                            Padding="16 8"
+                            Style="{DynamicResource MaterialDesignFlatButton}"
                             Click="ButtonForceCrash_OnClick" />
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
@@ -62,7 +62,7 @@
                              Margin="0 0 0 6">
                 <ci:SettingsCard.Switcher>
                     <Button Content="开始"
-                            Padding="16 8"
+                            Style="{DynamicResource MaterialDesignFlatButton}"
                             Click="ButtonSelfDestruct_OnClick" />
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
@@ -73,7 +73,7 @@
                              Margin="0 0 0 6">
                 <ci:SettingsCard.Switcher>
                     <Button Content="进入"
-                            Padding="16 8"
+                            Style="{DynamicResource MaterialDesignFlatButton}"
                             Click="ButtonHanfuTemplate_OnClick" />
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
@@ -135,12 +135,12 @@
                                 Margin="0 12 0 0">
                         <Button x:Name="MemoryLeakStartButton"
                                 Content="开始"
-                                Padding="16 8"
+                                Style="{DynamicResource MaterialDesignOutlinedButton}"
                                 Margin="0 0 8 0"
                                 Click="MemoryLeakStartButton_OnClick" />
                         <Button x:Name="MemoryLeakClearButton"
                                 Content="清除"
-                                Padding="16 8"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="MemoryLeakClearButton_OnClick" />
                     </StackPanel>
                 </StackPanel>

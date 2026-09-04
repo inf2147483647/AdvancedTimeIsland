@@ -22,7 +22,7 @@
                              DockPanel.Dock="Left" />
                 <Button x:Name="ClearButton"
                         Content="清空"
-                        Padding="16 8"
+                        Style="{DynamicResource MaterialDesignFlatButton}"
                         HorizontalAlignment="Right"
                         DockPanel.Dock="Right"
                         Click="OnClearAllClick" />
@@ -131,26 +131,26 @@
                         <Button x:Name="BeijingCurrentButton"
                                 Grid.Column="2"
                                 Content="选取当前时间"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 HorizontalAlignment="Right"
                                 Click="OnBeijingCurrentTimeClick" />
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                         <Button Content="转为时间戳"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnBeijingToUnix" />
                         <Button Content="转为农历"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnBeijingToLunar" />
                         <Button Content="转为区时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnBeijingToZone" />
                         <Button Content="转为地方时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="OnBeijingToLocal" />
                     </StackPanel>
 
@@ -212,26 +212,26 @@
                         <Button x:Name="CopyButton"
                                 Grid.Column="2"
                                 Content="复制"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 HorizontalAlignment="Right"
                                 Click="OnUnixCopyClick" />
                     </Grid>
 
                     <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                         <Button Content="转为北京时间"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnUnixToBeijing" />
                         <Button Content="转为农历"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnUnixToLunar" />
                         <Button Content="转为区时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnUnixToZone" />
                         <Button Content="转为地方时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="OnUnixToLocal" />
                     </StackPanel>
 
@@ -358,19 +358,19 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                         <Button Content="转为北京时间"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLunarToBeijing" />
                         <Button Content="转为时间戳"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLunarToUnix" />
                         <Button Content="转为区时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLunarToZone" />
                         <Button Content="转为地方时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="OnLunarToLocal" />
                     </StackPanel>
 
@@ -471,19 +471,19 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                         <Button Content="转为北京时间"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnZoneToBeijing" />
                         <Button Content="转为时间戳"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnZoneToUnix" />
                         <Button Content="转为农历"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnZoneToLunar" />
                         <Button Content="转为地方时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="OnZoneToLocal" />
                     </StackPanel>
 
@@ -637,19 +637,19 @@
 
                     <StackPanel Orientation="Horizontal" Margin="0 8 0 0">
                         <Button Content="转为北京时间"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLocalToBeijing" />
                         <Button Content="转为时间戳"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLocalToUnix" />
                         <Button Content="转为农历"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Margin="0 0 8 0"
                                 Click="OnLocalToLunar" />
                         <Button Content="转为区时"
-                                Padding="12 6"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 Click="OnLocalToZone" />
                     </StackPanel>
 

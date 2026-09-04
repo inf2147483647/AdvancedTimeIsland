@@ -86,7 +86,7 @@
                 <ci:SettingsControl.Switcher>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="获取当前位置"
-                                Padding="8,4,8,4"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 HorizontalAlignment="Left"
                                 Click="OnGetLocationClick" />
                     </StackPanel>

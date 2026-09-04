@@ -59,7 +59,7 @@
                 <ci:SettingsControl.Switcher>
                     <StackPanel Orientation="Horizontal">
                         <Button Content="获取当前位置"
-                                Padding="8,4,8,4"
+                                Style="{DynamicResource MaterialDesignFlatButton}"
                                 HorizontalAlignment="Left"
                                 Click="OnGetLocationClick" />
                     </StackPanel>
@@ -152,7 +152,7 @@
 
             <TextBlock Text="需要对应字体支持所选字重"
                        FontSize="12"
-                       Foreground="Orange"
+                       Foreground="{DynamicResource PrimaryHueMidBrush}"
                        Margin="0,2,0,8" />
 
         </StackPanel>

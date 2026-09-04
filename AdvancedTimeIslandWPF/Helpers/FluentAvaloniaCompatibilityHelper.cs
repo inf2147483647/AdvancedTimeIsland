@@ -771,17 +771,14 @@ public class WpfContentDialog
 
 /// <summary>
 /// 设置展开器控件（兼容原 FA SettingsExpander 用法）。
+/// 采用与 ClassIsland 原版一致的结构：materialDesign:Card &gt; Expander(MaterialDesignExpander)
+/// &gt; Header = ci:SettingsControl（图标+标题+描述），内容区缩进 Grid(36 0 48 12)。
 /// </summary>
-public class WpfSettingsExpander : Border
+public class WpfSettingsExpander : ContentControl
 {
-    private readonly StackPanel _rootPanel;
-    private readonly Grid _headerPanel;
-    private readonly TextBlock _headerText;
-    private readonly TextBlock _descriptionText;
-    private readonly ContentControl _iconHost;
+    private readonly Expander _expander;
+    private readonly ClassIsland.Core.Controls.SettingsControl _header;
     private readonly ItemsControl _itemsControl;
-    private readonly ContentControl _footerHost;
-    private readonly ToggleButton _expandToggle;
 
     public event EventHandler? Click;
 
@@ -789,101 +786,79 @@ public class WpfSettingsExpander : Border
 
     public object? Header
     {
-        get => _headerText.Text;
-        set => _headerText.Text = value?.ToString() ?? "";
+        get => _header.Header;
+        set => _header.Header = value?.ToString() ?? "";
     }
 
     public object? Description
     {
-        get => _descriptionText.Text;
-        set => _descriptionText.Text = value?.ToString() ?? "";
+        get => _header.Description;
+        set => _header.Description = value?.ToString() ?? "";
     }
 
     public object? IconSource
     {
-        get => _iconHost.Content;
-        set => _iconHost.Content = value;
+        get => _header.IconGlyph;
+        set
+        {
+            if (value is PackIcon pi) _header.IconGlyph = pi.Kind;
+            else if (value is PackIconKind kind) _header.IconGlyph = kind;
+        }
     }
 
     public object? Footer
     {
-        get => _footerHost.Content;
-        set => _footerHost.Content = value;
+        get => _header.Switcher;
+        set
+        {
+            // 与 ClassIsland 原版一致：Footer 开关渲染在折叠栏头部右侧（开关 + Chevron）
+            _header.Switcher = value;
+            _header.HasSwitcher = value != null;
+        }
     }
 
     public bool IsExpanded
     {
-        get => _expandToggle.IsChecked == true;
-        set => _expandToggle.IsChecked = value;
+        get => _expander.IsExpanded;
+        set => _expander.IsExpanded = value;
     }
 
     public WpfSettingsExpander()
     {
-        Margin = new Thickness(0, 0, 0, 12);
-        CornerRadius = new CornerRadius(8);
-        BorderThickness = new Thickness(0);
-        Padding = new Thickness(16, 8, 16, 8);
-        SetResourceReference(BackgroundProperty, "MaterialDesignCardBackground");
+        Margin = new Thickness(0, 0, 0, 6);
 
-        _rootPanel = new StackPanel();
-
-        _headerPanel = new Grid();
-        _headerPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        _headerPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        _headerPanel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        _iconHost = new ContentControl { Margin = new Thickness(0, 0, 10, 0), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(_iconHost, 0);
-        _headerPanel.Children.Add(_iconHost);
-
-        var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
-        _headerText = new TextBlock { FontSize = 14, FontWeight = FontWeights.SemiBold };
-        _headerText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
-        _descriptionText = new TextBlock { FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        _descriptionText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
-        textPanel.Children.Add(_headerText);
-        textPanel.Children.Add(_descriptionText);
-        Grid.SetColumn(textPanel, 1);
-        _headerPanel.Children.Add(textPanel);
-
-        _expandToggle = new ToggleButton
+        _header = new ClassIsland.Core.Controls.SettingsControl
         {
-            Margin = new Thickness(8, 0, 0, 0),
-            Padding = new Thickness(4, 0, 4, 0),
-            IsChecked = true,
-            Background = Brushes.Transparent,
-            BorderBrush = Brushes.Transparent,
-            Cursor = Cursors.Hand
+            HasSwitcher = false,
+            Margin = new Thickness(-12, 0, 0, 0)
         };
-        _expandToggle.Content = new PackIcon { Kind = PackIconKind.ChevronDown, Width = 16, Height = 16 };
-        ((PackIcon)_expandToggle.Content).SetResourceReference(TextElement.ForegroundProperty, "MaterialDesignBody");
-        _expandToggle.Checked += (_, _) => UpdateExpandVisual();
-        _expandToggle.Unchecked += (_, _) => UpdateExpandVisual();
-        Grid.SetColumn(_expandToggle, 2);
-        _headerPanel.Children.Add(_expandToggle);
-
-        _rootPanel.Children.Add(_headerPanel);
+        _header.SetResourceReference(Control.ForegroundProperty, "MaterialDesignBody");
 
         _itemsControl = new ItemsControl { ItemsSource = Items };
-        _rootPanel.Children.Add(_itemsControl);
 
-        _footerHost = new ContentControl { HorizontalAlignment = HorizontalAlignment.Right };
-        _rootPanel.Children.Add(_footerHost);
-
-        Child = _rootPanel;
-    }
-
-    private void UpdateExpandVisual()
-    {
-        _itemsControl.Visibility = IsExpanded ? Visibility.Visible : Visibility.Collapsed;
-        _footerHost.Visibility = IsExpanded ? Visibility.Visible : Visibility.Collapsed;
-        _expandToggle.Content = new PackIcon
+        var contentGrid = new Grid
         {
-            Kind = IsExpanded ? PackIconKind.ChevronDown : PackIconKind.ChevronRight,
-            Width = 16,
-            Height = 16
+            Margin = new Thickness(36, 0, 48, 12),
+            Children = { _itemsControl }
         };
-        ((PackIcon)_expandToggle.Content).SetResourceReference(TextElement.ForegroundProperty, "MaterialDesignBody");
+
+        _expander = new Expander
+        {
+            Background = Brushes.Transparent,
+            IsExpanded = true,
+            Header = _header,
+            Content = contentGrid
+        };
+        _expander.SetResourceReference(StyleProperty, "MaterialDesignExpander");
+        _expander.SetResourceReference(TextElement.ForegroundProperty, "MaterialDesignBody");
+        _expander.Expanded += (_, _) => Click?.Invoke(this, EventArgs.Empty);
+        _expander.Collapsed += (_, _) => Click?.Invoke(this, EventArgs.Empty);
+
+        Content = new Card
+        {
+            Margin = new Thickness(0),
+            Content = _expander
+        };
     }
 }
 

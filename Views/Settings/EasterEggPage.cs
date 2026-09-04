@@ -534,7 +534,7 @@ public class EasterEggPage : UserControl
 
         var errorText = new TextBlock
         {
-            Text = "加载失败,轻触屏幕",
+            Text = "加载失败，轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center

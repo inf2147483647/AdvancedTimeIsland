@@ -364,7 +364,7 @@ InfoBar 语法格式：
 
 <infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
 
-<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='加载失败,轻触屏幕'>
+<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='加载失败，轻触屏幕'>
 
 
 <hide clicktime=5000 count=11><img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='100%' title='粽锁粥汁，女装只有0次与无数次；别说了，快女装吧'><br>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
@@ -1542,7 +1542,7 @@ InfoBar 语法格式：
 
         var errorText = new TextBlock
         {
-            Text = "加载失败,轻触屏幕",
+            Text = "加载失败，轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -1641,7 +1641,7 @@ InfoBar 语法格式：
             if (!loaded)
             {
                 retryButton.IsVisible = false;
-                errorDetailText.Text = $"加载失败,轻触屏幕: {url}";
+                errorDetailText.Text = $"加载失败，轻触屏幕: {url}";
                 errorPanel.IsVisible = true;
             }
         }
@@ -2733,7 +2733,7 @@ InfoBar 语法格式：
             ToolTip.SetTip(image, data.Title);
         }
 
-        var altText = string.IsNullOrEmpty(data.Alt) ? "加载失败,轻触屏幕" : data.Alt;
+        var altText = string.IsNullOrEmpty(data.Alt) ? "加载失败，轻触屏幕" : data.Alt;
 
         var errorPanel = new StackPanel
         {

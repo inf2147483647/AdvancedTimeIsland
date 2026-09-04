@@ -147,7 +147,7 @@
 
             <TextBlock Text="需要对应字体支持所选字重"
                        FontSize="12"
-                       Foreground="Orange"
+                       Foreground="{DynamicResource PrimaryHueMidBrush}"
                        Margin="0,2,0,8" />
 
             <!-- 星期样式 -->
@@ -231,7 +231,7 @@
 
             <TextBlock Text="需要对应字体支持所选字重"
                        FontSize="12"
-                       Foreground="Orange"
+                       Foreground="{DynamicResource PrimaryHueMidBrush}"
                        Margin="0,2,0,8" />
 
         </StackPanel>

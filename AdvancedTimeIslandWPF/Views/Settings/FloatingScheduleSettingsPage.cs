@@ -160,7 +160,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
     // ==================== 2. 交互行为 ====================
     private void BuildInteractionGroup(StackPanel mainPanel)
     {
-        var group = CreateGroup("交互行为", "鼠标点击、指针淡化与贴边自动隐藏等交互设置");
+        var group = CreateGroup("交互行为", "鼠标点击、指针淡化与贴边自动隐藏等交互设置", "CursorDefaultClickOutline");
 
         // 点击穿透
         var clickThroughItem = CreateItem("启用点击穿透", "开启后，悬浮窗对鼠标点击完全透明（点击会命中下方窗口），同时关闭悬浮窗拖拽（关闭穿透后恢复）。", "TapIn");
@@ -375,7 +375,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
     // ==================== 4. 随机窗口名 ====================
     private void BuildRandomTitleGroup(StackPanel mainPanel)
     {
-        var group = CreateGroup("随机窗口名", "为了防止学校把时间表悬浮窗拦截，建议开启此项");
+        var group = CreateGroup("随机窗口名", "为了防止学校把时间表悬浮窗拦截，建议开启此项", "DiceMultipleOutline");
 
         // 子项：增强随机模式（仅主开关开启时激活）
         var enhancedItem = CreateItem("增强随机模式", "仅在上一项启用时生效：开启后每 1 秒重新设置一次随机窗口标题，防止拦截工具按标题缓存识别。", "DiceMultipleOutline");
@@ -437,11 +437,16 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
     }
 
     // ==================== 辅助方法 ====================
-    private static WpfSettingsExpander CreateGroup(string header, string description)
+    private static WpfSettingsExpander CreateGroup(string header, string description, string iconGlyph = "")
     {
         var group = (WpfSettingsExpander)FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
         FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Header", header);
         FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Description", description);
+        if (!string.IsNullOrEmpty(iconGlyph)
+            && Enum.TryParse<MaterialDesignThemes.Wpf.PackIconKind>(iconGlyph, true, out var kind))
+        {
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "IconSource", kind);
+        }
         return group;
     }
 
