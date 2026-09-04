@@ -149,6 +149,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
     //   （内容不泄露，但形状可见），仍优于完全可捕获。
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowDisplayAffinity(IntPtr hWnd, out uint dwAffinity);
     private const uint WDA_NONE_WPF = 0x00000000;
     private const uint WDA_MONITOR_WPF = 0x00000001;
     private const uint WDA_EXCLUDEFROMCAPTURE_WPF = 0x00000011;
@@ -762,6 +764,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
     // ==================================== 防止截图（FloatingSchedulePreventCapture）====================================
     //   Win32 SetWindowDisplayAffinity：开启 → WDA_EXCLUDEFROMCAPTURE（截屏/录屏结果中窗口不可见，透出下方内容）；
     //   低于 Win10 2004 回退 WDA_MONITOR（捕获中为黑色矩形）；关闭 → WDA_NONE。affinity 与 HWND 绑定，窗口重建后需重设，故应用点挂在 OnWindowLoaded 与设置变更两处。
+    //   已知限制：WDA_EXCLUDEFROMCAPTURE 对 WS_EX_LAYERED 分层窗口静默失效（API 返回 TRUE 但截屏仍可捕获，
+    //   微软官方示例库 Windows.UI.Composition-Win32-Samples Issue#56 确认）。WPF AllowsTransparency=true 必然产生分层窗，
+    //   故检测到分层位时直接使用 WDA_MONITOR——捕获中渲染为黑色矩形，内容不泄露，保证防护真实生效。
     private void ApplyPreventCaptureWpf()
     {
         if (_window == null) return;
@@ -771,10 +776,18 @@ public class FloatingScheduleService : IDisposable, IHostedService
             if (hwnd == IntPtr.Zero) return;   // hwnd 尚未建立（Show 之前），由 OnWindowLoaded 兜底
             if (_settings.FloatingSchedulePreventCapture)
             {
-                // 优先 WDA_EXCLUDEFROMCAPTURE（截屏结果中窗口不可见、透出下方内容）；
-                // 失败（Win10 低于 2004）回退 WDA_MONITOR——捕获中渲染为黑色矩形，内容仍不泄露。
-                if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE_WPF))
+                int exStyle = (int)GetWindowLong(hwnd, GWL_EXSTYLE);
+                bool isLayered = (exStyle & WS_EX_LAYERED) != 0;
+                if (isLayered)
+                {
                     SetWindowDisplayAffinity(hwnd, WDA_MONITOR_WPF);
+                }
+                else if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE_WPF))
+                {
+                    SetWindowDisplayAffinity(hwnd, WDA_MONITOR_WPF);
+                }
+                GetWindowDisplayAffinity(hwnd, out var aff);
+                _logger.LogDebug("ApplyPreventCaptureWpf: layered={Layered}, affinity=0x{Aff:x}", isLayered, aff);
             }
             else
             {
@@ -2935,6 +2948,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
     //  策略（Experience 1279696 双定时器分层）：复用 500ms 现有 Tick，每 10 次 = 5s 全量 SDK 状态校验。
     private const int HardSyncTickIntervalWpf = 10;  // 500ms × 10 = 5 秒
     private int _hardSyncTickCounterWpf = 0;
+    // 【★ 防止截图周期重设兜底（参考 ClassIsland 主窗口 WindowFeatures.Private 的重设保证机制）】
+    //  ClassIsland 在窗口 Activated 事件与设置变更时重设 SetWindowDisplayAffinity；悬浮窗 ShowActivated=false
+    //  收不到 Activated 事件，故复用 500ms Tick 每 10 次 = 5s 无条件重设一次，防止系统事件
+    //  （休眠唤醒/显示器切换/DWM 重启等）后 affinity 被静默清除导致截屏泄露。
+    private const int PreventCaptureRecheckIntervalWpf = 10;   // 500ms × 10 = 5 秒
+    private int _preventCaptureRecheckTickWpf = 0;
     // 【★ 时间跳变 → 进度条立即更新兜底】上次 UpdateProgress Tick 的 now（用于检测跳变 >2s → 立即强制刷新，
     //  覆盖"宿主 Settings.PropertyChanged 事件丢失导致 OnHostSettingsDebugTimeChanged 未触发、进度条只能等 5s 硬刷新"的场景）
     private DateTime _lastTickNowWpf = DateTime.MinValue;
@@ -3073,6 +3092,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private void UpdateProgress()
     {
+        // 【防止截图周期重设】每 5s 重设一次 WDA affinity（参考 ClassIsland MainWindow.UpdateWindowFeatures 的
+        //  重设保证机制；悬浮窗 ShowActivated=false 收不到 Activated 事件，只能靠周期兜底维持防护）
+        _preventCaptureRecheckTickWpf = (_preventCaptureRecheckTickWpf + 1) % PreventCaptureRecheckIntervalWpf;
+        if (_preventCaptureRecheckTickWpf == 0) ApplyPreventCaptureWpf();
+
         // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（放在窗口可见性守卫之前，确保隐藏态下也能及时重显）
         ApplyShouldHideWpf();
         if (_window == null || !_window.IsVisible) return;

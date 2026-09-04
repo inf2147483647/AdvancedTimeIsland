@@ -105,6 +105,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   （内容不泄露，但形状可见），仍优于完全可捕获。
     [DllImport("user32.dll")]
     private static extern bool SetWindowDisplayAffinity(IntPtr hWnd, uint dwAffinity);
+    [DllImport("user32.dll")]
+    private static extern bool GetWindowDisplayAffinity(IntPtr hWnd, out uint dwAffinity);
     private const uint WDA_NONE_AV = 0x00000000;
     private const uint WDA_MONITOR_AV = 0x00000001;
     private const uint WDA_EXCLUDEFROMCAPTURE_AV = 0x00000011;
@@ -288,6 +290,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //     → 不一致就强制 RefreshSchedule（解决极罕见的"PropertyChanged 丢失 + Date 没变 + state/breakTicks 恰好相同但 UI 错位"的一致性黑洞）
     private const int HardSyncTickIntervalAv = 10;   // 500ms * 10 = 5 秒
     private int _hardSyncTickCounterAv = 0;
+    // 【★ 防止截图周期重设兜底（参考 ClassIsland 主窗口 WindowFeatures.Private 的重设保证机制）】
+    //  ClassIsland 在窗口 Activated 事件与设置变更时重设 SetWindowDisplayAffinity；悬浮窗 ShowActivated=false
+    //  收不到 Activated 事件，故复用 500ms Tick 每 10 次 = 5s 无条件重设一次，防止系统事件
+    //  （休眠唤醒/显示器切换/DWM 重启等）后 affinity 被静默清除导致截屏泄露。
+    private const int PreventCaptureRecheckIntervalAv = 10;   // 500ms * 10 = 5 秒
+    private int _preventCaptureRecheckTickAv = 0;
     // 【★ 时间跳变 → 进度条立即更新兜底】上次 UpdateProgress Tick 的 now（用于检测跳变 >2s → 立即强制刷新，
     //  覆盖"宿主 Settings.PropertyChanged 事件丢失导致 OnHostSettingsDebugTimeChanged 未触发、进度条只能等 5s 硬刷新"的场景）
     private DateTime _lastTickNowAv = DateTime.MinValue;
@@ -1304,6 +1312,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             ApplyWindowLayer();
 #if WINDOWS
             try { HideFromAltTabWin32(_window); } catch { }
+            // 窗口打开后统一管理分层样式 + 重新应用防止截图（affinity 与 HWND 绑定，窗口重建后必须重设）
+            UpdateLayeredStyleAv();
+            ApplyPreventCaptureAv();
 #endif
             // 初次打开时强制应用点击穿透 + 指针淡化（Host 可能在打开前就保存了配置）
             ApplyClickThrough();
@@ -1470,11 +1481,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { SetWindowDpiAwarenessContext(hwnd, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2_AV); } catch { /* ignore */ }
         try { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2_AV); } catch { /* ignore */ }
 
-        // 用户文档 要点6：Alt+Tab 隐藏 TOOLWINDOW；同时加 WS_EX_COMPOSITED+WS_EX_LAYERED 减少 DWM 合成抖动闪烁
+        // 用户文档 要点6：Alt+Tab 隐藏 TOOLWINDOW；同时加 WS_EX_COMPOSITED 减少 DWM 合成抖动闪烁。
+        // 注意：不再在此无条件加 WS_EX_LAYERED——分层窗口会使 WDA_EXCLUDEFROMCAPTURE（防止截图）静默失效
+        //（微软已知限制），分层位统一由 UpdateLayeredStyleAv 依据"防止截图"开关管理。
         var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
         // IntPtr → int 时先转 long 防 32/64 位不一致（Avalonia GetWindowLong 返回签名是 IntPtr，与 WPF 端同）
         int style = (int)(long)exStyle;
-        style |= WS_EX_TOOLWINDOW | WS_EX_COMPOSITED_AV | WS_EX_LAYERED_AV;
+        style |= WS_EX_TOOLWINDOW | WS_EX_COMPOSITED_AV;
         SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)style);
     }
 #endif
@@ -1831,7 +1844,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   Win32 SetWindowDisplayAffinity：开启 → WDA_EXCLUDEFROMCAPTURE（截屏/录屏结果中窗口不可见，透出下方内容）；
     //   低于 Win10 2004 回退 WDA_MONITOR（捕获中为黑色矩形）；关闭 → WDA_NONE。非 Windows 平台无对应 API，静默跳过（功能降级）。
     //   注意：affinity 与 HWND 绑定，窗口重建（EnsureWindow）后必须重新应用；因此应用点挂在 Opened 与设置变更两处。
-    //   API 幂等且仅在 Opened/开关变化时调用，无需 last-applied 短路。
+    //   关键：WDA_EXCLUDEFROMCAPTURE 对 WS_EX_LAYERED 分层窗口静默失效（微软已知限制，API 返回 TRUE 但截屏仍可捕获），
+    //   故必须先移除分层位（Avalonia 透明渲染走 DComp，不依赖分层位，见 UpdateLayeredStyleAv）。
     private void ApplyPreventCaptureAv()
     {
         if (_window == null) return;
@@ -1844,12 +1858,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
                 if (hwnd != IntPtr.Zero)
                 {
+                    UpdateLayeredStyleAv();
                     if (want)
                     {
                         // 优先 WDA_EXCLUDEFROMCAPTURE（截屏结果中窗口不可见、透出下方内容）；
                         // 失败（Win10 低于 2004）回退 WDA_MONITOR——捕获中渲染为黑色矩形，内容仍不泄露。
                         if (!SetWindowDisplayAffinity(hwnd, WDA_EXCLUDEFROMCAPTURE_AV))
                             SetWindowDisplayAffinity(hwnd, WDA_MONITOR_AV);
+                        // 验证 affinity 是否已写入（便于排查分层残留/低版本回退）
+                        GetWindowDisplayAffinity(hwnd, out var aff);
+                        _logger.LogDebug("ApplyPreventCaptureAv: want={Want}, affinity=0x{Aff:x}", want, aff);
                     }
                     else
                     {
@@ -1859,6 +1877,33 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
             catch (Exception ex) { _logger.LogDebug(ex, "ApplyPreventCaptureAv: SetWindowDisplayAffinity 失败（忽略）"); }
         }
+#endif
+    }
+
+    // ==================================== 分层样式统一管理（WS_EX_LAYERED）====================================
+    //   WDA_EXCLUDEFROMCAPTURE（防止截图）与分层窗口互斥：微软已知限制——分层窗口无法被排除出截屏结果，
+    //   SetWindowDisplayAffinity 返回 TRUE 但静默失效。因此防止截图开启时需移除 WS_EX_LAYERED；
+    //   Avalonia 透明渲染走 WinUI Composition（DComp），不依赖该分层位，移除后透明照常、WDA 恢复生效。
+    //   关闭防止截图后恢复分层位（保留既有减少 DWM 合成抖动/点击穿透保险语义）。
+    private void UpdateLayeredStyleAv()
+    {
+        if (_window == null) return;
+#if WINDOWS
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            if (hwnd == IntPtr.Zero) return;
+            int ex = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
+            bool wantLayered = !_settings.FloatingSchedulePreventCapture;
+            bool isLayered = (ex & WS_EX_LAYERED_AV) != 0;
+            if (wantLayered != isLayered)
+            {
+                int target = wantLayered ? (ex | WS_EX_LAYERED_AV) : (ex & ~WS_EX_LAYERED_AV);
+                SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)target);
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "UpdateLayeredStyleAv 失败（忽略）"); }
 #endif
     }
 
@@ -1885,10 +1930,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     // Avalonia P/Invoke 签名现在用 IntPtr 返回/第三个参数以兼容 net8.0/net10.0 的 nint
                     //  强转 (int) 安全：GWL_EXSTYLE 返回 32 位 DWORD 位集，高 32 位为 0。
                     int style = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                    if (through) style |= (WS_EX_TRANSPARENT_AV | WS_EX_LAYERED_AV);
+                    if (through) style |= WS_EX_TRANSPARENT_AV;
                     else          style &= ~WS_EX_TRANSPARENT_AV;
-                    // WS_EX_LAYERED 保留（Alt+Tab 隐藏时已经设置过），减少 DWM 合成抖动
+                    // WS_EX_LAYERED 不再在此写入：分层位由 UpdateLayeredStyleAv 统一管理
+                    // （防止截图开启时必须移除分层位，否则 WDA_EXCLUDEFROMCAPTURE 静默失效）
                     SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)style);
+                    UpdateLayeredStyleAv();
                 }
             }
             catch (Exception ex) { _logger.LogDebug(ex, "切换悬浮窗 WS_EX_TRANSPARENT 失败，安全忽略。"); }
@@ -3502,6 +3549,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private void UpdateProgress()
     {
+        // 【防止截图周期重设】每 5s 重设一次 WDA affinity（参考 ClassIsland MainWindow.UpdateWindowFeatures 的
+        //  重设保证机制；悬浮窗 ShowActivated=false 收不到 Activated 事件，只能靠周期兜底维持防护）
+        _preventCaptureRecheckTickAv = (_preventCaptureRecheckTickAv + 1) % PreventCaptureRecheckIntervalAv;
+        if (_preventCaptureRecheckTickAv == 0) ApplyPreventCaptureAv();
+
         // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（基础/高级模式复用宿主设置与规则集、跟随模式查主窗口可见性）
         ApplyShouldHideAv();
         if (_lessonsService == null) return;

@@ -395,8 +395,8 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         });
         group.Items.Add(enhancedItem);
 
-        // 防止截图（独立开关，不依赖随机窗口名）
-        var preventCaptureItem = CreateItem("防止截图", "开启后其他应用无法捕获悬浮窗内容：截屏/录屏结果中悬浮窗不显示（透出下方内容），防止学校截图检测。Windows 10 2004 及以上有效，更低版本回退为黑色遮挡。", "CameraOffOutline");
+        // 阻止截图（独立开关，不依赖随机窗口名）
+        var preventCaptureItem = CreateItem("阻止截图", "开启后，其他应用无法截取悬浮窗窗口内容，录制时也不会录制到悬浮窗。系统限制：WPF 透明悬浮窗（AllowsTransparency）无法从截屏结果中完全隐藏，启用后显示为黑色矩形遮挡以保护内容。", "CameraOffOutline");
         preventCaptureItem.IsOn = _settings?.FloatingSchedulePreventCapture ?? false;
         WatchIsOn(preventCaptureItem, () =>
         {

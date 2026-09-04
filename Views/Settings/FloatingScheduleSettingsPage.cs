@@ -515,7 +515,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             };
         }
 
-        // 防止截图（独立开关，不依赖随机窗口名）
+        // 阻止截图（独立开关，不依赖随机窗口名）
         var preventCaptureToggle = CreateToggleSwitch(_settings?.FloatingSchedulePreventCapture ?? false, isOn =>
         {
             if (_settings != null) _settings.FloatingSchedulePreventCapture = isOn;
@@ -523,8 +523,8 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         preventCaptureToggle.HorizontalAlignment = HorizontalAlignment.Right;
         preventCaptureToggle.VerticalAlignment = VerticalAlignment.Center;
         AddSettingsExpanderItem(group,
-            "防止截图",
-            "开启后其他应用无法捕获悬浮窗内容：截屏/录屏结果中悬浮窗不显示（透出下方内容），防止学校截图检测。Windows 10 2004 及以上有效，更低版本回退为黑色遮挡。",
+            "阻止截图",
+            "开启后，其他应用无法截取悬浮窗窗口内容，录制时也不会录制到悬浮窗。Windows 10 2004 及以上有效，更低版本回退为黑色遮挡。",
             preventCaptureToggle);
 
         mainPanel.Children.Add(group);
