@@ -206,17 +206,15 @@ public partial class AboutPage : SettingsPageBase
 
     private void OnFeedbackButtonClick(object? sender, RoutedEventArgs e)
     {
+        // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / 问卷星双提交渠道）
         try
         {
-            System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-            {
-                FileName = "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new/choose",
-                UseShellExecute = true
-            });
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandIssueFeedback?ci_keepHistory=true"));
         }
         catch
         {
-            // 忽略打开链接错误
+            // 忽略导航错误
         }
     }
 

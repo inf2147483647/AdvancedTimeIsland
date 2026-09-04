@@ -1521,6 +1521,7 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
+        services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
         if (Settings.EnableExperimentalFeatures)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();

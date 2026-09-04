@@ -552,18 +552,9 @@ public class AboutPage : SettingsPageBase
 
         feedbackButton.Click += (s, e) =>
         {
-            try
-            {
-                System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
-                {
-                    FileName = "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new/choose",
-                    UseShellExecute = true
-                });
-            }
-            catch
-            {
-                // 忽略打开链接错误
-            }
+            // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / 问卷星双提交渠道）
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandIssueFeedback?ci_keepHistory=true"));
         };
 
         authorPanel.Children.Add(feedbackButton);
