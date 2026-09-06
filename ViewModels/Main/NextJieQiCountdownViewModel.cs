@@ -115,7 +115,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         {
             var now = _timeBaseService.GetCurrentTime();
             var nextJieQi = GetNextJieQi(now);
-            var targetTime = new DateTime(nextJieQi.Year, nextJieQi.Month, nextJieQi.Day, 0, 0, 0);
+            var targetTime = nextJieQi.Time;
             var timeLeft = targetTime - now;
             Text1Display = _settings.Text1;
             NameDisplay = nextJieQi.Name;
@@ -131,7 +131,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
             var nextJieQi = GetNextJieQi(now);
-            var targetTime = new DateTime(nextJieQi.Year, nextJieQi.Month, nextJieQi.Day, 0, 0, 0);
+            var targetTime = nextJieQi.Time;
             var timeLeft = targetTime - now;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
@@ -144,17 +144,16 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         catch { }
     }
 
-    private (string Name, int Year, int Month, int Day) GetNextJieQi(DateTime date)
+    private (string Name, DateTime Time) GetNextJieQi(DateTime date)
     {
-        for (int i = 1; i < 366; i++)
+        var lunar = Solar.FromDate(date).Lunar;
+        var next = lunar.GetNextJieQi(false);
+        if (next != null)
         {
-            var checkDate = date.AddDays(i);
-            var solar = Solar.FromDate(checkDate);
-            var jieQi = solar.Lunar.JieQi;
-            if (!string.IsNullOrEmpty(jieQi))
-                return (jieQi, checkDate.Year, checkDate.Month, checkDate.Day);
+            var s = next.Solar;
+            return (next.Name, new DateTime(s.Year, s.Month, s.Day, s.Hour, s.Minute, s.Second));
         }
-        return ("立春", date.Year + 1, 2, 4);
+        return ("立春", new DateTime(date.Year + 1, 2, 4, 0, 0, 0));
     }
 
     private string FormatTime(TimeSpan timeLeft)

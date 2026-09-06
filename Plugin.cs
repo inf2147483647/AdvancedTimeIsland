@@ -238,11 +238,13 @@ public class Plugin : PluginBase
 
         services.AddSingleton<TimeBaseService>();
         services.AddSingleton<SharedRenderClockService>();
+        services.AddSingleton<SemesterStartService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         services.AddHostedService<StartupDelayService>();
         services.AddHostedService<Services.FontSizeSyncService>();
         services.AddHostedService<Services.FloatingScheduleService>();
+        services.AddHostedService<Services.SemesterStartService>();
 
         RegisterButtonPointerCursorStyle();
 
@@ -250,6 +252,8 @@ public class Plugin : PluginBase
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
         services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
+        services.AddComponent<YearWeekControl, YearWeekSettingsControl>();
+        services.AddComponent<SemesterWeekControl, SemesterWeekSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
