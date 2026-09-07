@@ -211,18 +211,24 @@
                 </Expander>
             </materialDesign:Card>
 
-            <!-- 进度显示 -->
+            <!-- 外观设置 -->
             <materialDesign:Card Margin="0 0 0 6">
                 <Expander Style="{DynamicResource MaterialDesignExpander}" Background="Transparent" IsExpanded="True" TextBlock.Foreground="{DynamicResource MaterialDesignBody}">
                     <Expander.Header>
                         <ci:SettingsControl IconGlyph="ProgressClock"
                                             Foreground="{DynamicResource MaterialDesignBody}"
-                                            Header="进度显示"
+                                            Header="外观设置"
                                             HasSwitcher="False"
                                             Margin="-12 0" />
                     </Expander.Header>
                     <Grid Margin="36 0 48 12">
                         <StackPanel>
+                            <ci:SettingsCard x:Name="SimpleModeCard"
+                                             IconGlyph="EyeMinusOutline"
+                                             Header="简化模式"
+                                             Description="开启后，文案只显示倒计时名称与剩余时间（文案1/文案3/文案4不再显示）。默认关闭。"
+                                             Margin="0,4" />
+
                             <ci:SettingsControl x:Name="ProgressDisplayModeItem"
                                                 IconGlyph="ProgressClock"
                                                 Header="显示进度条"

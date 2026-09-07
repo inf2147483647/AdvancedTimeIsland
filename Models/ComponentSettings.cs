@@ -874,6 +874,24 @@ public class CountdownSettings : INotifyPropertyChanged
             }
         }
 
+        private bool _enableSimpleMode = false;
+
+        /// <summary>
+        /// 简化模式：开启后主界面文案只显示倒计时名称与剩余时间（默认关闭）
+        /// </summary>
+        public bool EnableSimpleMode
+        {
+            get => _enableSimpleMode;
+            set
+            {
+                if (_enableSimpleMode != value)
+                {
+                    _enableSimpleMode = value;
+                    OnPropertyChanged();
+                }
+            }
+        }
+
         public event PropertyChangedEventHandler? PropertyChanged;
 
         protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)

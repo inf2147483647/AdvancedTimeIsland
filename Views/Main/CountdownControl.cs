@@ -242,29 +242,36 @@ public class CountdownControl : ComponentBase<CountdownSettings>
     {
         if (vm.IsEmpty)
         {
-            tbText1.Text = "";
-            tbText2.Text = "";
-            tbText3.Text = "当前无倒计时";
-            tbTime.Text = "";
-            tbText4.Text = "";
+            SetText(tbText1, "");
+            SetText(tbText2, "");
+            SetText(tbText3, "当前无倒计时");
+            SetText(tbTime, "");
+            SetText(tbText4, "");
         }
         else if (vm.IsAllCompleted)
         {
             // 结束状态由 ViewModel 计算（三段式或回退单行），此处直接呈现
-            tbText1.Text = vm.Text1Display;
-            tbText2.Text = vm.Text2Display;
-            tbText3.Text = vm.Text3Display;
-            tbTime.Text = "";
-            tbText4.Text = "";
+            SetText(tbText1, vm.Text1Display);
+            SetText(tbText2, vm.Text2Display);
+            SetText(tbText3, vm.Text3Display);
+            SetText(tbTime, "");
+            SetText(tbText4, "");
         }
         else
         {
-            tbText1.Text = vm.Text1Display;
-            tbText2.Text = vm.Text2Display;
-            tbText3.Text = vm.Text3Display;
-            tbTime.Text = vm.TimeDisplay;
-            tbText4.Text = vm.Text4Display;
+            SetText(tbText1, vm.Text1Display);
+            SetText(tbText2, vm.Text2Display);
+            SetText(tbText3, vm.Text3Display);
+            SetText(tbTime, vm.TimeDisplay);
+            SetText(tbText4, vm.Text4Display);
         }
+    }
+
+    // 文案为空时隐藏对应 TextBlock，避免简化模式下 StackPanel 产生多余间距
+    private static void SetText(TextBlock tb, string text)
+    {
+        tb.Text = text;
+        tb.IsVisible = !string.IsNullOrEmpty(text);
     }
 
     private void UpdateProgressDisplayMode()
@@ -350,19 +357,19 @@ public class CountdownControl : ComponentBase<CountdownSettings>
         switch (e.PropertyName)
         {
             case nameof(vm.Text1Display):
-                tbText1.Text = vm.Text1Display;
+                SetText(tbText1, vm.Text1Display);
                 break;
             case nameof(vm.Text2Display):
-                tbText2.Text = vm.Text2Display;
+                SetText(tbText2, vm.Text2Display);
                 break;
             case nameof(vm.Text3Display):
-                tbText3.Text = vm.Text3Display;
+                SetText(tbText3, vm.Text3Display);
                 break;
             case nameof(vm.TimeDisplay):
-                tbTime.Text = vm.TimeDisplay;
+                SetText(tbTime, vm.TimeDisplay);
                 break;
             case nameof(vm.Text4Display):
-                tbText4.Text = vm.Text4Display;
+                SetText(tbText4, vm.Text4Display);
                 break;
             case nameof(vm.Percent):
                 UpdateProgressDisplay();

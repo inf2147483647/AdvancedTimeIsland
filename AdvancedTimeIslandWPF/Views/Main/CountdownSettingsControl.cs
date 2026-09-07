@@ -198,6 +198,11 @@ public partial class CountdownSettingsControl : ComponentBase<CountdownSettings>
                 Settings.EnableCustomProgressColor = EnableCustomProgressColorCard.IsOn;
                 UpdateProgressColorControlsEnabled();
             });
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(SimpleModeCard, (s, e) =>
+            {
+                Settings.EnableSimpleMode = SimpleModeCard.IsOn;
+            });
     }
 
     private void OnText2ButtonClick(object? sender, RoutedEventArgs e)
@@ -420,6 +425,7 @@ public partial class CountdownSettingsControl : ComponentBase<CountdownSettings>
         };
 
         _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
+        SimpleModeCard.IsOn = Settings.EnableSimpleMode;
 
         _text1FontSizeNumericUpDown.Value = (decimal)Settings.Text1FontSize;
         _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);

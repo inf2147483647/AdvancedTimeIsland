@@ -236,6 +236,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(CountdownSettings.Text3) ||
             e.PropertyName == nameof(CountdownSettings.Text4) ||
             e.PropertyName == nameof(CountdownSettings.CountdownItems) ||
+            e.PropertyName == nameof(CountdownSettings.EnableSimpleMode) ||
             e.PropertyName == nameof(CountdownSettings.TimeBaseType))
         {
             UpdateCountdown();
@@ -465,13 +466,15 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }
 
+        var simple = _settings.EnableSimpleMode;
+
         return new CountdownDisplayData
         {
-            Text1 = _settings.Text1,
+            Text1 = simple ? string.Empty : _settings.Text1,
             Text2 = currentItem.Name,
-            Text3 = _settings.Text3,
+            Text3 = simple ? string.Empty : _settings.Text3,
             Time = timeText,
-            Text4 = _settings.Text4,
+            Text4 = simple ? string.Empty : _settings.Text4,
             IsAllCompleted = false,
             IsEmpty = false,
             CurrentItem = currentItem,
