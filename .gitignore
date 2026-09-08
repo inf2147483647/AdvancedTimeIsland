@@ -1,5 +1,9 @@
 bin/
 obj/
-/packages/
+# 离线 NuGet 源目录：目录本身必须存在于仓库中（否则 nuget.config 指向的
+# 本地源在 CI 检出后不存在，dotnet restore 会直接失败），但其中的 .nupkg
+# 不入库（CI 上目录为空时会自动回退到 nuget.org 在线还原）。
+/packages/*
+!/packages/.gitkeep
 riderModule.iml
 /_ReSharper.Caches/

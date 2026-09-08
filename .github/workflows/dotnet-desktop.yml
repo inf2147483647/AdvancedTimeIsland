@@ -30,6 +30,12 @@ jobs:
       with:
         dotnet-version: 10.0.x
 
+    # 保险：确保 nuget.config 中离线源目录存在（正常情况下由 packages/.gitkeep 保证）。
+    # 目录存在但为空时，NuGet 自动回退到 nuget.org 在线还原。
+    - name: Ensure offline packages dir exists
+      shell: pwsh
+      run: New-Item -ItemType Directory -Path packages -Force | Out-Null
+
     - name: Restore dependencies
       run: dotnet restore $env:Solution_Name
 

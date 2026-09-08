@@ -1,0 +1,3 @@
+# 此文件仅用于保证 packages\ 目录在仓库中存在（离线 NuGet 源目录）。
+# 本地离线构建时由 Sync-OfflinePackages.ps1 填充 .nupkg；CI 上目录为空，
+# nuget.config 会自动回退到 nuget.org 在线还原。请勿删除此文件。
