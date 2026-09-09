@@ -107,6 +107,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBlock? _notifyHeader;
 
     private List<TextBlock> _dynamicTextBlocks = new();
+    private List<Border> _tableCellBorders = new();
 
     public CountdownSettingsControl()
     {
@@ -416,8 +417,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private Grid CreateTextTable()
     {
-        var grid = new Grid { RowSpacing = 4, ColumnSpacing = 8 };
-        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(76) });
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star), MinWidth = 110 });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -482,32 +483,60 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         AddTableCell(grid, 5, 4, CreateFamilyCell(out _text4FontFamilyComboBox, out _text4EnableCustomFontFamilyToggle, OnText4EnableCustomFontFamilyChanged));
         AddTableCell(grid, 5, 5, CreateWeightCell(out _text4FontWeightComboBox, out _text4EnableCustomFontWeightToggle, OnText4EnableCustomFontWeightChanged));
 
+        // 表格外框（上边与左边），单元格自带右边与下边线，拼合为完整网格
+        var outerBorder = new Border
+        {
+            BorderThickness = new Thickness(1, 1, 0, 0),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            IsHitTestVisible = false
+        };
+        Grid.SetRowSpan(outerBorder, 6);
+        Grid.SetColumnSpan(outerBorder, 6);
+        _tableCellBorders.Add(outerBorder);
+        grid.Children.Add(outerBorder);
+
         return grid;
+    }
+
+    private Border CreateCellBorder(Control child)
+    {
+        var border = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 1, 1),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = child
+        };
+        _tableCellBorders.Add(border);
+        return border;
     }
 
     private void AddTableHeader(Grid grid, int row, int col, string text)
     {
         var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(tb);
-        Grid.SetRow(tb, row);
-        Grid.SetColumn(tb, col);
-        grid.Children.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
     }
 
     private void AddTableRowLabel(Grid grid, int row, string text)
     {
         var tb = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
         _dynamicTextBlocks.Add(tb);
-        Grid.SetRow(tb, row);
-        Grid.SetColumn(tb, 0);
-        grid.Children.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, 0);
+        grid.Children.Add(border);
     }
 
-    private static void AddTableCell(Grid grid, int row, int col, Control control)
+    private void AddTableCell(Grid grid, int row, int col, Control control)
     {
-        Grid.SetRow(control, row);
-        Grid.SetColumn(control, col);
-        grid.Children.Add(control);
+        var border = CreateCellBorder(control);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
     }
 
     private static StackPanel CreateSizeCell(out NumericUpDown? numericUpDown, out CheckBox? toggle, EventHandler<RoutedEventArgs> toggleHandler)
@@ -518,7 +547,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         panel.Children.Add(toggle);
         numericUpDown = new NumericUpDown
         {
-            Width = 110,
+            Width = 125,
             Minimum = 1,
             Maximum = 72,
             Increment = 1m,
@@ -572,8 +601,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private Grid CreateColorRow(string label, out ColorPicker? colorPicker)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
@@ -665,6 +694,12 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         foreach (var tb in _dynamicTextBlocks)
         {
             tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        var separatorBrush = ThemeHelper.GetSeparatorBrush();
+        foreach (var border in _tableCellBorders)
+        {
+            border.BorderBrush = separatorBrush;
         }
     }
 

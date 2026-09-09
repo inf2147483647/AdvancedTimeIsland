@@ -377,8 +377,8 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private Grid CreateColorRow(string label, out ColorPicker? colorPicker)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
+        var row = new Grid { ColumnSpacing = 8 };
+        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
         var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
