@@ -1562,6 +1562,7 @@ public class Plugin : PluginBase
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();
         services.AddAction<Automation.Actions.SyncPluginTimeAction>();
+        services.AddAction<Automation.Actions.SetFloatingScheduleAction, Automation.Actions.SetFloatingScheduleActionSettingsControl>();
 
         // ========== 新增条件：星座、节气、生肖 ==========
         if (Settings.EnableXingZuo)
