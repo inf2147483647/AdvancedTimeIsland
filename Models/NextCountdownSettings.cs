@@ -217,6 +217,17 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
+    private bool _enableSimpleMode = false;
+
+    /// <summary>
+    /// 简化模式：开启后主界面文案只显示名称与时间（默认关闭）
+    /// </summary>
+    public bool EnableSimpleMode
+    {
+        get => _enableSimpleMode;
+        set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -436,6 +447,17 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
     {
         get => _timeEnableCustomFontColor;
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _enableSimpleMode = false;
+
+    /// <summary>
+    /// 简化模式：开启后主界面文案只显示名称与时间（默认关闭）
+    /// </summary>
+    public bool EnableSimpleMode
+    {
+        get => _enableSimpleMode;
+        set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -714,6 +736,17 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
     {
         get => _timeEnableCustomFontColor;
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
+    }
+
+    private bool _enableSimpleMode = false;
+
+    /// <summary>
+    /// 简化模式：开启后主界面文案只显示名称与时间（默认关闭）
+    /// </summary>
+    public bool EnableSimpleMode
+    {
+        get => _enableSimpleMode;
+        set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

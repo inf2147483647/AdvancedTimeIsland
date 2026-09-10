@@ -110,6 +110,13 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
             tb.ClearValue(TextBlock.FontWeightProperty);
     }
 
+    // 文案为空时隐藏对应 TextBlock，避免简化模式下 StackPanel 产生多余间距
+    private static void SetText(TextBlock tb, string text)
+    {
+        tb.Text = text;
+        tb.IsVisible = !string.IsNullOrEmpty(text);
+    }
+
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
         UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
@@ -183,28 +190,28 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         switch (e.PropertyName)
         {
             case nameof(vm.Text1Display):
-                tbText1.Text = vm.Text1Display;
+                SetText(tbText1, vm.Text1Display);
                 break;
             case nameof(vm.NameDisplay):
-                tbName.Text = vm.NameDisplay;
+                SetText(tbName, vm.NameDisplay);
                 break;
             case nameof(vm.Text3Display):
-                tbText3.Text = vm.Text3Display;
+                SetText(tbText3, vm.Text3Display);
                 break;
             case nameof(vm.TimeDisplay):
-                tbTime.Text = vm.TimeDisplay;
+                SetText(tbTime, vm.TimeDisplay);
                 break;
             case nameof(vm.Text4Display):
-                tbText4.Text = vm.Text4Display;
+                SetText(tbText4, vm.Text4Display);
                 break;
             case nameof(vm.IsNotStarted):
                 if (vm.IsNotStarted)
                 {
-                    tbText1.Text = "";
-                    tbName.Text = "";
-                    tbText3.Text = "正向计时器未开始";
-                    tbTime.Text = "";
-                    tbText4.Text = "";
+                    SetText(tbText1, "");
+                    SetText(tbName, "");
+                    SetText(tbText3, "正向计时器未开始");
+                    SetText(tbTime, "");
+                    SetText(tbText4, "");
                 }
                 break;
         }

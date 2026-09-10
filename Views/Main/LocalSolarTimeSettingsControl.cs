@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Views.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -25,15 +27,18 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private Panel _longitudeDmsPanel;
     private ColorPicker _colorPicker;
     private NumericUpDown _fontSizeNumericUpDown;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
-    private ToggleSwitch _enableCustomFontFamilyToggle;
-    private ToggleSwitch _enableCustomFontWeightToggle;
+    private CheckBox _enableCustomFontSizeToggle;
+    private CheckBox _enableCustomFontColorToggle;
+    private CheckBox _enableCustomFontFamilyToggle;
+    private CheckBox _enableCustomFontWeightToggle;
     private ComboBox _fontFamilyComboBox;
     private ComboBox _fontWeightComboBox;
     private Button _getLocationButton;
     private TextBlock _statusText;
     private readonly PluginSettings? _pluginSettings;
+
+    private readonly List<TextBlock> _dynamicTextBlocks = new();
+    private readonly List<Border> _tableCellBorders = new();
 
     private TextBlock _titleTextBlock;
     private TextBlock _longitudeLabelTextBlock;
@@ -41,9 +46,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private TextBlock _dmsMinuteSymbol;
     private TextBlock _dmsSecondSymbol;
     private TextBlock _hintTextBlock;
-    private TextBlock _styleTitleTextBlock;
-    private TextBlock _colorLabelTextBlock;
-    private TextBlock _fontSizeLabelTextBlock;
 
     public LocalSolarTimeSettingsControl() : this(null)
     {
@@ -65,6 +67,9 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
         _titleTextBlock = new TextBlock { Text = "经度设置", FontSize = 14, FontWeight = FontWeight.Bold };
         sp.Children.Add(_titleTextBlock);
+
+        // ==================== 位置设置 ====================
+        var locationPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
         var longitudeRow = new Grid();
         longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -122,22 +127,29 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         Grid.SetColumn(_getLocationButton, 2);
         _getLocationButton.Click += OnGetLocationClick;
         longitudeRow.Children.Add(_getLocationButton);
-        sp.Children.Add(longitudeRow);
+        locationPanel.Children.Add(longitudeRow);
 
         _statusText = new TextBlock { Text = "", FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_statusText);
+        locationPanel.Children.Add(_statusText);
 
         _hintTextBlock = new TextBlock { Text = "取值范围为(-180到180]，单位为度，正数为东经，负数为西经", FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_hintTextBlock);
+        locationPanel.Children.Add(_hintTextBlock);
 
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
+        sp.Children.Add(SettingsGroupFactory.Create("位置设置", locationPanel));
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _fontSizeLabelTextBlock, out _fontSizeNumericUpDown, out _enableCustomFontSizeToggle, OnFontSizeChanged, OnEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _colorLabelTextBlock, out _colorPicker, out _enableCustomFontColorToggle, OnColorChanged, OnEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        // ==================== 文案设置 ====================
+        var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        var tableScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = CreateFontStyleTable()
+        };
+        textPanel.Children.Add(tableScroll);
+        textPanel.Children.Add(CreateFontWeightHintTextBlock());
+
+        sp.Children.Add(SettingsGroupFactory.Create("文案设置", textPanel));
 
         var scrollViewer = new ScrollViewer
         {
@@ -148,124 +160,155 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         Content = scrollViewer;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown, out ToggleSwitch toggle,
-        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    // ==================== 字体样式表格 ====================
+
+    private Grid CreateFontStyleTable()
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+        for (int i = 0; i < 4; i++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        }
+        for (int i = 0; i < 2; i++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
 
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+        AddTableHeader(grid, 0, 0, "样式");
+        AddTableHeader(grid, 0, 1, "自定义大小");
+        AddTableHeader(grid, 0, 2, "自定义颜色");
+        AddTableHeader(grid, 0, 3, "自定义字体");
+        AddTableHeader(grid, 0, 4, "自定义字重");
 
+        AddTableRowLabel(grid, 1, "地方时");
+        AddTableCell(grid, 1, 1, CreateSizeCell(out _fontSizeNumericUpDown, out _enableCustomFontSizeToggle, OnEnableCustomFontSizeChanged, OnFontSizeChanged));
+        AddTableCell(grid, 1, 2, CreateColorCell(out _colorPicker, out _enableCustomFontColorToggle, OnEnableCustomFontColorChanged, OnColorChanged));
+        AddTableCell(grid, 1, 3, CreateFamilyCell(out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
+        AddTableCell(grid, 1, 4, CreateWeightCell(out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
+
+        // 表格外框（上边与左边），单元格自带右边与下边线，拼合为完整网格
+        var outerBorder = new Border
+        {
+            BorderThickness = new Thickness(1, 1, 0, 0),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            IsHitTestVisible = false
+        };
+        Grid.SetRowSpan(outerBorder, 2);
+        Grid.SetColumnSpan(outerBorder, 5);
+        _tableCellBorders.Add(outerBorder);
+        grid.Children.Add(outerBorder);
+
+        return grid;
+    }
+
+    private Border CreateCellBorder(Control child)
+    {
+        var border = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 1, 1),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = child
+        };
+        _tableCellBorders.Add(border);
+        return border;
+    }
+
+    private void AddTableHeader(Grid grid, int row, int col, string text)
+    {
+        var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
+
+    private void AddTableRowLabel(Grid grid, int row, string text)
+    {
+        var tb = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, 0);
+        grid.Children.Add(border);
+    }
+
+    private void AddTableCell(Grid grid, int row, int col, Control control)
+    {
+        var border = CreateCellBorder(control);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
+
+    private static StackPanel CreateSizeCell(out NumericUpDown numericUpDown, out CheckBox toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
         numericUpDown = new NumericUpDown
         {
-            Width = 155,
+            Width = 120,
             Minimum = 1,
             Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
-            HorizontalAlignment = HorizontalAlignment.Left
+            VerticalAlignment = VerticalAlignment.Center
         };
         numericUpDown.ValueChanged += valueChangedHandler;
-        Grid.SetColumn(numericUpDown, 1);
-        row.Children.Add(numericUpDown);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(numericUpDown);
+        return panel;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
-        EventHandler<ColorChangedEventArgs> colorChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private static StackPanel CreateColorCell(out ColorPicker colorPicker, out CheckBox toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<ColorChangedEventArgs> colorChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-        colorPicker.ColorChanged += colorChangedHandler;
-        Grid.SetColumn(colorPicker, 1);
-        row.Children.Add(colorPicker);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
         toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(toggle);
+        colorPicker = new ColorPicker { Width = 120, VerticalAlignment = VerticalAlignment.Center };
+        colorPicker.ColorChanged += colorChangedHandler;
+        panel.Children.Add(colorPicker);
+        return panel;
     }
 
-    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+    private static StackPanel CreateFamilyCell(out ComboBox comboBox, out CheckBox toggle,
         EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
+        comboBox = new ComboBox { Width = 150, VerticalAlignment = VerticalAlignment.Center };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
             comboBox.Items.Add(font);
         }
         comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(comboBox);
+        return panel;
     }
 
-    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+    private static StackPanel CreateWeightCell(out ComboBox comboBox, out CheckBox toggle,
         EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
+        comboBox = new ComboBox { Width = 110, VerticalAlignment = VerticalAlignment.Center };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
             comboBox.Items.Add(weight);
         }
         comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(comboBox);
+        return panel;
     }
 
     private TextBlock CreateFontWeightHintTextBlock()
@@ -291,10 +334,19 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _hintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
         _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _enableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
         _enableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        foreach (var tb in _dynamicTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        var separatorBrush = ThemeHelper.GetSeparatorBrush();
+        foreach (var border in _tableCellBorders)
+        {
+            border.BorderBrush = separatorBrush;
+        }
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

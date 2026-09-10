@@ -93,10 +93,10 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new NextJieQiCountdownViewModel(_timeBaseService, Settings, UpdateText1FontColor, UpdateText1FontSize, UpdateNameFontColor, UpdateNameFontSize, UpdateText3FontColor, UpdateText3FontSize, UpdateTimeFontColor, UpdateTimeFontSize);
         DataContext = vm;
-        text1Tb.Text = vm.Text1Display;
-        nameTb.Text = vm.NameDisplay;
-        text3Tb.Text = vm.Text3Display;
-        timeTb.Text = vm.TimeDisplay;
+        SetText(text1Tb, vm.Text1Display);
+        SetText(nameTb, vm.NameDisplay);
+        SetText(text3Tb, vm.Text3Display);
+        SetText(timeTb, vm.TimeDisplay);
         vm.PropertyChanged += OnVmPropertyChanged;
         UpdateText1FontColor(Settings.Text1FontColor);
         UpdateText1FontSize(Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
@@ -110,10 +110,17 @@ public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSetting
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        if (e.PropertyName == nameof(vm.Text1Display)) text1Tb.Text = vm.Text1Display;
-        if (e.PropertyName == nameof(vm.NameDisplay)) nameTb.Text = vm.NameDisplay;
-        if (e.PropertyName == nameof(vm.Text3Display)) text3Tb.Text = vm.Text3Display;
-        if (e.PropertyName == nameof(vm.TimeDisplay)) timeTb.Text = vm.TimeDisplay;
+        if (e.PropertyName == nameof(vm.Text1Display)) SetText(text1Tb, vm.Text1Display);
+        if (e.PropertyName == nameof(vm.NameDisplay)) SetText(nameTb, vm.NameDisplay);
+        if (e.PropertyName == nameof(vm.Text3Display)) SetText(text3Tb, vm.Text3Display);
+        if (e.PropertyName == nameof(vm.TimeDisplay)) SetText(timeTb, vm.TimeDisplay);
+    }
+
+    // 文案为空时隐藏对应 TextBlock，避免简化模式下 StackPanel 产生多余间距
+    private static void SetText(TextBlock tb, string text)
+    {
+        tb.Text = text;
+        tb.IsVisible = !string.IsNullOrEmpty(text);
     }
 
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)

@@ -224,6 +224,7 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(LunarCountdownSettings.Text1) ||
             e.PropertyName == nameof(LunarCountdownSettings.Text3) ||
             e.PropertyName == nameof(LunarCountdownSettings.Text4) ||
+            e.PropertyName == nameof(LunarCountdownSettings.EnableSimpleMode) ||
             e.PropertyName == nameof(LunarCountdownSettings.CountdownItems) ||
             e.PropertyName == nameof(LunarCountdownSettings.TimeBaseType) ||
             e.PropertyName == nameof(LunarCountdownSettings.StartTime))
@@ -437,13 +438,15 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
             percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }
 
+        var simple = _settings.EnableSimpleMode;
+
         return new LunarCountdownDisplayData
         {
-            Text1 = _settings.Text1,
+            Text1 = simple ? string.Empty : _settings.Text1,
             Name = currentItem.Name,
-            Text3 = _settings.Text3,
+            Text3 = simple ? string.Empty : _settings.Text3,
             Time = timeText,
-            Text4 = _settings.Text4,
+            Text4 = simple ? string.Empty : _settings.Text4,
             IsAllCompleted = false,
             IsEmpty = false,
             CurrentItem = currentItem,

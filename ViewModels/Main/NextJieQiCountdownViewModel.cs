@@ -101,7 +101,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         {
             _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
-        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3))
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3) || e.PropertyName == nameof(NextJieQiCountdownSettings.EnableSimpleMode))
         {
             UpdateDisplay();
         }
@@ -117,9 +117,9 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
             var nextJieQi = GetNextJieQi(now);
             var targetTime = nextJieQi.Time;
             var timeLeft = targetTime - now;
-            Text1Display = _settings.Text1;
+            Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
             NameDisplay = nextJieQi.Name;
-            Text3Display = _settings.Text3;
+            Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
             TimeDisplay = FormatTime(timeLeft);
         }
         catch { }
@@ -135,9 +135,9 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
             var timeLeft = targetTime - now;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                Text1Display = _settings.Text1;
+                Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
                 NameDisplay = nextJieQi.Name;
-                Text3Display = _settings.Text3;
+                Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
                 TimeDisplay = FormatTime(timeLeft);
             });
         }

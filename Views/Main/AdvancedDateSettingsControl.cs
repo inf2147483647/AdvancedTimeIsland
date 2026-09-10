@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Views.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -18,19 +20,19 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private ComboBox _contentOrderComboBox;
     private ComboBox _dateSeparatorComboBox;
 
-    private ToggleSwitch _dateEnableCustomFontSizeToggle;
-    private ToggleSwitch _dateEnableCustomFontColorToggle;
-    private ToggleSwitch _dateEnableCustomFontFamilyToggle;
-    private ToggleSwitch _dateEnableCustomFontWeightToggle;
+    private CheckBox _dateEnableCustomFontSizeToggle;
+    private CheckBox _dateEnableCustomFontColorToggle;
+    private CheckBox _dateEnableCustomFontFamilyToggle;
+    private CheckBox _dateEnableCustomFontWeightToggle;
     private ColorPicker _dateColorPicker;
     private NumericUpDown _dateFontSizeNumericUpDown;
     private ComboBox _dateFontFamilyComboBox;
     private ComboBox _dateFontWeightComboBox;
 
-    private ToggleSwitch _weekDayEnableCustomFontSizeToggle;
-    private ToggleSwitch _weekDayEnableCustomFontColorToggle;
-    private ToggleSwitch _weekDayEnableCustomFontFamilyToggle;
-    private ToggleSwitch _weekDayEnableCustomFontWeightToggle;
+    private CheckBox _weekDayEnableCustomFontSizeToggle;
+    private CheckBox _weekDayEnableCustomFontColorToggle;
+    private CheckBox _weekDayEnableCustomFontFamilyToggle;
+    private CheckBox _weekDayEnableCustomFontWeightToggle;
     private ColorPicker _weekDayColorPicker;
     private NumericUpDown _weekDayFontSizeNumericUpDown;
     private ComboBox _weekDayFontFamilyComboBox;
@@ -41,12 +43,9 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
     private TextBlock _labelTextBlock;
     private TextBlock _contentOrderLabelTextBlock;
     private TextBlock _dateSeparatorLabelTextBlock;
-    private TextBlock _dateTitleTextBlock;
-    private TextBlock _dateColorLabelTextBlock;
-    private TextBlock _dateFontSizeLabelTextBlock;
-    private TextBlock _weekDayTitleTextBlock;
-    private TextBlock _weekDayColorLabelTextBlock;
-    private TextBlock _weekDayFontSizeLabelTextBlock;
+
+    private readonly List<TextBlock> _dynamicTextBlocks = new();
+    private readonly List<Border> _tableCellBorders = new();
 
     public AdvancedDateSettingsControl()
     {
@@ -63,6 +62,9 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _descTextBlock = new TextBlock { Text = "配置日期显示选项", FontSize = 12, TextWrapping = TextWrapping.Wrap };
         sp.Children.Add(_descTextBlock);
 
+        // ==================== 显示设置 ====================
+        var displayPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
         var row = new Grid();
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
@@ -76,7 +78,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Grid.SetColumn(_showWeekDayToggle, 1);
         row.Children.Add(_showWeekDayToggle);
 
-        sp.Children.Add(row);
+        displayPanel.Children.Add(row);
 
         var contentOrderRow = new Grid();
         contentOrderRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -93,7 +95,7 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _contentOrderComboBox.SelectionChanged += OnContentOrderChanged;
         Grid.SetColumn(_contentOrderComboBox, 1);
         contentOrderRow.Children.Add(_contentOrderComboBox);
-        sp.Children.Add(contentOrderRow);
+        displayPanel.Children.Add(contentOrderRow);
 
         var dateSeparatorRow = new Grid();
         dateSeparatorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
@@ -112,25 +114,24 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _dateSeparatorComboBox.SelectionChanged += OnDateSeparatorChanged;
         Grid.SetColumn(_dateSeparatorComboBox, 1);
         dateSeparatorRow.Children.Add(_dateSeparatorComboBox);
-        sp.Children.Add(dateSeparatorRow);
+        displayPanel.Children.Add(dateSeparatorRow);
 
-        _dateTitleTextBlock = new TextBlock { Text = "日期样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_dateTitleTextBlock);
+        sp.Children.Add(SettingsGroupFactory.Create("显示设置", displayPanel));
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _dateFontSizeLabelTextBlock, out _dateFontSizeNumericUpDown, out _dateEnableCustomFontSizeToggle, OnDateFontSizeChanged, OnDateEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _dateColorLabelTextBlock, out _dateColorPicker, out _dateEnableCustomFontColorToggle, OnDateColorChanged, OnDateEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _dateFontFamilyComboBox, out _dateEnableCustomFontFamilyToggle, OnDateEnableCustomFontFamilyChanged, OnDateFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _dateFontWeightComboBox, out _dateEnableCustomFontWeightToggle, OnDateEnableCustomFontWeightChanged, OnDateFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        // ==================== 文案设置 ====================
+        var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        _weekDayTitleTextBlock = new TextBlock { Text = "星期样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_weekDayTitleTextBlock);
+        var fontStyleTableScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = CreateFontStyleTable()
+        };
+        fontStyleTableScroll.Margin = new Thickness(0, 10, 0, 0);
+        textPanel.Children.Add(fontStyleTableScroll);
+        textPanel.Children.Add(CreateFontWeightHintTextBlock());
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _weekDayFontSizeLabelTextBlock, out _weekDayFontSizeNumericUpDown, out _weekDayEnableCustomFontSizeToggle, OnWeekDayFontSizeChanged, OnWeekDayEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _weekDayColorLabelTextBlock, out _weekDayColorPicker, out _weekDayEnableCustomFontColorToggle, OnWeekDayColorChanged, OnWeekDayEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _weekDayFontFamilyComboBox, out _weekDayEnableCustomFontFamilyToggle, OnWeekDayEnableCustomFontFamilyChanged, OnWeekDayFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _weekDayFontWeightComboBox, out _weekDayEnableCustomFontWeightToggle, OnWeekDayEnableCustomFontWeightChanged, OnWeekDayFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        sp.Children.Add(SettingsGroupFactory.Create("文案设置", textPanel));
 
         var scrollViewer = new ScrollViewer
         {
@@ -141,124 +142,161 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         Content = scrollViewer;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown, out ToggleSwitch toggle,
-        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    // ==================== 字体样式表格 ====================
+
+    private Grid CreateFontStyleTable()
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+        for (int i = 0; i < 4; i++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        }
+        for (int i = 0; i < 3; i++)
+        {
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        }
 
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+        AddTableHeader(grid, 0, 0, "样式");
+        AddTableHeader(grid, 0, 1, "自定义大小");
+        AddTableHeader(grid, 0, 2, "自定义颜色");
+        AddTableHeader(grid, 0, 3, "自定义字体");
+        AddTableHeader(grid, 0, 4, "自定义字重");
 
+        AddTableRowLabel(grid, 1, "日期");
+        AddTableCell(grid, 1, 1, CreateSizeCell(out _dateFontSizeNumericUpDown, out _dateEnableCustomFontSizeToggle, OnDateEnableCustomFontSizeChanged, OnDateFontSizeChanged));
+        AddTableCell(grid, 1, 2, CreateColorCell(out _dateColorPicker, out _dateEnableCustomFontColorToggle, OnDateEnableCustomFontColorChanged, OnDateColorChanged));
+        AddTableCell(grid, 1, 3, CreateFamilyCell(out _dateFontFamilyComboBox, out _dateEnableCustomFontFamilyToggle, OnDateEnableCustomFontFamilyChanged, OnDateFontFamilyChanged));
+        AddTableCell(grid, 1, 4, CreateWeightCell(out _dateFontWeightComboBox, out _dateEnableCustomFontWeightToggle, OnDateEnableCustomFontWeightChanged, OnDateFontWeightChanged));
+
+        AddTableRowLabel(grid, 2, "星期");
+        AddTableCell(grid, 2, 1, CreateSizeCell(out _weekDayFontSizeNumericUpDown, out _weekDayEnableCustomFontSizeToggle, OnWeekDayEnableCustomFontSizeChanged, OnWeekDayFontSizeChanged));
+        AddTableCell(grid, 2, 2, CreateColorCell(out _weekDayColorPicker, out _weekDayEnableCustomFontColorToggle, OnWeekDayEnableCustomFontColorChanged, OnWeekDayColorChanged));
+        AddTableCell(grid, 2, 3, CreateFamilyCell(out _weekDayFontFamilyComboBox, out _weekDayEnableCustomFontFamilyToggle, OnWeekDayEnableCustomFontFamilyChanged, OnWeekDayFontFamilyChanged));
+        AddTableCell(grid, 2, 4, CreateWeightCell(out _weekDayFontWeightComboBox, out _weekDayEnableCustomFontWeightToggle, OnWeekDayEnableCustomFontWeightChanged, OnWeekDayFontWeightChanged));
+
+        // 表格外框（上边与左边），单元格自带右边与下边线，拼合为完整网格
+        var outerBorder = new Border
+        {
+            BorderThickness = new Thickness(1, 1, 0, 0),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            IsHitTestVisible = false
+        };
+        Grid.SetRowSpan(outerBorder, 3);
+        Grid.SetColumnSpan(outerBorder, 5);
+        _tableCellBorders.Add(outerBorder);
+        grid.Children.Add(outerBorder);
+
+        return grid;
+    }
+
+    private Border CreateCellBorder(Control child)
+    {
+        var border = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 1, 1),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = child
+        };
+        _tableCellBorders.Add(border);
+        return border;
+    }
+
+    private void AddTableHeader(Grid grid, int row, int col, string text)
+    {
+        var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
+
+    private void AddTableRowLabel(Grid grid, int row, string text)
+    {
+        var tb = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, 0);
+        grid.Children.Add(border);
+    }
+
+    private void AddTableCell(Grid grid, int row, int col, Control control)
+    {
+        var border = CreateCellBorder(control);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
+
+    private static StackPanel CreateSizeCell(out NumericUpDown numericUpDown, out CheckBox toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
         numericUpDown = new NumericUpDown
         {
-            Width = 155,
+            Width = 120,
             Minimum = 1,
             Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
-            HorizontalAlignment = HorizontalAlignment.Left
+            VerticalAlignment = VerticalAlignment.Center
         };
         numericUpDown.ValueChanged += valueChangedHandler;
-        Grid.SetColumn(numericUpDown, 1);
-        row.Children.Add(numericUpDown);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(numericUpDown);
+        return panel;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker, out ToggleSwitch toggle,
-        EventHandler<ColorChangedEventArgs> colorChangedHandler, EventHandler<RoutedEventArgs> toggleHandler)
+    private static StackPanel CreateColorCell(out ColorPicker colorPicker, out CheckBox toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<ColorChangedEventArgs> colorChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-        colorPicker.ColorChanged += colorChangedHandler;
-        Grid.SetColumn(colorPicker, 1);
-        row.Children.Add(colorPicker);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
         toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(toggle);
+        colorPicker = new ColorPicker { Width = 120, VerticalAlignment = VerticalAlignment.Center };
+        colorPicker.ColorChanged += colorChangedHandler;
+        panel.Children.Add(colorPicker);
+        return panel;
     }
 
-    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+    private static StackPanel CreateFamilyCell(out ComboBox comboBox, out CheckBox toggle,
         EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
+        comboBox = new ComboBox { Width = 150, VerticalAlignment = VerticalAlignment.Center };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
             comboBox.Items.Add(font);
         }
         comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(comboBox);
+        return panel;
     }
 
-    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
+    private static StackPanel CreateWeightCell(out ComboBox comboBox, out CheckBox toggle,
         EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
+        comboBox = new ComboBox { Width = 110, VerticalAlignment = VerticalAlignment.Center };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
             comboBox.Items.Add(weight);
         }
         comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字重", Margin = new Thickness(30, 0, 0, 0) };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
+        panel.Children.Add(comboBox);
+        return panel;
     }
 
     private TextBlock CreateFontWeightHintTextBlock()
@@ -282,16 +320,23 @@ public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
         _dateSeparatorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _dateEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
         _dateEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _dateTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _dateColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _dateFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
         _weekDayEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         _weekDayEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
+        _weekDayEnableCustomFontFamilyToggle.Foreground = ThemeHelper.GetTextBrush();
         _weekDayEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _weekDayTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _weekDayColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _weekDayFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        foreach (var tb in _dynamicTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        var separatorBrush = ThemeHelper.GetSeparatorBrush();
+        foreach (var border in _tableCellBorders)
+        {
+            border.BorderBrush = separatorBrush;
+        }
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

@@ -100,7 +100,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         {
             _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
-        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3))
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3) || e.PropertyName == nameof(NextXingZuoCountdownSettings.EnableSimpleMode))
         {
             UpdateDisplay();
         }
@@ -116,9 +116,9 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
             var nextXingZuo = GetNextXingZuo(now);
             var targetTime = new DateTime(nextXingZuo.Year, nextXingZuo.Month, nextXingZuo.Day, 0, 0, 0);
             var timeLeft = targetTime - now;
-            Text1Display = _settings.Text1;
+            Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
             NameDisplay = $"{nextXingZuo.Name} ({nextXingZuo.DateRange})";
-            Text3Display = _settings.Text3;
+            Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
             TimeDisplay = FormatTime(timeLeft);
         }
         catch { }
@@ -134,9 +134,9 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
             var timeLeft = targetTime - now;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                Text1Display = _settings.Text1;
+                Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
                 NameDisplay = $"{nextXingZuo.Name} ({nextXingZuo.DateRange})";
-                Text3Display = _settings.Text3;
+                Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
                 TimeDisplay = FormatTime(timeLeft);
             });
         }

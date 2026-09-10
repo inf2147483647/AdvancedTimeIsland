@@ -116,6 +116,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
             _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text1) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text3) ||
+                 e.PropertyName == nameof(NextFestivalCountdownSettings.EnableSimpleMode) ||
                  e.PropertyName == nameof(NextFestivalCountdownSettings.EnableInternationalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableChineseTraditionalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableRedFestivals))
         {
             UpdateDisplay();
@@ -132,9 +133,9 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
             var nextFestival = GetNextFestival(now);
             var targetTime = new DateTime(nextFestival.Year, nextFestival.Month, nextFestival.Day, 0, 0, 0);
             var timeLeft = targetTime - now;
-            Text1Display = _settings.Text1;
+            Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
             NameDisplay = nextFestival.Name;
-            Text3Display = _settings.Text3;
+            Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
             TimeDisplay = FormatTime(timeLeft);
         }
         catch { }
@@ -150,9 +151,9 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
             var timeLeft = targetTime - now;
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
-                Text1Display = _settings.Text1;
+                Text1Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text1;
                 NameDisplay = nextFestival.Name;
-                Text3Display = _settings.Text3;
+                Text3Display = _settings.EnableSimpleMode ? string.Empty : _settings.Text3;
                 TimeDisplay = FormatTime(timeLeft);
             });
         }

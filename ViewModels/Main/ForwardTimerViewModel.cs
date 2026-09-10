@@ -167,6 +167,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(ForwardTimerSettings.Name) ||
             e.PropertyName == nameof(ForwardTimerSettings.Text3) ||
             e.PropertyName == nameof(ForwardTimerSettings.Text4) ||
+            e.PropertyName == nameof(ForwardTimerSettings.EnableSimpleMode) ||
             e.PropertyName == nameof(ForwardTimerSettings.TimeBaseType) ||
             e.PropertyName == nameof(ForwardTimerSettings.StartTime))
         {
@@ -315,11 +316,13 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(elapsedSeconds), elapsedMs, startTimeDate, now);
 
-        Text1Display = _settings.Text1;
+        var simple = _settings.EnableSimpleMode;
+
+        Text1Display = simple ? string.Empty : _settings.Text1;
         NameDisplay = _settings.Name;
-        Text3Display = _settings.Text3;
+        Text3Display = simple ? string.Empty : _settings.Text3;
         TimeDisplay = timeText;
-        Text4Display = _settings.Text4;
+        Text4Display = simple ? string.Empty : _settings.Text4;
     }
 
     private string FormatTime(string format, long secondsElapsed, double millisecondsElapsed, DateTime startTimeDate, DateTime now)

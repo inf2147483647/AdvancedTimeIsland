@@ -1,8 +1,10 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Views.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -21,19 +23,16 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     private NumericUpDown _labelFontSizeNumericUpDown;
     private ColorPicker _valueColorPicker;
     private NumericUpDown _valueFontSizeNumericUpDown;
-    private ToggleSwitch? _labelEnableCustomFontSizeToggle;
-    private ToggleSwitch? _labelEnableCustomFontColorToggle;
-    private ToggleSwitch? _valueEnableCustomFontSizeToggle;
-    private ToggleSwitch? _valueEnableCustomFontColorToggle;
+    private CheckBox? _labelEnableCustomFontSizeToggle;
+    private CheckBox? _labelEnableCustomFontColorToggle;
+    private CheckBox? _valueEnableCustomFontSizeToggle;
+    private CheckBox? _valueEnableCustomFontColorToggle;
     private ToggleSwitch _enableComponentToggle;
 
-    private TextBlock _labelTitleTextBlock;
-    private TextBlock _labelColorLabelTextBlock;
-    private TextBlock _labelFontSizeLabelTextBlock;
-    private TextBlock _valueTitleTextBlock;
     private TextBlock _valueColorNoteTextBlock;
-    private TextBlock _valueColorLabelTextBlock;
-    private TextBlock _valueFontSizeLabelTextBlock;
+
+    private readonly List<TextBlock> _dynamicTextBlocks = new();
+    private readonly List<Border> _tableCellBorders = new();
 
     private bool _isInDialogFlow;
 
@@ -46,32 +45,35 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     {
         var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
 
+        // ==================== 基本设置 ====================
+        var basicPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
         _enableComponentToggle = new ToggleSwitch { Content = "启用此组件", Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableComponentToggle.IsCheckedChanged += OnEnableComponentToggleChanged;
-        sp.Children.Add(_enableComponentToggle);
+        basicPanel.Children.Add(_enableComponentToggle);
 
-        _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold };
-        var labelTitleRow = CreateTitleRow(_labelTitleTextBlock, out _labelEnableCustomFontSizeToggle, out _labelEnableCustomFontColorToggle, out _, out _,
-            "启用自定义大小", "启用自定义颜色", null, null,
-            OnLabelEnableCustomFontSizeChanged, OnLabelEnableCustomFontColorChanged, null, null);
-        labelTitleRow.Margin = new Thickness(0, 10, 0, 0);
-        sp.Children.Add(labelTitleRow);
+        sp.Children.Add(SettingsGroupFactory.Create("基本设置", basicPanel));
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _labelFontSizeLabelTextBlock, out _labelFontSizeNumericUpDown, OnLabelFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _labelColorLabelTextBlock, out _labelColorPicker, OnLabelColorChanged));
+        // ==================== 外观设置 ====================
+        var appearancePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold };
-        var valueTitleRow = CreateTitleRow(_valueTitleTextBlock, out _valueEnableCustomFontSizeToggle, out _valueEnableCustomFontColorToggle, out _, out _,
-            "启用自定义大小", "启用自定义颜色", null, null,
-            OnValueEnableCustomFontSizeChanged, OnValueEnableCustomFontColorChanged, null, null);
-        valueTitleRow.Margin = new Thickness(0, 10, 0, 0);
-        sp.Children.Add(valueTitleRow);
+        _valueColorNoteTextBlock = new TextBlock { Text = "默认颜色根据FPS自动变化（>=30绿色，20-30黄色，<20红色），启用自定义颜色后将使用固定颜色", FontSize = 12, Foreground = ThemeHelper.GetSubTextBrush(), TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 10, 0, 0) };
+        appearancePanel.Children.Add(_valueColorNoteTextBlock);
 
-        _valueColorNoteTextBlock = new TextBlock { Text = "默认颜色根据FPS自动变化（>=30绿色，20-30黄色，<20红色），启用自定义颜色后将使用固定颜色", FontSize = 12, Foreground = ThemeHelper.GetSubTextBrush(), TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_valueColorNoteTextBlock);
+        sp.Children.Add(SettingsGroupFactory.Create("外观设置", appearancePanel));
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _valueFontSizeLabelTextBlock, out _valueFontSizeNumericUpDown, OnValueFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _valueColorLabelTextBlock, out _valueColorPicker, OnValueColorChanged));
+        // ==================== 文案设置 ====================
+        var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        var fontStyleTableScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Content = CreateFontStyleTable()
+        };
+        textPanel.Children.Add(fontStyleTableScroll);
+
+        sp.Children.Add(SettingsGroupFactory.Create("文案设置", textPanel));
 
         var scrollViewer = new ScrollViewer
         {
@@ -85,17 +87,22 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
     private void UpdateThemeColors()
     {
         _enableComponentToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontSizeToggle!.Foreground = ThemeHelper.GetTextBrush();
+        _labelEnableCustomFontColorToggle!.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontSizeToggle!.Foreground = ThemeHelper.GetTextBrush();
+        _valueEnableCustomFontColorToggle!.Foreground = ThemeHelper.GetTextBrush();
         _valueColorNoteTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        _valueColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        foreach (var tb in _dynamicTextBlocks)
+        {
+            tb.Foreground = ThemeHelper.GetTextBrush();
+        }
+
+        var separatorBrush = ThemeHelper.GetSeparatorBrush();
+        foreach (var border in _tableCellBorders)
+        {
+            border.BorderBrush = separatorBrush;
+        }
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -256,123 +263,119 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
         }
     }
 
-    private Grid CreateTitleRow(TextBlock title, out ToggleSwitch? toggle1, out ToggleSwitch? toggle2, out ToggleSwitch? toggle3, out ToggleSwitch? toggle4,
-        string? content1, string? content2, string? content3, string? content4,
-        EventHandler<RoutedEventArgs>? handler1, EventHandler<RoutedEventArgs>? handler2, EventHandler<RoutedEventArgs>? handler3, EventHandler<RoutedEventArgs>? handler4)
+    // ==================== 字体样式表格 ====================
+
+    private Grid CreateFontStyleTable()
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        Grid.SetColumn(title, 0);
-        row.Children.Add(title);
-
-        int col = 1;
-
-        if (content1 != null)
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(88) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        for (int i = 0; i < 3; i++)
         {
-            toggle1 = new ToggleSwitch { Content = content1, VerticalAlignment = VerticalAlignment.Center };
-            if (handler1 != null)
-                toggle1.IsCheckedChanged += handler1;
-            Grid.SetColumn(toggle1, col++);
-            row.Children.Add(toggle1);
-        }
-        else
-        {
-            toggle1 = null;
+            grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         }
 
-        if (content2 != null)
-        {
-            toggle2 = new ToggleSwitch { Content = content2, VerticalAlignment = VerticalAlignment.Center };
-            if (handler2 != null)
-                toggle2.IsCheckedChanged += handler2;
-            Grid.SetColumn(toggle2, col++);
-            row.Children.Add(toggle2);
-        }
-        else
-        {
-            toggle2 = null;
-        }
+        AddTableHeader(grid, 0, 0, "样式");
+        AddTableHeader(grid, 0, 1, "自定义大小");
+        AddTableHeader(grid, 0, 2, "自定义颜色");
 
-        if (content3 != null)
-        {
-            toggle3 = new ToggleSwitch { Content = content3, VerticalAlignment = VerticalAlignment.Center };
-            if (handler3 != null)
-                toggle3.IsCheckedChanged += handler3;
-            Grid.SetColumn(toggle3, col++);
-            row.Children.Add(toggle3);
-        }
-        else
-        {
-            toggle3 = null;
-        }
+        AddTableRowLabel(grid, 1, "标签");
+        AddTableCell(grid, 1, 1, CreateSizeCell(out _labelFontSizeNumericUpDown, out _labelEnableCustomFontSizeToggle, OnLabelEnableCustomFontSizeChanged, OnLabelFontSizeChanged));
+        AddTableCell(grid, 1, 2, CreateColorCell(out _labelColorPicker, out _labelEnableCustomFontColorToggle, OnLabelEnableCustomFontColorChanged, OnLabelColorChanged));
 
-        if (content4 != null)
-        {
-            toggle4 = new ToggleSwitch { Content = content4, VerticalAlignment = VerticalAlignment.Center };
-            if (handler4 != null)
-                toggle4.IsCheckedChanged += handler4;
-            Grid.SetColumn(toggle4, col);
-            row.Children.Add(toggle4);
-        }
-        else
-        {
-            toggle4 = null;
-        }
+        AddTableRowLabel(grid, 2, "值");
+        AddTableCell(grid, 2, 1, CreateSizeCell(out _valueFontSizeNumericUpDown, out _valueEnableCustomFontSizeToggle, OnValueEnableCustomFontSizeChanged, OnValueFontSizeChanged));
+        AddTableCell(grid, 2, 2, CreateColorCell(out _valueColorPicker, out _valueEnableCustomFontColorToggle, OnValueEnableCustomFontColorChanged, OnValueColorChanged));
 
-        return row;
+        // 表格外框（上边与左边），单元格自带右边与下边线，拼合为完整网格
+        var outerBorder = new Border
+        {
+            BorderThickness = new Thickness(1, 1, 0, 0),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            IsHitTestVisible = false
+        };
+        Grid.SetRowSpan(outerBorder, 3);
+        Grid.SetColumnSpan(outerBorder, 3);
+        _tableCellBorders.Add(outerBorder);
+        grid.Children.Add(outerBorder);
+
+        return grid;
     }
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out NumericUpDown numericUpDown,
-        EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    private Border CreateCellBorder(Control child)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        var border = new Border
+        {
+            BorderThickness = new Thickness(0, 0, 1, 1),
+            BorderBrush = ThemeHelper.GetSeparatorBrush(),
+            Padding = new Thickness(6, 3, 6, 3),
+            Child = child
+        };
+        _tableCellBorders.Add(border);
+        return border;
+    }
 
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+    private void AddTableHeader(Grid grid, int row, int col, string text)
+    {
+        var tb = new TextBlock { Text = text, FontSize = 11, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
 
+    private void AddTableRowLabel(Grid grid, int row, string text)
+    {
+        var tb = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(tb);
+        var border = CreateCellBorder(tb);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, 0);
+        grid.Children.Add(border);
+    }
+
+    private void AddTableCell(Grid grid, int row, int col, Control control)
+    {
+        var border = CreateCellBorder(control);
+        Grid.SetRow(border, row);
+        Grid.SetColumn(border, col);
+        grid.Children.Add(border);
+    }
+
+    private static StackPanel CreateSizeCell(out NumericUpDown numericUpDown, out CheckBox? toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    {
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
         numericUpDown = new NumericUpDown
         {
-            Width = 155,
+            Width = 120,
             Minimum = 1,
             Maximum = 72,
             Increment = 1m,
             FormatString = "0.00",
-            HorizontalAlignment = HorizontalAlignment.Left
+            VerticalAlignment = VerticalAlignment.Center
         };
         numericUpDown.ValueChanged += valueChangedHandler;
-        Grid.SetColumn(numericUpDown, 1);
-        row.Children.Add(numericUpDown);
-
-        return row;
+        panel.Children.Add(numericUpDown);
+        return panel;
     }
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out ColorPicker colorPicker,
-        EventHandler<ColorChangedEventArgs> colorChangedHandler)
+    private static StackPanel CreateColorCell(out ColorPicker colorPicker, out CheckBox? toggle,
+        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<ColorChangedEventArgs> colorChangedHandler)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        toggle.IsCheckedChanged += toggleHandler;
+        panel.Children.Add(toggle);
+        colorPicker = new ColorPicker { Width = 120, VerticalAlignment = VerticalAlignment.Center };
         colorPicker.ColorChanged += colorChangedHandler;
-        Grid.SetColumn(colorPicker, 1);
-        row.Children.Add(colorPicker);
-
-        return row;
+        panel.Children.Add(colorPicker);
+        return panel;
     }
 
     private void UpdateControlsEnabled()
