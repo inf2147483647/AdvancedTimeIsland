@@ -163,8 +163,7 @@ public class DebugPage : SettingsPageBase
 
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
     {
-        IAppHost.TryGetService<IUriNavigationService>()?
-            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuTemplate?ci_keepHistory=true"));
+        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuTemplate");
     }
 
     private async Task ShowForceCrashDialog()

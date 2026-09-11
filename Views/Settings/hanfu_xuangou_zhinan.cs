@@ -68,8 +68,7 @@ public class HanfuXuanGouZhiNanPage : HanfuPageTemplate
     {
         if (text == "男女同款选购")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandNanNvTongYongHanFuZhiBei?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandNanNvTongYongHanFuZhiBei");
         }
     }
 

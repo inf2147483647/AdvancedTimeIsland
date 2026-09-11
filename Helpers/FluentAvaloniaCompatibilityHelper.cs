@@ -6,6 +6,8 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.VisualTree;
+using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Helpers;
 
@@ -42,6 +44,70 @@ public static class FluentAvaloniaCompatibilityHelper
         }
 
         return false;
+    }
+
+    /// <summary>
+    /// 安全地跳转到 ClassIsland 设置页面（支持 hideDefault 的隐藏页）。
+    /// 原生 URI 导航在目标页为隐藏页时，ClassIsland 的 SelectNavigationItem 会取消当前导航项的选中状态，
+    /// 进而触发 FluentAvalonia NavigationView 在 SelectedItem 变为 null 时抛出 NullReferenceException。
+    /// 这里在导航前先清空导航栏的选择状态，使后续“取消选中”循环变为空操作，从而规避该崩溃。
+    /// </summary>
+    /// <param name="owner">用于定位设置窗口的任意控件，通常传入页面自身。</param>
+    /// <param name="pageId">目标设置页面的 Id。</param>
+    public static void NavigateToSettingsPage(Control? owner, string pageId)
+    {
+        if (string.IsNullOrEmpty(pageId))
+        {
+            return;
+        }
+
+        ResetSettingsNavigationSelection(owner);
+
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri($"classisland://app/settings/{pageId}?ci_keepHistory=true"));
+    }
+
+    /// <summary>
+    /// 清空设置窗口导航栏（FluentAvalonia NavigationView）的当前选中项，
+    /// 避免隐藏页导航过程中 FluentAvalonia 因 SelectedItem 置空而抛出 NullReferenceException。
+    /// </summary>
+    private static void ResetSettingsNavigationSelection(Control? owner)
+    {
+        if (owner == null)
+        {
+            return;
+        }
+
+        try
+        {
+            if (TopLevel.GetTopLevel(owner) is not Avalonia.Visual root)
+            {
+                return;
+            }
+
+            var navigationView = root.GetVisualDescendants().FirstOrDefault(v =>
+                v.GetType().FullName is "FluentAvalonia.UI.Controls.NavigationView"
+                    or "FluentAvalonia.UI.Controls.FANavigationView");
+            if (navigationView == null)
+            {
+                return;
+            }
+
+            var navigationViewType = navigationView.GetType();
+
+            // FluentAvalonia 会先置位“选中后触发 ItemInvoked”标记，
+            // 若该标记为 true 且 SelectedItem 被置空，NavigationView 会走到 RaiseItemInvoked(null, ...) 并崩溃。
+            // 该字段在 2.x / 3.x 中名称一致，故通过反射清除。
+            navigationViewType
+                .GetField("_shouldRaiseItemInvokedAfterSelection",
+                    BindingFlags.Instance | BindingFlags.NonPublic)?
+                .SetValue(navigationView, false);
+
+            navigationViewType.GetProperty("SelectedItem")?.SetValue(navigationView, null);
+        }
+        catch
+        {
+        }
     }
 
     public static Control CreateInfoBar()

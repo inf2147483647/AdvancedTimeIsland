@@ -11,6 +11,7 @@ using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Automation.Actions;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Shared;
 using MaterialDesignThemes.Wpf;
@@ -1564,6 +1565,16 @@ public class Plugin : PluginBase
         {
             _ = TimeBaseService.Instance?.SyncTimeNowAsync(TimeSpan.FromSeconds(10));
         });
+        services.AddAction<SetFloatingScheduleActionSettings, SetFloatingScheduleActionSettingsControl>(
+            "advancedtimeisland.set_floating_schedule",
+            "设置悬浮时间表开关",
+            PackIconKind.ToggleSwitch,
+            (settings, _) =>
+            {
+                if (settings is not SetFloatingScheduleActionSettings actionSettings) return;
+                if (Instance?.Settings is not { } pluginSettings) return;
+                pluginSettings.EnableFloatingSchedule = actionSettings.Enabled;
+            });
 
         // ========== 新增条件：星座、节气、生肖 ==========
         if (Settings.EnableXingZuo)

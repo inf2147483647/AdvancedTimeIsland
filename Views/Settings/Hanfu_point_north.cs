@@ -73,18 +73,15 @@ public class HanfuPointNorthPage : HanfuPageTemplate
     {
         if (text == "汉服百科")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfu?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfu");
         }
         else if (text == "选购指南")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuXuanGouZhiNan?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuXuanGouZhiNan");
         }
         else if (text == "常见（以及一些不常见的）问题")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuIssues?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuIssues");
         }
     }
 

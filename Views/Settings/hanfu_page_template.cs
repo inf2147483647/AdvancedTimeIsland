@@ -2140,8 +2140,7 @@ InfoBar 语法格式：
             if (url.StartsWith("route:", StringComparison.OrdinalIgnoreCase))
             {
                 var routePath = url.Substring("route:".Length);
-                var uri = new Uri($"classisland://app/settings/{routePath}?ci_keepHistory=true");
-                IAppHost.TryGetService<IUriNavigationService>()?.NavigateWrapped(uri);
+                FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, routePath);
             }
             else
             {

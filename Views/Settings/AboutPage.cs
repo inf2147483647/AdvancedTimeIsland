@@ -457,8 +457,7 @@ public class AboutPage : SettingsPageBase
 
         _usingGuideButton.Click += (s, e) =>
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandUsingPointer?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandUsingPointer");
         };
 
         panel.Children.Add(_usingGuideButton);
@@ -553,8 +552,7 @@ public class AboutPage : SettingsPageBase
         feedbackButton.Click += (s, e) =>
         {
             // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / 问卷星双提交渠道）
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandIssueFeedback?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandIssueFeedback");
         };
 
         authorPanel.Children.Add(feedbackButton);

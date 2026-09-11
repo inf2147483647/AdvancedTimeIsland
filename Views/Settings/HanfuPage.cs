@@ -372,82 +372,68 @@ public class HanfuPage : HanfuPageTemplate
 
         if (text == "贴里 明制")
         {
-            var uri = isMaleTab
-                ? "classisland://app/settings/AdvancedTimeIslandTieliMingStyleMale?ci_keepHistory=true"
-                : "classisland://app/settings/AdvancedTimeIslandTieliMingStyle?ci_keepHistory=true";
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri(uri));
+            var pageId = isMaleTab
+                ? "AdvancedTimeIslandTieliMingStyleMale"
+                : "AdvancedTimeIslandTieliMingStyle";
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, pageId);
         }
         else if (text == "百迭裙 宋制")
         {
-            var uri = isMaleTab
-                ? "classisland://app/settings/AdvancedTimeIslandBaiDieQunMale?ci_keepHistory=true"
-                : "classisland://app/settings/AdvancedTimeIslandBaiDieQun?ci_keepHistory=true";
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri(uri));
+            var pageId = isMaleTab
+                ? "AdvancedTimeIslandBaiDieQunMale"
+                : "AdvancedTimeIslandBaiDieQun";
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, pageId);
         }
         else if (text == "满褶裙 明制")
         {
             // 女装“满褶裙 明制”尚未开发，仅在男装标签页跳转
             if (!isMaleTab)
                 return;
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandManZheQunMale?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandManZheQunMale");
         }
         else if (text == "马面裙 侧褶 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunCeZhe?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandMamianQunCeZhe");
         }
         else if (text == "马面裙 百褶 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandMamianQunBaiZhe?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandMamianQunBaiZhe");
         }
         else if (text == "背子 褙子 宋制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandBeiZi?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandBeiZi");
         }
         else if (text == "交窬裙 唐制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandQiXiongJiaoYuQun?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandQiXiongJiaoYuQun");
         }
         else if (text == "袄 衫 直领 唐制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandQiXiongTop?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandQiXiongTop");
         }
         else if (text == "主腰 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandZhuYaoMingStyle?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandZhuYaoMingStyle");
         }
         else if (text == "短衫 袄 交领 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandDuanShanAoJiaoLing?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandDuanShanAoJiaoLing");
         }
         else if (text == "短衫 袄 竖领 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandDuanShanAoShuLing?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandDuanShanAoShuLing");
         }
         else if (text == "长衫 袄 竖领 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoShuLing?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandChangShanAoShuLing");
         }
         else if (text == "长衫 袄 交领 明制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandChangShanAoJiaoLing?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandChangShanAoJiaoLing");
         }
         else if (text == "抹胸 裹肚 宋制")
         {
-            IAppHost.TryGetService<IUriNavigationService>()?
-                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandSongMo?ci_keepHistory=true"));
+            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandSongMo");
         }
     }
 
