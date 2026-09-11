@@ -12,6 +12,7 @@ using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Automation.Sai;
 using AdvancedTimeIsland.Helpers;
 using Avalonia.Controls;
 using Avalonia.Styling;
@@ -1648,6 +1649,10 @@ public class Plugin : PluginBase
                 }
             );
         }
+
+        // ========== SuperAutoIsland Blockly 积木注册 ==========
+        // 应用启动后（所有插件加载完毕）把本插件的行动与规则注册为 Blockly 积木。
+        SaiBlockRegistrar.Register();
     }
 
     private string GetCurrentFestival(DateTime date)

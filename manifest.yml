@@ -9,3 +9,8 @@ icon: icon.png
 url: https://github.com/inf2147483647/AdvancedTimeIsland
 supportedOSPlatforms:
   - Windows
+# SuperAutoIsland 为可选依赖：安装后本插件的行动/规则会注册为其 Blockly 积木；
+# 未安装时插件功能不受影响。
+dependencies:
+  - id: lrs2187.sai
+    isRequired: false
