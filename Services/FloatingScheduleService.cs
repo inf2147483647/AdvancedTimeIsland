@@ -64,8 +64,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private const uint SWP_NOREPOSITION_AV = 0x0200;
     private const int GWL_EXSTYLE = -20;
     private const int WS_EX_TOOLWINDOW = 0x00000080;
-    // 用户文档 要点6：WS_EX_COMPOSITED 启用 DWM 双缓冲合成；WS_EX_LAYERED 分层透明窗提示（长期有益，仍保留）
-    private const int WS_EX_COMPOSITED_AV = 0x02000000;
+    // 【★ 点击穿透失效根因】WS_EX_COMPOSITED(0x02000000) 不能与点击穿透同时存在：
+    //  Windows 对 GWL_EXSTYLE 的一次写入若同时含 COMPOSITED 与 TRANSPARENT，会静默丢弃这两位
+    //  （实测 2026-09 Win11 / Avalonia 12.1.1 DComp 窗口：写入 LAYERED|TRANSPARENT|COMPOSITED 后
+    //   读回 0x280108 —— 仅 LAYERED 生效，TRANSPARENT 与 COMPOSITED 均未落地，点击不再穿透；
+    //   去掉 COMPOSITED 后同窗口读回 0x2801A8/0x82801A8，穿透成功）。
+    //  该位原本按经验用于减少拖动闪烁，实际效果为零且会让鼠标穿透永远失效，故不再设置；
+    //  拖动闪烁已由"z-order 条件断言 + 拖动期抑制重设"解决（见 _suppressTopmostRefreshAv）。
     private const int WS_EX_LAYERED_AV    = 0x00080000;
     private const int WS_EX_TRANSPARENT_AV = 0x00000020;   // 点击穿透：Win32 消息投递前系统跳过命中测试，直接透到下一层窗口
     // 【★ 彻底置底】WS_EX_NOACTIVATE = 0x08000000：窗口点击/拖拽不激活（不获得焦点）。
@@ -73,6 +78,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  即使每 1ms 重设也"压不住"（DispatcherTimer 1ms 实际受系统时钟分辨率 ~15.6ms 限制）。
     //  置底时加该位 → 窗口永不激活 → 永不被提升 → 真正彻底置底。
     private const int WS_EX_NOACTIVATE_AV = 0x08000000;
+
+    // ========== 点击穿透（对齐 ClassIsland WindowPlatformService.SetWindowFeature）==========
+    //  加上 WS_EX_LAYERED 后必须声明分层属性，否则部分系统上 DComp（WS_EX_NOREDIRECTIONBITMAP）
+    //  窗口的命中测试/呈现行为异常：alpha=255 + LWA_ALPHA 表示完全不透明，内容正常显示而点击可穿透。
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
+    private const uint LWA_ALPHA_AV = 0x00000002;
+    // GW_HWNDNEXT=2：z-order 中本窗口下方的下一个窗口（用于把焦点让给下层窗口）
+    private const uint GW_HWNDNEXT_AV = 2;
+    [DllImport("user32.dll")]
+    private static extern bool SetForegroundWindow(IntPtr hWnd);
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
 
     // Per-Monitor V2 DPI 兜底（长期有益，保留）
     [DllImport("user32.dll")]
@@ -187,7 +205,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private PixelPoint _dragPendingPosAv;       // 被节流丢弃的"最新目标位置"（Released 时补应用）
     private bool _dragPendingValidAv;
     // 【修复：触摸拖动后桌面图标/悬浮窗严重闪烁】
-    //   根因：拖动时每 ~16ms _window.Position 移动带 WS_EX_COMPOSITED|WS_EX_LAYERED 的窗口，同时
+    //   根因：拖动时每 ~16ms _window.Position 移动带 WS_EX_LAYERED 的窗口，同时
     //   _topmostRefreshTimerAv（50ms/1ms 定时）频繁 SetWindowPos(HWND_TOPMOST/BOTTOM) 重设 z-order，
     //   两者在 DWM 桌面合成上争抢 → explorer 反复重绘桌面 → 悬浮窗与桌面图标一起闪烁。
     //   修复：拖动期间抑制 z-order/exstyle 重设（_suppressTopmostRefreshAv=true 时 ApplyWindowLayer 直接跳过），
@@ -270,6 +288,17 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private IntPtr _topmostOldWndProcAv = IntPtr.Zero;
     private IntPtr _topmostHookedHwndAv = IntPtr.Zero;
     private TopmostWndProcAv? _topmostWndProcDelegateAv;
+    // 【鼠标穿透样式被 Avalonia 覆盖】Avalonia Win32 后端在窗口显示/属性变化（Show 流程 forceChanges、
+    //  ShowInTaskbar/Decorations/WindowState/Resizable）时会用内部值整体重写 GWL_EXSTYLE，外部 SetWindowLong
+    //  加的 WS_EX_LAYERED/TRANSPARENT/TOOLWINDOW/NOACTIVATE 会被抹掉（实测 exStyle 0x82801A8 → 0x200108）。
+    //  两道防线：
+    //   1) WindowStylesCallback 注入（主）：反编译确认 Avalonia 每次重写前都会调用该回调并把返回值写回保存，
+    //      样式位因此不会丢失；字段保存委托引用防 GC，hwnd 用于窗口重建后的幂等重挂；
+    //   2) Activated 自愈（备）：若样式仍被抹掉，用户第一次点击会命中并激活窗口，此时立即重新应用并把焦点
+    //      让给下层窗口（对齐 ClassIsland MainWindow.OnActivated；官方注释指出在属性变化回调里写样式会
+    //      死循环/栈溢出，故不拦截属性变化）。此外置顶/置底定时器 Tick 的 ApplyExStylesAv 亦持续补写。
+    private Delegate? _avWindowStylesCallbackAv;
+    private IntPtr _avStylesHookedHwndAv = IntPtr.Zero;
     // Mode 0/1/2/3 当前激活模式（便于 Detach 时判定走哪路清理，避免误清理）
     private FloatingTopmostRefreshMode _currentTopmostModeAv = (FloatingTopmostRefreshMode)(-1);
     // 【修复 Issue 1】ApplyWindowLayer 重入计数器：防止 Mode 0 WndProc 钩子"自己 Apply→SetWindowPos→WM_WINDOWPOSCHANGED→Post Apply" 无限死循环
@@ -752,6 +781,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // （重置方案A → 系统原生拖拽在窗口销毁时由系统自动释放，不需要手动清理；此处只做收尾）
         try { _window?.Close(); } catch { }
         _window = null;
+        // 窗口已销毁：释放 WindowStylesCallback 委托引用并清挂钩标记，下次建窗时重新挂载
+        _avWindowStylesCallbackAv = null;
+        _avStylesHookedHwndAv = IntPtr.Zero;
+        // 穿透防抖缓存随窗口失效：重建后 ApplyClickThrough 必须重新应用（含非 Windows 的 IsHitTestVisible 兜底）
+        _lastAppliedClickThrough = false;
         _containerBorder = null;
         _currentProgressIndicator = null;
         _currentProgressHost = null;
@@ -1307,16 +1341,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
         }
         catch { }
+        // 对齐 ClassIsland MainWindow.OnActivated：窗口被激活（样式被 Avalonia 抹掉后用户点中窗口）时
+        // 自愈式重新应用鼠标穿透/分层/AltTab 隐藏等扩展样式。事件随窗口生命周期，Close 后自动失效。
+        _window.Activated += FloatingWindow_OnActivatedAv;
         _window.Opened += (_, _) =>
         {
-            ApplyWindowLayer();
 #if WINDOWS
+            // 必须最先挂 WindowStylesCallback：此后 Avalonia 任何窗口属性更新/Show 流程重写 GWL_EXSTYLE 时，
+            // TOOLWINDOW/LAYERED/TRANSPARENT/NOACTIVATE 等位都会经回调自动补回，鼠标穿透不再失效。
+            try { InstallWindowStylesCallbackAv(); } catch { }
             try { HideFromAltTabWin32(_window); } catch { }
-            // 窗口打开后统一管理分层样式 + 重新应用防止截图（affinity 与 HWND 绑定，窗口重建后必须重设）
-            UpdateLayeredStyleAv();
+            // 统一收敛扩展样式（Alt+Tab 隐藏/分层/点击穿透/置底不激活）
+            //  + 重新应用防止截图（affinity 与 HWND 绑定，窗口重建后必须重设）
+            ApplyExStylesAv();
             ApplyPreventCaptureAv();
 #endif
-            // 初次打开时强制应用点击穿透 + 指针淡化（Host 可能在打开前就保存了配置）
+            ApplyWindowLayer();
+            // 初次打开时强制应用点击穿透 + 指针淡化（Host 可能在打开前就保存了配置；
+            //  非 Windows 平台下 Win 分支不执行，由此方法走 IsHitTestVisible 跨平台兜底）
             ApplyClickThrough();
             ApplyHoverFade(force: true);
             // 【贴边隐藏】初次打开若保存的位置已贴边，防抖 250ms（等 SizeToContent 完成布局）后评估滑出
@@ -1409,19 +1451,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 {
                     if (layer == FloatingScheduleWindowLayer.Topmost)
                     {
-                        // 置顶：清除 WS_EX_NOACTIVATE（允许交互激活），SetWindowPos 提到最前
-                        //  【对齐 ClassIsland】完整 SWP 标志（SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/SWP_NOREPOSITION）
-                        //  防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
-                        // 【修复闪烁】每 50ms/1ms Tick 都会走到这里；若目标扩展样式与当前值相同则跳过 SetWindowLong，
-                        //  避免反复写入相同 GWL_EXSTYLE 强制 DWM 重评估 WS_EX_LAYERED/COMPOSITED 合成分层造成视觉闪烁。
-                        try
-                        {
-                            var exT = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                            var targetT = exT & ~WS_EX_NOACTIVATE_AV;
-                            if (targetT != exT)
-                                SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetT);
-                        }
-                        catch { }
+                        // 置顶：清除 WS_EX_NOACTIVATE（允许交互激活）——扩展样式统一收敛，
+                        //  顺带保证 LAYERED/TRANSPARENT/TOOLWINDOW 等位未被 Avalonia 覆盖丢失；
+                        //  ApplyExStylesAv 内部"值相同不写"，高频 Tick 下不会强制 DWM 重评估导致闪烁。
+                        try { ApplyExStylesAv(); } catch { }
                         // 【修复闪烁·z-order 条件断言（闪烁主因）】GetWindow(GW_HWNDFIRST)==hwnd 说明本窗口已处于
                         //  z-order 链顶端 → 稳态下直接跳过 SetWindowPos，消除"每 50ms/1ms 重设 z-order → DWM 反复
                         //  重合成 → 窗口闪烁"。仅当被其它 topmost 窗口抢占（first != hwnd）时才重设一次，重设后下一
@@ -1436,19 +1469,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     else
                     {
                         // 【★ 彻底置底】
-                        //  1) 加 WS_EX_NOACTIVATE：置底窗口点击/拖拽不激活 → 永不被 Windows 提升 z-order
-                        //     （激活提升是置底失效的主因：即使每 1ms 重设，激活提升发生在两次重设之间且优先级更高）
+                        //  1) 扩展样式统一收敛：置底时置 WS_EX_NOACTIVATE（点击/拖拽不激活 → 永不被 Windows
+                        //     提升 z-order；激活提升是置底失效主因），同时校验其他样式位未被覆盖。
                         //  2) 完整 SWP 标志（对齐 ClassIsland Bottommost）：SWP_NOSENDCHANGING/SWP_NOOWNERZORDER/
                         //     SWP_NOREPOSITION 防止递归 WM_WINDOWPOSCHANGING 与 owner 窗口被连带重排。
-                        // 【修复闪烁】同上：值未变化时不写 GWL_EXSTYLE，防止 DWM 反复重评估合成分层导致闪烁
-                        try
-                        {
-                            var exB = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                            var targetB = exB | WS_EX_NOACTIVATE_AV;
-                            if (targetB != exB)
-                                SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)targetB);
-                        }
-                        catch { }
+                        try { ApplyExStylesAv(); } catch { }
                         // 【修复闪烁·z-order 条件断言】GetWindow(GW_HWNDLAST)==hwnd → 已在 z-order 链底端，跳过重设（同上）。
                         bool needBottomAv = true;
                         try { needBottomAv = GetWindow(hwnd, GW_HWNDLAST_AV) != hwnd; } catch { }
@@ -1481,14 +1506,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { SetWindowDpiAwarenessContext(hwnd, DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2_AV); } catch { /* ignore */ }
         try { SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2_AV); } catch { /* ignore */ }
 
-        // 用户文档 要点6：Alt+Tab 隐藏 TOOLWINDOW；同时加 WS_EX_COMPOSITED 减少 DWM 合成抖动闪烁。
-        // 注意：不再在此无条件加 WS_EX_LAYERED——分层窗口会使 WDA_EXCLUDEFROMCAPTURE（防止截图）静默失效
-        //（微软已知限制），分层位统一由 UpdateLayeredStyleAv 依据"防止截图"开关管理。
-        var exStyle = GetWindowLong(hwnd, GWL_EXSTYLE);
-        // IntPtr → int 时先转 long 防 32/64 位不一致（Avalonia GetWindowLong 返回签名是 IntPtr，与 WPF 端同）
-        int style = (int)(long)exStyle;
-        style |= WS_EX_TOOLWINDOW | WS_EX_COMPOSITED_AV;
-        SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)style);
+        // Alt+Tab 隐藏（WS_EX_TOOLWINDOW）等位已统一由
+        // ComputeDesiredExStyleAv/ApplyExStylesAv 管理（样式被 Avalonia 抹掉时由 WindowStylesCallback
+        // 注入 + 窗口 Activated 事件 + 层级定时器自愈补回），此处不再重复 SetWindowLong，
+        // 仅保留 Per-Monitor V2 DPI 兜底。
     }
 #endif
 
@@ -1751,7 +1772,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 Dispatcher.UIThread.Post(RefreshSchedule);
                 break;
             case nameof(PluginSettings.FloatingScheduleClickThrough):
-                Dispatcher.UIThread.Post(ApplyClickThrough);
+                Dispatcher.UIThread.Post(() => ApplyClickThrough());
                 break;
             case nameof(PluginSettings.FloatingScheduleHoverFade):
             case nameof(PluginSettings.FloatingScheduleHoverFadeReverse):
@@ -1844,8 +1865,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   Win32 SetWindowDisplayAffinity：开启 → WDA_EXCLUDEFROMCAPTURE（截屏/录屏结果中窗口不可见，透出下方内容）；
     //   低于 Win10 2004 回退 WDA_MONITOR（捕获中为黑色矩形）；关闭 → WDA_NONE。非 Windows 平台无对应 API，静默跳过（功能降级）。
     //   注意：affinity 与 HWND 绑定，窗口重建（EnsureWindow）后必须重新应用；因此应用点挂在 Opened 与设置变更两处。
-    //   关键：WDA_EXCLUDEFROMCAPTURE 对 WS_EX_LAYERED 分层窗口静默失效（微软已知限制，API 返回 TRUE 但截屏仍可捕获），
-    //   故必须先移除分层位（Avalonia 透明渲染走 DComp，不依赖分层位，见 UpdateLayeredStyleAv）。
+    //   样式联动：早期版本认为 WDA_EXCLUDEFROMCAPTURE 对 WS_EX_LAYERED 窗口静默失效而移除分层位；但实测
+    //   Avalonia DComp（WS_EX_NOREDIRECTIONBITMAP）窗口上 WS_EX_TRANSPARENT 必须搭配 WS_EX_LAYERED 点击穿透
+    //   才生效。故 ComputeDesiredExStyleAv 规定：仅当鼠标穿透关闭时，防截图开启才移除 LAYERED；两者同时开启时
+    //   保留 LAYERED 优先保证穿透可用（此组合下个别系统的防截图效果可能受影响，属可接受的功能取舍）。
     private void ApplyPreventCaptureAv()
     {
         if (_window == null) return;
@@ -1880,12 +1903,55 @@ public class FloatingScheduleService : IHostedService, IDisposable
 #endif
     }
 
-    // ==================================== 分层样式统一管理（WS_EX_LAYERED）====================================
-    //   WDA_EXCLUDEFROMCAPTURE（防止截图）与分层窗口互斥：微软已知限制——分层窗口无法被排除出截屏结果，
-    //   SetWindowDisplayAffinity 返回 TRUE 但静默失效。因此防止截图开启时需移除 WS_EX_LAYERED；
-    //   Avalonia 透明渲染走 WinUI Composition（DComp），不依赖该分层位，移除后透明照常、WDA 恢复生效。
-    //   关闭防止截图后恢复分层位（保留既有减少 DWM 合成抖动/点击穿透保险语义）。
-    private void UpdateLayeredStyleAv()
+    // ==================================== 扩展样式（GWL_EXSTYLE）统一管理 ====================================
+    //  背景：悬浮窗的多项 Win32 能力都通过扩展样式位实现，原先分散在 HideFromAltTabWin32（TOOLWINDOW）、
+    //  UpdateLayeredStyleAv（LAYERED）、ApplyClickThrough（TRANSPARENT）、ApplyWindowLayer
+    //  （NOACTIVATE）四处各写各的。存在三个问题：
+    //   1) Avalonia Win32 后端 UpdateWindowProperties 会在窗口显示/属性变化（Show 流程 forceChanges、
+    //      ShowInTaskbar/Decorations/WindowState/Resizable）时用内部值整体重写 GWL_EXSTYLE，外部写入的位
+    //      会被全部抹掉，鼠标穿透因此失效（实测复现：属性切换后 exStyle 0x280128 → 0x200108）。
+    //   2) 在 Avalonia WinUIComposition 的 WS_EX_NOREDIRECTIONBITMAP 窗口上实测（2026-09，Win11）：
+    //      WS_EX_TRANSPARENT 必须与 WS_EX_LAYERED 同时存在，系统才会把点击路由到下层窗口；
+    //      只有 TRANSPARENT 而无 LAYERED 时点击仍命中悬浮窗。
+    //   3) 【点击穿透长期失效的直接原因】原先常置的 WS_EX_COMPOSITED 与 TRANSPARENT 在同一次
+    //      SetWindowLong 中会被系统一起丢弃，TRANSPARENT 从未真正落地（见常量区实测数据）。
+    //  方案（对齐 ClassIsland 2.0 WindowPlatformService.SetWindowFeature + MainWindow.OnActivated，
+    //  并保留经实测验证的 WindowStylesCallback 注入）：
+    //   - ComputeDesiredExStyleAv 是全部扩展样式位的唯一期望状态源；不设 WS_EX_COMPOSITED；
+    //   - 穿透三件套 LAYERED|TRANSPARENT|NOACTIVATE 同时置位，并调用 SetLayeredWindowAttributes
+    //     (alpha=255, LWA_ALPHA) 声明分层属性（官方实现的关键步骤）；
+    //   - OnAvaloniaWindowStylesAv 挂到 Avalonia 官方 WindowStylesCallback：Avalonia 每次重写样式前
+    //     都会调用该回调注入期望位并被写回保存，样式位因此不再丢失（实测：挂 hook 后属性更新与
+    //     Hide→Show 均保持穿透成功；未挂则 exStyle 由 0x82801A8 被抹成 0x200108，穿透失效）；
+    //   - 同时保留 Activated 自愈（把焦点让给 z-order 下方窗口）与置顶/置底定时器 Tick 补写作为二重兜底；
+    //   - 分层位规则：防止截图开启时按经验移除 LAYERED（WDA 兼容性顾虑），但鼠标穿透开启时 LAYERED 是
+    //     穿透生效的硬性前提——两者同时开启时优先保证鼠标穿透可用（LAYERED 强制保留）。
+    private int ComputeDesiredExStyleAv(int ex)
+    {
+        // Alt+Tab 隐藏（注意：不设 WS_EX_COMPOSITED——该位会被系统连同 TRANSPARENT 一起丢弃，见常量注释）
+        ex |= WS_EX_TOOLWINDOW;
+
+        bool through = _settings.FloatingScheduleClickThrough;
+        bool wantLayered = !_settings.FloatingSchedulePreventCapture || through;
+        if (wantLayered) ex |= WS_EX_LAYERED_AV;
+        else ex &= ~WS_EX_LAYERED_AV;
+
+        // 点击穿透：Win32 命中测试系统级透明（必须与 LAYERED 同存，见方法头注释）
+        if (through) ex |= WS_EX_TRANSPARENT_AV;
+        else ex &= ~WS_EX_TRANSPARENT_AV;
+
+        // WS_EX_NOACTIVATE 规则（对齐 ClassIsland：开启穿透时三件套一起置位）：
+        //  - 穿透开启：永不激活（穿透窗口无需交互，且避免抢焦点/被系统提升 z-order）；
+        //  - 穿透关闭：置底窗口永不激活（激活会被系统强制提升 z-order），置顶窗口允许正常激活交互。
+        if (through || _settings.FloatingScheduleWindowLayer != FloatingScheduleWindowLayer.Topmost)
+            ex |= WS_EX_NOACTIVATE_AV;
+        else
+            ex &= ~WS_EX_NOACTIVATE_AV;
+        return ex;
+    }
+
+    /// <summary>读取 HWND 当前扩展样式并收敛到期望状态（值相同不写，避免高频触发 DWM 重评估闪烁）。</summary>
+    private void ApplyExStylesAv()
     {
         if (_window == null) return;
 #if WINDOWS
@@ -1894,29 +1960,133 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
             if (hwnd == IntPtr.Zero) return;
-            int ex = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-            bool wantLayered = !_settings.FloatingSchedulePreventCapture;
-            bool isLayered = (ex & WS_EX_LAYERED_AV) != 0;
-            if (wantLayered != isLayered)
+            int current = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
+            int target = ComputeDesiredExStyleAv(current);
+            if (target != current)
             {
-                int target = wantLayered ? (ex | WS_EX_LAYERED_AV) : (ex & ~WS_EX_LAYERED_AV);
+                // LAYERED 从无到有时必须声明分层属性（alpha=255 不透明），与 ClassIsland 实现一致
+                bool layeredGained = (current & WS_EX_LAYERED_AV) == 0 && (target & WS_EX_LAYERED_AV) != 0;
                 SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)target);
+                if (layeredGained)
+                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA_AV);
             }
         }
-        catch (Exception ex) { _logger.LogDebug(ex, "UpdateLayeredStyleAv 失败（忽略）"); }
+        catch (Exception ex) { _logger.LogDebug(ex, "ApplyExStylesAv 失败（忽略）"); }
 #endif
     }
 
-    // ==================================== 点击穿透（参考 ClassIsland 窗口管理 + Win32 WS_EX_TRANSPARENT）====================================
-    //   - Windows：直接改 HWND GWL_EXSTYLE 的 WS_EX_TRANSPARENT 位（命中测试系统级透明，直接穿透到下层窗口）
-    //   - 非 Windows（Linux/macOS X11/Wayland）：Avalonia 跨平台兜底——把根容器 InputElement.IsHitTestVisible=false
-    //   - 两种模式都会在关闭时恢复，防止 AltTab 隐藏/拖拽链路残留样式
+    // 分层样式已并入 ComputeDesiredExStyleAv 统一管理；保留薄包装避免改动多个调用点。
+    private void UpdateLayeredStyleAv() => ApplyExStylesAv();
+
+    /// <summary>
+    /// 反射订阅 Avalonia Win32 WindowImpl.WindowStylesCallback（Avalonia 11.x/12.x 均提供）。
+    /// 反编译确认该回调在 WindowImpl.UpdateWindowProperties 内、SetExtendedStyle 写入前被调用，
+    /// 且返回值会被写回并保存到 _savedWindowInfo.ExStyle——因此它是让插件样式位在 Avalonia 每次
+    /// 重写 GWL_EXSTYLE（Show 流程 forceChanges / 属性变化）后依然存活的唯一可靠机制。
+    /// TryGetPlatformHandle() 返回内部 WindowImplPlatformHandle 包装，其 _owner 私有字段持有 WindowImpl 本体。
+    /// 找不到该 API 的环境静默降级：仅靠 ApplyExStylesAv/Activated 自愈（旧行为）。
+    /// </summary>
+    private void InstallWindowStylesCallbackAv()
+    {
+        if (_window == null) return;
+#if WINDOWS
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            var handle = _window.TryGetPlatformHandle();
+            if (handle == null) return;
+            var hwnd = handle.Handle;
+            if (hwnd == IntPtr.Zero || _avStylesHookedHwndAv == hwnd) return;
+
+            var ownerField = handle.GetType().GetField("_owner",
+                BindingFlags.NonPublic | BindingFlags.Instance);
+            var owner = ownerField?.GetValue(handle);
+            var callbackProp = owner?.GetType().GetProperty("WindowStylesCallback",
+                BindingFlags.Public | BindingFlags.Instance);
+            if (callbackProp == null)
+            {
+                _logger.LogDebug("InstallWindowStylesCallbackAv: 当前 Avalonia 版本无 WindowStylesCallback，降级为 SetWindowLong 路径。");
+                return;
+            }
+            var method = typeof(FloatingScheduleService).GetMethod(nameof(OnAvaloniaWindowStylesAv),
+                BindingFlags.NonPublic | BindingFlags.Instance)!;
+            _avWindowStylesCallbackAv = Delegate.CreateDelegate(callbackProp.PropertyType, this, method);
+            callbackProp.SetValue(owner, _avWindowStylesCallbackAv);
+            _avStylesHookedHwndAv = hwnd;
+        }
+        catch (Exception ex)
+        {
+            _avWindowStylesCallbackAv = null;
+            _avStylesHookedHwndAv = IntPtr.Zero;
+            _logger.LogDebug(ex, "InstallWindowStylesCallbackAv 失败，降级为 SetWindowLong 路径（忽略）。");
+        }
+#endif
+    }
+
+    // Avalonia CustomWindowStylesCallback 签名：ValueTuple<uint, uint> Invoke(uint style, uint exStyle)
+    private (uint Style, uint ExStyle) OnAvaloniaWindowStylesAv(uint style, uint exStyle)
+    {
+        try
+        {
+            exStyle = (uint)ComputeDesiredExStyleAv((int)exStyle);
+        }
+        catch { /* 回调内异常绝不能冒泡到 Avalonia 窗口过程 */ }
+        return (style, exStyle);
+    }
+
+    /// <summary>
+    /// 窗口 Activated 自愈处理器（对齐 ClassIsland MainWindow.MainWindow_OnActivated）：
+    /// Avalonia 重写 GWL_EXSTYLE 后，用户第一次点击会命中并激活本窗口——此刻立刻重新应用全部扩展样式，
+    /// 穿透即恢复，后续点击正常透到下层。穿透开启时还需把焦点让给下方窗口（模拟"从未被激活"）。
+    /// </summary>
+    private void FloatingWindow_OnActivatedAv(object? sender, EventArgs e)
+    {
+#if WINDOWS
+        if (!OperatingSystem.IsWindows()) return;
+        try
+        {
+            if (_settings.FloatingScheduleClickThrough)
+                ApplyClickThrough(force: true);
+            else
+                ApplyExStylesAv();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "FloatingWindow_OnActivatedAv 重新应用窗口样式失败（忽略）"); }
+#endif
+    }
+
+    /// <summary>
+    /// 把前台焦点让给 z-order 中本窗口下方第一个可见窗口（照搬 ClassIsland MoveFocusToWindowBehind）。
+    /// 开启鼠标穿透时若窗口恰为前台窗口（如切换设置前正在交互），不转移焦点会导致键盘输入落空/任务栏闪烁。
+    /// </summary>
+    private static void MoveFocusToWindowBehindAv(IntPtr hwnd)
+    {
+        try
+        {
+            var next = GetWindow(hwnd, GW_HWNDNEXT_AV);
+            while (next != IntPtr.Zero)
+            {
+                if (IsWindowVisible(next))
+                {
+                    SetForegroundWindow(next);
+                    return;
+                }
+                next = GetWindow(next, GW_HWNDNEXT_AV);
+            }
+        }
+        catch { /* ignore */ }
+    }
+
+    // ==================================== 点击穿透（对齐 ClassIsland WindowFeatures.Transparent）====================================
+    //   - Windows：LAYERED|TRANSPARENT|NOACTIVATE 三件套 + SetLayeredWindowAttributes(255, LWA_ALPHA)，
+    //     前台时把焦点转移给下层窗口；样式被 Avalonia 抹掉时由 Activated 事件自愈重新应用
+    //   - 非 Windows（Linux/macOS X11/Wayland）：Avalonia 跨平台兜底——把根容器 IsHitTestVisible=false
+    //   - 关闭时统一经 ComputeDesiredExStyleAv 清位，防止 AltTab 隐藏/拖拽链路残留样式
     private bool _lastAppliedClickThrough = false;
-    private void ApplyClickThrough()
+    private void ApplyClickThrough(bool force = false)
     {
         if (_window == null) return;
         bool through = _settings.FloatingScheduleClickThrough;
-        if (_lastAppliedClickThrough == through) return;
+        if (!force && _lastAppliedClickThrough == through) return;
         _lastAppliedClickThrough = through;
 
 #if WINDOWS
@@ -1925,17 +2095,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
             try
             {
                 var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-                if (hwnd != IntPtr.Zero)
+                if (hwnd == IntPtr.Zero) return;
+                // 统一由 ComputeDesiredExStyleAv 收敛全部扩展样式位（TRANSPARENT 必须与 LAYERED 同存）
+                ApplyExStylesAv();
+                if (through)
                 {
-                    // Avalonia P/Invoke 签名现在用 IntPtr 返回/第三个参数以兼容 net8.0/net10.0 的 nint
-                    //  强转 (int) 安全：GWL_EXSTYLE 返回 32 位 DWORD 位集，高 32 位为 0。
-                    int style = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
-                    if (through) style |= WS_EX_TRANSPARENT_AV;
-                    else          style &= ~WS_EX_TRANSPARENT_AV;
-                    // WS_EX_LAYERED 不再在此写入：分层位由 UpdateLayeredStyleAv 统一管理
-                    // （防止截图开启时必须移除分层位，否则 WDA_EXCLUDEFROMCAPTURE 静默失效）
-                    SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)style);
-                    UpdateLayeredStyleAv();
+                    // ClassIsland SetWindowFeature(Transparent, true) 的两个关键收尾步骤：
+                    //  1) 声明分层属性 alpha=255（完全不透明），DComp 内容正常呈现且命中测试可穿透；
+                    //  2) 若本窗口当前是前台窗口，把焦点交给 z-order 下方第一个可见窗口。
+                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA_AV);
+                    // 便于现场排查：记录实际落地的扩展样式（应含 WS_EX_LAYERED|WS_EX_TRANSPARENT）
+                    _logger.LogDebug("悬浮窗点击穿透已应用，exStyle=0x{Ex:x}", (long)GetWindowLong(hwnd, GWL_EXSTYLE));
+                    if (GetForegroundWindow() == hwnd)
+                        MoveFocusToWindowBehindAv(hwnd);
                 }
             }
             catch (Exception ex) { _logger.LogDebug(ex, "切换悬浮窗 WS_EX_TRANSPARENT 失败，安全忽略。"); }
