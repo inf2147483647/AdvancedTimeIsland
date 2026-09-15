@@ -379,6 +379,38 @@ InfoBar 语法格式：
         RenderMarkdown(panel, markdown);
     }
 
+    /// <summary>
+    /// 读取与页面代码文件同名的 Markdown 内容文件（位于插件目录下的 Markdown 文件夹）。
+    /// </summary>
+    protected static string LoadMarkdownFile(string fileName)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var pluginDir = string.IsNullOrEmpty(assemblyLocation)
+                ? baseDir
+                : Path.GetDirectoryName(assemblyLocation) ?? baseDir;
+
+            foreach (var dir in new[] { baseDir, pluginDir })
+            {
+                var path = Path.Combine(dir, "Markdown", fileName);
+                if (File.Exists(path))
+                {
+                    return File.ReadAllText(path);
+                }
+            }
+
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile: Markdown/{fileName} not found.");
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile failed for {fileName}: {ex.Message}");
+        }
+
+        return "";
+    }
+
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
         _hyperlinkSpanMap = new Dictionary<Span, string>();

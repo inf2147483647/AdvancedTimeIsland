@@ -81,6 +81,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- 汉服页面的 Markdown 内容：与 Views/Settings 下的页面代码文件同名，
+             随插件目录一并分发，由 HanfuPageTemplate.LoadMarkdownFile 在运行时读取。 -->
+        <None Update="Markdown\**\*.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
+    </ItemGroup>
+
+    <ItemGroup>
       <Folder Include="Assets\Icons\" />
       <Folder Include="Assets\Markdown\" />
     </ItemGroup>
