@@ -228,6 +228,17 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
     }
 
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -458,6 +469,17 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
     {
         get => _enableSimpleMode;
         set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
+    }
+
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -747,6 +769,17 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
     {
         get => _enableSimpleMode;
         set { if (_enableSimpleMode != value) { _enableSimpleMode = value; OnPropertyChanged(); } }
+    }
+
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

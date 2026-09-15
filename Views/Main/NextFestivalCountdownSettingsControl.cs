@@ -30,6 +30,7 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private TextBlock? _appearanceGroupHeader;
     private ToggleSwitch? _simpleModeToggle;
     private TextBlock? _simpleModeDesc;
+    private ToggleSwitch? _timeCorrectionToggle;
 
     private CheckBox? _text1EnableCustomFontSizeToggle;
     private CheckBox? _text1EnableCustomFontColorToggle;
@@ -79,6 +80,14 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
             Margin = new Thickness(0, 4, 0, 0)
         };
         sp.Children.Add(_formatHelpText);
+
+        _timeCorrectionToggle = new ToggleSwitch
+        {
+            Content = "差一矫正（当精度不足时最小单位加一）",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        _timeCorrectionToggle.IsCheckedChanged += OnTimeCorrectionToggleChanged;
+        sp.Children.Add(_timeCorrectionToggle);
 
         _festivalTypeTitle = new TextBlock { Text = "节日类型", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         sp.Children.Add(_festivalTypeTitle);
@@ -284,6 +293,7 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         if (_appearanceGroupHeader != null) _appearanceGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeToggle != null) _simpleModeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
+        if (_timeCorrectionToggle != null) _timeCorrectionToggle.Foreground = ThemeHelper.GetTextBrush();
 
         if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -394,6 +404,7 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
         if (_traditionalToggle != null) _traditionalToggle.IsChecked = Settings.EnableChineseTraditionalFestivals;
         if (_redToggle != null) _redToggle.IsChecked = Settings.EnableRedFestivals;
         if (_simpleModeToggle != null) _simpleModeToggle.IsChecked = Settings.EnableSimpleMode;
+        if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
 
         if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
         if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
@@ -464,5 +475,10 @@ public class NextFestivalCountdownSettingsControl : ComponentBase<NextFestivalCo
     private void OnSimpleModeToggleChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableSimpleMode = _simpleModeToggle?.IsChecked ?? false;
+    }
+
+    private void OnTimeCorrectionToggleChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.EnableTimeCorrection = _timeCorrectionToggle?.IsChecked ?? false;
     }
 }

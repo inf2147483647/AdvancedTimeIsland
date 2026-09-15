@@ -101,7 +101,7 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         {
             _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
-        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3) || e.PropertyName == nameof(NextJieQiCountdownSettings.EnableSimpleMode))
+        if (e.PropertyName == nameof(NextJieQiCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text1) || e.PropertyName == nameof(NextJieQiCountdownSettings.Text3) || e.PropertyName == nameof(NextJieQiCountdownSettings.EnableSimpleMode) || e.PropertyName == nameof(NextJieQiCountdownSettings.EnableTimeCorrection))
         {
             UpdateDisplay();
         }
@@ -169,6 +169,58 @@ public class NextJieQiCountdownViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
         var format = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天" : _settings.TimeFormat;
+
+        // 差一矫正：精度不足时将最小显示单位加一（与多倒计时组件一致）
+        if (_settings.EnableTimeCorrection && totalSeconds > 0 && !format.Contains("%x") && !format.Contains("%X"))
+        {
+            if (format.Contains("%s") || format.Contains("%S"))
+            {
+                seconds++;
+                if (seconds >= 60)
+                {
+                    seconds = 0;
+                    minutes++;
+                    if (minutes >= 60)
+                    {
+                        minutes = 0;
+                        hours++;
+                        if (hours >= 24)
+                        {
+                            hours = 0;
+                            days++;
+                        }
+                    }
+                }
+            }
+            else if (format.Contains("%m") || format.Contains("%M"))
+            {
+                minutes++;
+                if (minutes >= 60)
+                {
+                    minutes = 0;
+                    hours++;
+                    if (hours >= 24)
+                    {
+                        hours = 0;
+                        days++;
+                    }
+                }
+            }
+            else if (format.Contains("%h") || format.Contains("%H"))
+            {
+                hours++;
+                if (hours >= 24)
+                {
+                    hours = 0;
+                    days++;
+                }
+            }
+            else if (format.Contains("%d"))
+            {
+                days++;
+            }
+        }
+
         return format
             .Replace("%d", days.ToString())
             .Replace("%h", hours.ToString())

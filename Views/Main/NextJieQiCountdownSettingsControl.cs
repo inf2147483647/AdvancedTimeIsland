@@ -41,6 +41,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     private TextBlock? _appearanceGroupHeader;
     private ToggleSwitch? _simpleModeToggle;
     private TextBlock? _simpleModeDesc;
+    private ToggleSwitch? _timeCorrectionToggle;
 
     private readonly List<TextBlock> _dynamicTextBlocks = new();
     private readonly List<Border> _tableCellBorders = new();
@@ -76,6 +77,14 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
             Margin = new Thickness(0, 4, 0, 0)
         };
         sp.Children.Add(_formatHelpText);
+
+        _timeCorrectionToggle = new ToggleSwitch
+        {
+            Content = "差一矫正（当精度不足时最小单位加一）",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        _timeCorrectionToggle.IsCheckedChanged += OnTimeCorrectionToggleChanged;
+        sp.Children.Add(_timeCorrectionToggle);
 
         var styleTitle = new TextBlock { Text = "文案样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
         _dynamicTextBlocks.Add(styleTitle);
@@ -249,6 +258,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         if (_appearanceGroupHeader != null) _appearanceGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeToggle != null) _simpleModeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
+        if (_timeCorrectionToggle != null) _timeCorrectionToggle.Foreground = ThemeHelper.GetTextBrush();
 
         if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -279,6 +289,11 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
     private void OnSimpleModeToggleChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableSimpleMode = _simpleModeToggle?.IsChecked ?? false;
+    }
+
+    private void OnTimeCorrectionToggleChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.EnableTimeCorrection = _timeCorrectionToggle?.IsChecked ?? false;
     }
 
     private void OnText1EnableCustomFontSizeChanged(object? sender, EventArgs e)
@@ -376,6 +391,7 @@ public class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQiCountdow
         if (_timeEnableCustomFontColorToggle != null) _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
 
         if (_simpleModeToggle != null) _simpleModeToggle.IsChecked = Settings.EnableSimpleMode;
+        if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
 
         UpdateControlsEnabled();
 
