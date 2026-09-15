@@ -37,6 +37,12 @@
                        Foreground="{DynamicResource MaterialDesignBodyLight}"
                        Margin="0,2,0,8" />
 
+            <ci:SettingsCard x:Name="TimeCorrectionCard"
+                             IconGlyph="Timer"
+                             Header="差一矫正"
+                             Description="当精度不足时最小单位加一"
+                             Margin="0,4" />
+
             <!-- 文本1样式 -->
             <Separator Margin="0 16 0 8" />
             <ci:IconText Kind="FormatSize" Text="文本1样式" Margin="0 0 0 8" />

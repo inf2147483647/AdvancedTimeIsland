@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
@@ -7,6 +8,7 @@ using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
@@ -65,6 +67,13 @@ public partial class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQi
         _timeEnableCustomFontSizeToggle = (CheckBox)((StackPanel)TimeFontSizeItem.Switcher).Children[1];
         _timeFontColorPicker = (WpfColorPicker)((StackPanel)TimeColorItem.Switcher).Children[0];
         _timeEnableCustomFontColorToggle = (CheckBox)((StackPanel)TimeColorItem.Switcher).Children[1];
+
+        // SettingsCard 无内置事件，通过 IsOn 依赖属性变化订阅开关切换
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(TimeCorrectionCard, (s, e) =>
+            {
+                Settings.EnableTimeCorrection = TimeCorrectionCard.IsOn;
+            });
     }
 
     private void OnText1EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
@@ -157,6 +166,7 @@ public partial class NextJieQiCountdownSettingsControl : ComponentBase<NextJieQi
     {
         Loaded -= OnLoaded;
         _formatTextBox.Text = Settings.TimeFormat;
+        TimeCorrectionCard.IsOn = Settings.EnableTimeCorrection;
 
         _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
         _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);

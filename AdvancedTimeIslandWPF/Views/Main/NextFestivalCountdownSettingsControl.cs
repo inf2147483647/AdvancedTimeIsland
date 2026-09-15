@@ -79,6 +79,10 @@ public partial class NextFestivalCountdownSettingsControl : ComponentBase<NextFe
         var redDescriptor = DependencyPropertyDescriptor.FromProperty(
             SettingsCard.IsOnProperty, typeof(SettingsCard));
         redDescriptor.AddValueChanged(RedItem, (s, e) => Settings.EnableRedFestivals = RedItem.IsOn);
+
+        var timeCorrectionDescriptor = DependencyPropertyDescriptor.FromProperty(
+            SettingsCard.IsOnProperty, typeof(SettingsCard));
+        timeCorrectionDescriptor.AddValueChanged(TimeCorrectionCard, (s, e) => Settings.EnableTimeCorrection = TimeCorrectionCard.IsOn);
     }
 
     private void OnText1EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
@@ -184,6 +188,7 @@ public partial class NextFestivalCountdownSettingsControl : ComponentBase<NextFe
         InternationalItem.IsOn = Settings.EnableInternationalFestivals;
         TraditionalItem.IsOn = Settings.EnableChineseTraditionalFestivals;
         RedItem.IsOn = Settings.EnableRedFestivals;
+        TimeCorrectionCard.IsOn = Settings.EnableTimeCorrection;
 
         _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
         _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
