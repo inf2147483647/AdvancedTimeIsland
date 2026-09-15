@@ -118,13 +118,26 @@ public class FloatingScheduleService : IDisposable, IHostedService
     [DllImport("user32.dll")]
     private static extern int SetWindowLong(IntPtr hWnd, int nIndex, IntPtr dwNewLong);
 
-    // 【修复闪烁·z-order 条件断言】GetWindow(GW_HWNDFIRST/GW_HWNDLAST)：判断本窗口当前是否已处于
-    //  topmost/bottommost 链首/末位。稳态时定时器 Tick 跳过 SetWindowPos，消除"每 50ms/1ms 重设
-    //  z-order → DWM 重合成 → 闪烁"（同 Avalonia 端）。
+    // 【修复闪烁·z-order 条件断言】稳态（已到位）时定时器 Tick 跳过 SetWindowPos，
+    //  消除"每 50ms/1ms 重设 z-order → DWM 重合成 → 闪烁"（同 Avalonia 端）。
+    //   - 置顶：GetWindow(GW_HWNDFIRST)==hwnd 判定已在链首（真实 Z 序探测，非记忆状态）；
+    //   - 置底：GetWindow(GW_HWNDLAST)==hwnd 不可用——HWND 链最底端是桌面 Shell（Progman/WorkerW），
+    //     正确置底时本窗永远 ≠ 链底 → 每 Tick 恒定误判"需重设" → 回到高频闪烁。
+    //     改用 IsRaisedAboveForeignWindowWpf 向下（GW_HWNDNEXT）扫描真实 Z 序（见该方法注释）。
+    //  注意：GW_HWNDFIRST=0 / GW_HWNDLAST=1 / GW_HWNDNEXT=2；旧代码把 GW_HWNDLAST 写成 2（实为
+    //  GW_HWNDNEXT）属笔误，勿再照抄。
     [DllImport("user32.dll")]
     private static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     private const uint GW_HWNDFIRST_WPF = 0;
-    private const uint GW_HWNDLAST_WPF = 2;
+    private const uint GW_HWNDNEXT_WPF = 2;   // z-order 中更靠下的窗口
+    private const int WS_EX_TOPMOST_WPF = 0x00000008;
+
+    // 【真实 Z 序探测·置底】排除本进程窗口（对话框/托盘浮层等同属本进程，不构成"被抬起"）
+    private static readonly uint OwnProcessIdWpf = (uint)Environment.ProcessId;
+    [DllImport("user32.dll")]
+    private static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint lpdwProcessId);
+    [DllImport("user32.dll")]
+    private static extern bool IsWindowVisible(IntPtr hWnd);
 
     // Per-Monitor V2 DPI 兜底：防止在宿主 DPI 上下文未正确继承时出现缩放错位
     // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = -4
@@ -1777,9 +1790,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
                     }
                     catch { }
                     _window.Topmost = false;
-                    // 【修复闪烁·z-order 条件断言】已在 z-order 链底端（GW_HWNDLAST==hwnd）→ 跳过重设（同上）。
-                    bool needBottomWpf = true;
-                    try { needBottomWpf = GetWindow(hwnd, GW_HWNDLAST_WPF) != hwnd; } catch { }
+                    // 【修复闪烁·真实 Z 序探测】已确认在底层 → 跳过重设（同上）。
+                    //  不能用 GetWindow(GW_HWNDLAST)==hwnd：链底是桌面 Shell（Progman/WorkerW），
+                    //  正确置底时本窗永远不等于链底 → 恒定误判"被抬起" → 每 50ms/1ms 重设一次 z-order
+                    //  → DWM 反复重合成 → 高频闪烁。改为向下扫描本窗之下是否存在"其它进程的普通可见窗口"。
+                    bool needBottomWpf = IsRaisedAboveForeignWindowWpf(hwnd);
                     if (needBottomWpf)
                         SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE | SWP_SHOWWINDOW |
@@ -1795,6 +1810,53 @@ public class FloatingScheduleService : IDisposable, IHostedService
         {
             System.Threading.Interlocked.Decrement(ref _inApplyWindowLayerWpf);
         }
+    }
+
+    /// <summary>
+    /// 【真实 Z 序探测·置底】沿 z-order 向下（GW_HWNDNEXT）扫描本窗之下的窗口，
+    /// 返回"本窗是否已被抬离最底层"（仅 true 才需要 SetWindowPos(HWND_BOTTOM)）。
+    ///  为什么探测真实 Z 序，而不是记一个"已置底"布尔标志：窗口被抬离底层的路径不一定伴随本窗焦点事件
+    ///  （其它程序最小化/还原、Shell 重排 Z 序、Alt+Tab 等由系统直接改 z-order），布尔标志会永久失真，
+    ///  导致窗口赖在前面再也压不回去。
+    ///  为什么不能只判断"链底是不是自己"：正确置底时本窗之下必然还有桌面 Shell 窗口（Progman/WorkerW），
+    ///  必须按类名排除，否则永远判定"被抬起" → 每 Tick 无谓 SetWindowPos → 回到高频闪烁。
+    ///  方向必须向下：若误扫上方（GW_HWNDPREV），正常置底状态也会命中"上方有普通窗口"，永远判定被抬起。
+    /// </summary>
+    private static bool IsRaisedAboveForeignWindowWpf(IntPtr hwnd)
+    {
+        try
+        {
+            var below = GetWindow(hwnd, GW_HWNDNEXT_WPF);   // GW_HWNDNEXT = z-order 中更靠下的窗口
+            while (below != IntPtr.Zero)
+            {
+                if (IsWindowVisible(below)
+                    && !IsShellOrOwnProcessWindowWpf(below)
+                    && ((int)GetWindowLong(below, GWL_EXSTYLE) & WS_EX_TOPMOST_WPF) == 0)
+                {
+                    return true;   // 本窗之下还有其它进程的普通可见窗口 → 不在底层
+                }
+                below = GetWindow(below, GW_HWNDNEXT_WPF);
+            }
+        }
+        catch { /* 探测异常：保守返回 false（不重设），避免误触发 DWM 重排；层级仍有钩子/定时器兜底 */ }
+        return false;
+    }
+
+    /// <summary>
+    /// 桌面 Shell 窗口（Progman/WorkerW/Shell_TrayWnd/Shell_SecondaryTrayWnd）或本进程窗口：
+    /// 它们位于正确置底窗口之下属正常状态，不构成"把本窗抬起来"，扫描时应跳过。
+    /// </summary>
+    private static bool IsShellOrOwnProcessWindowWpf(IntPtr hwnd)
+    {
+        try
+        {
+            GetWindowThreadProcessId(hwnd, out var pid);
+            if (pid == OwnProcessIdWpf) return true;
+            var sb = new System.Text.StringBuilder(64);
+            if (GetClassName(hwnd, sb, sb.Capacity) <= 0) return false;
+            return sb.ToString() is "Progman" or "WorkerW" or "Shell_TrayWnd" or "Shell_SecondaryTrayWnd";
+        }
+        catch { return true; }   // 取不到信息 → 视为无关窗口：宁可漏判，也不误触发重排造成闪烁
     }
 
     // ========== 点击穿透：切换 WS_EX_TRANSPARENT（参考 CI2 主窗口同样的做法，系统级命中跳过）==========
