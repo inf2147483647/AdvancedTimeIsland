@@ -235,6 +235,10 @@ public class Plugin : PluginBase
         Helpers.CrossPluginHelper.ScheduleEasterEggMutexCheck(
             Settings, TimeSpan.FromSeconds(3));
 
+        // 汉服 Markdown 内容热更新：后台从 GitHub 最新 release 检查并下载，
+        // 解压到插件目录的 Markdown 文件夹，不阻塞插件启动与 UI。
+        Helpers.HanfuMarkdownUpdater.Start();
+
         services.AddSingleton(Settings);
 
         services.AddSingleton<TimeBaseService>();

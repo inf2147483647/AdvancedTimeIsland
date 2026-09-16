@@ -80,13 +80,8 @@
         <None Remove="qodana.yaml" />
     </ItemGroup>
 
-    <ItemGroup>
-        <!-- 汉服页面的 Markdown 内容：与 Views/Settings 下的页面代码文件同名，
-             随插件目录一并分发，由 HanfuPageTemplate.LoadMarkdownFile 在运行时读取。 -->
-        <None Update="Markdown\**\*.md">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
-    </ItemGroup>
+    <!-- 汉服 Markdown 内容不再随插件分发：首次启动后由 HanfuMarkdownUpdater
+         从 GitHub 最新 release 下载并解压到插件目录的 Markdown 文件夹（支持热更新）。 -->
 
     <ItemGroup>
       <Folder Include="Assets\Icons\" />
