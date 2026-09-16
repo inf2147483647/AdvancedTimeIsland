@@ -10,6 +10,6 @@ public class DiyiMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("diyi_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("翟衣_明制.md"));
     }
 }

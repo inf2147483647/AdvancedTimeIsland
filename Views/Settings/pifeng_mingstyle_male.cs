@@ -10,6 +10,6 @@ public class PifengMingstyleMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("pifeng_mingstyle_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("披风_明制_男.md"));
     }
 }

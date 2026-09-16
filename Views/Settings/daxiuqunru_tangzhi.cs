@@ -10,6 +10,6 @@ public class DaxiuqunruTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("daxiuqunru_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("大袖裙襦_唐制.md"));
     }
 }

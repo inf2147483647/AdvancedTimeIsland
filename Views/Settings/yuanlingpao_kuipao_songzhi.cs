@@ -10,6 +10,6 @@ public class YuanlingpaoKuipaoSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("yuanlingpao_kuipao_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("圆领袍_䙆袍_宋制.md"));
     }
 }

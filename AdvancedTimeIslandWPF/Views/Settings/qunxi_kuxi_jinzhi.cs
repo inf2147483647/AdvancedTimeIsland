@@ -10,6 +10,6 @@ public class QunxiKuxiJinzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("qunxi_kuxi_jinzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("裙褶_袴褶_晋制.md"));
     }
 }

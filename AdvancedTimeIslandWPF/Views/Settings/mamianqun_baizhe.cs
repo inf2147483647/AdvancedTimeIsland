@@ -10,6 +10,6 @@ public class MamianQunBaiZhePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("mamianqun_baizhe.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("马面裙_百褶_明制.md"));
     }
 }

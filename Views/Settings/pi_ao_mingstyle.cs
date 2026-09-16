@@ -10,6 +10,6 @@ public class PiAoMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("pi_ao_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("披袄_明制.md"));
     }
 }

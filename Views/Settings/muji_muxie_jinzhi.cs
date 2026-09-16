@@ -10,6 +10,6 @@ public class MujiMuxieJinzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("muji_muxie_jinzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("木屐_木屧_晋制.md"));
     }
 }

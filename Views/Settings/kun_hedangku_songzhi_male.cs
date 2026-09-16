@@ -10,6 +10,6 @@ public class KunHedangkuSongzhiMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("kun_hedangku_songzhi_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("裈_合裆裤_宋制_男.md"));
     }
 }

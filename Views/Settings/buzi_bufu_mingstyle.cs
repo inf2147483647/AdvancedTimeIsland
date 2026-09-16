@@ -10,6 +10,6 @@ public class BuziBufuMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("buzi_bufu_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("补子_补服_明制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class AoShanJiaolingTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("ao_shan_jiaoling_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("袄_衫_交领_唐制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class RuJinzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("ru_jinzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("襦_晋制.md"));
     }
 }

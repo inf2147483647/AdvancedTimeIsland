@@ -10,6 +10,6 @@ public class MoruMofuTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("moru_mofu_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("抹乳_陌腹_唐制.md"));
     }
 }

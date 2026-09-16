@@ -10,6 +10,6 @@ public class DiguanMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("diguan_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("翟冠_明制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class PipaoPishanTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("pipao_pishan_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("披袍_披衫_唐制.md"));
     }
 }

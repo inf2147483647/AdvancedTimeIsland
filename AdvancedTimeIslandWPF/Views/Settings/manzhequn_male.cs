@@ -10,6 +10,6 @@ public class ManZheQunMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("manzhequn_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("满褶裙_明制_男.md"));
     }
 }

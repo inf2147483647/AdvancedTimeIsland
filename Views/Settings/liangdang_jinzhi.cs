@@ -10,6 +10,6 @@ public class LiangdangJinzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("liangdang_jinzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("两当_晋制.md"));
     }
 }

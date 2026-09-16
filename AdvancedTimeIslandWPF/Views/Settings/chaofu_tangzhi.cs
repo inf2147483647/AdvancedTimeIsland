@@ -10,6 +10,6 @@ public class ChaofuTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("chaofu_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("朝服_唐制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class YuanlingpaoShanMingstyleMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("yuanlingpao_shan_mingstyle_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("圆领袍_衫_明制_男.md"));
     }
 }

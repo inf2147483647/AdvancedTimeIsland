@@ -12,6 +12,6 @@ public class MaMianQunMale : HanfuPageTemplate  // MaMianQunMale：
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("mamianqunnan.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("马面裙男.md"));
     }
 }

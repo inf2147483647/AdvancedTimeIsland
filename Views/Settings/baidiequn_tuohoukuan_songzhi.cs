@@ -10,6 +10,6 @@ public class BaidiequnTuohoukuanSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("baidiequn_tuohoukuan_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("百迭裙_拖后款_宋制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class ChangaoShanZhilingTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("changao_shan_zhiling_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("长袄_衫_直领_唐制.md"));
     }
 }

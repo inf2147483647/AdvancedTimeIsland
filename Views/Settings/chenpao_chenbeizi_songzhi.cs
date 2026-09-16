@@ -10,6 +10,6 @@ public class ChenpaoChenbeiziSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("chenpao_chenbeizi_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("衬袍_衬褙子_宋制.md"));
     }
 }

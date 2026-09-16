@@ -10,6 +10,6 @@ public class JiaoyuqunLongqunTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("jiaoyuqun_longqun_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("交窬裙_笼裙_唐制.md"));
     }
 }

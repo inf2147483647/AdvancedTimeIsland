@@ -10,6 +10,6 @@ public class YuanlingpaoshanQuekuapaoshanTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("yuanlingpaoshan_quekuapaoshan_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("圆领袍衫_缺胯袍衫_唐制.md"));
     }
 }

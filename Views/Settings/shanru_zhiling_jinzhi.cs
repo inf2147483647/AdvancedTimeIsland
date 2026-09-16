@@ -10,6 +10,6 @@ public class ShanruZhilingJinzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("shanru_zhiling_jinzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("衫襦_直领_晋制.md"));
     }
 }

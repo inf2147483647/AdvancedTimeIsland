@@ -10,6 +10,6 @@ public class DaxiushanXiapeiMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("daxiushan_xiapei_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("大袖衫_霞帔_明制.md"));
     }
 }

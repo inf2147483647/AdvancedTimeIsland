@@ -600,12 +600,25 @@ public class HanfuPage : HanfuPageTemplate
         return builder.ToString();
     }
 
+    /// <summary>
+    /// 条目 → 实际 Markdown 文件名（中文名，便于人工编辑）：空格转下划线，男款加 _男。
+    /// 注意与 GetMarkdownName 的区别：后者返回用于推导页面 ID 的拼音名，页面 ID 必须保持稳定。
+    /// </summary>
+    private static string? GetMarkdownFileName(string text, bool isMaleTab)
+    {
+        if (!_xingZhiMarkdownNames.ContainsKey(text))
+            return null;
+        var parts = text.Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
+        var baseName = string.Join("_", parts);
+        return _unisexXingZhi.Contains(text) && isMaleTab ? baseName + "_男" : baseName;
+    }
+
     private static bool IsDeveloped(string text, bool isMaleTab)
     {
-        var markdownName = GetMarkdownName(text, isMaleTab);
-        if (markdownName == null)
+        var fileName = GetMarkdownFileName(text, isMaleTab);
+        if (fileName == null)
             return false;
-        return HanfuPageTemplate.GetMarkdownFileSize(markdownName + ".md") >= DevelopedMarkdownBytes;
+        return HanfuPageTemplate.GetMarkdownFileSize(fileName + ".md") >= DevelopedMarkdownBytes;
     }
     private void UpdateXingZhiButtonStyle(Button button)
     {

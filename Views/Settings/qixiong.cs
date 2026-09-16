@@ -10,6 +10,6 @@ public class QiXiongPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("qixiong.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("齐胸襦裙.md"));
     }
 }

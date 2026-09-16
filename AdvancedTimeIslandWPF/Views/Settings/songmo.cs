@@ -10,6 +10,6 @@ public class SongMoPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("songmo.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("抹胸_裹肚_宋制.md"));
     }
 }

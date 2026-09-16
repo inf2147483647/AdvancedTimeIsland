@@ -10,6 +10,6 @@ public class ShenyiDadaiFujinSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("shenyi_dadai_fujin_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("深衣_大带_幅巾_宋制.md"));
     }
 }

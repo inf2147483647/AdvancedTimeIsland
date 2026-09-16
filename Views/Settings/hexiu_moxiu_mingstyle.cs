@@ -10,6 +10,6 @@ public class HexiuMoxiuMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("hexiu_moxiu_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("鹤袖_貉袖_明制.md"));
     }
 }

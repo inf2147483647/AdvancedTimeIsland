@@ -10,6 +10,6 @@ public class YisaMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("yisa_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("曳撒_明制.md"));
     }
 }

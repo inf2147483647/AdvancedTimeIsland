@@ -10,6 +10,6 @@ public class DuanShanAoShuLingPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("duanshan_ao_shuling.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("短衫_袄_竖领_明制.md"));
     }
 }

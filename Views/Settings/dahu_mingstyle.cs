@@ -10,6 +10,6 @@ public class DahuMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("dahu_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("褡护_明制.md"));
     }
 }

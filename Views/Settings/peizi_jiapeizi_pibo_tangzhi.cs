@@ -10,6 +10,6 @@ public class PeiziJiapeiziPiboTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("peizi_jiapeizi_pibo_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("帔子_夹帔子_披帛_唐制.md"));
     }
 }

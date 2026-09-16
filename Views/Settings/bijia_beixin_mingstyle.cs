@@ -10,6 +10,6 @@ public class BijiaBeixinMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("bijia_beixin_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("比甲_背心_明制.md"));
     }
 }

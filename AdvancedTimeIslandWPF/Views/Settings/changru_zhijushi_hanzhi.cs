@@ -10,6 +10,6 @@ public class ChangruZhijushiHanzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("changru_zhijushi_hanzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("长襦_直裾式_汉制.md"));
     }
 }

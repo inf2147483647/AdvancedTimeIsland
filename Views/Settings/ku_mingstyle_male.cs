@@ -10,6 +10,6 @@ public class KuMingstyleMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("ku_mingstyle_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("裤_明制_男.md"));
     }
 }

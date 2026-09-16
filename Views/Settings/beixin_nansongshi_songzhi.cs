@@ -10,6 +10,6 @@ public class BeixinNansongshiSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("beixin_nansongshi_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("背心_南宋式_宋制.md"));
     }
 }

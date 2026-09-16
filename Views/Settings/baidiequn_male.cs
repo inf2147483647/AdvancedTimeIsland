@@ -10,6 +10,6 @@ public class BaiDieQunMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("baidiequn_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("百迭裙_宋制_男.md"));
     }
 }

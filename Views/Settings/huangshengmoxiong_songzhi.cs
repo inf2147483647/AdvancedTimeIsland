@@ -10,6 +10,6 @@ public class HuangshengmoxiongSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("huangshengmoxiong_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("黄昇抹胸_宋制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class BeiziTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("beizi_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("背子_唐制.md"));
     }
 }

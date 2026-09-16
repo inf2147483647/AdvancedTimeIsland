@@ -10,6 +10,6 @@ public class KuKaidangkuSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("ku_kaidangku_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("袴_开裆裤_宋制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class ChangshanAoZhilingMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("changshan_ao_zhiling_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("长衫_袄_直领_明制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class DangSongkuSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("dang_songku_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("裆_宋裤_宋制.md"));
     }
 }

@@ -386,19 +386,16 @@ InfoBar 语法格式：
     {
         try
         {
-            var baseDir = AppContext.BaseDirectory;
             var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
             var pluginDir = string.IsNullOrEmpty(assemblyLocation)
-                ? baseDir
-                : Path.GetDirectoryName(assemblyLocation) ?? baseDir;
+                ? AppContext.BaseDirectory
+                : Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
 
-            foreach (var dir in new[] { baseDir, pluginDir })
+            // 固定从插件目录读取，保证内容与更新器写入位置一致
+            var path = Path.Combine(pluginDir, "Markdown", fileName);
+            if (File.Exists(path))
             {
-                var path = Path.Combine(dir, "Markdown", fileName);
-                if (File.Exists(path))
-                {
-                    return path;
-                }
+                return path;
             }
         }
         catch (Exception ex)

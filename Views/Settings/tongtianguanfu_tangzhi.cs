@@ -10,6 +10,6 @@ public class TongtianguanfuTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("tongtianguanfu_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("通天冠服_唐制.md"));
     }
 }

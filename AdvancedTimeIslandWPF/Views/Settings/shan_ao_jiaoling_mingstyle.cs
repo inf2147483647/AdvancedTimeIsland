@@ -10,6 +10,6 @@ public class ShanAoJiaolingMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("shan_ao_jiaoling_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("衫_袄_交领_明制.md"));
     }
 }

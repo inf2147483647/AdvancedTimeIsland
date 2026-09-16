@@ -10,6 +10,6 @@ public class HexiuMoxiuSongzhiMalePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("hexiu_moxiu_songzhi_male.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("鹤袖_貉袖_宋制_男.md"));
     }
 }

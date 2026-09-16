@@ -10,6 +10,6 @@ public class YunjianMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("yunjian_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("云肩_明制.md"));
     }
 }

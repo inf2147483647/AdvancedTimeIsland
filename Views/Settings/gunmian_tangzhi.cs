@@ -10,6 +10,6 @@ public class GunmianTangzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("gunmian_tangzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("衮冕_唐制.md"));
     }
 }

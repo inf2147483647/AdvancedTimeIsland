@@ -10,6 +10,6 @@ public class TieliMingStylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("tieli_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("贴里_明制.md"));
     }
 }

@@ -10,6 +10,6 @@ public class DaxiuyiHengpeiXiapeiSongzhiPage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("daxiuyi_hengpei_xiapei_songzhi.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("大袖衣_横帔_霞帔_宋制.md"));
     }
 }

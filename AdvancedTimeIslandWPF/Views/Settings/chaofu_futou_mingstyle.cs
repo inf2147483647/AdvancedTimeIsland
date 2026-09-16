@@ -10,6 +10,6 @@ public class ChaofuFutouMingstylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("chaofu_futou_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("朝服_幞头_明制.md"));
     }
 }

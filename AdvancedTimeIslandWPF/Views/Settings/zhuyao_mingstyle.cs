@@ -10,6 +10,6 @@ public class ZhuYaoMingStylePage : HanfuPageTemplate
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("zhuyao_mingstyle.md"));
+        RenderMarkdown(panel, LoadMarkdownFile("主腰_明制.md"));
     }
 }
