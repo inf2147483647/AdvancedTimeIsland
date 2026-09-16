@@ -1,0 +1,15 @@
+using AdvancedTimeIsland.Helpers;
+using Avalonia.Controls;
+using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Enums.SettingsWindow;
+
+namespace AdvancedTimeIsland.Views.Settings;
+
+[SettingsPageInfo("AdvancedTimeIslandZhishenMingstyle", "直身 明制（男）", true, SettingsPageCategory.Debug)]
+public class ZhishenMingstylePage : HanfuPageTemplate
+{
+    protected override void BuildContent(StackPanel panel)
+    {
+        RenderMarkdown(panel, LoadMarkdownFile("zhishen_mingstyle.md"));
+    }
+}

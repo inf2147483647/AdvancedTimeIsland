@@ -1,0 +1,15 @@
+using AdvancedTimeIsland.Helpers;
+using Avalonia.Controls;
+using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Enums.SettingsWindow;
+
+namespace AdvancedTimeIsland.Views.Settings;
+
+[SettingsPageInfo("AdvancedTimeIslandSanjianqunDuojianqunTangzhi", "三裥裙 多裥裙 唐制", true, SettingsPageCategory.Debug)]
+public class SanjianqunDuojianqunTangzhiPage : HanfuPageTemplate
+{
+    protected override void BuildContent(StackPanel panel)
+    {
+        RenderMarkdown(panel, LoadMarkdownFile("sanjianqun_duojianqun_tangzhi.md"));
+    }
+}

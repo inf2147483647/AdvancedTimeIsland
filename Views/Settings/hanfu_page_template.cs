@@ -380,9 +380,9 @@ InfoBar 语法格式：
     }
 
     /// <summary>
-    /// 读取与页面代码文件同名的 Markdown 内容文件（位于插件目录下的 Markdown 文件夹）。
+    /// 定位与页面代码文件同名的 Markdown 内容文件（位于插件目录下的 Markdown 文件夹）。
     /// </summary>
-    protected static string LoadMarkdownFile(string fileName)
+    protected static string? ResolveMarkdownPath(string fileName)
     {
         try
         {
@@ -397,18 +397,61 @@ InfoBar 语法格式：
                 var path = Path.Combine(dir, "Markdown", fileName);
                 if (File.Exists(path))
                 {
-                    return File.ReadAllText(path);
+                    return path;
                 }
             }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ResolveMarkdownPath failed for {fileName}: {ex.Message}");
+        }
 
+        return null;
+    }
+
+    /// <summary>
+    /// 读取 Markdown 内容文件的字节数，文件不存在时返回 0。用于判定条目是否已开发。
+    /// </summary>
+    protected static long GetMarkdownFileSize(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"GetMarkdownFileSize failed for {fileName}: {ex.Message}");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 读取与页面代码文件同名的 Markdown 内容文件。
+    /// </summary>
+    protected static string LoadMarkdownFile(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
             System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile: Markdown/{fileName} not found.");
+            return "";
+        }
+
+        try
+        {
+            return File.ReadAllText(path);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile failed for {fileName}: {ex.Message}");
+            return "";
         }
-
-        return "";
     }
 
     protected void RenderMarkdown(StackPanel panel, string markdown)
