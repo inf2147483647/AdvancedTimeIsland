@@ -1,0 +1,15 @@
+using AdvancedTimeIsland.Helpers;
+using System.Windows.Controls;
+using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Enums.SettingsWindow;
+
+namespace AdvancedTimeIsland.Views.Settings;
+
+[SettingsPageInfo("AdvancedTimeIslandShanruQulingJinzhi", "衫襦 曲领 晋制", true, SettingsPageCategory.Debug)]
+public class ShanruQulingJinzhiPage : HanfuPageTemplate
+{
+    protected override void BuildContent(StackPanel panel)
+    {
+        RenderMarkdown(panel, LoadMarkdownFile("shanru_quling_jinzhi.md"));
+    }
+}

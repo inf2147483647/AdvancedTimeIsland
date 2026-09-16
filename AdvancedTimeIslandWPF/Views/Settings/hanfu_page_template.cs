@@ -378,6 +378,82 @@ InfoBar 语法格式：
         RenderMarkdown(panel, markdown);
     }
 
+    /// <summary>
+    /// 定位与页面代码文件同名的 Markdown 内容文件（位于插件目录下的 Markdown 文件夹）。
+    /// 内容由 HanfuMarkdownUpdater 在启动时从远端下载维护，不随插件包分发。
+    /// </summary>
+    protected static string? ResolveMarkdownPath(string fileName)
+    {
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var pluginDir = string.IsNullOrEmpty(assemblyLocation)
+                ? baseDir
+                : Path.GetDirectoryName(assemblyLocation) ?? baseDir;
+
+            foreach (var dir in new[] { baseDir, pluginDir })
+            {
+                var path = Path.Combine(dir, "Markdown", fileName);
+                if (File.Exists(path))
+                {
+                    return path;
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ResolveMarkdownPath failed for {fileName}: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 读取 Markdown 内容文件的字节数，文件不存在时返回 0。用于判定条目是否已开发。
+    /// </summary>
+    protected static long GetMarkdownFileSize(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"GetMarkdownFileSize failed for {fileName}: {ex.Message}");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 读取与页面代码文件同名的 Markdown 内容文件。
+    /// </summary>
+    protected static string LoadMarkdownFile(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile: Markdown/{fileName} not found.");
+            return "";
+        }
+
+        try
+        {
+            return File.ReadAllText(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile failed for {fileName}: {ex.Message}");
+            return "";
+        }
+    }
+
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
         _hyperlinkSpanMap = new Dictionary<Span, string>();
