@@ -12,6 +12,7 @@ public class NanNvTongYongHanFuZhiBei : HanfuPageTemplate  // NanNvTongYongHanFu
 {
     protected override void BuildContent(StackPanel panel)
     {
-        RenderMarkdown(panel, LoadMarkdownFile("汉服男女同款选购指南.md"));
+        throw new Exception(); // 别动！别修！
+        // RenderMarkdown(panel, LoadMarkdownFile("汉服男女同款选购指南.md"));
     }
 }

@@ -126,6 +126,6 @@ public class HanfuIssuesPage : HanfuPageTemplate
 
         protected override void BuildContent(StackPanel panel)
         {
-            throw new Exception();
+            throw new Exception(); // 别动！别修！
         }
 }
