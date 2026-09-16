@@ -83,12 +83,14 @@ public class HanfuPage : HanfuPageTemplate
 
         _tabStrip.SelectionChanged += OnTabSelectionChanged;
 
+        // 默认进入女装标签页（标签页顺序仍为：男装、女装）
         _contentControl = new ContentControl
         {
-            Content = _maleContent,
+            Content = _femaleContent,
             VerticalAlignment = VerticalAlignment.Stretch,
             HorizontalAlignment = HorizontalAlignment.Stretch
         };
+        _tabStrip.SelectedIndex = 1;
 
         var rootGrid = new Grid();
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
