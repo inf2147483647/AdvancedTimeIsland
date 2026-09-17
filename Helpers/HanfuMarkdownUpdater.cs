@@ -1,35 +1,39 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
 using System.Net.Http;
-using System.Text.Json;
 using System.Threading.Tasks;
 
 namespace AdvancedTimeIsland.Helpers;
 
 /// <summary>
 /// 汉服 Markdown 内容热更新。
-/// 插件每次启动时在后台线程查询 GitHub 最新 release，无论本地版本是否最新都重新下载
-/// AdvancedTimeIslandHanfu.zip，校验后解压到插件目录下的 Markdown 文件夹并整体替换，
-/// 用远端权威内容覆盖本地可能被篡改的文件（防篡改）。
-/// 下载回退链：GitHub 直链 → 高速镜像1 → 高速镜像2 → … → 本地缓存；
-/// 每个来源都要求落地文件为合法 zip，否则切换下一来源，全部失败才保留本地缓存。
+/// 插件每次启动时在后台线程从 GitHub 最新 release 下载 AdvancedTimeIslandHanfu.zip，
+/// 校验后解压到插件目录下的 Markdown 文件夹并逐个文件覆盖，用远端权威内容覆盖本地
+/// 可能被篡改的文件（防篡改）。
+/// 下载地址使用 releases/latest/download/&lt;asset&gt; 形式，位于 github.com 域，
+/// 因此可以整体套用高速镜像前缀，不依赖 api.github.com。
+/// 下载回退链：GitHub 直链 → 高速镜像1 → 高速镜像2 → … ；全部失败则保留本地缓存。
 /// 全程异步执行、不阻塞 UI。
 /// </summary>
 public static class HanfuMarkdownUpdater
 {
-    private const string LatestReleaseApiUrl =
-        "https://api.github.com/repos/inf2147483647/AdvancedTimeIslandHanfu/releases/latest";
+    /// <summary>
+    /// GitHub「最新 release」资产直链。该地址会在服务端重定向到最新 release 中的同名资产，
+    /// 语义与 api.github.com/repos/.../releases/latest 一致，但域名不会被单独阻断，
+    /// 且可以整体套用下面的镜像前缀。
+    /// </summary>
+    private const string LatestReleaseDownloadUrl =
+        "https://github.com/inf2147483647/AdvancedTimeIslandHanfu/releases/latest/download/AdvancedTimeIslandHanfu.zip";
 
     private const string ZipAssetName = "AdvancedTimeIslandHanfu.zip";
     private const string MarkdownFolderName = "Markdown";
-    private const string VersionFileName = ".hanfu_version";
     private const string StagingFolderName = "Markdown.update.tmp";
-    private const string BackupFolderName = "Markdown.old";
 
     /// <summary>
     /// GitHub release 高速下载源回退链：先尝试 GitHub 直链，再依次尝试镜像前缀。
-    /// 顺序：GitHub → gh-proxy.com → gh-proxy.at9.net → ghproxy.net → ghfast.top → 本地缓存。
+    /// 顺序：GitHub → gh-proxy.com → gh-proxy.at9.net → ghproxy.net → ghfast.top。
     /// 镜像均为「前缀 + 完整 GitHub URL」的透传代理；节点可用性会变化，
     /// 因此任一来源只要下载失败或内容不是合法 zip 就立即切换，全部失败才回退本地缓存。
     /// </summary>
@@ -57,9 +61,7 @@ public static class HanfuMarkdownUpdater
         {
             Timeout = TimeSpan.FromSeconds(60)
         };
-        // GitHub API 要求所有请求携带 User-Agent，否则直接返回 403
         client.DefaultRequestHeaders.UserAgent.ParseAdd("AdvancedTimeIsland-Plugin");
-        client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github+json");
         return client;
     }
 
@@ -87,25 +89,11 @@ public static class HanfuMarkdownUpdater
         try
         {
             var pluginRoot = ResolvePluginRoot();
-            TryDelete(Path.Combine(pluginRoot, BackupFolderName));
-
             var finalDir = Path.Combine(pluginRoot, MarkdownFolderName);
-            var hasLocalCache = Directory.Exists(finalDir) &&
-                Directory.GetFiles(finalDir, "*.md", SearchOption.TopDirectoryOnly).Length > 0;
 
-            var (tag, downloadUrl) = await QueryLatestReleaseAsync();
-            if (string.IsNullOrEmpty(tag) || string.IsNullOrEmpty(downloadUrl))
-            {
-                // 查询不到远端时不动本地目录，页面继续从本地缓存加载（此时防篡改无法保证）
-                DebugLog(hasLocalCache
-                    ? "未获取到最新 release 信息，继续使用本地缓存的汉服内容（防篡改可能失效）。"
-                    : "未获取到最新 release 信息，且本地无缓存内容。");
-                return;
-            }
-
-            // 无论本地版本是否最新，每次启动都强制重新下载-解压-替换，
+            // 无论本地版本是否最新，每次启动都强制重新下载-解压-覆盖，
             // 用远端权威内容覆盖本地可能被篡改过的文件。
-            DebugLog($"开始拉取汉服内容（远端版本 {tag}）。");
+            DebugLog("开始拉取汉服内容。");
 
             var stagingRoot = Path.Combine(pluginRoot, StagingFolderName);
             TryDelete(stagingRoot);
@@ -113,7 +101,7 @@ public static class HanfuMarkdownUpdater
             Directory.CreateDirectory(extractDir);
 
             var zipPath = Path.Combine(stagingRoot, ZipAssetName);
-            var usedSource = await DownloadWithMirrorsAsync(downloadUrl, zipPath);
+            var usedSource = await DownloadWithMirrorsAsync(LatestReleaseDownloadUrl, zipPath);
             if (!IsValidZip(zipPath))
             {
                 throw new InvalidDataException($"来源 {usedSource} 下载的文件不是有效的 zip 压缩包。");
@@ -127,16 +115,14 @@ public static class HanfuMarkdownUpdater
                 throw new InvalidDataException("压缩包中未找到任何 Markdown 内容文件。");
             }
 
-            await File.WriteAllTextAsync(Path.Combine(contentDir, VersionFileName), tag);
-
-            SwapContentDirectory(pluginRoot, contentDir, finalDir);
+            await ApplyContentAsync(contentDir, finalDir);
             TryDelete(stagingRoot);
 
-            DebugLog($"汉服内容已更新到 {tag}。");
+            DebugLog($"汉服内容已更新（来源 {usedSource}）。");
         }
         catch (Exception ex)
         {
-            // 下载/校验/解压/替换任一环节失败，都不能触碰现有 Markdown 目录，
+            // 下载/校验/解压/覆盖任一环节失败，都尽量不破坏现有 Markdown 目录，
             // 页面继续从本地缓存源加载（此时内容可能已被篡改，防篡改可能失效）。
             var cacheDir = Path.Combine(ResolvePluginRoot(), MarkdownFolderName);
             var hasCache = Directory.Exists(cacheDir) &&
@@ -152,42 +138,6 @@ public static class HanfuMarkdownUpdater
                 _isUpdating = false;
             }
         }
-    }
-
-    private static async Task<(string? tag, string? downloadUrl)> QueryLatestReleaseAsync()
-    {
-        using var response = await HttpClient.GetAsync(
-            LatestReleaseApiUrl,
-            HttpCompletionOption.ResponseHeadersRead);
-        response.EnsureSuccessStatusCode();
-
-        await using var stream = await response.Content.ReadAsStreamAsync();
-        using var doc = await JsonDocument.ParseAsync(stream);
-        var root = doc.RootElement;
-
-        string? tag = null;
-        if (root.TryGetProperty("tag_name", out var tagElement) &&
-            tagElement.ValueKind == JsonValueKind.String)
-        {
-            tag = tagElement.GetString();
-        }
-
-        if (root.TryGetProperty("assets", out var assets) &&
-            assets.ValueKind == JsonValueKind.Array)
-        {
-            foreach (var asset in assets.EnumerateArray())
-            {
-                if (asset.TryGetProperty("name", out var name) &&
-                    string.Equals(name.GetString(), ZipAssetName, StringComparison.OrdinalIgnoreCase) &&
-                    asset.TryGetProperty("browser_download_url", out var url) &&
-                    url.ValueKind == JsonValueKind.String)
-                {
-                    return (tag, url.GetString());
-                }
-            }
-        }
-
-        return (tag, null);
     }
 
     /// <summary>
@@ -330,41 +280,62 @@ public static class HanfuMarkdownUpdater
         return null;
     }
 
-    /// <summary>用暂存目录整体替换正式 Markdown 目录；旧目录先备份，替换成功再删除，失败则回滚。</summary>
-    private static void SwapContentDirectory(string pluginRoot, string contentDir, string finalDir)
+    /// <summary>
+    /// 用暂存内容更新正式 Markdown 目录。
+    /// 这里逐个文件原地覆盖，而不是整体移动目录：整体替换会让 Markdown 目录短暂消失，
+    /// 此时正在打开汉服页面会读取失败（内容空白、条目被误判为未开发）。
+    /// 覆盖完成后删除远端已不存在的文件，维持「远端内容覆盖本地」的防篡改语义。
+    /// </summary>
+    private static async Task ApplyContentAsync(string contentDir, string finalDir)
     {
-        var backupDir = Path.Combine(pluginRoot, BackupFolderName);
-        TryDelete(backupDir);
+        Directory.CreateDirectory(finalDir);
 
-        var hadOld = Directory.Exists(finalDir);
-        if (hadOld)
+        var currentFiles = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var sourceFile in Directory.GetFiles(contentDir, "*", SearchOption.AllDirectories))
         {
-            Directory.Move(finalDir, backupDir);
-        }
+            var relativePath = Path.GetRelativePath(contentDir, sourceFile);
+            var destinationPath = Path.Combine(finalDir, relativePath);
 
-        try
-        {
-            Directory.Move(contentDir, finalDir);
-        }
-        catch
-        {
-            if (hadOld && !Directory.Exists(finalDir))
+            var parent = Path.GetDirectoryName(destinationPath);
+            if (!string.IsNullOrEmpty(parent))
             {
-                try
-                {
-                    Directory.Move(backupDir, finalDir);
-                }
-                catch
-                {
-                    // 回滚失败也只能保留日志，不应吞掉原始异常
-                }
+                Directory.CreateDirectory(parent);
             }
-            throw;
+
+            await MoveWithRetryAsync(sourceFile, destinationPath);
+            currentFiles.Add(Path.GetFullPath(destinationPath));
         }
 
-        if (hadOld)
+        foreach (var existingFile in Directory.GetFiles(finalDir, "*", SearchOption.AllDirectories))
         {
-            TryDelete(backupDir);
+            if (currentFiles.Contains(Path.GetFullPath(existingFile)))
+            {
+                continue;
+            }
+            TryDeleteFile(existingFile);
+        }
+    }
+
+    /// <summary>
+    /// 源文件与目标目录在同一卷上，File.Move(overwrite: true) 是原子替换，
+    /// 页面读取只会看到完整的旧内容或新内容，不会读到「文件不存在」或半截内容。
+    /// 但目标文件正被页面读取时会抛出占用异常，因此做短暂重试。
+    /// </summary>
+    private static async Task MoveWithRetryAsync(string sourcePath, string destinationPath)
+    {
+        const int maxAttempts = 5;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                File.Move(sourcePath, destinationPath, overwrite: true);
+                return;
+            }
+            catch (Exception ex) when (
+                (ex is IOException || ex is UnauthorizedAccessException) && attempt < maxAttempts)
+            {
+                await Task.Delay(50);
+            }
         }
     }
 
