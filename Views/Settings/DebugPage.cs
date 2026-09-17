@@ -96,6 +96,8 @@ public class DebugPage : SettingsPageBase
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         
         mainPanel.Children.Add(CreateMemoryLeakTestPanel());
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        mainPanel.Children.Add(CreateNestedExpanderPanel());
 
         var scrollViewer = new ScrollViewer
         {
@@ -557,6 +559,74 @@ public class DebugPage : SettingsPageBase
         panel.Child = content;
 
         return panel;
+    }
+
+    /// <summary>
+    /// 嵌套折叠栏示例：外层折叠栏中再放一层折叠栏，共两层。
+    /// </summary>
+    private Expander CreateNestedExpanderPanel()
+    {
+        var outerHeader = new TextBlock
+        {
+            Text = "嵌套折叠栏",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        _testPanelTitleTextBlocks?.Add(outerHeader);
+
+        var outerContent = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8
+        };
+        outerContent.Children.Add(new TextBlock
+        {
+            Text = "第一层折叠栏的内容。",
+            FontSize = 14,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetTextBrush()
+        });
+
+        var innerHeader = new TextBlock
+        {
+            Text = "第二层折叠栏",
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        _testPanelTitleTextBlocks?.Add(innerHeader);
+
+        var innerContent = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8
+        };
+        innerContent.Children.Add(new TextBlock
+        {
+            Text = "第二层折叠栏的内容。",
+            FontSize = 14,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetTextBrush()
+        });
+
+        var innerExpander = new Expander
+        {
+            Header = innerHeader,
+            Content = innerContent,
+            IsExpanded = false,
+            Margin = new Thickness(16, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        outerContent.Children.Add(innerExpander);
+
+        return new Expander
+        {
+            Header = outerHeader,
+            Content = outerContent,
+            IsExpanded = true,
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
     }
 
     private void MemoryLeakStartButton_OnClick(object? sender, RoutedEventArgs e)

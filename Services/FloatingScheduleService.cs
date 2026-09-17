@@ -90,6 +90,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  置底时加该位 → 窗口永不激活 → 永不被提升 → 真正彻底置底。
     private const int WS_EX_NOACTIVATE_AV = 0x08000000;
 
+    // ========== 置底竞争（Z 序争夺战）防护 ==========
+    //  背景：多个"主动置底"的窗口同时存在时，每个窗口向下扫描都会看到"我下方还有别的普通窗口"
+    //  （即另一个置底窗口），于是各自反复 SetWindowPos(HWND_BOTTOM)，双方交替下沉、永不收敛，
+    //  表现为高频闪烁。Rainmeter 官方文档对此有明确记载：同层窗口互相主动抢占会 flicker，
+    //  并为此提供了 LoadOrder 做确定性排序而非互相抢占。
+    //  对策（与 HugoQuickStart 同一套方案）：
+    //   ① 探测时跳过 WS_EX_NOACTIVATE 窗口——它们是与本窗同类的桌面面板/覆盖层，本窗位于其上方无害；
+    //   ② 周期（机会式）置底带最小间隔，限制抢占频率；
+    //   ③ 窗口期内反复抢占即认定存在竞争，永久让出周期抢占（日志告警），仅保留事件驱动的必要修正。
+    /// <summary>两次"机会式置底"之间的最小间隔（毫秒），用于限制争夺战频率。</summary>
+    private const int OpportunisticBottomMinIntervalMsAv = 1500;
+
+    /// <summary>置底竞争判定：窗口期内机会式置底达到该次数，即认定存在多个置底窗口在互相抢占。</summary>
+    private const int BottomContentionPushThresholdAv = 4;
+
+    /// <summary>置底竞争的统计窗口。</summary>
+    private static readonly TimeSpan BottomContentionWindowAv = TimeSpan.FromSeconds(10);
+
     // ========== 点击穿透（对齐 ClassIsland WindowPlatformService.SetWindowFeature）==========
     //  加上 WS_EX_LAYERED 后必须声明分层属性，否则部分系统上 DComp（WS_EX_NOREDIRECTIONBITMAP）
     //  窗口的命中测试/呈现行为异常：alpha=255 + LWA_ALPHA 表示完全不透明，内容正常显示而点击可穿透。
@@ -315,6 +333,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 【修复 Issue 1】ApplyWindowLayer 重入计数器：防止 Mode 0 WndProc 钩子"自己 Apply→SetWindowPos→WM_WINDOWPOSCHANGED→Post Apply" 无限死循环
     //  >0 表示当前调用栈在 ApplyWindowLayer 内部；Mode 0 WndProc 检测到 >0 时抑制 Post。
     private int _inApplyWindowLayerAv = 0;
+    // 【置底竞争防护】最近一次"机会式置底"时间戳（Environment.TickCount64），用于限制抢占频率。
+    private long _lastOpportunisticPushTickAv;
+    // 【置底竞争防护】已让出：不再由周期定时器抢占 Z 序，只保留事件驱动的必要修正。
+    private bool _bottomContentionYieldedAv;
+    // 【置底竞争防护】统计窗口期内的机会式置底时间戳，用于判定是否存在置底竞争。
+    private readonly Queue<long> _opportunisticPushTicksAv = new();
 
     // ========== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）==========
     //   开启：窗口标题改为随机字符串（防学校弹窗拦截工具按标题识别拦截）；
@@ -1108,7 +1132,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         {
                             Interval = TimeSpan.FromMilliseconds(intervalMs)
                         };
-                        _topmostRefreshTimerAv.Tick += (_, _) => ApplyWindowLayer();
+                        _topmostRefreshTimerAv.Tick += (_, _) => ApplyWindowLayer(opportunistic: true);
                         _topmostRefreshTimerAv.Start();
                         _currentTopmostModeAv = mode;
                         _logger.LogDebug("AttachTopmostRefreshAv: Mode=Every{0}Ms 已启动 DispatcherTimer", intervalMs);
@@ -1440,7 +1464,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { _window?.Hide(); } catch { }
     }
 
-    private void ApplyWindowLayer()
+    /// <summary>显式 / 事件驱动的层级应用（不受置底竞争防护约束，必须落实）。</summary>
+    private void ApplyWindowLayer() => ApplyWindowLayer(opportunistic: false);
+
+    /// <summary>
+    /// 应用窗口层级（置顶 / 置底）。
+    /// </summary>
+    /// <param name="opportunistic">
+    /// true 表示由周期定时器发起的"机会式"刷新：置底时会受置底竞争防护约束
+    /// （最小间隔 + 检测到竞争后让出），避免与其它置底窗口互相反复抢占 Z 序造成高频闪烁。
+    /// false 表示显式/事件驱动调用（显示窗口、失焦、本窗 Z 序被改、设置变更等），必须无条件落实。
+    /// </param>
+    private void ApplyWindowLayer(bool opportunistic)
     {
         if (_window == null) return;
         // 【修复 Issue 1】重入计数器 +1（嵌套/异常安全：即使中途 return/throw 也 finally -1）
@@ -1489,8 +1524,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         //  不能用 GetWindow(GW_HWNDLAST)==hwnd：链底是桌面 Shell（Progman/WorkerW），
                         //  正确置底时本窗永远不等于链底 → 恒定误判"被抬起" → 每 50ms/1ms 重设一次 z-order
                         //  → DWM 反复重合成 → 高频闪烁。改为向下扫描本窗之下是否存在"其它进程的普通可见窗口"。
+                        // 【修复闪烁·置底竞争】机会式（定时器）置底还要过竞争防护闸门：
+                        //  存在另一个置底窗口时二者会互相判定"被抬起"并交替压底，必须限频/让出。
                         bool needBottomAv = IsRaisedAboveForeignWindowAv(hwnd);
-                        if (needBottomAv)
+                        if (needBottomAv && (!opportunistic || AllowOpportunisticBottomPushAv()))
                             SetWindowPos(hwnd, HWND_BOTTOM, 0, 0, 0, 0,
                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE |
                                 SWP_NOSENDCHANGING_AV | SWP_NOOWNERZORDER_AV | SWP_NOREPOSITION_AV);
@@ -1511,6 +1548,39 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
 #if WINDOWS
     /// <summary>
+    /// 机会式置底的竞争防护闸门：仅在低频兜底刷新（周期定时器）路径上使用。
+    /// ① 最小间隔限制抢占频率；② 统计窗口期内抢占次数，超阈值即认定"多个置底窗口在互相抢占"，
+    /// 永久让出周期抢占并写日志告警——此后只由事件驱动路径（显示窗口、失焦、本窗 Z 序被改、
+    /// 前台切换、设置变更）落实置底，那些路径由真实转换触发，不会自激振荡。
+    /// </summary>
+    private bool AllowOpportunisticBottomPushAv()
+    {
+        if (_bottomContentionYieldedAv)
+            return false;
+
+        var now = Environment.TickCount64;
+        if (now - _lastOpportunisticPushTickAv < OpportunisticBottomMinIntervalMsAv)
+            return false;
+
+        _lastOpportunisticPushTickAv = now;
+        _opportunisticPushTicksAv.Enqueue(now);
+
+        var windowMs = (long)BottomContentionWindowAv.TotalMilliseconds;
+        while (_opportunisticPushTicksAv.Count > 0 && now - _opportunisticPushTicksAv.Peek() > windowMs)
+            _opportunisticPushTicksAv.Dequeue();
+
+        if (_opportunisticPushTicksAv.Count >= BottomContentionPushThresholdAv)
+        {
+            _bottomContentionYieldedAv = true;
+            _opportunisticPushTicksAv.Clear();
+            _logger.LogWarning(
+                "检测到多个窗口同时在抢占桌面底层（置底竞争），已停止周期性置底，改由事件驱动维护以避免闪烁");
+        }
+
+        return true;
+    }
+
+    /// <summary>
     /// 【真实 Z 序探测·置底】沿 z-order 向下（GW_HWNDNEXT）扫描本窗之下的窗口，
     /// 返回"本窗是否已被抬离最底层"（仅 true 才需要 SetWindowPos(HWND_BOTTOM)）。
     ///  为什么探测真实 Z 序，而不是记一个"已置底"布尔标志：窗口被抬离底层的路径不一定伴随本窗焦点事件
@@ -1519,6 +1589,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     ///  为什么不能只判断"链底是不是自己"：正确置底时本窗之下必然还有桌面 Shell 窗口（Progman/WorkerW），
     ///  必须按类名排除，否则永远判定"被抬起" → 每 Tick 无谓 SetWindowPos → 回到高频闪烁。
     ///  方向必须向下：若误扫上方（GW_HWNDPREV），正常置底状态也会命中"上方有普通窗口"，永远判定被抬起。
+    ///  必须排除"不可激活窗口"（WS_EX_NOACTIVATE）：它们是与本窗同类的桌面面板/覆盖层（其它置底悬浮窗
+    ///  即属此类），本窗位于其上方无害；若不排除，多个置底窗口会互相判定"被抬起"而反复压底，
+    ///  形成 Z 序争夺战 → 高频闪烁（Rainmeter 官方文档记载同层窗口互相主动抢占会 flicker）。
     /// </summary>
     private static bool IsRaisedAboveForeignWindowAv(IntPtr hwnd)
     {
@@ -1527,11 +1600,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             var below = GetWindow(hwnd, GW_HWNDNEXT_AV);   // GW_HWNDNEXT = z-order 中更靠下的窗口
             while (below != IntPtr.Zero)
             {
-                if (IsWindowVisible(below)
-                    && !IsShellOrOwnProcessWindowAv(below)
-                    && ((int)(long)GetWindowLong(below, GWL_EXSTYLE) & WS_EX_TOPMOST_AV) == 0)
+                if (IsWindowVisible(below) && !IsShellOrOwnProcessWindowAv(below))
                 {
-                    return true;   // 本窗之下还有其它进程的普通可见窗口 → 不在底层
+                    var exStyle = (int)(long)GetWindowLong(below, GWL_EXSTYLE);
+                    // 跳过置顶窗口（永远在普通层之上）与不可激活窗口（同类的桌面面板/覆盖层）
+                    if ((exStyle & WS_EX_TOPMOST_AV) == 0 && (exStyle & WS_EX_NOACTIVATE_AV) == 0)
+                        return true;   // 本窗之下还有其它进程的普通可交互窗口 → 不在底层
                 }
                 below = GetWindow(below, GW_HWNDNEXT_AV);
             }
