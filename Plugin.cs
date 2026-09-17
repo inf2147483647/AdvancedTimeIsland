@@ -244,6 +244,7 @@ public class Plugin : PluginBase
         services.AddSingleton<TimeBaseService>();
         services.AddSingleton<SharedRenderClockService>();
         services.AddSingleton<SemesterStartService>();
+        services.AddSingleton<AttendanceCalendarService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         services.AddHostedService<StartupDelayService>();
@@ -259,6 +260,7 @@ public class Plugin : PluginBase
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
         services.AddComponent<YearWeekControl, YearWeekSettingsControl>();
         services.AddComponent<SemesterWeekControl, SemesterWeekSettingsControl>();
+        services.AddComponent<AttendanceControl, AttendanceSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
@@ -1530,6 +1532,7 @@ public class Plugin : PluginBase
         services.AddSettingsPageGroup("advancedtimeisland.main", "\uef27", "AdvancedTimeIsland");
 #endif
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
+        services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();

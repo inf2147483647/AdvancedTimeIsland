@@ -6,6 +6,9 @@
 # Usage: .\Build-Package.ps1 [-Target both|compat|new|wpf] [-NoServerShutdown]
 # Supports: Windows x64
 #
+# 打包结束后会在 cipx\checksum.md 生成本次产出插件包的 MD5 校验值，
+# 每个包一行，格式为 ClassIsland 可识别的 CLASSISLAND_PKG_MD5 注释。
+#
 # 性能优化说明：
 #   - 去掉了脚本开头的 build-server shutdown（原本前后各一次，共两次）；
 #     只在 finally 中最后做一次，避免 compat/new/wpf 连续构建间冷启动 VBCSCompiler
@@ -177,6 +180,39 @@ function Build-WpfVariant {
     return Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
 }
 
+function New-ChecksumFile {
+    param(
+        [string]$OutputDir,
+        [string[]]$PackageNames
+    )
+
+    $lines = @()
+    foreach ($name in $PackageNames) {
+        $packagePath = Join-Path $OutputDir $name
+        if (-not (Test-Path $packagePath)) {
+            Write-Host "Skipping checksum: package not found - $name"
+            continue
+        }
+        $hash = (Get-FileHash $packagePath -Algorithm MD5).Hash
+        $lines += '<!-- CLASSISLAND_PKG_MD5 {"' + $name + '": "' + $hash + '"} -->'
+    }
+
+    if ($lines.Count -eq 0) {
+        Write-Host "`nNo package generated, checksum file skipped."
+        return
+    }
+
+    $content = ($lines -join "`r`n") + "`r`n"
+    $checksumPath = Join-Path $OutputDir "checksum.md"
+
+    # 用无 BOM 的 UTF8 写出，避免发布日志粘贴时出现多余字符
+    [System.IO.File]::WriteAllText($checksumPath, $content, (New-Object System.Text.UTF8Encoding $false))
+
+    Write-Host "`nChecksums:"
+    Write-Host $content
+    Write-Host "Checksum file: $checksumPath"
+}
+
 Write-Host "AdvancedTimeIsland Plugin Build Script"
 Write-Host "======================================"
 
@@ -189,12 +225,14 @@ try {
     }
 
     $results = [ordered]@{}
+    $packageNames = @()
 
     if ($Target -eq "both" -or $Target -eq "compat") {
         $ok = Build-Variant -TargetFramework "net8.0" -Label "compat (.NET 8)" -PackageBaseName "AdvancedTimeIsland-net8.0-compat"
         if ($ok) {
             $src = Join-Path $ProjectRoot "bin\Release\net8.0\win-x64\AdvancedTimeIsland-net8.0-compat.cipx"
             Copy-Item $src (Join-Path $cipxDir "AdvancedTimeIsland-net8.0-compat.cipx") -Force
+            $packageNames += "AdvancedTimeIsland-net8.0-compat.cipx"
         }
         $results["net8.0 compat"] = $(if ($ok) { 'SUCCESS' } else { 'FAILED' })
     }
@@ -204,6 +242,7 @@ try {
         if ($ok) {
             $src = Join-Path $ProjectRoot "bin\Release\net10.0\win-x64\AdvancedTimeIsland-net10.0.cipx"
             Copy-Item $src (Join-Path $cipxDir "AdvancedTimeIsland-net10.0.cipx") -Force
+            $packageNames += "AdvancedTimeIsland-net10.0.cipx"
         }
         $results["net10.0 new"] = $(if ($ok) { 'SUCCESS' } else { 'FAILED' })
     }
@@ -214,11 +253,16 @@ try {
             $src = Join-Path (Join-Path $ProjectRoot "AdvancedTimeIslandWPF\bin\Release\net8.0-windows") "AdvancedTimeIsland-wpf.cipx"
             if (Test-Path $src) {
                 Copy-Item $src (Join-Path $cipxDir "AdvancedTimeIsland-wpf.cipx") -Force
+                $packageNames += "AdvancedTimeIsland-wpf.cipx"
             }
             Write-Host "`nWPF packaging successful!"
             Write-Host "Package location: $(Join-Path $cipxDir 'AdvancedTimeIsland-wpf.cipx')"
         }
         $results["wpf"] = $(if ($ok) { 'SUCCESS' } else { 'FAILED' })
+    }
+
+    if ($packageNames.Count -gt 0) {
+        New-ChecksumFile -OutputDir $cipxDir -PackageNames $packageNames
     }
 
     Write-Host "`n========================================"
