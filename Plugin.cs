@@ -1526,11 +1526,9 @@ public class Plugin : PluginBase
         }
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
-#if NET10_0_OR_GREATER
-        // CI2 2.x：注册 AdvancedTimeIsland 导航分组，使"主设置"与"时间表悬浮窗"折叠在同一父节点下（仿 SystemTools）。
-        // net8 兼容版 SDK 无 AddSettingsPageGroup API，该版本下两页各自独立显示。
+        // 注册 AdvancedTimeIsland 导航分组，使"主设置"与"时间表悬浮窗"等页折叠在同一父节点下（仿 SystemTools）。
+        // net8 兼容版 SDK 需 ≥ 2.0.1.1（该版本起 ClassIsland.Core 提供 AddSettingsPageGroup/GroupAttribute）。
         services.AddSettingsPageGroup("advancedtimeisland.main", "\uef27", "AdvancedTimeIsland");
-#endif
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();

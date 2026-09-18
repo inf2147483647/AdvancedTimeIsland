@@ -168,6 +168,19 @@ public static class LunarHelper
                 foreach (var f in traditionalFestivals)
                     festivalNames.Add(f);
             }
+
+            // 与“下个节日倒计时”对齐：补齐其独有的节日（只增不减，库内置节日保持不变）。
+            // 日期取自 FestivalCatalog，避免两处定义漂移。
+            var alignedFestivals = new System.Collections.Generic.List<(string Name, DateTime Date)>();
+            if (includeInternational)
+                FestivalCatalog.AddInternationalFestivals(alignedFestivals, solarDate);
+            if (includeTraditional)
+                FestivalCatalog.AddChineseTraditionalFestivals(alignedFestivals, solarDate, false);
+            foreach (var (name, festivalDate) in alignedFestivals)
+            {
+                if (festivalDate.Date == solarDate.Date && CountdownAlignedFestivals.Contains(name))
+                    festivalNames.Add(name);
+            }
         }
 
         if (includeRed)
@@ -184,8 +197,34 @@ public static class LunarHelper
                 festivalNames.Add(f);
         }
 
+        // 永久移除：平安夜、圣诞节。这两个节日来自 lunar 库的 solar.Festivals，
+        // 这里统一剔除，保证不受任何分类开关或实验性功能影响。
+        festivalNames.ExceptWith(RemovedFestivals);
+
         return festivalNames.ToArray();
     }
+
+    /// <summary>
+    /// 永久移除的节日名称（不随任何开关或配置恢复）。
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<string> RemovedFestivals = new()
+    {
+        "平安夜",
+        "圣诞节"
+    };
+
+    /// <summary>
+    /// 与“下个节日倒计时”对齐时补齐的节日：这些节日仅存在于倒计时组件的节日库中，
+    /// 需要额外合并进“主界面-节日”，库内置节日不受影响。
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<string> CountdownAlignedFestivals = new()
+    {
+        "清明节",
+        "冬至",
+        "寒食节",
+        "中元节",
+        "小年"
+    };
 
     /// <summary>
     /// 获取附加的中国传统节日列表
@@ -240,6 +279,7 @@ public static class LunarHelper
         if (date.Month == 9 && date.Day == 30) festivals.Add("烈士纪念日");
         if (date.Month == 10 && date.Day == 1) festivals.Add("十一国庆节");
         if (date.Month == 10 && date.Day == 22) festivals.Add("中国工农红军长征胜利纪念日");
+        if (date.Month == 10 && date.Day == 25) festivals.Add("台湾光复纪念日");
         if (date.Month == 12 && date.Day == 13) festivals.Add("南京大屠杀死难者国家公祭日");
 
         return festivals.ToArray();

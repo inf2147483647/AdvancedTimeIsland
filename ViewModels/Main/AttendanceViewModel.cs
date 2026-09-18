@@ -12,14 +12,15 @@ namespace AdvancedTimeIsland.ViewModels.Main;
 /// <summary>
 /// 总在校时间统计（ATI）组件的视图模型：
 /// 按时间基准解析学期区间，计算在校天数/时长、进度与剩余量，并生成展示文案。
-/// 统计结果按天变化，因此使用低频定时器刷新，同时在配置或日历数据变更时立即重算。
+/// 统计结果按天变化，因此跟随插件共用的渲染时钟在跨天时刷新，同时在配置或日历数据变更时立即重算。
 /// </summary>
 public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly AttendanceSettings _settings;
     private readonly AttendanceCalendarService _calendar;
-    private readonly DispatcherTimer _timer;
+    private IDisposable? _clockSubscription;
+    private DateTime _lastRefreshedDate = DateTime.MinValue;
     private bool _isDisposed;
 
     private string _displayText = string.Empty;
@@ -71,9 +72,18 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
 
         Refresh();
 
-        _timer = new DispatcherTimer { Interval = TimeSpan.FromMinutes(1) };
-        _timer.Tick += (_, _) => Refresh();
-        _timer.Start();
+        // 统计结果按天变化，跟随插件共用的渲染时钟监听跨天，不额外占用定时器。
+        _clockSubscription = SharedRenderClockService.Instance.Subscribe(OnClockTick);
+        SharedRenderClockService.Instance.EnsureStarted();
+    }
+
+    /// <summary>渲染时钟回调（UI 线程）：仅当日期跨天时重算，避免高频无谓计算。</summary>
+    private void OnClockTick(DateTime now)
+    {
+        if (GetCurrentTime().Date != _lastRefreshedDate)
+        {
+            Refresh();
+        }
     }
 
     private DateTime GetCurrentTime()
@@ -86,21 +96,38 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
         };
     }
 
-    private void OnExternalChanged(object? sender, EventArgs e) => Refresh();
+    private void OnExternalChanged(object? sender, EventArgs e) => RefreshOnUiThread();
 
-    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e) => Refresh();
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e) => RefreshOnUiThread();
+
+    /// <summary>
+    /// 外部事件（日历数据、学期开始日、组件设置）可能来自非 UI 线程，
+    /// 此时属性变更会触发控件更新，必须切回 UI 线程再刷新。
+    /// </summary>
+    private void RefreshOnUiThread()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            Refresh();
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(Refresh);
+        }
+    }
 
     /// <summary>重新计算统计结果并刷新文案。</summary>
     public void Refresh()
     {
+        var now = GetCurrentTime();
         try
         {
-            var now = GetCurrentTime();
             var config = _calendar.Data.Config;
             var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
             if (start == null)
             {
                 Statistics = null;
+                _lastRefreshedDate = now.Date;
                 IsProgressAvailable = false;
                 Progress = 0;
                 DisplayText = "尚未获取学期开始日";
@@ -112,15 +139,18 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
             // 每日在校时长与"启用时间表为空"的日期由服务结合宿主课表解析后传入统计算法。
             var stats = _calendar.ComputeStatistics(start.Value, end, now);
             Statistics = stats;
+            _lastRefreshedDate = now.Date;
 
             IsProgressAvailable = stats.TotalInSchoolDays > 0;
             Progress = stats.ProgressPercent;
             DisplayText = BuildDisplayText(stats);
             SubText = BuildSubText(stats);
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // 计算过程中的异常不影响组件渲染，保留上一次的结果。
+            // 计算过程中的异常不影响组件渲染，保留上一次的结果，但记录原因便于排查。
+            _lastRefreshedDate = now.Date;
+            System.Diagnostics.Debug.WriteLine($"[AttendanceViewModel] 刷新在校统计失败：{ex}");
         }
     }
 
@@ -197,7 +227,8 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
             return;
         }
         _isDisposed = true;
-        _timer.Stop();
+        _clockSubscription?.Dispose();
+        _clockSubscription = null;
         AttendanceCalendarService.DataChanged -= OnExternalChanged;
         SemesterStartService.SemesterStartDateChanged -= OnExternalChanged;
         _settings.PropertyChanged -= OnSettingsChanged;

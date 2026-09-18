@@ -94,6 +94,13 @@ public class DebugPage : SettingsPageBase
             ButtonHanfuTemplate_OnClick);
         mainPanel.Children.Add(hanfuTemplatePanel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+
+        var festivalListPanel = CreateSimpleTestPanel(
+            "显示节日列表",
+            "查看",
+            ButtonShowFestivalList_OnClick);
+        mainPanel.Children.Add(festivalListPanel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         
         mainPanel.Children.Add(CreateMemoryLeakTestPanel());
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
@@ -166,6 +173,212 @@ public class DebugPage : SettingsPageBase
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
     {
         FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuTemplate");
+    }
+
+    private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
+    {
+        await ShowFestivalListDialogAsync();
+    }
+
+    private async Task ShowFestivalListDialogAsync()
+    {
+        var now = TimeBaseService.Instance?.GetCurrentTime() ?? DateTime.Now;
+        var year = now.Year;
+
+        var dialog = new Window
+        {
+            Title = "节日列表",
+            Width = 520,
+            Height = 560,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = true
+        };
+
+        var dialogGrid = new Grid
+        {
+            Margin = new Thickness(16),
+            RowDefinitions =
+            {
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = GridLength.Auto },
+                new RowDefinition { Height = new GridLength(1, GridUnitType.Star) },
+                new RowDefinition { Height = GridLength.Auto }
+            }
+        };
+
+        var titleBlock = new TextBlock
+        {
+            Text = "插件已注册的全部节日",
+            FontSize = 18,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        Grid.SetRow(titleBlock, 0);
+        dialogGrid.Children.Add(titleBlock);
+
+        var previousYearButton = new Button
+        {
+            Content = "上一年",
+            Padding = new Thickness(12, 4, 12, 4)
+        };
+        var yearBlock = new TextBlock
+        {
+            Text = $"{year} 年",
+            FontSize = 15,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+        var nextYearButton = new Button
+        {
+            Content = "下一年",
+            Padding = new Thickness(12, 4, 12, 4)
+        };
+        var yearNavPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 12,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        yearNavPanel.Children.Add(previousYearButton);
+        yearNavPanel.Children.Add(yearBlock);
+        yearNavPanel.Children.Add(nextYearButton);
+        Grid.SetRow(yearNavPanel, 1);
+        dialogGrid.Children.Add(yearNavPanel);
+
+        var subtitleBlock = new TextBlock
+        {
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            Margin = new Thickness(0, 8, 0, 8)
+        };
+        Grid.SetRow(subtitleBlock, 2);
+        dialogGrid.Children.Add(subtitleBlock);
+
+        var listPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4
+        };
+
+        var scrollViewer = new ScrollViewer
+        {
+            Content = listPanel,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        };
+        Grid.SetRow(scrollViewer, 3);
+        dialogGrid.Children.Add(scrollViewer);
+
+        var closeButton = new Button
+        {
+            Content = "关闭",
+            Padding = new Thickness(16, 8, 16, 8),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        closeButton.Click += (s, e) => dialog.Close();
+        Grid.SetRow(closeButton, 4);
+        dialogGrid.Children.Add(closeButton);
+
+        var isLoading = false;
+
+        async Task LoadYearAsync(int targetYear)
+        {
+            if (isLoading)
+                return;
+
+            isLoading = true;
+            previousYearButton.IsEnabled = false;
+            nextYearButton.IsEnabled = false;
+            yearBlock.Text = $"{targetYear} 年";
+
+            try
+            {
+                var festivals = await Task.Run(() => FestivalCatalog.GetAllFestivalsOfYear(targetYear));
+
+                listPanel.Children.Clear();
+                subtitleBlock.Text = $"共 {festivals.Count} 个。列表不受“管理启用的功能”影响，仅展示“主界面-节日”组件的国际、中国传统、红色、实验性 4 类节日（节日库已与“下个节日倒计时”对齐），同义节日名已合并，且不展示早于其起源年份的节日。";
+
+                if (festivals.Count == 0)
+                {
+                    listPanel.Children.Add(new TextBlock
+                    {
+                        Text = "无",
+                        FontSize = 14,
+                        Foreground = ThemeHelper.GetTextBrush()
+                    });
+                }
+                else
+                {
+                    foreach (var (name, date) in festivals)
+                    {
+                        var row = new Grid
+                        {
+                            ColumnDefinitions =
+                            {
+                                new ColumnDefinition { Width = new GridLength(96) },
+                                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) }
+                            }
+                        };
+
+                        var dateBlock = new TextBlock
+                        {
+                            Text = $"{date.Month}月{date.Day}日",
+                            FontSize = 14,
+                            Foreground = ThemeHelper.GetSubTextBrush(),
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        Grid.SetColumn(dateBlock, 0);
+                        row.Children.Add(dateBlock);
+
+                        var nameBlock = new TextBlock
+                        {
+                            Text = name,
+                            FontSize = 14,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = ThemeHelper.GetTextBrush(),
+                            VerticalAlignment = VerticalAlignment.Center
+                        };
+                        Grid.SetColumn(nameBlock, 1);
+                        row.Children.Add(nameBlock);
+
+                        listPanel.Children.Add(row);
+                    }
+                }
+            }
+            finally
+            {
+                previousYearButton.IsEnabled = year > 1;
+                nextYearButton.IsEnabled = year < 9999;
+                isLoading = false;
+            }
+        }
+
+        previousYearButton.Click += async (s, e) =>
+        {
+            if (year <= 1)
+                return;
+
+            year--;
+            await LoadYearAsync(year);
+        };
+
+        nextYearButton.Click += async (s, e) =>
+        {
+            if (year >= 9999)
+                return;
+
+            year++;
+            await LoadYearAsync(year);
+        };
+
+        dialog.Content = dialogGrid;
+
+        await LoadYearAsync(year);
+        await dialog.ShowDialog((Window)VisualRoot!);
     }
 
     private async Task ShowForceCrashDialog()

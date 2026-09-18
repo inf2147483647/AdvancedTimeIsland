@@ -7,7 +7,7 @@
 # Why:
 #   - The CI2 main project is multi-targeted (net8.0;net10.0) and selects a
 #     different ClassIsland SDK per TFM:
-#         net8.0  -> ClassIsland.PluginSdk / Core 1.7.106.2-dev-v2
+#         net8.0  -> ClassIsland.PluginSdk / Core 2.0.1.1
 #         net10.0 -> ClassIsland.PluginSdk / Core 2.1.1.1
 #     The WPF build uses the ClassIsland 1.x SDK 1.7.0.1.
 #   - This script restores EACH target separately, snapshots its complete
@@ -65,7 +65,7 @@ function Sync-Target {
     }
 }
 
-# 1) CI2 net8.0 compat  - ClassIsland SDK 1.7.106.2-dev-v2
+# 1) CI2 net8.0 compat  - ClassIsland SDK 2.0.1.1
 Sync-Target (Join-Path $ProjectRoot "AdvancedTimeIsland.csproj") "-p:TargetFramework=net8.0" "-r win-x64" (Join-Path $ProjectRoot "obj\project.assets.json") "net8-compat"
 # 2) CI2 net10.0        - ClassIsland SDK 2.1.1.1
 Sync-Target (Join-Path $ProjectRoot "AdvancedTimeIsland.csproj") "-p:TargetFramework=net10.0" "-r win-x64" (Join-Path $ProjectRoot "obj\project.assets.json") "net10"

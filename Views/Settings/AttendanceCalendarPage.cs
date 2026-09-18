@@ -24,9 +24,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 并展示统计概览与按周/月的分段统计。数据由 <see cref="AttendanceCalendarService"/> 统一持久化。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandAttendance", "在校时间统计", "\ue126", "\ue126")]
-#if NET10_0_OR_GREATER
 [Group("advancedtimeisland.main")]
-#endif
 public class AttendanceCalendarPage : SettingsPageBase
 {
     private readonly AttendanceCalendarService _calendar;

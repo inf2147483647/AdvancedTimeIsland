@@ -1,6 +1,6 @@
 # ClassIsland Plugin Packaging Script
 # Builds THREE versions of the plugin:
-#   1. .NET 8 compatible version (ClassIsland.PluginSdk 1.7.106.2-dev-v2) for CI2
+#   1. .NET 8 compatible version (ClassIsland.PluginSdk 2.0.1.1) for CI2
 #   2. .NET 10 new version (Misha SDK 2.1.1) for CI2
 #   3. WPF version (ClassIsland 1.x, net8.0-windows) in AdvancedTimeIslandWPF\
 # Usage: .\Build-Package.ps1 [-Target both|compat|new|wpf] [-NoServerShutdown]

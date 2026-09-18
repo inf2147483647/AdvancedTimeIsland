@@ -11,13 +11,11 @@ using ClassIsland.Core.Attributes;
 namespace AdvancedTimeIsland.Views.Settings;
 
 /// <summary>
-/// 时间表悬浮窗设置页面（从主设置页拆出；net10 宿主下与主设置页同属 AdvancedTimeIsland 导航分组）。
+/// 时间表悬浮窗设置页面（从主设置页拆出；与主设置页同属 AdvancedTimeIsland 导航分组）。
 /// 设置项按三个折叠面板分组：基础外观 / 交互行为 / 窗口与高级。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandFloatingSchedule", "时间表悬浮窗")]
-#if NET10_0_OR_GREATER
 [Group("advancedtimeisland.main")]
-#endif
 public class FloatingScheduleSettingsPage : SettingsPageBase
 {
     private readonly PluginSettings? _settings;

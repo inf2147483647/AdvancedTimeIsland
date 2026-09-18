@@ -247,30 +247,43 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
     {
         base.OnInitialized();
 
-        // 防御重复初始化：先释放旧 VM 并解除其事件订阅，避免泄漏。
-        if (vm != null)
-        {
-            vm.PropertyChanged -= OnVmPropertyChanged;
-            vm.Dispose();
-        }
-
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
 
+        EnsureViewModel();
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // 主界面重建时组件可能先分离再挂载，此时视图模型已被释放，必须重新创建，否则统计不再刷新。
+        EnsureViewModel();
+    }
+
+    /// <summary>创建视图模型并接上刷新链路；已存在时不做任何事。</summary>
+    private void EnsureViewModel()
+    {
+        if (vm != null)
+        {
+            return;
+        }
+
         vm = new AttendanceViewModel(_timeBaseService, Settings, _calendarService);
         DataContext = vm;
+
+        // 先接上属性变更，再执行初始渲染：即使后续某个渲染步骤抛异常，
+        // 组件也仍能响应视图模型的刷新，不会永久停留在初始画面。
+        vm.PropertyChanged += OnVmPropertyChanged;
+        Settings.PropertyChanged += OnSettingsChanged;
 
         UpdateTexts();
         UpdateProgressDisplay();
         UpdateFontStyles();
         UpdateProgressColors();
         UpdateProgressDisplayMode();
-
-        vm.PropertyChanged += OnVmPropertyChanged;
-        Settings.PropertyChanged += OnSettingsChanged;
     }
 
     private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)

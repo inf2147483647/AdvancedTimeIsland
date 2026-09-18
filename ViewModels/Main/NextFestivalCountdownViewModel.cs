@@ -167,17 +167,17 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
 
         if (_settings.EnableInternationalFestivals)
         {
-            AddInternationalFestivals(festivals, date);
+            FestivalCatalog.AddInternationalFestivals(festivals, date);
         }
 
         if (_settings.EnableChineseTraditionalFestivals)
         {
-            AddChineseTraditionalFestivals(festivals, date);
+            FestivalCatalog.AddChineseTraditionalFestivals(festivals, date, _enableExperimentalFeatures);
         }
 
         if (_settings.EnableRedFestivals)
         {
-            AddRedFestivals(festivals, date);
+            FestivalCatalog.AddRedFestivals(festivals, date);
         }
 
         var nextFestival = festivals.Where(f => f.Date > date).OrderBy(f => f.Date).FirstOrDefault();
@@ -185,124 +185,23 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         {
             if (_settings.EnableInternationalFestivals)
             {
-                AddInternationalFestivals(festivals, date.AddYears(1));
+                FestivalCatalog.AddInternationalFestivals(festivals, date.AddYears(1));
             }
 
             if (_settings.EnableChineseTraditionalFestivals)
             {
-                AddChineseTraditionalFestivals(festivals, date.AddYears(1));
+                FestivalCatalog.AddChineseTraditionalFestivals(festivals, date.AddYears(1), _enableExperimentalFeatures);
             }
 
             if (_settings.EnableRedFestivals)
             {
-                AddRedFestivals(festivals, date.AddYears(1));
+                FestivalCatalog.AddRedFestivals(festivals, date.AddYears(1));
             }
 
             nextFestival = festivals.Where(f => f.Date > date).OrderBy(f => f.Date).FirstOrDefault();
         }
 
         return (nextFestival.Name, nextFestival.Date.Year, nextFestival.Date.Month, nextFestival.Date.Day);
-    }
-
-    private void AddInternationalFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
-    {
-        festivals.Add(("元旦", new DateTime(date.Year, 1, 1)));
-        festivals.Add(("妇女节", new DateTime(date.Year, 3, 8)));
-        festivals.Add(("植树节", new DateTime(date.Year, 3, 12)));
-        festivals.Add(("劳动节", new DateTime(date.Year, 5, 1)));
-        festivals.Add(("儿童节", new DateTime(date.Year, 6, 1)));
-        festivals.Add(("教师节", new DateTime(date.Year, 9, 10)));
-        festivals.Add(("清明节", GetQingMingDate(date.Year)));
-        festivals.Add(("冬至", GetDongZhiDate(date.Year)));
-    }
-
-    private void AddChineseTraditionalFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
-    {
-        var solar = Lunar.Solar.FromDate(date);
-        var lunarYear = solar.Lunar.Year;
-
-        festivals.Add(("春节", LunarToSolar(lunarYear, 1, 1)));
-        festivals.Add(("元宵节", LunarToSolar(lunarYear, 1, 15)));
-        festivals.Add(("寒食节", GetQingMingDate(date.Year).AddDays(-1)));
-        festivals.Add(("清明节", GetQingMingDate(date.Year)));
-        festivals.Add(("端午节", LunarToSolar(lunarYear, 5, 5)));
-        festivals.Add(("上巳节", LunarToSolar(lunarYear, 3, 3)));
-        festivals.Add(("七夕节", LunarToSolar(lunarYear, 7, 7)));
-        festivals.Add(("中元节", LunarToSolar(lunarYear, 7, 15)));
-        festivals.Add(("中秋节", LunarToSolar(lunarYear, 8, 15)));
-        festivals.Add(("重阳节", LunarToSolar(lunarYear, 9, 9)));
-        festivals.Add(("冬至", GetDongZhiDate(date.Year)));
-        festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
-        festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
-        festivals.Add(("除夕", GetChuXiDate(lunarYear)));
-
-        if (_enableExperimentalFeatures)
-        {
-            festivals.Add(("花朝节", LunarToSolar(lunarYear, 2, 15)));
-        }
-    }
-
-    private void AddRedFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
-    {
-        festivals.Add(("二七纪念日", new DateTime(date.Year, 2, 7)));
-        festivals.Add(("学雷锋纪念日", new DateTime(date.Year, 3, 5)));
-        festivals.Add(("五四青年节", new DateTime(date.Year, 5, 4)));
-        festivals.Add(("七一建党节", new DateTime(date.Year, 7, 1)));
-        festivals.Add(("八一建军节", new DateTime(date.Year, 8, 1)));
-        festivals.Add(("中国人民抗日战争胜利纪念日", new DateTime(date.Year, 9, 3)));
-        festivals.Add(("九一八事变纪念日", new DateTime(date.Year, 9, 18)));
-        festivals.Add(("烈士纪念日", new DateTime(date.Year, 9, 30)));
-        festivals.Add(("十一国庆节", new DateTime(date.Year, 10, 1)));
-        festivals.Add(("中国工农红军长征胜利纪念日", new DateTime(date.Year, 10, 22)));
-        festivals.Add(("南京大屠杀死难者国家公祭日", new DateTime(date.Year, 12, 13)));
-    }
-
-    private DateTime LunarToSolar(int lunarYear, int lunarMonth, int lunarDay)
-    {
-        try
-        {
-            var lunar = Lunar.Lunar.FromYmdHms(lunarYear, lunarMonth, lunarDay);
-            var solar = lunar.Solar;
-            return new DateTime(solar.Year, solar.Month, solar.Day);
-        }
-        catch
-        {
-            return DateTime.MaxValue;
-        }
-    }
-
-    private DateTime GetQingMingDate(int year)
-    {
-        var solar = Lunar.Solar.FromYmdHms(year, 4, 4);
-        var jieQi = solar.Lunar.JieQi;
-        if (jieQi == "清明") return new DateTime(year, 4, 4);
-        return new DateTime(year, 4, 5);
-    }
-
-    private DateTime GetDongZhiDate(int year)
-    {
-        var solar = Lunar.Solar.FromYmdHms(year, 12, 21);
-        var jieQi = solar.Lunar.JieQi;
-        if (jieQi == "冬至") return new DateTime(year, 12, 21);
-        solar = Lunar.Solar.FromYmdHms(year, 12, 22);
-        jieQi = solar.Lunar.JieQi;
-        if (jieQi == "冬至") return new DateTime(year, 12, 22);
-        return new DateTime(year, 12, 23);
-    }
-
-    private DateTime GetChuXiDate(int lunarYear)
-    {
-        try
-        {
-            var nextYearLunar = Lunar.Lunar.FromYmdHms(lunarYear + 1, 1, 1);
-            var nextYearSolar = nextYearLunar.Solar;
-            var nextYearDate = new DateTime(nextYearSolar.Year, nextYearSolar.Month, nextYearSolar.Day);
-            return nextYearDate.AddDays(-1);
-        }
-        catch
-        {
-            return DateTime.MaxValue;
-        }
     }
 
     private string FormatTime(TimeSpan timeLeft)

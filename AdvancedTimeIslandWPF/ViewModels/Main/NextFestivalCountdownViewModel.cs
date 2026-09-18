@@ -254,6 +254,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("烈士纪念日", new DateTime(date.Year, 9, 30)));
         festivals.Add(("十一国庆节", new DateTime(date.Year, 10, 1)));
         festivals.Add(("中国工农红军长征胜利纪念日", new DateTime(date.Year, 10, 22)));
+        festivals.Add(("台湾光复纪念日", new DateTime(date.Year, 10, 25)));
         festivals.Add(("南京大屠杀死难者国家公祭日", new DateTime(date.Year, 12, 13)));
     }
 

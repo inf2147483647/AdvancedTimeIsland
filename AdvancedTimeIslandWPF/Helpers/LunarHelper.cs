@@ -168,6 +168,23 @@ public static class LunarHelper
                 foreach (var f in traditionalFestivals)
                     festivalNames.Add(f);
             }
+
+            // 与“下个节日倒计时”对齐：补齐其独有的节日（只增不减，库内置节日保持不变）。
+            var qingMing = GetQingMingDate(solarDate.Year);
+            var dongZhi = GetDongZhiDate(solarDate.Year);
+            if (qingMing.Date == solarDate.Date) festivalNames.Add("清明节");
+            if (dongZhi.Date == solarDate.Date) festivalNames.Add("冬至");
+
+            if (includeTraditional)
+            {
+                if (qingMing.AddDays(-1).Date == solarDate.Date) festivalNames.Add("寒食节");
+
+                var lunarYear = Solar.FromDate(solarDate).Lunar.Year;
+                var zhongYuan = LunarToSolar(lunarYear, 7, 15, false);
+                if (zhongYuan.HasValue && zhongYuan.Value.Date == solarDate.Date) festivalNames.Add("中元节");
+                var xiaoNian = LunarToSolar(lunarYear, 12, 23, false);
+                if (xiaoNian.HasValue && xiaoNian.Value.Date == solarDate.Date) festivalNames.Add("小年");
+            }
         }
 
         if (includeRed)
@@ -184,7 +201,42 @@ public static class LunarHelper
                 festivalNames.Add(f);
         }
 
+        // 永久移除：平安夜、圣诞节。这两个节日来自 lunar 库的 solar.Festivals，
+        // 这里统一剔除，保证不受任何分类开关或实验性功能影响。
+        festivalNames.ExceptWith(RemovedFestivals);
+
         return festivalNames.ToArray();
+    }
+
+    /// <summary>
+    /// 永久移除的节日名称（不随任何开关或配置恢复）。
+    /// </summary>
+    private static readonly System.Collections.Generic.HashSet<string> RemovedFestivals = new()
+    {
+        "平安夜",
+        "圣诞节"
+    };
+
+    /// <summary>
+    /// 获取指定年份的清明节日期。
+    /// </summary>
+    private static DateTime GetQingMingDate(int year)
+    {
+        var solar = Solar.FromYmdHms(year, 4, 4);
+        if (solar.Lunar.JieQi == "清明") return new DateTime(year, 4, 4);
+        return new DateTime(year, 4, 5);
+    }
+
+    /// <summary>
+    /// 获取指定年份的冬至日期。
+    /// </summary>
+    private static DateTime GetDongZhiDate(int year)
+    {
+        var solar = Solar.FromYmdHms(year, 12, 21);
+        if (solar.Lunar.JieQi == "冬至") return new DateTime(year, 12, 21);
+        solar = Solar.FromYmdHms(year, 12, 22);
+        if (solar.Lunar.JieQi == "冬至") return new DateTime(year, 12, 22);
+        return new DateTime(year, 12, 23);
     }
 
     /// <summary>
@@ -240,6 +292,7 @@ public static class LunarHelper
         if (date.Month == 9 && date.Day == 30) festivals.Add("烈士纪念日");
         if (date.Month == 10 && date.Day == 1) festivals.Add("十一国庆节");
         if (date.Month == 10 && date.Day == 22) festivals.Add("中国工农红军长征胜利纪念日");
+        if (date.Month == 10 && date.Day == 25) festivals.Add("台湾光复纪念日");
         if (date.Month == 12 && date.Day == 13) festivals.Add("南京大屠杀死难者国家公祭日");
 
         return festivals.ToArray();
