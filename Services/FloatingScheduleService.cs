@@ -176,6 +176,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private Layoutable? _currentBreakProgressHost;   // 当前课间行进度条 —— 承载容器
     private List<(object? ClassInfo, Subject? Subject, object LayoutItem)> _currentClassRows = new();
     private int _currentOnClassIndex = -1;
+    // 【显示明天课表】本次 RefreshSchedule 是否正在展示"明天课表"（四档模式判定结果）。
+    //  用于 UpdateProgress 跳过"onClass != indexValid"一致性兜底触发：明天课表不参与当前课高亮定位，
+    //  _currentOnClassIndex 恒为 -1，若不跳过会在 OnClass 状态下每 500ms 误判 needRefresh 导致整表反复重建。
+    private bool _showingTomorrowAv;
     private object? _currentBreakLayoutItem;        // 若 Breaking 命中则写入，UpdateProgress 计算进度用
     // 【★ 连续课间分别走进度】课间项列表（TimeType==1，按 Start 升序），RefreshSchedule 构建时从 classPlan 收集。
     //  连续课间 B1→B2→B3（首尾相接）时，课对空隙 = 总长度（进度条会走总长度）。
@@ -624,17 +628,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (instance == null) return null;
         try
         {
-            var mi = instance.GetType().GetMethod(methodName, BindingFlags.Instance | BindingFlags.Public);
-            if (mi == null)
+            // 【修复：同名重载导致解析歧义】
+            //  宿主 ILessonsService.GetClassPlanByDate 同时存在 GetClassPlanByDate(DateTime)
+            //  与 GetClassPlanByDate(DateTime, out Guid?) 两个公开重载。
+            //  旧实现直接 GetMethod(name, flags) 会抛 AmbiguousMatchException（被 catch 吞成 null），
+            //  导致"取明天课表"永远返回 null → 明天有课也被显示为"明天没有课程"。
+            //  改为：先按实参类型逐个匹配同名同参数个数的重载，再 Invoke。
+            var type = instance.GetType();
+            MethodInfo? mi = null;
+            foreach (var m in type.GetMethods(BindingFlags.Instance | BindingFlags.Public))
             {
-                // 尝试通过参数匹配
-                foreach (var m in instance.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public))
+                if (m.Name != methodName || m.GetParameters().Length != args.Length) continue;
+                var ps = m.GetParameters();
+                bool matched = true;
+                for (int i = 0; i < ps.Length; i++)
                 {
-                    if (m.Name != methodName || m.GetParameters().Length != args.Length) continue;
-                    try { return m.Invoke(instance, args); } catch { /* continue */ }
+                    var pt = ps[i].ParameterType;
+                    if (pt.IsByRef) pt = pt.GetElementType() ?? pt;
+                    if (args[i] == null) continue;                // null 实参不参与类型判定
+                    if (!pt.IsInstanceOfType(args[i])) { matched = false; break; }
                 }
-                return null;
+                if (matched) { mi = m; break; }
             }
+            if (mi == null) return null;
             return mi.Invoke(instance, args);
         }
         catch { return null; }
@@ -1903,6 +1919,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             case nameof(PluginSettings.FloatingScheduleFontScale):
             case nameof(PluginSettings.FloatingScheduleEnableFullTeacherName):
             case nameof(PluginSettings.FloatingScheduleShowTeacher):
+            case nameof(PluginSettings.FloatingScheduleTomorrowShowMode):
+            case nameof(PluginSettings.FloatingScheduleTomorrowPlaceholderText):
+            case nameof(PluginSettings.FloatingScheduleTodayPlaceholderText):
                 Dispatcher.UIThread.Post(RefreshSchedule);
                 break;
             case nameof(PluginSettings.FloatingScheduleClickThrough):
@@ -3191,22 +3210,56 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _containerBorder.Background = bg;
             _containerBorder.BorderBrush = sep;
 
-            // ---- 获取今日课表（优先：ILessonsService.CurrentClassPlan / GetClassPlanByDate(调试偏移后的今天)）----
+            // ---- 获取课表（今日 / 明日，按"显示明天课表"四档模式判定；参考 ClassIsland 课程表组件）----
             //  【修复：调试时间调整不立刻刷新时间表 - Date 锚点】
             //  原来用 DateTime.Today（本地系统日期，不会随 DebugTimeOffsetSeconds 跨天变化），
             //  改为 GetClassIslandNow().Date（走宿主 ExactTimeService，包含 DebugTimeOffsetSeconds + TimeOffsetSeconds 偏移），
             //  这样"调试把日期调到另一天（跨86400秒）"时 ClassPlan 能立刻抓目标日期课表，而不是停留在系统日期课。
             DateTime todayBase = GetClassIslandNow().Date;
-            object? classPlan = ReflectProp(_lessonsService, "CurrentClassPlan");
-            if (classPlan == null)
+            var todayStateRaw = ReflectProp(_lessonsService, "CurrentState");
+            TimeState todayState = todayStateRaw != null ? (TimeState)todayStateRaw : TimeState.None;
+            object? currentPlan = ReflectProp(_lessonsService, "CurrentClassPlan");
+            object? todayPlanByDate = InvokeGeneric(_lessonsService, "GetClassPlanByDate", todayBase);
+
+            // 与 ClassIsland 一致的"放学后"判定：当前时间状态为放学后，或当天课表未加载
+            bool isAfterSchoolForTomorrow = todayState == TimeState.AfterSchool || currentPlan == null;
+            bool showTomorrow;
+            switch (_settings.FloatingScheduleTomorrowShowMode)
             {
-                classPlan = InvokeGeneric(_lessonsService, "GetCurrentClassPlan");
+                case FloatingScheduleTomorrowShowMode.Always:
+                    showTomorrow = true;
+                    break;
+                case FloatingScheduleTomorrowShowMode.AfterSchool:
+                    showTomorrow = isAfterSchoolForTomorrow;
+                    break;
+                case FloatingScheduleTomorrowShowMode.OnEmpty:
+                    showTomorrow = !PlanHasDisplayableRowsAv(currentPlan ?? todayPlanByDate);
+                    break;
+                default:
+                    showTomorrow = false;
+                    break;
+            }
+            _showingTomorrowAv = showTomorrow;
+
+            object? classPlan;
+            if (showTomorrow)
+            {
+                // 明天课表必须按日期独立取，不能复用 CurrentClassPlan（那是今天的课表）
+                classPlan = InvokeGeneric(_lessonsService, "GetClassPlanByDate", todayBase.AddDays(1));
+            }
+            else
+            {
+                classPlan = currentPlan;
                 if (classPlan == null)
                 {
-                    classPlan = InvokeGeneric(_lessonsService, "GetClassPlanByDate", todayBase);
+                    classPlan = InvokeGeneric(_lessonsService, "GetCurrentClassPlan");
                     if (classPlan == null)
                     {
-                        classPlan = InvokeGeneric(_lessonsService, "GetClassPlan", todayBase);
+                        classPlan = todayPlanByDate;
+                        if (classPlan == null)
+                        {
+                            classPlan = InvokeGeneric(_lessonsService, "GetClassPlan", todayBase);
+                        }
                     }
                 }
             }
@@ -3267,11 +3320,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
 
             // ---- 定位当前课程索引 + 当前课间休息位置 ----
+            // 【显示明天课表】明天课表不参与"当前课高亮 / 课间插入"定位（those 语义只对当天成立），
+            //  故强制关闭 isOnClass / isBreaking → _currentOnClassIndex 保持 -1、breakInsertAfterClassIdx 保持 -1，纯列表展示。
             var now = GetClassIslandNow().TimeOfDay;
-            var curStateRaw = ReflectProp(_lessonsService, "CurrentState");
-            TimeState curState = curStateRaw != null ? (TimeState)curStateRaw : TimeState.None;
-            bool isOnClass = curState == TimeState.OnClass;
-            bool isBreaking = curState == TimeState.Breaking;
+            TimeState curState = todayState;
+            bool isOnClass = curState == TimeState.OnClass && !showTomorrow;
+            bool isBreaking = curState == TimeState.Breaking && !showTomorrow;
 
             if (isOnClass)
             {
@@ -3384,17 +3438,43 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // ---- 若无课，显示占位符 ----
             if (!hasClasses)
             {
+                // 占位符与"显示明天课表"对齐：今天 / 明天各有独立配置项，留空时回退到各自默认文案
+                var placeholderText = showTomorrow
+                    ? _settings.FloatingScheduleTomorrowPlaceholderText
+                    : _settings.FloatingScheduleTodayPlaceholderText;
+                if (string.IsNullOrWhiteSpace(placeholderText))
+                    placeholderText = showTomorrow ? "明天没有课程" : "今天没有课程";
                 var noClass = new TextBlock
                 {
-                    Text = "今天没有课程",
+                    Text = placeholderText,
                     FontSize = fontSize,
                     Foreground = subFg,
                     HorizontalAlignment = HorizontalAlignment.Center,
                     VerticalAlignment = VerticalAlignment.Center,
                     Margin = new Thickness(10, 6)
                 };
-                _containerBorder.Child = noClass;
-                _rootContent = noClass;
+                if (showTomorrow)
+                {
+                    // 明天课表：标题 + 占位符一起展示，明确告知当前显示的是明天。
+                    //  用 Grid（两行 Auto）而非 StackPanel+MinWidth：宽度由内容自然决定，不自造最小宽度。
+                    var tomorrowEmptyPanel = new Grid
+                    {
+                        RowDefinitions = RowDefinitions.Parse("Auto, Auto"),
+                        HorizontalAlignment = HorizontalAlignment.Stretch
+                    };
+                    var emptyTitle = CreateTomorrowTitleAv(fontSize, accentBrush);
+                    Grid.SetRow(emptyTitle, 0);
+                    tomorrowEmptyPanel.Children.Add(emptyTitle);
+                    Grid.SetRow(noClass, 1);
+                    tomorrowEmptyPanel.Children.Add(noClass);
+                    _containerBorder.Child = tomorrowEmptyPanel;
+                    _rootContent = tomorrowEmptyPanel;
+                }
+                else
+                {
+                    _containerBorder.Child = noClass;
+                    _rootContent = noClass;
+                }
                 StartOrStopTimer();
                 return;
             }
@@ -3429,6 +3509,20 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 RowSpacing = 0
             };
 
+            // 【明日时间表】标题行：作为同一个 Grid 的第 0 行（跨 2 列），而不是外层再套 StackPanel。
+            //   外层套容器会改变 Grid 的测量约束/星列行为 → 卡片宽度与"今天时间表"不一致（宽度不自适应）。
+            //   放进同一个 Grid 后列仍是同一套 Auto,*，宽度计算路径与今天课表完全一致，切换时宽度对齐。
+            int headerRowIdx = 0;
+            if (showTomorrow)
+            {
+                grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
+                var tomorrowTitle = CreateTomorrowTitleAv(fontSize, accentBrush);
+                Grid.SetColumnSpan(tomorrowTitle, 2);
+                Grid.SetRow(tomorrowTitle, 0);
+                grid.Children.Add(tomorrowTitle);
+                headerRowIdx = 1;
+            }
+
             // 表头行
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var header1 = new TextBlock
@@ -3439,7 +3533,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 Foreground = textFg,
                 Margin = new Thickness(0, 0, 0, 4)
             };
-            Grid.SetColumn(header1, 0); Grid.SetRow(header1, 0); grid.Children.Add(header1);
+            Grid.SetColumn(header1, 0); Grid.SetRow(header1, headerRowIdx); grid.Children.Add(header1);
             var header2 = new TextBlock
             {
                 Text = "时间",
@@ -3449,7 +3543,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 HorizontalAlignment = HorizontalAlignment.Right,
                 Margin = new Thickness(0, 0, 0, 4)
             };
-            Grid.SetColumn(header2, 1); Grid.SetRow(header2, 0); grid.Children.Add(header2);
+            Grid.SetColumn(header2, 1); Grid.SetRow(header2, headerRowIdx); grid.Children.Add(header2);
 
             // 分隔线行
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
@@ -3461,7 +3555,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 CornerRadius = new CornerRadius(0.5)
             };
             Grid.SetColumnSpan(sepLine, 2);
-            Grid.SetRow(sepLine, 1); grid.Children.Add(sepLine);
+            Grid.SetRow(sepLine, headerRowIdx + 1); grid.Children.Add(sepLine);
 
             // 课程行
             for (int i = 0; i < _currentClassRows.Count; i++)
@@ -3682,6 +3776,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
             }
 
+            // 标题已作为 Grid 第 0 行内联（见上文 headerRowIdx），此处直接挂 Grid，
+            // 保证"今天/明天"两种状态共用同一套列宽与 SizeToContent 宽度计算，卡片宽度自适应且完全对齐。
             _containerBorder.Child = grid;
             _rootContent = grid;
             // 【课表行休息分隔线】本次重建无分隔线 → 退订主题事件（旧线已随 Child 替换出树，防泄漏）
@@ -3844,6 +3940,55 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
             catch { /* 极端兜底 */ }
         }
+    }
+
+    /// <summary>"明日时间表"标题标识（强调色加粗，随主题自适应；仅在悬浮窗展示明天课表时使用）。</summary>
+    private static TextBlock CreateTomorrowTitleAv(int fontSize, IBrush accentBrush)
+    {
+        return new TextBlock
+        {
+            Text = "明日时间表",
+            FontSize = fontSize,
+            FontWeight = FontWeight.Bold,
+            Foreground = accentBrush,
+            Margin = new Thickness(0, 0, 0, 6)
+        };
+    }
+
+    /// <summary>
+    /// 判断课表是否存在至少一节"可展示"课程（有效时段条目 + 已启用课程），
+    /// 供"显示明天课表 → 无展示课程时显示"档位判定当天课表是否为空。
+    /// </summary>
+    private static bool PlanHasDisplayableRowsAv(object? classPlan)
+    {
+        if (classPlan == null) return false;
+        var validItems = new List<object>();
+        foreach (var x in ReflectGetValidTimeLayoutItems(classPlan))
+        {
+            if (x != null && ReflectGetTimeType(x) == 0) validItems.Add(x);
+        }
+        if (validItems.Count == 0) return false;
+
+        var classesList = ReflectGetClasses(classPlan);
+        for (int i = 0; i < validItems.Count; i++)
+        {
+            var layoutItem = validItems[i];
+            var start = ReflectGetStartTime(layoutItem);
+            var end = ReflectGetEndTime(layoutItem);
+
+            object? classInfo = null;
+            foreach (var c in classesList)
+            {
+                if (c == null) continue;
+                var curLi = ReflectGetCurLayoutItemOfClass(c);
+                if (curLi == null) continue;
+                if (ReflectGetStartTime(curLi) == start && ReflectGetEndTime(curLi) == end) { classInfo = c; break; }
+            }
+            if (classInfo == null && i < classesList.Count) classInfo = classesList[i];
+            if (classInfo == null || !ReflectGetIsEnabled(classInfo)) continue;
+            return true;
+        }
+        return false;
     }
 
     // ===================== 进度刷新 =====================
@@ -4030,7 +4175,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //  连续课间（B1→B2）：由上方 breaking 超时触发源 + RefreshSchedule 真实时间空隙定位即时切换。
             bool needRefresh = stateOrBreakChanged;
             bool indexValid = _currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count;
-            if (!needRefresh && onClass != indexValid)
+            if (!needRefresh && !_showingTomorrowAv && onClass != indexValid)
             {
                 // 上课状态与索引存在性不一致（例如：进入上课但仍没高亮索引，或下课了还有进度条）
                 needRefresh = true;

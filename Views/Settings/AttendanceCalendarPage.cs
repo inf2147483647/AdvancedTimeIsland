@@ -1,4 +1,4 @@
-using System;
+ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
@@ -45,6 +45,8 @@ public class AttendanceCalendarPage : SettingsPageBase
     private NumericUpDown? _totalWeeksNumericUpDown;
     private DatePicker? _manualEndDatePicker;
     private NumericUpDown? _dailyHoursNumericUpDown;
+    private ComboBox? _dailyHoursSourceComboBox;
+    private TextBlock? _dailyHoursHintTextBlock;
 
     private StackPanel? _vacationListHost;
     private StackPanel? _customListHost;
@@ -74,6 +76,7 @@ public class AttendanceCalendarPage : SettingsPageBase
 
     private static readonly object[] StartSourceItems = { "自动读取 ClassIsland 学期开始时间", "手动指定" };
     private static readonly object[] EndSourceItems = { "按学期周数推算", "手动指定" };
+    private static readonly object[] DailyHoursSourceItems = { "自动获取", "手动指定" };
     private static readonly object[] HolidayTypeItems = { "放假日", "调休补班日" };
     private static readonly object[] CustomTypeItems = { "强制计入在校日", "强制排除" };
     private static readonly object[] PeriodModeItems = { "按周", "按月" };
@@ -193,7 +196,7 @@ public class AttendanceCalendarPage : SettingsPageBase
         _startSourceComboBox = startSourceComboBox;
         panel.Children.Add(startRow);
 
-        _manualStartDatePicker = new DatePicker { Width = 200 };
+        _manualStartDatePicker = new DatePicker { Width = 300 };
         _manualStartDatePicker.SelectedDateChanged += OnSemesterDateChanged;
         panel.Children.Add(CreateLabeledRow("手动开始日", _manualStartDatePicker));
 
@@ -214,9 +217,24 @@ public class AttendanceCalendarPage : SettingsPageBase
         _totalWeeksNumericUpDown.ValueChanged += OnSemesterNumberChanged;
         panel.Children.Add(CreateLabeledRow("学期总周数", _totalWeeksNumericUpDown));
 
-        _manualEndDatePicker = new DatePicker { Width = 200 };
+        _manualEndDatePicker = new DatePicker { Width = 300 };
         _manualEndDatePicker.SelectedDateChanged += OnSemesterDateChanged;
         panel.Children.Add(CreateLabeledRow("手动结束日", _manualEndDatePicker));
+
+        _dailyHoursSourceComboBox = new ComboBox { Width = 300, HorizontalAlignment = HorizontalAlignment.Left };
+        foreach (var item in DailyHoursSourceItems)
+        {
+            _dailyHoursSourceComboBox.Items.Add(item);
+        }
+        _dailyHoursSourceComboBox.SelectionChanged += OnDailyHoursSourceChanged;
+        panel.Children.Add(CreateLabeledRow("每日在校时长", _dailyHoursSourceComboBox));
+        _dailyHoursHintTextBlock = new TextBlock
+        {
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            Margin = new Thickness(0, -2, 0, 2)
+        };
+        panel.Children.Add(_dailyHoursHintTextBlock);
 
         _dailyHoursNumericUpDown = new NumericUpDown
         {
@@ -258,8 +276,8 @@ public class AttendanceCalendarPage : SettingsPageBase
             VerticalAlignment = VerticalAlignment.Center
         };
         _newVacationNameTextBox = new TextBox { Width = 150, Watermark = "如 2026 寒假" };
-        _newVacationStartDatePicker = new DatePicker { Width = 150 };
-        _newVacationEndDatePicker = new DatePicker { Width = 150 };
+        _newVacationStartDatePicker = new DatePicker { Width = 300 };
+        _newVacationEndDatePicker = new DatePicker { Width = 300 };
         var addButton = new Button { Content = "添加假期" };
         addButton.Click += OnAddVacationClick;
         addPanel.Children.Add(new TextBlock { Text = "名称", VerticalAlignment = VerticalAlignment.Center });
@@ -293,7 +311,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             Spacing = 6,
             VerticalAlignment = VerticalAlignment.Center
         };
-        _newCustomDatePicker = new DatePicker { Width = 150 };
+        _newCustomDatePicker = new DatePicker { Width = 300 };
         _newCustomNameTextBox = new TextBox { Width = 150, Watermark = "如 校运会" };
         _newCustomTypeComboBox = new ComboBox { Width = 150, ItemsSource = CustomTypeItems, SelectedIndex = 1 };
         var addButton = new Button { Content = "添加日期" };
@@ -328,7 +346,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             Spacing = 6,
             VerticalAlignment = VerticalAlignment.Center
         };
-        _newHolidayDatePicker = new DatePicker { Width = 150 };
+        _newHolidayDatePicker = new DatePicker { Width = 300 };
         _newHolidayNameTextBox = new TextBox { Width = 150, Watermark = "如 春节" };
         _newHolidayTypeComboBox = new ComboBox { Width = 130, ItemsSource = HolidayTypeItems, SelectedIndex = 0 };
         var addButton = new Button { Content = "添加条目" };
@@ -553,6 +571,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             _manualEndDatePicker!.SelectedDate = ToDateTimeOffset(Config.ManualEndDate);
             _totalWeeksNumericUpDown!.Value = Config.TotalWeeks;
             _dailyHoursNumericUpDown!.Value = (decimal)Config.DailyHours;
+            _dailyHoursSourceComboBox!.SelectedIndex = Config.DailyHoursSource == DailyHoursSource.Auto ? 0 : 1;
         }
         finally
         {
@@ -587,6 +606,31 @@ public class AttendanceCalendarPage : SettingsPageBase
         var manualEnd = Config.EndSource == SemesterEndSource.ManualDate;
         _manualEndDatePicker!.IsEnabled = manualEnd;
         _totalWeeksNumericUpDown!.IsEnabled = !manualEnd;
+
+        // 自动获取时手动值不参与计算，禁用输入但保留原值，切回手动模式即可继续使用。
+        _dailyHoursNumericUpDown!.IsEnabled = Config.DailyHoursSource != DailyHoursSource.Auto;
+        UpdateDailyHoursHint();
+    }
+
+    /// <summary>刷新「每日在校时长」的说明文案，自动模式下显示当天档案实际读到的时长。</summary>
+    private void UpdateDailyHoursHint()
+    {
+        if (_dailyHoursHintTextBlock == null)
+        {
+            return;
+        }
+
+        _dailyHoursHintTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+
+        if (Config.DailyHoursSource != DailyHoursSource.Auto)
+        {
+            _dailyHoursHintTextBlock.Text = "手动指定：所有在校日按下方固定时长换算。";
+            return;
+        }
+
+        _dailyHoursHintTextBlock.Text = _calendar.TryGetScheduleDailyHours(DateTime.Now, out var hours)
+            ? $"自动获取：当天档案第一节课开始到最后一节课下课共 {hours:0.#} 小时。"
+            : $"自动获取失败（{_calendar.LastScheduleReadError ?? "未知原因"}），将回退到下方手动值。";
     }
 
     private void RebuildVacationTable()
@@ -742,9 +786,7 @@ public class AttendanceCalendarPage : SettingsPageBase
         AttendanceStatistics stats;
         try
         {
-            var data = _calendar.Data;
-            stats = await Task.Run(() =>
-                AttendanceStatisticsHelper.Compute(start.Value, end, DateTime.Now, config, data));
+            stats = await Task.Run(() => _calendar.ComputeStatistics(start.Value, end, DateTime.Now));
         }
         catch (Exception ex)
         {
@@ -784,7 +826,6 @@ public class AttendanceCalendarPage : SettingsPageBase
         try
         {
             var config = Config;
-            var data = _calendar.Data;
             var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
 
             if (start == null)
@@ -794,8 +835,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             }
 
             var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
-            var stats = await Task.Run(() =>
-                AttendanceStatisticsHelper.Compute(start.Value, end, DateTime.Now, config, data));
+            var stats = await Task.Run(() => _calendar.ComputeStatistics(start.Value, end, DateTime.Now));
 
             if (stats.NotStarted)
             {
@@ -814,7 +854,7 @@ public class AttendanceCalendarPage : SettingsPageBase
                 SetSummary(
                     $"本学期已在校 {stats.ElapsedInSchoolDays} 天 / 共 {stats.TotalInSchoolDays} 天，约 {stats.ElapsedHours:0.#} 小时",
                     $"进度 {stats.ProgressPercent:0.#}%；剩余 {stats.RemainingInSchoolDays} 天 · 约 {stats.RemainingHours:0.#} 小时；" +
-                    $"每日标准在校时长 {stats.DailyHours:0.#} 小时。",
+                    $"每日在校时长 {stats.DailyHours:0.#} 小时（{DailyHoursSourceText()}）。",
                     stats.ProgressPercent);
             }
 
@@ -829,6 +869,10 @@ public class AttendanceCalendarPage : SettingsPageBase
             SetSummary("统计失败", ex.Message, 0);
         }
     }
+
+    /// <summary>「每日在校时长」取值方式的展示文案。</summary>
+    private string DailyHoursSourceText() =>
+        Config.DailyHoursSource == DailyHoursSource.Auto ? "自动获取当天档案课表" : "手动指定";
 
     private void SetSummary(string text, string detail, double progress)
     {
@@ -869,6 +913,22 @@ public class AttendanceCalendarPage : SettingsPageBase
         Config.EndSource = _endSourceComboBox.SelectedIndex == 1
             ? SemesterEndSource.ManualDate
             : SemesterEndSource.TotalWeeks;
+
+        UpdateSemesterOptionEnabledState();
+        _ = RefreshSummaryAsync();
+        RebuildPeriodTable();
+    }
+
+    private void OnDailyHoursSourceChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_isUpdatingControls || _dailyHoursSourceComboBox == null)
+        {
+            return;
+        }
+
+        Config.DailyHoursSource = _dailyHoursSourceComboBox.SelectedIndex == 0
+            ? DailyHoursSource.Auto
+            : DailyHoursSource.Manual;
 
         UpdateSemesterOptionEnabledState();
         _ = RefreshSummaryAsync();

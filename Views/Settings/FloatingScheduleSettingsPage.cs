@@ -178,6 +178,81 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             };
         }
 
+        // 显示明天课表（四档，参考 ClassIsland 课程表组件的 TomorrowScheduleShowMode）
+        var tomorrowModeComboBox = new ComboBox
+        {
+            Width = 220,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        tomorrowModeComboBox.Items.Add(new TextBlock { Text = "不显示", VerticalAlignment = VerticalAlignment.Center });
+        tomorrowModeComboBox.Items.Add(new TextBlock { Text = "放学后显示（默认）", VerticalAlignment = VerticalAlignment.Center });
+        tomorrowModeComboBox.Items.Add(new TextBlock { Text = "总是显示", VerticalAlignment = VerticalAlignment.Center });
+        tomorrowModeComboBox.Items.Add(new TextBlock { Text = "无展示课程时显示", VerticalAlignment = VerticalAlignment.Center });
+        int InitTomorrowIndexFromMode(FloatingScheduleTomorrowShowMode m) => m switch
+        {
+            FloatingScheduleTomorrowShowMode.Never => 0,
+            FloatingScheduleTomorrowShowMode.AfterSchool => 1,
+            FloatingScheduleTomorrowShowMode.Always => 2,
+            FloatingScheduleTomorrowShowMode.OnEmpty => 3,
+            _ => 1
+        };
+        FloatingScheduleTomorrowShowMode TomorrowModeFromIndex(int idx) => idx switch
+        {
+            0 => FloatingScheduleTomorrowShowMode.Never,
+            1 => FloatingScheduleTomorrowShowMode.AfterSchool,
+            2 => FloatingScheduleTomorrowShowMode.Always,
+            3 => FloatingScheduleTomorrowShowMode.OnEmpty,
+            _ => FloatingScheduleTomorrowShowMode.AfterSchool
+        };
+        tomorrowModeComboBox.SelectedIndex = InitTomorrowIndexFromMode(
+            _settings?.FloatingScheduleTomorrowShowMode ?? FloatingScheduleTomorrowShowMode.AfterSchool);
+        tomorrowModeComboBox.SelectionChanged += (s, e) =>
+        {
+            if (_settings != null && s is ComboBox cb)
+                _settings.FloatingScheduleTomorrowShowMode = TomorrowModeFromIndex(cb.SelectedIndex);
+        };
+        AddSettingsExpanderItem(group,
+            "显示明天课表",
+            "设置什么时候在悬浮窗显示明天课表。\n· 不显示：始终显示当天课表。\n· 放学后显示（默认）：当天放学后（或当天课表未加载时）自动切换为明天课表。\n· 总是显示：始终显示明天课表。\n· 无展示课程时显示：当天没有可展示课程时切换为明天课表。",
+            tomorrowModeComboBox);
+
+        // 今天无课程时的占位符（与"明天无课程时的占位符"对齐）
+        var todayPlaceholderBox = new TextBox
+        {
+            Width = 220,
+            Text = _settings?.FloatingScheduleTodayPlaceholderText ?? "今天没有课程",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        todayPlaceholderBox.TextChanged += (s, e) =>
+        {
+            if (_settings != null && s is TextBox tb)
+                _settings.FloatingScheduleTodayPlaceholderText = tb.Text ?? string.Empty;
+        };
+        AddSettingsExpanderItem(group,
+            "今天无课程时的占位符",
+            "显示当天课表、但当天没有课程时展示的文字；默认为\"今天没有课程\"。留空时回退为默认文案。",
+            todayPlaceholderBox);
+
+        // 明天无课程时的占位符
+        var tomorrowPlaceholderBox = new TextBox
+        {
+            Width = 220,
+            Text = _settings?.FloatingScheduleTomorrowPlaceholderText ?? "明天没有课程",
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        tomorrowPlaceholderBox.TextChanged += (s, e) =>
+        {
+            if (_settings != null && s is TextBox tb)
+                _settings.FloatingScheduleTomorrowPlaceholderText = tb.Text ?? string.Empty;
+        };
+        AddSettingsExpanderItem(group,
+            "明天无课程时的占位符",
+            "显示明天课表、但明天没有课程时展示的文字；默认为\"明天没有课程\"。留空时回退为默认文案。",
+            tomorrowPlaceholderBox);
+
         mainPanel.Children.Add(group);
     }
 

@@ -125,15 +125,17 @@ public static class AttendanceStatisticsHelper
 
     /// <summary>
     /// 判断指定日期是否为在校日。
-    /// 优先级：自定义计入 → 自定义排除 → 寒暑假 → 调休补班 → 周末 → 法定节假日。
+    /// 优先级：自定义日期（计入/排除）→ 寒暑假 → 法定节假日与调休补班（补班优先于周末）→ 启用时间表为空 → 周末。
     /// </summary>
-    public static bool IsInSchoolDay(DateTime date, AttendanceStatisticsConfig config, AttendanceCalendarData data)
+    public static bool IsInSchoolDay(DateTime date, AttendanceStatisticsConfig config, AttendanceCalendarData data,
+        IReadOnlyCollection<DateTime>? emptyScheduleDates = null)
     {
         var included = ToDateSet(data.CustomIncluded);
         var excluded = ToDateSet(data.CustomExcluded);
         var holidays = ToDateSet(data.Holidays);
         var makeup = ToDateSet(data.MakeupDays);
-        return IsInSchoolDay(date, config, included, excluded, holidays, makeup, data.Vacations);
+        return IsInSchoolDay(date, config, included, excluded, holidays, makeup, data.Vacations,
+            emptyScheduleDates == null ? null : new HashSet<DateTime>(emptyScheduleDates.Select(d => d.Date)));
     }
 
     /// <summary>
@@ -144,8 +146,11 @@ public static class AttendanceStatisticsHelper
     /// <param name="today">参与统计的当前日期。</param>
     /// <param name="config">统计口径配置。</param>
     /// <param name="data">节假日等数据。</param>
+    /// <param name="dailyHours">每日在校时长（小时），用于天数换算时长；手动/自动模式的结果由调用方解析后传入。</param>
+    /// <param name="emptyScheduleDates">启用时间表为空的日期，这些日期计为非在校日。</param>
     public static AttendanceStatistics Compute(DateTime semesterStart, DateTime semesterEnd, DateTime today,
-        AttendanceStatisticsConfig config, AttendanceCalendarData data)
+        AttendanceStatisticsConfig config, AttendanceCalendarData data, double dailyHours,
+        IReadOnlyCollection<DateTime>? emptyScheduleDates = null)
     {
         var start = semesterStart.Date;
         var end = semesterEnd.Date;
@@ -165,20 +170,23 @@ public static class AttendanceStatisticsHelper
             EndDate = end,
             Today = todayDate,
             TotalCalendarDays = (end - start).Days + 1,
-            DailyHours = config.DailyHours
+            DailyHours = dailyHours
         };
 
         var included = ToDateSet(data.CustomIncluded);
         var excluded = ToDateSet(data.CustomExcluded);
         var holidays = ToDateSet(data.Holidays);
         var makeup = ToDateSet(data.MakeupDays);
+        var emptySchedule = emptyScheduleDates == null
+            ? null
+            : new HashSet<DateTime>(emptyScheduleDates.Select(d => d.Date));
 
         var weekly = new Dictionary<int, PeriodStatistics>();
         var monthly = new Dictionary<DateTime, PeriodStatistics>();
 
         for (var date = start; date <= end; date = date.AddDays(1))
         {
-            var inSchool = IsInSchoolDay(date, config, included, excluded, holidays, makeup, data.Vacations);
+            var inSchool = IsInSchoolDay(date, config, included, excluded, holidays, makeup, data.Vacations, emptySchedule);
 
             var weekIndex = (date - start).Days / 7;
             var weekPeriod = GetOrAdd(weekly, weekIndex, () => new PeriodStatistics
@@ -214,14 +222,14 @@ public static class AttendanceStatisticsHelper
 
         foreach (var period in weekly.Values)
         {
-            period.Hours = period.InSchoolDays * config.DailyHours;
+            period.Hours = period.InSchoolDays * dailyHours;
             stats.Weekly.Add(period);
         }
         stats.Weekly.Sort((a, b) => a.Start.CompareTo(b.Start));
 
         foreach (var period in monthly.Values)
         {
-            period.Hours = period.InSchoolDays * config.DailyHours;
+            period.Hours = period.InSchoolDays * dailyHours;
             stats.Monthly.Add(period);
         }
         stats.Monthly.Sort((a, b) => a.Start.CompareTo(b.Start));
@@ -231,10 +239,12 @@ public static class AttendanceStatisticsHelper
 
     private static bool IsInSchoolDay(DateTime date, AttendanceStatisticsConfig config,
         HashSet<DateTime> included, HashSet<DateTime> excluded,
-        HashSet<DateTime> holidays, HashSet<DateTime> makeup, List<VacationRange> vacations)
+        HashSet<DateTime> holidays, HashSet<DateTime> makeup, List<VacationRange> vacations,
+        HashSet<DateTime>? emptyScheduleDates)
     {
         var d = date.Date;
 
+        // 优先级 1：自定义日期（最高，强制计入/排除，可覆盖寒暑假与法定节假日）。
         if (config.RespectCustomDates)
         {
             if (included.Contains(d))
@@ -247,27 +257,35 @@ public static class AttendanceStatisticsHelper
             }
         }
 
+        // 优先级 2：寒暑假区间（整段排除，区间内的调休补班日也一并排除）。
         if (config.ExcludeVacations && IsInVacation(d, vacations))
         {
             return false;
         }
 
-        // 调休补班日优先于周末判定，保证补班日被计为在校日。
+        // 优先级 3：法定节假日与调休补班（同一档，调休补班判定在前）。
+        // 补班判定必须先于周末判定，保证补班日即使落在周六/周日也被计为在校日。
         if (config.CountMakeupDays && makeup.Contains(d))
         {
             return true;
         }
+        if (config.ExcludeHolidays && holidays.Contains(d))
+        {
+            return false;
+        }
 
+        // 优先级 4：启用时间表为空（当天课表没有任何启用课程）计为非在校日。
+        if (emptyScheduleDates != null && emptyScheduleDates.Contains(d))
+        {
+            return false;
+        }
+
+        // 优先级 5：周末。
         if (d.DayOfWeek == DayOfWeek.Saturday && config.ExcludeSaturday)
         {
             return false;
         }
         if (d.DayOfWeek == DayOfWeek.Sunday && config.ExcludeSunday)
-        {
-            return false;
-        }
-
-        if (config.ExcludeHolidays && holidays.Contains(d))
         {
             return false;
         }

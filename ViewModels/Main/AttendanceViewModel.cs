@@ -109,7 +109,8 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
             }
 
             var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
-            var stats = AttendanceStatisticsHelper.Compute(start.Value, end, now, config, _calendar.Data);
+            // 每日在校时长与"启用时间表为空"的日期由服务结合宿主课表解析后传入统计算法。
+            var stats = _calendar.ComputeStatistics(start.Value, end, now);
             Statistics = stats;
 
             IsProgressAvailable = stats.TotalInSchoolDays > 0;
@@ -163,7 +164,7 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
         {
             parts.Add(stats.Finished
                 ? "剩余 0 天"
-                : $"剩余 {stats.RemainingInSchoolDays} 天 · 约 {FormatHours(stats.RemainingHours)}");
+                : $"剩余 {stats.RemainingInSchoolDays} 天 · {FormatHours(stats.RemainingHours)}");
         }
 
         return string.Join(" · ", parts);

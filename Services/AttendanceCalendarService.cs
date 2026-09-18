@@ -1,8 +1,10 @@
 using System;
+using System.Collections;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
+using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
 using System.Threading.Tasks;
@@ -163,6 +165,355 @@ public class AttendanceCalendarService
 
         NotifyDataChanged();
     }
+
+    /// <summary>
+    /// 解析「每日在校时长」（小时）。
+    /// 手动模式直接取配置值；自动模式取指定日期所在档案中第一节课开始到最后一节课下课之间的小时数，
+    /// 拿不到课表（宿主未就绪、当天无课表等）时回退到配置中的手动值，保证统计不会中断。
+    /// </summary>
+    public double ResolveDailyHours(DateTime date)
+    {
+        if (_data.Config.DailyHoursSource != DailyHoursSource.Auto)
+        {
+            return _data.Config.DailyHours;
+        }
+
+        return TryGetScheduleDailyHours(date, out var hours) ? hours : _data.Config.DailyHours;
+    }
+
+    /// <summary>
+    /// 读取指定日期档案中「第一节课开始 → 最后一节课下课」的小时数。
+    /// ClassIsland 档案模型在不同 SDK 版本间有差异，故与 FloatingScheduleService 一致使用反射访问。
+    /// </summary>
+    public bool TryGetScheduleDailyHours(DateTime date, out double hours)
+    {
+        hours = 0;
+        LastScheduleReadError = null;
+        try
+        {
+            var lessonsService = GetLessonsService();
+            if (lessonsService == null)
+            {
+                LastScheduleReadError = "未能连接 ClassIsland 课程服务";
+                return false;
+            }
+
+            var classPlan = ResolveClassPlan(date, allowCurrentClassPlanFallback: true);
+            if (classPlan == null)
+            {
+                LastScheduleReadError = "当天没有生效的课表";
+                return false;
+            }
+
+            var classItems = GetEnabledClassItems(classPlan);
+            if (classItems.Count == 0)
+            {
+                LastScheduleReadError = "当天的课表没有启用任何课程";
+                return false;
+            }
+
+            var firstStart = classItems.Min(x => x.Start);
+            var lastEnd = classItems.Max(x => x.End);
+            if (lastEnd <= firstStart)
+            {
+                LastScheduleReadError = "课表中没有可用的上课时间段";
+                return false;
+            }
+
+            hours = Math.Round((lastEnd - firstStart).TotalHours, 2);
+            if (hours <= 0)
+            {
+                LastScheduleReadError = "课表中没有可用的上课时间段";
+                return false;
+            }
+
+            return true;
+        }
+        catch (Exception ex)
+        {
+            LastScheduleReadError = "读取异常：" + ex.Message;
+            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 读取当天课表时长失败：{ex.Message}");
+            return false;
+        }
+    }
+
+    /// <summary>最近一次自动读取课表失败的原因（成功时为 null），用于设置页提示与排查。</summary>
+    public string? LastScheduleReadError { get; private set; }
+
+    /// <summary>
+    /// 收集区间内「启用时间表为空」的日期（当天课表存在，但没有启用任何课程），
+    /// 这些日期在校日统计中一律标记为非在校。
+    /// 无法解析课表（宿主不可用、当天无课表安排）的日期不纳入结果，
+    /// 避免把整个学期误判为无课，这类日期仍按原有优先级判定。
+    /// </summary>
+    public HashSet<DateTime> GetEmptyScheduleDates(DateTime start, DateTime end)
+    {
+        var result = new HashSet<DateTime>();
+        try
+        {
+            if (GetLessonsService() == null)
+            {
+                return result;
+            }
+
+            for (var date = start.Date; date <= end.Date; date = date.AddDays(1))
+            {
+                // 区间扫描只认「当天专属课表」，不使用 CurrentClassPlan 兜底，
+                // 否则会把今天的课表套用到所有没有课表安排的日期上，造成误判。
+                var classPlan = ResolveClassPlan(date, allowCurrentClassPlanFallback: false);
+                if (classPlan != null && GetEnabledClassItems(classPlan).Count == 0)
+                {
+                    result.Add(date);
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 收集空课表日期失败：{ex.Message}");
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// 按当前配置与宿主课表计算统计结果：解析每日在校时长与「启用时间表为空」的日期后交给统计算法。
+    /// 内部包含宿主反射查询，调用方可在后台线程执行。
+    /// </summary>
+    public AttendanceStatistics ComputeStatistics(DateTime semesterStart, DateTime semesterEnd, DateTime today)
+    {
+        var dailyHours = ResolveDailyHours(today);
+        var emptyScheduleDates = GetEmptyScheduleDates(semesterStart, semesterEnd);
+        return AttendanceStatisticsHelper.Compute(semesterStart, semesterEnd, today,
+            _data.Config, _data, dailyHours, emptyScheduleDates);
+    }
+
+    /// <summary>
+    /// 解析指定日期生效的课表对象；解析失败返回 null。
+    /// <paramref name="allowCurrentClassPlanFallback"/> 为 true 时，日期查询无结果会退回宿主当前课表
+    /// （适用于只关心"当天"的场景）；按日期区间批量扫描时必须传 false。
+    /// </summary>
+    private object? ResolveClassPlan(DateTime date, bool allowCurrentClassPlanFallback)
+    {
+        var lessonsService = GetLessonsService();
+        if (lessonsService == null)
+        {
+            return null;
+        }
+
+        var classPlan = InvokeMethod(lessonsService, "GetClassPlanByDate", date.Date);
+        if (classPlan != null || !allowCurrentClassPlanFallback)
+        {
+            return classPlan;
+        }
+
+        return ReflectProperty(lessonsService, "CurrentClassPlan")
+               ?? InvokeMethod(lessonsService, "GetClassPlan", date.Date);
+    }
+
+    /// <summary>
+    /// 读取课表中已启用的上课时间段。
+    /// ValidTimeLayoutItems 已由 ClassIsland 裁掉首尾未启用的课程，因此其首项即第一节课、末项即最后一节课。
+    /// </summary>
+    private static List<(TimeSpan Start, TimeSpan End)> GetEnabledClassItems(object classPlan)
+    {
+        var result = new List<(TimeSpan Start, TimeSpan End)>();
+        if (ReflectProperty(classPlan, "ValidTimeLayoutItems") is not IEnumerable items)
+        {
+            return result;
+        }
+
+        foreach (var item in items)
+        {
+            if (item == null)
+            {
+                continue;
+            }
+
+            // TimeType：0 上课 / 1 课间 / 2 分隔线，只取上课项。
+            var timeType = ReflectProperty(item, "TimeType");
+            if (timeType != null && Convert.ToInt32(timeType) != 0)
+            {
+                continue;
+            }
+
+            var start = ReflectTimeSpan(item, "StartTime");
+            var end = ReflectTimeSpan(item, "EndTime");
+            if (start == null || end == null)
+            {
+                continue;
+            }
+
+            result.Add((start.Value, end.Value));
+        }
+
+        return result;
+    }
+
+    #region ClassIsland 宿主反射访问
+
+    /// <summary>
+    /// LessonsService 的候选类型名。
+    /// ClassIsland 在 DI 中只注册接口（services.AddSingleton&lt;ILessonsService, LessonsService&gt;()），
+    /// 用具体类型取服务会拿到 null，因此必须同时尝试接口与具体类型，逐个取到第一个非空实例。
+    /// </summary>
+    private static readonly string[] LessonsServiceTypeNames =
+    {
+        "ClassIsland.Core.Abstractions.Services.ILessonsService",
+        "ClassIsland.Services.LessonsService",
+        "ClassIsland.Core.Services.LessonsService"
+    };
+
+    private object? _lessonsService;
+
+    private object? GetLessonsService()
+    {
+        if (_lessonsService != null)
+        {
+            return _lessonsService;
+        }
+
+        try
+        {
+            var host = ClassIsland.Shared.IAppHost.Host;
+            if (host == null)
+            {
+                return null;
+            }
+
+            foreach (var typeName in LessonsServiceTypeNames)
+            {
+                var type = FindHostType(typeName);
+                if (type == null)
+                {
+                    continue;
+                }
+
+                var service = host.Services.GetService(type);
+                if (service != null)
+                {
+                    _lessonsService = service;
+                    return service;
+                }
+            }
+
+            return null;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 获取 LessonsService 失败：{ex.Message}");
+            return null;
+        }
+    }
+
+    private static Type? FindHostType(string typeName)
+    {
+        try
+        {
+            foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+            {
+                if (asm.GetName().Name?.StartsWith("ClassIsland") != true)
+                {
+                    continue;
+                }
+
+                var type = asm.GetType(typeName);
+                if (type != null)
+                {
+                    return type;
+                }
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    private static object? ReflectProperty(object? target, string propertyName)
+    {
+        if (target == null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return target.GetType()
+                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
+                ?.GetValue(target);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 时间项字段读取：先读 TimeSpan 型 StartTime/EndTime，
+    /// 旧版宿主的字段为 StartSecond/EndSecond（秒），两者都兼容。
+    /// </summary>
+    private static TimeSpan? ReflectTimeSpan(object target, string propertyName)
+    {
+        if (ReflectProperty(target, propertyName) is TimeSpan span)
+        {
+            return span;
+        }
+
+        var secondPropertyName = propertyName == "StartTime" ? "StartSecond" : "EndSecond";
+        var seconds = ReflectProperty(target, secondPropertyName);
+        return seconds != null && int.TryParse(seconds.ToString(), out var value)
+            ? TimeSpan.FromSeconds(value)
+            : null;
+    }
+
+    /// <summary>
+    /// 反射调用形如 GetClassPlanByDate(DateTime[, out Guid?]) 的方法，取首个返回非空结果的重载。
+    /// 优先单参数重载（接口在不同宿主版本间可能只有带 out 参数的重载）。
+    /// </summary>
+    private static object? InvokeMethod(object target, string methodName, DateTime date)
+    {
+        List<MethodInfo> candidates;
+        try
+        {
+            candidates = target.GetType()
+                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
+                .Where(m => m.Name == methodName
+                            && m.GetParameters().Length >= 1
+                            && m.GetParameters()[0].ParameterType == typeof(DateTime))
+                .OrderBy(m => m.GetParameters().Length)
+                .ToList();
+        }
+        catch
+        {
+            return null;
+        }
+
+        foreach (var method in candidates)
+        {
+            try
+            {
+                var parameters = method.GetParameters();
+                var args = new object?[parameters.Length];
+                args[0] = date;
+                for (var i = 1; i < parameters.Length; i++)
+                {
+                    args[i] = parameters[i].HasDefaultValue ? parameters[i].DefaultValue : null;
+                }
+
+                var result = method.Invoke(target, args);
+                if (result != null)
+                {
+                    return result;
+                }
+            }
+            catch
+            {
+                // 单个重载调用失败不影响后续重载尝试。
+            }
+        }
+
+        return null;
+    }
+
+    #endregion
 
     /// <summary>
     /// 用内置数据恢复节假日与调休表（保留用户手动编辑的条目）。

@@ -45,6 +45,18 @@ public enum SemesterEndSource
 }
 
 /// <summary>
+/// 每日在校时长的取值方式。
+/// </summary>
+public enum DailyHoursSource
+{
+    /// <summary>手动指定固定时长。</summary>
+    Manual = 0,
+
+    /// <summary>自动获取当天档案中第一节课开始到最后一节课下课之间的小时数。</summary>
+    Auto = 1
+}
+
+/// <summary>
 /// 单个节假日（放假日）或调休补班日条目。
 /// </summary>
 public class HolidayDay
@@ -96,6 +108,7 @@ public class AttendanceStatisticsConfig : INotifyPropertyChanged
     private int _totalWeeks = 20;
     private DateTime _manualEndDate = DateTime.Today.AddDays(139);
     private double _dailyHours = 8;
+    private DailyHoursSource _dailyHoursSource = DailyHoursSource.Manual;
     private bool _excludeSaturday = true;
     private bool _excludeSunday = true;
     private bool _excludeHolidays = true;
@@ -138,11 +151,18 @@ public class AttendanceStatisticsConfig : INotifyPropertyChanged
         set => Set(ref _manualEndDate, value.Date);
     }
 
-    /// <summary>每个在校日的标准在校时长（小时）。</summary>
+    /// <summary>每个在校日的标准在校时长（小时）。仅当 <see cref="DailyHoursSource"/> 为 Manual 时生效。</summary>
     public double DailyHours
     {
         get => _dailyHours;
         set => Set(ref _dailyHours, Math.Max(0, Math.Min(24, value)));
+    }
+
+    /// <summary>每日在校时长的取值方式。</summary>
+    public DailyHoursSource DailyHoursSource
+    {
+        get => _dailyHoursSource;
+        set => Set(ref _dailyHoursSource, value);
     }
 
     /// <summary>是否排除周六。</summary>
