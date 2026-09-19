@@ -3945,10 +3945,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
             TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
             bool onC = s == TimeState.OnClass;
             bool brk = s == TimeState.Breaking;
-            anchor.OnClass = onC;
-            anchor.Breaking = brk;
             var nn = GetClassIslandNow().TimeOfDay;
             anchor.NowSecOfDay = nn.TotalSeconds;
+            // 【显示明天课表】明天课表不存在"当前课 / 当前课间"（那些语义只对当天成立）：
+            //  进度比例恒为 0，锚点也不得声称"正在上课/课间"——否则独立进程在宿主推送停更后会据此刻度
+            //  把今天的进度"续走"到明天课表上（表现为明天课表也走进度条）。
+            if (_showingTomorrowAv) return (0.0, 0.0, anchor);
+            anchor.OnClass = onC;
+            anchor.Breaking = brk;
             if (brk)
             {
                 var biB = FindBreakItemByRealTimeAv(nn, out var gsB, out var geB);

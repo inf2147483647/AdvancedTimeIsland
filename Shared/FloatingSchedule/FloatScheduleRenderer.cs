@@ -110,6 +110,13 @@ public static class FloatScheduleRenderer
 
         var highlightBg = new SolidColorBrush(FromArgb(m.HighlightArgb));
 
+        // 【明日课表】不参与"当前课高亮 / 课间行 / 进度条"：这些语义只对当天成立（明天的课还没上，不存在当前课）。
+        //  渲染器是两种模式（进程内 / 独立进程）唯一的 UI 出口，在此统一落地可保证：
+        //  即使上层模型/子进程本地推进给出了"当前课索引"，明日课表也永远不画高亮与进度条。
+        bool isTomorrowList = m.ShowTomorrow;
+        int currentClassIndex = isTomorrowList ? -1 : m.CurrentClassIndex;
+        var currentBreak = isTomorrowList ? null : m.Break;
+
         // ---- 构建 Grid（列宽/间距与进程内一致）----
         var grid = new Grid
         {
@@ -175,7 +182,7 @@ public static class FloatScheduleRenderer
         for (int i = 0; i < m.Rows.Count; i++)
         {
             var row = m.Rows[i];
-            var isCurrent = i == m.CurrentClassIndex;
+            var isCurrent = i == currentClassIndex;
 
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var rIdx = grid.RowDefinitions.Count - 1;
@@ -265,14 +272,14 @@ public static class FloatScheduleRenderer
             grid.Children.Add(timeTb);
 
             // ---- 课间休息插入行（仅当 i == Break.AfterClassIndex）----
-            if (m.Break != null && i == m.Break.AfterClassIndex)
+            if (currentBreak != null && i == currentBreak.AfterClassIndex)
             {
                 grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 var brIdx = grid.RowDefinitions.Count - 1;
                 IBrush breakBg = new SolidColorBrush(FromArgb(m.BreakRowBackgroundArgb));
                 var breakTb = new TextBlock
                 {
-                    Text = m.Break.Name,
+                    Text = currentBreak.Name,
                     FontSize = Math.Max(8, fontSize - 1),
                     Foreground = subFg,
                     VerticalAlignment = VerticalAlignment.Center,
@@ -286,7 +293,7 @@ public static class FloatScheduleRenderer
 
                 var breakTimeTb = new TextBlock
                 {
-                    Text = m.Break.TimeText,
+                    Text = currentBreak.TimeText,
                     FontSize = Math.Max(8, fontSize - 1),
                     Foreground = subFg,
                     HorizontalAlignment = HorizontalAlignment.Right,

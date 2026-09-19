@@ -1105,6 +1105,10 @@ internal sealed class FloatScheduleChildWindow : Window
         {
             var m = _lastModel;
             if (m == null) return;
+            // 【明日课表不走进度条】本地推进只适用于当天课表（"当前课"语义只对当天成立）：
+            //  否则宿主推送停更后，这里会拿"今天的时钟"去匹配明天的课程行 → 明天课表凭空出现当前课高亮与
+            //  随时间推进的进度条（与今天课表一样），因此明日课表一律冻结为纯列表展示。
+            if (m.ShowTomorrow) return;
             // 推送新鲜 → 交回宿主驱动（避免双源冲突：Progress 消息由插件每 500ms 推送）
             if (DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() - _modelUtcMs < StaleThresholdMs) return;
 
