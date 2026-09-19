@@ -629,18 +629,6 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         // 非 Windows（Linux/macOS/Android）整组禁用
         if (!OperatingSystem.IsWindows()) group.IsEnabled = false;
 
-        // 【不可关闭警告】"跟随启停=关"时子进程会在 ClassIsland 退出后继续存活以满足冻结显示需求，
-        //   更新插件（宿主替换/删除插件目录）期间它会干扰该过程，可能导致插件目录损坏。
-        //   用不可关闭的 Warning 级 FAInfoBar 常驻提示，提醒用户更新前先打开"跟随启停"。
-        var updateWarningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Title", "更新插件前务必注意");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Message", "更新插件前务必打开跟随启停,否则会导致插件严重损坏!!!");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "IsOpen", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "IsClosable", false);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Margin", new Thickness(0, 0, 0, 8));
-        AddChildToSettingsExpander(group, updateWarningBar);
-
         // 1) 独立进程模式（主开关）
         var independentToggle = CreateToggleSwitch(_settings?.FloatingScheduleIndependentProcess ?? false, isOn =>
         {
