@@ -235,7 +235,7 @@ internal sealed class FloatScheduleChildWindow : Window
                             StopInitTimeoutGuard();
                             StopStartupGuard();
                             StopReconnectGuard();
-                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); }
+                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); ArmPositionReportingAfterSettle(); }
                             // 托盘图标（原生 Win32 实现，独立于本窗口，无需等待窗口就绪）
                             try { FloatScheduleApp.Self?.EnsureTrayIcon(); } catch { }
                         }
@@ -344,7 +344,11 @@ internal sealed class FloatScheduleChildWindow : Window
         _snap = s;
         Program.FollowHostLifetime = s.FollowHostLifetime;   // 热更新（看门狗触发时读最新值）
 
-        if (isInit && !_initialPositionApplied)
+        // 【修复：重启时位置被重置（根因一）】必须在**第一次收到任意设置快照**时应用位置，
+        //  而不是只在 Init 里应用：插件启动时子进程可能先于设置快照建立连接（Init 的 Settings 为 null），
+        //  此时若跳过应用，窗口会用平台默认位置显示，并把该默认位置回报给插件 → 覆盖掉存档位置。
+        //  后续 Connected 事件补发的 Settings 消息携带同样的位置，在这里补应用即可纠正。
+        if (!_initialPositionApplied)
         {
             try { Position = new PixelPoint(s.PositionX, s.PositionY); } catch { }
             _initialPositionApplied = true;
@@ -375,7 +379,7 @@ internal sealed class FloatScheduleChildWindow : Window
         if (!_firstDataReceived) return;
         try
         {
-            if (visible) { Show(); ApplyWindowLayer(); }
+            if (visible) { Show(); ApplyWindowLayer(); ArmPositionReportingAfterSettle(); }
             else { try { if (_edgeHiddenAv) Position = _edgeDockedPosAv; } catch { } Hide(); }
         }
         catch { }
@@ -648,7 +652,19 @@ internal sealed class FloatScheduleChildWindow : Window
             if (_dragPendingValid) { Position = _dragPendingPos; _dragPendingValid = false; }
             if (SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
             ApplyWindowLayer();
-            ReportPosition();
+            // 【修复：从贴边隐藏态拖出后位置不落库】拖动是用户明确的位置意图，必须先清掉"隐藏/动画"标记再上报：
+            //  否则 ReportPosition 会因 _edgeHiddenAv 直接返回 → 新位置不落库 → 下次重启窗口跳回旧位置
+            //  （用户所见"位置被重置"）。清标记后 ScheduleEdgeEval 会按松手位置重新判定贴边/不贴边。
+            if (_edgeHiddenAv || _edgeAnimating)
+            {
+                _edgeAnimating = false;
+                _edgeHiddenAv = false;
+                StopEdgeSlideTimer();
+                try { _edgeEvalCts?.Cancel(); } catch { }
+                try { _edgeSlideOutDelayCts?.Cancel(); } catch { }
+                _edgeSlideOutPending = false;
+            }
+            ReportPosition(force: true);
             ScheduleEdgeEval();
         }
         catch { }
@@ -671,14 +687,52 @@ internal sealed class FloatScheduleChildWindow : Window
         catch { return target; }
     }
 
-    void ReportPosition()
+    /// <summary>
+    /// 上报窗口位置给插件（插件据此持久化到设置，下次启动/重启时恢复）。
+    /// 【修复：重启时位置被重置（根因二）】窗口刚 Show / 首次布局（SizeToContent 测量）期间位置存在瞬态值
+    ///  （HWND 刚创建的默认级联位、内容测量后的重定位），若此时上报会把存档位置覆盖成垃圾值
+    ///  → 下次重启窗口跳到错误位置。故显示后先静默一小段"稳定期"再开始上报；
+    ///  用户主动拖动（force=true）不受此限制，始终上报。
+    /// </summary>
+    void ReportPosition(bool force = false)
     {
         try
         {
             if (_edgeAnimating || _edgeHiddenAv) return;   // 隐藏态/动画中位置不是用户位置
+            if (!force && !_positionReportArmed) return;   // 稳定期内不落库，避免瞬态位置污染存档
             _pipe.Send(FloatScheduleIpcMsgType.Position, new FloatSchedulePositionPayload { X = Position.X, Y = Position.Y });
         }
         catch { }
+    }
+
+    // 【修复：重启时位置被重置】位置上报稳定期：窗口显示后等待布局稳定再开始上报（并在到点后补报一次，
+    //  以便把系统对"越界存档位置"的钳制结果落库）。
+    const int PositionReportSettleMs = 1000;
+    bool _positionReportArmed;
+    DispatcherTimer? _positionArmTimer;
+
+    void ArmPositionReportingAfterSettle()
+    {
+        if (_positionReportArmed) return;
+        try
+        {
+            _positionArmTimer ??= new DispatcherTimer(DispatcherPriority.Background)
+            {
+                Interval = TimeSpan.FromMilliseconds(PositionReportSettleMs)
+            };
+            _positionArmTimer.Tick -= PositionArmTimer_Tick;
+            _positionArmTimer.Tick += PositionArmTimer_Tick;
+            if (!_positionArmTimer.IsEnabled) _positionArmTimer.Start();
+        }
+        catch { }
+    }
+
+    void PositionArmTimer_Tick(object? sender, EventArgs e)
+    {
+        try { _positionArmTimer?.Stop(); } catch { }
+        _positionReportArmed = true;
+        // 到点后补报一次当前（已稳定）位置：覆盖"稳定期内被系统钳制/纠正"的情况
+        ReportPosition(force: true);
     }
 
     // ===================== 贴边自动隐藏（状态机对齐主项目） =====================
@@ -905,7 +959,7 @@ internal sealed class FloatScheduleChildWindow : Window
             if (_edgeDockedAv && IsVisible)
             {
                 if (_edgeHiddenAv || _edgeAnimating) Position = _edgeDockedPosAv;
-                ReportPosition();
+                ReportPosition(force: true);
             }
         }
         catch { }

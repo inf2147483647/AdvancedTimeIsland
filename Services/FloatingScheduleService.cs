@@ -676,6 +676,17 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         _retryCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
+        // 【修复：重启时窗口位置被重置（根因一·插件侧）】插件启动时 FloatScheduleHostProcessService 会立刻
+        //  尝试启动/接管子进程，而本服务的设置快照此前尚未生成 → 子进程首次 Init 收到的 Settings 为 null
+        //  → 位置没被应用、窗口用默认位置显示并把该位置回报上来覆盖存档。
+        //  这里在启动流程最开始就把快照写入缓存（SendSettings 内部缓存，未连接时由 Init 补发），
+        //  保证子进程无论何时连上都能拿到含存档位置的设置。
+        try
+        {
+            if (IndependentRequested) _hostProcess?.SendSettings(BuildWindowSettingsSnapshotAv());
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "启动时预缓存独立进程设置快照异常（忽略）"); }
+
         // Issue 3 修复：外层 async lambda 兜底观察所有异常（包括 JIT 级 TypeLoadException）
         _ = Task.Run(async () =>
         {
