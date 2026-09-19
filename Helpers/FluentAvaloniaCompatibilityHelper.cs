@@ -1,6 +1,8 @@
 using System;
 using System.Reflection;
 using System.Linq;
+using System.Threading.Tasks;
+using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
@@ -916,5 +918,66 @@ public static class FluentAvaloniaCompatibilityHelper
         }
 
         return null;
+    }
+
+    // ==================== 对话框宿主窗口解析（FA2/FA3 兼容） ====================
+
+    /// <summary>
+    /// 解析可用于 ShowDialog 的宿主窗口。
+    /// 【FA3 兼容】FluentAvalonia 3 / Avalonia 12 下 VisualRoot 可能是 TopLevelHost 而**不是** Window，
+    /// 直接强转 (Window)VisualRoot 会抛 InvalidCastException；若发生在 async void 事件处理器中，
+    /// 异常会冒泡到 TaskScheduler，宿主据此判定"插件引发异常"并自动禁用整个插件。
+    /// 逐级兜底：可视化祖先链 → TopLevel（仅当确实是 Window）→ 应用主窗口；全部失败返回 null。
+    /// </summary>
+    public static Window? ResolveOwnerWindow(Visual? anchor)
+    {
+        try
+        {
+            Visual? v = anchor;
+            while (v != null)
+            {
+                if (v is Window w) return w;
+                v = v.GetVisualParent();
+            }
+        }
+        catch { }
+
+        try
+        {
+            if (anchor != null && TopLevel.GetTopLevel(anchor) is Window w2) return w2;
+        }
+        catch { }
+
+        try
+        {
+            if (Application.Current?.ApplicationLifetime is
+                Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
+                return desktop.MainWindow;
+        }
+        catch { }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 安全显示对话框：解析不到宿主窗口时降级为非模态显示；任何异常都不冒泡
+    /// （避免因宿主/主题差异导致对话框问题进而使插件被整体禁用）。
+    /// </summary>
+    public static async Task ShowDialogSafeAsync(Window dialog, Visual? anchor)
+    {
+        try
+        {
+            var owner = ResolveOwnerWindow(anchor);
+            if (owner != null)
+            {
+                await dialog.ShowDialog(owner);
+                return;
+            }
+            dialog.Show();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ShowDialogSafeAsync 失败：{ex}");
+        }
     }
 }

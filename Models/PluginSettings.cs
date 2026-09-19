@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -139,7 +139,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleClickThrough = false;
     private bool _floatingScheduleHoverFade = false;
     private bool _floatingScheduleHoverFadeReverse = false;
-    private double _floatingScheduleOpacity = 0.85;
+    private double _floatingScheduleOpacity = 0.5;
     private double _floatingScheduleFontScale = 18.0;
     private bool _floatingScheduleEnableFullTeacherName = false;
     private bool _floatingScheduleShowTeacher = true;
@@ -153,6 +153,11 @@ public class PluginSettings : INotifyPropertyChanged
     private FloatingScheduleTomorrowShowMode _floatingScheduleTomorrowShowMode = FloatingScheduleTomorrowShowMode.AfterSchool;
     private string _floatingScheduleTomorrowPlaceholderText = "明天没有课程";
     private string _floatingScheduleTodayPlaceholderText = "今天没有课程";
+    // ===== 独立进程模式（时间表悬浮窗由 AdvancedTimeIslandFloatSchedule.exe 渲染；仅 Windows）=====
+    private bool _floatingScheduleIndependentProcess = false;
+    private bool _floatingScheduleRandomProcessName = false;
+    private bool _floatingScheduleSingleInstanceProtection = true;
+    private bool _floatingScheduleFollowHostLifetime = true;
 
     public string? CachedVersion
     {
@@ -643,6 +648,72 @@ public class PluginSettings : INotifyPropertyChanged
             if (Math.Abs(_floatingScheduleOpacity - value) > 0.001)
             {
                 _floatingScheduleOpacity = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 独立进程模式：时间表悬浮窗改由独立进程 AdvancedTimeIslandFloatSchedule.exe 渲染
+    /// （防弹窗拦截"超级模式"，且不受 ClassIsland 主程序卡顿影响）。仅 Windows 支持，默认关闭。
+    /// </summary>
+    public bool FloatingScheduleIndependentProcess
+    {
+        get => _floatingScheduleIndependentProcess;
+        set
+        {
+            if (_floatingScheduleIndependentProcess != value)
+            {
+                _floatingScheduleIndependentProcess = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 随机进程名：以随机命名的临时副本启动子进程（进一步规避按进程名拦截；可能触发杀软误报）。默认关闭。
+    /// </summary>
+    public bool FloatingScheduleRandomProcessName
+    {
+        get => _floatingScheduleRandomProcessName;
+        set
+        {
+            if (_floatingScheduleRandomProcessName != value)
+            {
+                _floatingScheduleRandomProcessName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 单实例保护：子进程启动时获取全局 Mutex，已有实例则直接退出并由插件接管连接。默认开启。
+    /// </summary>
+    public bool FloatingScheduleSingleInstanceProtection
+    {
+        get => _floatingScheduleSingleInstanceProtection;
+        set
+        {
+            if (_floatingScheduleSingleInstanceProtection != value)
+            {
+                _floatingScheduleSingleInstanceProtection = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 跟随启停：开启后 ClassIsland 关闭或异常停止后，此程序将关闭；
+    /// 关闭后 ClassIsland 退出时悬浮窗冻结显示最后课表，ClassIsland 重启后自动重连恢复推送。默认开启。
+    /// </summary>
+    public bool FloatingScheduleFollowHostLifetime
+    {
+        get => _floatingScheduleFollowHostLifetime;
+        set
+        {
+            if (_floatingScheduleFollowHostLifetime != value)
+            {
+                _floatingScheduleFollowHostLifetime = value;
                 OnPropertyChanged();
             }
         }

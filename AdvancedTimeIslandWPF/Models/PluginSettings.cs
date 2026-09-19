@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -112,7 +112,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleClickThrough = false;
     private bool _floatingScheduleHoverFade = false;
     private bool _floatingScheduleHoverFadeReverse = false;
-    private double _floatingScheduleOpacity = 0.85;
+    private double _floatingScheduleOpacity = 0.5;
     private double _floatingScheduleFontScale = 18.0;
     private bool _floatingScheduleEnableFullTeacherName = false;
     private bool _floatingScheduleShowTeacher = true;

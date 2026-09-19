@@ -650,14 +650,9 @@ public class TimeCalculatorPage : UserControl
             dialog.Content = stack;
             okButton.Click += (s, e) => dialog.Close();
 
-            if (VisualRoot is Window owner)
-            {
-                await dialog.ShowDialog(owner);
-            }
-            else
-            {
-                dialog.Show();
-            }
+            // 【FA3 兼容】不用 (Window)VisualRoot 强转：FA3/Avalonia 12 下 VisualRoot 可能是 TopLevelHost，
+            // 强转会抛 InvalidCastException（在 async void 处理器中会导致宿主判定插件异常并自动禁用插件）。
+            await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
         }
         catch
         {

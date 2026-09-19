@@ -21,7 +21,17 @@ public class StartupDelayService : IHostedService
         _sharedRenderClockService = sharedRenderClockService;
     }
 
-    public async Task StartAsync(CancellationToken cancellationToken)
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        // 【启动速度优化】原实现直接 await Task.Delay(1000)，而宿主 Host.StartAsync 是**顺序 await**
+        //   每个 IHostedService 的 —— 这会让注册在其后的所有服务（含悬浮窗）至少晚 1 秒才启动。
+        //   这里改为后台延迟执行：延迟本意（让时间服务晚于宿主 UI 就绪再启动，避免争抢资源）保持不变，
+        //   但不再阻塞宿主启动链。
+        _ = Task.Run(() => RunDelayedAsync(cancellationToken), cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    private async Task RunDelayedAsync(CancellationToken cancellationToken)
     {
         try
         {

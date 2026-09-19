@@ -162,12 +162,16 @@ public class DebugPage : SettingsPageBase
 
     private async void ButtonForceCrash_OnClick(object? sender, RoutedEventArgs e)
     {
-        await ShowForceCrashDialog();
+        // async void 事件处理器：任何异常都会冒泡到 TaskScheduler 并被宿主判定为"插件异常"而自动禁用插件，
+        // 故此处统一兜底（对话框内部逻辑不应影响插件整体可用性）。
+        try { await ShowForceCrashDialog(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonForceCrash_OnClick 异常：{ex}"); }
     }
 
     private async void ButtonSelfDestruct_OnClick(object? sender, RoutedEventArgs e)
     {
-        await ShowSelfDestructDialog();
+        try { await ShowSelfDestructDialog(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonSelfDestruct_OnClick 异常：{ex}"); }
     }
 
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
@@ -177,7 +181,8 @@ public class DebugPage : SettingsPageBase
 
     private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
     {
-        await ShowFestivalListDialogAsync();
+        try { await ShowFestivalListDialogAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonShowFestivalList_OnClick 异常：{ex}"); }
     }
 
     private async Task ShowFestivalListDialogAsync()
@@ -378,7 +383,7 @@ public class DebugPage : SettingsPageBase
         dialog.Content = dialogGrid;
 
         await LoadYearAsync(year);
-        await dialog.ShowDialog((Window)VisualRoot!);
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
     }
 
     private async Task ShowForceCrashDialog()
@@ -453,7 +458,7 @@ public class DebugPage : SettingsPageBase
         okButton.Click += (s, e) => { confirmed = true; dialog.Close(); };
         cancelButton.Click += (s, e) => { confirmed = false; dialog.Close(); };
 
-        await dialog.ShowDialog((Window)VisualRoot!);
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
 
         if (confirmed)
         {
@@ -524,7 +529,7 @@ public class DebugPage : SettingsPageBase
         okButton.Click += (s, e) => { confirmed = true; dialog.Close(); };
         cancelButton.Click += (s, e) => { confirmed = false; dialog.Close(); };
 
-        await dialog.ShowDialog((Window)VisualRoot!);
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
 
         if (confirmed)
         {
@@ -588,7 +593,7 @@ public class DebugPage : SettingsPageBase
 
         okButton.Click += (s, e) => dialog.Close();
 
-        await dialog.ShowDialog((Window)VisualRoot!);
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
     }
 
     protected override void OnInitialized()

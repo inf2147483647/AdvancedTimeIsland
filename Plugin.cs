@@ -247,9 +247,15 @@ public class Plugin : PluginBase
         services.AddSingleton<AttendanceCalendarService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
+        // 【启动速度】悬浮窗相关服务前置注册：宿主 Host.StartAsync 顺序 await 各 IHostedService，
+        //   注册越靠前越早启动（早期它们排在 StartupDelayService 之后，被那 1s 延迟连带推迟）。
+        //   两者先后关系仍需保持：HostProcessService 必须先于 FloatingScheduleService
+        //   （HostedService 按注册顺序启动 → 管道监听先就绪；逆序停止 → 子进程收尾最后执行）。
+        services.AddSingleton<Services.FloatScheduleHostProcessService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Services.FloatScheduleHostProcessService>());
+        services.AddHostedService<Services.FloatingScheduleService>();
         services.AddHostedService<StartupDelayService>();
         services.AddHostedService<Services.FontSizeSyncService>();
-        services.AddHostedService<Services.FloatingScheduleService>();
         services.AddHostedService<Services.SemesterStartService>();
 
         RegisterButtonPointerCursorStyle();

@@ -723,10 +723,10 @@ public class EasterEggPage : UserControl
     }
 
     /// <summary>
-    /// 根据 FemboyTest 实际运行状态动态显示/取消 FemboyTest 错误警告栏。
-    /// 仅依据"运行中"信号判定（同进程 CI2 版真身反射扫描 + 跨进程 WPF 1.7 版命名事件），
-    /// FemboyTest 未在运行（进程退出/程序集卸载）时即隐藏；
-    /// 不使用标识符文件等"已安装"存在性判定，否则文件残留会导致警告栏无法正确回收。
+    /// 动态显示/取消 FemboyTest 错误警告栏。
+    /// 与彩蛋锁共用同一条互斥判定 <see cref="CrossPluginHelper.IsFemboyTestEnabled"/>——
+    /// 该判定已包含"标识符文件（已安装且已启用）"这一路，因此这里不得再单独收窄成"仅运行中"：
+    /// 两处判定一旦不一致，就会出现"锁已被绕过但警告栏仍显示"（或反之）的漏洞。
     /// </summary>
     private void UpdateFemboyTestWarningBar()
     {
@@ -737,9 +737,8 @@ public class EasterEggPage : UserControl
         if (panel == null)
             return;
 
-        // 仅依据"运行中"信号判定（CI2 版反射扫描 + WPF 1.7 版跨进程命名事件），
-        // 不使用标识符文件等"已安装"判定：FemboyTest 停止后文件仍残留，
-        // 若被计入会令警告栏永远无法回收。
+        // 与彩蛋锁共用同一条互斥判定：本判定含"已安装且已启用"这一路，
+        // 两处必须完全一致，否则会出现"锁已被绕过但警告栏仍显示"（或反之）的漏洞。
         var enabled = CrossPluginHelper.IsFemboyTestEnabled();
         var contains = panel.Children.Contains(_femboyTestWarningBar);
         if (enabled && !contains)

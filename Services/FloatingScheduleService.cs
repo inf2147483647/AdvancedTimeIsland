@@ -10,6 +10,7 @@ using System.Threading;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Shared.FloatingSchedule;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
@@ -289,7 +290,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 保证：RefreshSchedule #N 开始前，任何 RefreshSchedule #<N 排队的 ENTER CTS 被 Cancel → AnimateBreakRowEnterAv
     //      开头 ct.ThrowIfCancellationRequested 会抛 OperationCanceled → Finish 兜底写 Y=0/Opacity=1，控件不残留 Y=-24。
     private CancellationTokenSource? _breakRowEnterCtsAv;
-    private List<Control>? _currentBreakRowVisualsAv;
+    /// <summary>本次 RefreshSchedule 是否构建了课间行（原 List&lt;Control&gt; 视觉单元登记，动画删除后仅保留状态机语义）。</summary>
+    private bool _builtBreakRowAv;
 
     // ========== 调试时间即时刷新（响应宿主 SettingsService.DebugTimeOffsetSeconds / TimeOffsetSeconds 变化）==========
     //  兜底：上次 RefreshSchedule 成功构建课表时的 Date。用于 500ms Tick 中检测"日期跳变"（跨天调试）但 PropertyChanged 丢失场景。
@@ -372,11 +374,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 【★ 连续课间即时切换】SDK 课间 item 超时容忍（真实 now > SDK item.End + 此值 → 视为 SDK 滞后，改用真实时间空隙定位）
     private const double EndOverrunToleranceSecAv = 0.05;
 
-    public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger)
+    public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger,
+        FloatScheduleHostProcessService? hostProcess = null)
     {
         _settings = settings;
         _logger = logger;
+        _hostProcess = hostProcess;
     }
+
+    // ===================== 独立进程模式 =====================
+    //  两个层级的模式判定：
+    //   IndependentRequested = 开关开 + Windows + 未失败：为 true 时进程内悬浮窗必须"立即禁用"
+    //     （不创建、不显示、已存在的马上关闭），不论子进程是否已连接——这是用户需求，也避免
+    //     两个悬浮窗并存与 500ms Tick 反复 ShowWindow 造成行为紊乱。
+    //   IndependentActive = IndependentRequested + 子进程已连接：渲染汇（RefreshSchedule 的模型
+    //     出口）从进程内控件切换到管道推送。
+    private readonly FloatScheduleHostProcessService? _hostProcess;
+    private bool IndependentRequested => _hostProcess?.ShouldUseIndependent() == true;
+    private bool IndependentActive => IndependentRequested && _hostProcess!.IsChildConnected;
 
     // ===================== SDK API 兼容反射辅助方法 =====================
     private static TimeSpan ReflectGetStartTime(object item)
@@ -692,6 +707,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
         };
         Avalonia.Application.Current!.ActualThemeVariantChanged += _themeChangedHandler;
 
+        // 【独立进程模式】子进程连接/位置回报/状态变化/用户退出请求（StopAsync 退订防泄漏）
+        if (_hostProcess != null)
+        {
+            _hostProcess.Connected += OnIndependentChildConnectedAv;
+            _hostProcess.PositionReported += OnIndependentPositionReportedAv;
+            _hostProcess.StatusChanged += OnIndependentStatusChangedAv;
+            _hostProcess.ExitRequestedByUser += OnIndependentExitRequestedAv;
+        }
+
         return Task.CompletedTask;
     }
 
@@ -706,6 +730,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (_themeChangedHandler != null && Avalonia.Application.Current != null)
                 Avalonia.Application.Current.ActualThemeVariantChanged -= _themeChangedHandler;
             _themeChangedHandler = null;
+            if (_hostProcess != null)
+            {
+                _hostProcess.Connected -= OnIndependentChildConnectedAv;
+                _hostProcess.PositionReported -= OnIndependentPositionReportedAv;
+                _hostProcess.StatusChanged -= OnIndependentStatusChangedAv;
+                _hostProcess.ExitRequestedByUser -= OnIndependentExitRequestedAv;
+            }
         }
         catch { }
         return Task.CompletedTask;
@@ -775,7 +806,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     _logger.LogWarning(ex, "FloatingScheduleService: 解析服务失败，继续重试");
                 }
             }
-            await Task.Delay(500, ct);
+            // 【启动速度】轮询间隔由 500ms 缩短到 150ms：宿主服务一旦就绪即可立刻继续，
+            //   减少"服务已可用但仍在等待下一轮"的固定延迟。
+            await Task.Delay(150, ct);
         }
         _logger.LogWarning("FloatingScheduleService: 25次重试仍未能获取宿主服务");
     }
@@ -1274,7 +1307,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _breakRowExitPendingStateCode = -1;
                 _breakRowExitPendingBreakStart = -1;
                 _breakRowExitPendingBreakEnd = -1;
-                _currentBreakRowVisualsAv = null;
+                _builtBreakRowAv = false;
                 _currentBreakProgressIndicator = null;
                 _currentBreakProgressHost = null;
 
@@ -1359,6 +1392,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void EnsureWindow()
     {
         if (_window != null) return;
+        // 【独立进程模式】开关开启（含子进程尚未连接的启动窗口期）即不创建进程内窗口
+        if (IndependentRequested) return;
         _window = new Window
         {
             Title = "AdvancedTimeIsland FloatingSchedule",
@@ -1466,6 +1501,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private void ShowWindow()
     {
+        // 【独立进程模式】开关开启即禁止显示进程内窗口（UpdateProgress 500ms Tick 会反复走到这里）
+        if (IndependentRequested) return;
         if (_window == null) EnsureWindow();
         if (_window == null) return;
         if (!_window.IsVisible)
@@ -1843,11 +1880,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (string.IsNullOrEmpty(e.PropertyName)) return;
+        // 【独立进程模式】悬浮窗行为/位置类设置变化 → 立即重推设置快照（子进程热应用，无需重启 ClassIsland）；
+        //  子进程只在 Init 时应用位置，拖拽后位置由子进程回报，Settings 中的 Position 变化不回推位置。
+        if (e.PropertyName!.StartsWith("FloatingSchedule", StringComparison.Ordinal) &&
+            e.PropertyName != nameof(PluginSettings.FloatingScheduleIndependentProcess))
+            PublishIndependentSettingsAv();
         switch (e.PropertyName)
         {
             case nameof(PluginSettings.EnableFloatingSchedule):
                 if (_settings.EnableFloatingSchedule)
                 {
+                    // 【独立进程模式】主开关打开时若独立模式也开启 → 确保子进程在跑
+                    if (_settings.FloatingScheduleIndependentProcess && OperatingSystem.IsWindows() && _hostProcess != null)
+                    {
+                        _hostProcess.SendSettings(BuildWindowSettingsSnapshotAv());
+                        _ = _hostProcess.EnsureChildAsync();
+                    }
                     Dispatcher.UIThread.Post(() =>
                     {
                         EnsureWindow();
@@ -1868,6 +1916,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
                 else
                 {
+                    // 【独立进程模式】定时器即将停转，先显式通知子进程隐藏（未连接时缓存期望可见性，Init 后生效）
+                    if (IndependentRequested) _hostProcess?.SendVisible(false);
                     Dispatcher.UIThread.Post(() =>
                     {
                         // 【h4】开关关闭先 Detach Topmost 刷新（解 Win32 子类 / 停 Timer / - = ForegroundWindowChanged）
@@ -1954,7 +2004,185 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 // 【防止截图】开关变化：立即应用/清除窗口捕获亲和性
                 Dispatcher.UIThread.Post(ApplyPreventCaptureAv);
                 break;
+            // ===================== 独立进程模式（4 新设置项，全部即时生效、无需重启 ClassIsland） =====================
+            case nameof(PluginSettings.FloatingScheduleIndependentProcess):
+                Dispatcher.UIThread.Post(() =>
+                {
+                    if (_settings.FloatingScheduleIndependentProcess && OperatingSystem.IsWindows())
+                    {
+                        // 开启：立即关闭原有进程内悬浮窗（用户要求：不等子进程连接，杜绝两个悬浮窗并存），
+                        // 再缓存最新设置/模型并启动子进程；子进程连接后由 Connected 事件推送完成接管。
+                        CloseInProcessWindowAv();
+                        if (_hostProcess != null)
+                        {
+                            _hostProcess.SendSettings(BuildWindowSettingsSnapshotAv());
+                            RefreshSchedule();   // 无进程内窗口 → 仅构建并缓存模型供 Init 补发
+                            ApplyShouldHideAv(); // 缓存当前期望可见性
+                            _ = _hostProcess.EnsureChildAsync();
+                        }
+                    }
+                    else
+                    {
+                        // 关闭：停止子进程（shutdown + 兜底 Kill），恢复进程内渲染
+                        try { _hostProcess?.NotifyModeDisabled(); } catch { }
+                        RestoreInProcessWindowAv();
+                    }
+                });
+                break;
+            case nameof(PluginSettings.FloatingScheduleRandomProcessName):
+                // 随机进程名变化：立即以新名副本重启子进程（<2s 恢复；不重启 ClassIsland）
+                if (_hostProcess != null && _hostProcess.ShouldUseIndependent())
+                    _ = _hostProcess.RestartChildAsync();
+                break;
+            case nameof(PluginSettings.FloatingScheduleSingleInstanceProtection):
+                // 单实例保护仅在子进程启动时获取 Mutex：存值即可，自下次子进程启动生效，无需任何重启
+                break;
+            case nameof(PluginSettings.FloatingScheduleFollowHostLifetime):
+                // 跟随启停变化必须**重启子进程**，不能只热更新：
+                //   该设置决定子进程创建时是否被绑定到 Job Object
+                //   （=开：绑定 → 宿主退出/崩溃由内核清理；=关：不绑定 → 宿主退出后子进程冻结存活）。
+                //   Job 绑定在进程创建后无法解除，若只热更新，则"开→关"后宿主退出时子进程仍会被内核杀掉，
+                //   "跟随启停关闭"（冻结存活 + 重启后自动重连）实际失效。
+                //  重启前先热更新，保证重启后 Init 补发的快照为最新值。
+                PublishIndependentSettingsAv();
+                if (_hostProcess != null && _hostProcess.ShouldUseIndependent())
+                    _ = _hostProcess.RestartChildAsync();
+                break;
         }
+    }
+
+    // ===================== 独立进程模式：子进程事件处理 =====================
+
+    /// <summary>子进程已连接：推送最新设置/模型/可见性完成接管（进程内窗口在模式开启瞬间即已关闭，无需再隐藏）。</summary>
+    private void OnIndependentChildConnectedAv()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                PublishIndependentSettingsAv();
+                RefreshSchedule();
+                ApplyShouldHideAv();
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentChildConnectedAv 异常（忽略）"); }
+        });
+    }
+
+    /// <summary>
+    /// 独立模式状态变化：
+    ///  - 转入 Failed（子进程反复启动失败/缺运行库）→ 自动回退：恢复进程内悬浮窗（避免用户看不到任何课表）；
+    ///  - 从 Failed 恢复（用户点"重启"，ShouldUseIndependent 重新为 true）→ 立即再关闭进程内悬浮窗。
+    /// </summary>
+    private bool _lastIndependentFailedAv;
+    private void OnIndependentStatusChangedAv()
+    {
+        var hp = _hostProcess;
+        if (hp == null || !_settings.FloatingScheduleIndependentProcess) return;
+        bool failed = hp.Status == Services.FloatScheduleHostProcessService.ChildStatus.Failed;
+        if (failed && !_lastIndependentFailedAv)
+        {
+            if (_settings.EnableFloatingSchedule)
+                Dispatcher.UIThread.Post(RestoreInProcessWindowAv);
+        }
+        else if (!failed && _lastIndependentFailedAv)
+        {
+            Dispatcher.UIThread.Post(CloseInProcessWindowAv);
+        }
+        _lastIndependentFailedAv = failed;
+    }
+
+    /// <summary>立即关闭并销毁进程内悬浮窗（独立模式开启 / 从 Failed 恢复时调用）。幂等。</summary>
+    private void CloseInProcessWindowAv()
+    {
+        try
+        {
+            DetachTopmostRefreshAv();
+            try { _randomTitleTimerAv?.Stop(); } catch { }
+            HideWindow();
+            if (_window != null)
+            {
+                _allowClose = true;
+                try { _window.Close(); } catch { }
+                _allowClose = false;
+            }
+            // 释放窗口引用：EnsureWindow 守卫保证独立模式期间不再重建；回退时再重建
+            _window = null;
+            _containerBorder = null;
+            _rootContent = null;
+            _lastAppliedClickThrough = false;
+            _avWindowStylesCallbackAv = null;
+            _avStylesHookedHwndAv = IntPtr.Zero;
+            UnsubscribeBreakSeparatorThemeAv();
+            _breakSeparatorLinesAv.Clear();
+            _currentProgressIndicator = null;
+            _currentProgressHost = null;
+            _currentBreakProgressIndicator = null;
+            _currentBreakProgressHost = null;
+            // 进度定时器保持运行（UpdateProgress 继续产出模型/可见性推送与 5s 硬同步）
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "CloseInProcessWindowAv 异常（忽略）"); }
+    }
+
+    /// <summary>恢复进程内悬浮窗渲染（模式关闭 / 子进程 Failed 回退）。幂等：模式仍生效时直接返回。</summary>
+    private void RestoreInProcessWindowAv()
+    {
+        try
+        {
+            if (IndependentRequested) return;
+            if (!_settings.EnableFloatingSchedule)
+            {
+                // 主开关关闭：只需停定时器与隐藏（保持原 EnableFloatingSchedule=false 分支语义）
+                DetachTopmostRefreshAv();
+                HideWindow();
+                StartOrStopTimer();
+                return;
+            }
+            EnsureWindow();
+            ShowWindow();
+            RefreshSchedule();
+            ApplyWindowLayer();
+            ApplyClickThrough();
+            ApplyHoverFade(force: true);
+            StartOrStopTimer();
+            EnsureHostSettingsSubscriptionAv();
+            if (_window != null) AttachTopmostRefreshAv(_window, _settings.FloatingScheduleTopmostRefreshMode);
+            ApplyRandomTitleAv();
+            StartOrStopRandomTitleTimerAv();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "RestoreInProcessWindowAv 异常（忽略）"); }
+    }
+
+    /// <summary>
+    /// 用户在子进程托盘图标点了"退出"：关闭悬浮时间表主开关 + 退出独立进程模式，
+    /// 使用户可见结果就是"悬浮课表消失"（而不是回退成进程内悬浮窗继续显示）。
+    /// 设置写入顺序有讲究：先关主开关（走"关闭悬浮窗"分支，只停定时器），
+    /// 再关独立模式（其回退逻辑会因主开关已关闭而不创建进程内窗口，避免闪一下）。
+    /// </summary>
+    private void OnIndependentExitRequestedAv()
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (_settings.EnableFloatingSchedule) _settings.EnableFloatingSchedule = false;
+                if (_settings.FloatingScheduleIndependentProcess) _settings.FloatingScheduleIndependentProcess = false;
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentExitRequestedAv 异常（忽略）"); }
+        });
+    }
+
+    /// <summary>子进程拖拽稳定后回报窗口位置（物理像素）→ 写回设置（值相等不写，杜绝回环；子进程只在非拖拽/非隐藏态上报）。</summary>
+    private void OnIndependentPositionReportedAv(int x, int y)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (_settings.FloatingSchedulePositionX != x) _settings.FloatingSchedulePositionX = x;
+                if (_settings.FloatingSchedulePositionY != y) _settings.FloatingSchedulePositionY = y;
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentPositionReportedAv 写回位置异常（忽略）"); }
+        });
     }
 
     // ==================================== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）====================================
@@ -2772,6 +3000,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
     /// <summary>检查并应用隐藏/显示，仅在"期望状态"与"当前实际状态"不同且非拖拽中时执行 Hide/Show。</summary>
     private void ApplyShouldHideAv()
     {
+        // 【独立进程模式】HideMode 规则判定全部留在插件进程（FollowHost 查宿主主窗可见性、基础/高级模式复用宿主设置与规则集），
+        // 子进程只跟随 visible 消息显示/隐藏。模式开启但未连接时也要走这里：SendVisible 会缓存期望可见性供 Init 后补发。
+        if (IndependentRequested)
+        {
+            bool wantHideInd = !_settings.EnableFloatingSchedule || EvaluateShouldHideAv();
+            _hostProcess?.SendVisible(!wantHideInd);
+            return;
+        }
         if (_window == null || !_settings.EnableFloatingSchedule) return;
         if (_dragActiveAv || _edgeAnimatingAv) return;      // 拖动/滑移中不打断
         bool wantHide = EvaluateShouldHideAv();
@@ -3158,7 +3394,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // ===================== 课表 UI 构建 =====================
     private void RefreshSchedule()
     {
-        if (_window == null || _containerBorder == null) return;
+        // 【独立进程模式】模式开启（即使子进程未连接）也要构建模型：未连接时经 PublishModelAv 缓存供 Init 补发；
+        //  模式关闭且无进程内窗口 → 无事可做
+        if (_window == null && !IndependentRequested) return;
+        bool hasContainerAv = _window != null && _containerBorder != null;
+        // 画刷 → 0xAARRGGBB（渲染模型只携带已解析颜色，子进程零主题依赖）
+        static uint ArgbOfAv(IBrush b) =>
+            b is ISolidColorBrush sb ? FloatScheduleRenderer.ToArgb(sb.Color) : 0x00000000;
 
         // 【修复：初始化时处于课间无法显示时间表】冷启动 sentinel 识别（必须在顶部重置 -1 之前捕获）
         //   _lastRefreshStateCode == -1 表示"从未成功构建过 UI"（冷启动 / Stop→Start 首次重建），
@@ -3181,7 +3423,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _currentBreakProgressHost = null;
         _currentBreakLayoutItem = null;
         _breakSeparatorLinesAv.Clear();   // 【课表行休息分隔线】本次重建的线控件重新登记（旧线随 _containerBorder.Child 替换出树）
-        List<Control>? builtBreakVisualsAv = null;   // 【新增课间动画】本次构建命中的课间行 3 个视觉单元（若未命中课间则为 null）
         // 进度刷新缓存重置：保证 UpdateProgress 在本帧"按本次 RefreshSchedule 构建结果"作为基线比较
         _lastRefreshStateCode = -1;
         _lastRefreshBreakStartTicks = -1;
@@ -3207,8 +3448,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
             byte highlightAlpha = (byte)Math.Clamp((int)Math.Round(highlightAlphaRatio * 255), 0, 255);
             var highlightBg = new SolidColorBrush(Color.FromArgb(highlightAlpha, accentColor.R, accentColor.G, accentColor.B));
 
-            _containerBorder.Background = bg;
-            _containerBorder.BorderBrush = sep;
+            if (hasContainerAv)
+            {
+                _containerBorder!.Background = bg;
+                _containerBorder.BorderBrush = sep;
+            }
 
             // ---- 获取课表（今日 / 明日，按"显示明天课表"四档模式判定；参考 ClassIsland 课程表组件）----
             //  【修复：调试时间调整不立刻刷新时间表 - Date 锚点】
@@ -3444,37 +3688,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     : _settings.FloatingScheduleTodayPlaceholderText;
                 if (string.IsNullOrWhiteSpace(placeholderText))
                     placeholderText = showTomorrow ? "明天没有课程" : "今天没有课程";
-                var noClass = new TextBlock
+                // 【独立进程模式】占位态同样走共享渲染器：构建"占位模型"→ 进程内渲染 / 子进程推送
+                var emptyModel = new FloatScheduleRenderModel
                 {
-                    Text = placeholderText,
                     FontSize = fontSize,
-                    Foreground = subFg,
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(10, 6)
+                    FontFamilySource = ResolveFloatingFontFamilySourceAv(),
+                    AccentArgb = ArgbOfAv(accentBrush),
+                    CardBackgroundArgb = ArgbOfAv(bg),
+                    BorderArgb = ArgbOfAv(sep),
+                    TextArgb = ArgbOfAv(textFg),
+                    SubTextArgb = ArgbOfAv(subFg),
+                    HighlightArgb = ArgbOfAv(highlightBg),
+                    SeparatorArgb = ArgbOfAv(GetBreakSeparatorBrushAv()),
+                    ShowTomorrow = showTomorrow,
+                    PlaceholderText = placeholderText,
                 };
-                if (showTomorrow)
-                {
-                    // 明天课表：标题 + 占位符一起展示，明确告知当前显示的是明天。
-                    //  用 Grid（两行 Auto）而非 StackPanel+MinWidth：宽度由内容自然决定，不自造最小宽度。
-                    var tomorrowEmptyPanel = new Grid
-                    {
-                        RowDefinitions = RowDefinitions.Parse("Auto, Auto"),
-                        HorizontalAlignment = HorizontalAlignment.Stretch
-                    };
-                    var emptyTitle = CreateTomorrowTitleAv(fontSize, accentBrush);
-                    Grid.SetRow(emptyTitle, 0);
-                    tomorrowEmptyPanel.Children.Add(emptyTitle);
-                    Grid.SetRow(noClass, 1);
-                    tomorrowEmptyPanel.Children.Add(noClass);
-                    _containerBorder.Child = tomorrowEmptyPanel;
-                    _rootContent = tomorrowEmptyPanel;
-                }
-                else
-                {
-                    _containerBorder.Child = noClass;
-                    _rootContent = noClass;
-                }
+                PublishModelAv(emptyModel);
                 StartOrStopTimer();
                 return;
             }
@@ -3500,78 +3729,27 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     sepAfterRowsAv.Add(iMaxEndLeBs);
             }
 
-            var grid = new Grid
+            // ---- 构建渲染模型（进程内渲染与独立进程渲染共用同一模型 + FloatScheduleRenderer，杜绝双份 UI 代码漂移）----
+            var model = new FloatScheduleRenderModel
             {
-                ColumnDefinitions = ColumnDefinitions.Parse("Auto, *"),
-                RowDefinitions = new RowDefinitions(),
-                HorizontalAlignment = HorizontalAlignment.Stretch,
-                ColumnSpacing = 14,
-                RowSpacing = 0
+                FontSize = fontSize,
+                FontFamilySource = ResolveFloatingFontFamilySourceAv(),
+                AccentArgb = ArgbOfAv(accentBrush),
+                CardBackgroundArgb = ArgbOfAv(bg),
+                BorderArgb = ArgbOfAv(sep),
+                TextArgb = ArgbOfAv(textFg),
+                SubTextArgb = ArgbOfAv(subFg),
+                HighlightArgb = ArgbOfAv(highlightBg),
+                // 课间行整行底色：8% Alpha 淡灰（深色主题白底 / 浅色主题黑底，原 L3700-3702 语义）
+                BreakRowBackgroundArgb = ThemeHelper.IsDarkTheme() ? 0x14FFFFFFu : 0x14000000u,
+                SeparatorArgb = ArgbOfAv(GetBreakSeparatorBrushAv()),
+                ShowTomorrow = showTomorrow,
+                CurrentClassIndex = _currentOnClassIndex,
             };
-
-            // 【明日时间表】标题行：作为同一个 Grid 的第 0 行（跨 2 列），而不是外层再套 StackPanel。
-            //   外层套容器会改变 Grid 的测量约束/星列行为 → 卡片宽度与"今天时间表"不一致（宽度不自适应）。
-            //   放进同一个 Grid 后列仍是同一套 Auto,*，宽度计算路径与今天课表完全一致，切换时宽度对齐。
-            int headerRowIdx = 0;
-            if (showTomorrow)
+            foreach (var rowAv in _currentClassRows)
             {
-                grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                var tomorrowTitle = CreateTomorrowTitleAv(fontSize, accentBrush);
-                Grid.SetColumnSpan(tomorrowTitle, 2);
-                Grid.SetRow(tomorrowTitle, 0);
-                grid.Children.Add(tomorrowTitle);
-                headerRowIdx = 1;
-            }
-
-            // 表头行
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var header1 = new TextBlock
-            {
-                Text = "课程",
-                FontSize = Math.Max(8, fontSize - 2),
-                FontWeight = FontWeight.Bold,
-                Foreground = textFg,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            Grid.SetColumn(header1, 0); Grid.SetRow(header1, headerRowIdx); grid.Children.Add(header1);
-            var header2 = new TextBlock
-            {
-                Text = "时间",
-                FontSize = Math.Max(8, fontSize - 2),
-                FontWeight = FontWeight.Bold,
-                Foreground = textFg,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                Margin = new Thickness(0, 0, 0, 4)
-            };
-            Grid.SetColumn(header2, 1); Grid.SetRow(header2, headerRowIdx); grid.Children.Add(header2);
-
-            // 分隔线行
-            grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-            var sepLine = new Border
-            {
-                Height = 1,
-                Background = sep,
-                Margin = new Thickness(0, 0, 0, 6),
-                CornerRadius = new CornerRadius(0.5)
-            };
-            Grid.SetColumnSpan(sepLine, 2);
-            Grid.SetRow(sepLine, headerRowIdx + 1); grid.Children.Add(sepLine);
-
-            // 课程行
-            for (int i = 0; i < _currentClassRows.Count; i++)
-            {
-                var row = _currentClassRows[i];
-                var subject = row.Subject;
-                var layoutItem = row.LayoutItem;
-                var isCurrent = i == _currentOnClassIndex;
-
-                grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                var rIdx = grid.RowDefinitions.Count - 1;
-
-                IBrush rowBg = Brushes.Transparent;
-                if (isCurrent) rowBg = highlightBg;
-
-                var courseName = subject?.Name ?? "(未安排)";
+                var subject = rowAv.Subject;
+                var layoutItem = rowAv.LayoutItem;
                 // 教师名：关闭"显示教师"或空 TeacherName 不显示；关闭全名=姓氏+"老师"；开启全名=完整教师名（例：张三）
                 string? teacherLine = null;
                 var teacherFull = _settings.FloatingScheduleShowTeacher ? subject?.TeacherName : null;
@@ -3597,235 +3775,70 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         }
                     }
                 }
-
-                // ---- 课程列 ----
-                // 教师名从"课程名下方"改为"学科名正右方"：同一行两列 Grid（左课程名 * / 右教师名 Auto 垂直居中对齐）
-                var coursePanel = new Grid
+                var rowStartAv = ReflectGetStartTime(layoutItem);
+                var rowEndAv = ReflectGetEndTime(layoutItem);
+                model.Rows.Add(new FloatScheduleRowModel
                 {
-                    ColumnDefinitions = ColumnDefinitions.Parse("*, Auto"),
-                    RowDefinitions = RowDefinitions.Parse("Auto"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Background = rowBg,
-                    Margin = new Thickness(0, 2, 0, 2)
+                    Course = subject?.Name ?? "(未安排)",
+                    Teacher = teacherLine,
+                    TimeText = $"{FormatHhMm(rowStartAv)} - {FormatHhMm(rowEndAv)}",
+                    // 时间区间下传：宿主异常/卡死导致推送中断时，子进程按本地时钟自主定位"当前课"
+                    StartSec = rowStartAv.TotalSeconds,
+                    EndSec = rowEndAv.TotalSeconds,
+                });
+            }
+            if (breakInsertAfterClassIdx >= 0 && breakLayoutItem != null)
+            {
+                model.Break = new FloatScheduleBreakModel
+                {
+                    AfterClassIndex = breakInsertAfterClassIdx,
+                    Name = breakNameText,
+                    TimeText = $"{FormatHhMm(breakStart)} - {FormatHhMm(breakEnd)}",
+                    StartSec = breakStart.TotalSeconds,
+                    EndSec = breakEnd.TotalSeconds,
                 };
-                Grid.SetColumn(coursePanel, 0);
-                Grid.SetRow(coursePanel, rIdx);
-
-                var courseTb = new TextBlock
-                {
-                    Text = courseName,
-                    FontSize = fontSize,
-                    FontWeight = isCurrent ? FontWeight.Bold : FontWeight.Normal,
-                    Foreground = textFg,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    TextTrimming = TextTrimming.CharacterEllipsis,
-                    Margin = new Thickness(0, 0, 8, 0)
-                };
-                Grid.SetColumn(courseTb, 0); Grid.SetRow(courseTb, 0);
-                coursePanel.Children.Add(courseTb);
-
-                if (!string.IsNullOrEmpty(teacherLine))
-                {
-                    int teacherFontSize = Math.Max(8, fontSize - 3);
-                    // ===== 修复：教师列完整展示 15 汉字（用户最新要求）=====
-                    // 单一事实来源：教师列宽 MaxWidth = teacherFontSizePt × 21.5
-                    //   推导：CJK 全角 YaHei 方块字 = fontSize pt × (96/72) = px ≈ pt×1.333 px/字；15 字 = pt×1.333×15 = pt×20；
-                    //   加 7.5% 余量（少民·点号半角/阿语混排/不同 DPI/YAHEI ·≈0.8字 实测 15字ASCII 200.7px=13.38pt?→实际 15字英文名 316px /15pt=21.04 需要 21.1，取 21.5 给 1.5% 安全）→ 系数 21.5。
-                    //   基准 15 pt → 322.5 px：
-                    //     * 4 字欧阳夏雪 80 px（占 24.8%，大量余量）
-                    //     * 10 字少民阿卜杜拉·本·塔里克 169.63 px（52.6%，仍有一半余量）
-                    //     * 15 字纯 CJK 15×20=300 px ≤ 322.5 ✅ 完整
-                    //     * 15 字 ASCII 极端半角 200.7 px ≤ 322.5 ✅ 完整
-                    //     * 英文名 30 字符 Dr. Christopher van der Saar PhD = 316.13 px ≤ 322.5 ✅ 完整（普通外籍教师姓名范畴）
-                    //   FontScale=8 → teacher 8×21.5=172 px；FontScale=32 → teacher 29×21.5=623.5 px，外层 820 兜底完整。
-                    var teacherMaxW = teacherFontSize * 21.5;
-                    var teacherTb = new TextBlock
-                    {
-                        Text = teacherLine,
-                        FontSize = teacherFontSize,
-                        Foreground = subFg,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        TextTrimming = TextTrimming.CharacterEllipsis,
-                        TextWrapping = TextWrapping.NoWrap,
-                        MaxWidth = teacherMaxW,
-                        Margin = new Thickness(8, 0, 0, 0)
-                    };
-                    Grid.SetColumn(teacherTb, 1);
-                    Grid.SetRow(teacherTb, 0);
-                    coursePanel.Children.Add(teacherTb);
-                }
-
-                // 当前课：进度条放在课程行的下边缘
-                if (isCurrent)
-                {
-                    grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var pIdx = grid.RowDefinitions.Count - 1;
-                    var (progHost, progInd) = CreateSelfDrawnProgressBar(accentColor, 2.5, new Thickness(0, 2, 0, 0));
-                    _currentProgressHost = progHost;
-                    _currentProgressIndicator = progInd;
-                    Grid.SetColumn(progHost, 0);
-                    Grid.SetColumnSpan(progHost, 2);
-                    Grid.SetRow(progHost, pIdx);
-                    grid.Children.Add(progHost);
-                }
-
-                grid.Children.Add(coursePanel);
-
-                // ---- 时间列 ----
-                var timeStr =
-                    $"{FormatHhMm(ReflectGetStartTime(layoutItem))} - {FormatHhMm(ReflectGetEndTime(layoutItem))}";
-                var timeTb = new TextBlock
-                {
-                    Text = timeStr,
-                    FontSize = Math.Max(8, fontSize - 1),
-                    Foreground = textFg,
-                    HorizontalAlignment = HorizontalAlignment.Right,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Background = rowBg,
-                    Margin = new Thickness(0, 2, 0, 2)
-                };
-                Grid.SetColumn(timeTb, 1);
-                Grid.SetRow(timeTb, rIdx);
-                grid.Children.Add(timeTb);
-
-                // ---------- 课间休息插入行（仅当：i == breakInsertAfterClassIdx，即当前处于 Breaking 且正好在这两节课之间）----------
-                //   规则：课间休息才显示；时间表未开始/已结束（breakInsertAfterClassIdx == -1）绝对不插行；
-                //        课间结束 → 下一个 Tick 的 needRefresh → RefreshSchedule 重绘，本插入行自然消失。
-                if (i == breakInsertAfterClassIdx && breakLayoutItem != null)
-                {
-                    grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var brIdx = grid.RowDefinitions.Count - 1;
-                    // 整行底色：次级文字透明度 × 0.08 的淡灰，明确区分"课间"与"课程"；不使用强调色避免与当前课高亮混淆。
-                    byte breakAlpha = (byte)Math.Clamp((int)Math.Round(0.08 * 255), 0, 255);
-                    byte grayBase = ThemeHelper.IsDarkTheme() ? (byte)0xFF : (byte)0x00;
-                    IBrush breakBg = new SolidColorBrush(Color.FromArgb(breakAlpha, grayBase, grayBase, grayBase));
-                    // 左：课间名称（默认 "课间休息"，或自定义 BreakName），使用次级灰字
-                    //   【动画对齐 WPF】用 Border 包 TextBlock 作为独立动画单元，与 WPF breakCellL 对应
-                    var breakTb = new TextBlock
-                    {
-                        Text = breakNameText,
-                        FontSize = Math.Max(8, fontSize - 1),
-                        Foreground = subFg,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 3, 0, 3)
-                    };
-                    var breakCellL = new Border
-                    {
-                        Background = breakBg,
-                        Child = breakTb,
-                    };
-                    Grid.SetColumn(breakCellL, 0);
-                    Grid.SetRow(breakCellL, brIdx);
-                    grid.Children.Add(breakCellL);
-                    // 右：时间区间（正好是"上一节End - 下一节Start"；使用 SDK 真实课间项目 Start/End 保证与课表 100% 一致）
-                    var breakTimeStr = $"{FormatHhMm(breakStart)} - {FormatHhMm(breakEnd)}";
-                    var breakTimeTb = new TextBlock
-                    {
-                        Text = breakTimeStr,
-                        FontSize = Math.Max(8, fontSize - 1),
-                        Foreground = subFg,
-                        HorizontalAlignment = HorizontalAlignment.Right,
-                        VerticalAlignment = VerticalAlignment.Center,
-                        Margin = new Thickness(0, 3, 0, 3)
-                    };
-                    var breakCellR = new Border
-                    {
-                        Background = breakBg,
-                        Child = breakTimeTb,
-                    };
-                    Grid.SetColumn(breakCellR, 1);
-                    Grid.SetRow(breakCellR, brIdx);
-                    grid.Children.Add(breakCellR);
-                    // 课间进度条：位于插入行下方，横跨两列；自绘 Grid+两层 Border，100% 可控不依赖 ProgressBar 自带模板
-                    grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var pbIdx = grid.RowDefinitions.Count - 1;
-                    var (breakHost, breakInd) = CreateSelfDrawnProgressBar(accentColor, 2.5, new Thickness(0, 2, 0, 0));
-                    _currentBreakProgressHost = breakHost;
-                    _currentBreakProgressIndicator = breakInd;
-                    _currentBreakLayoutItem = breakLayoutItem;
-                    Grid.SetColumn(breakHost, 0);
-                    Grid.SetColumnSpan(breakHost, 2);
-                    Grid.SetRow(breakHost, pbIdx);
-                    grid.Children.Add(breakHost);
-                    // 【新增课间动画】登记 3 个独立视觉单元到 List，供 ENTER 动画遍历播放
-                    builtBreakVisualsAv = new List<Control>(capacity: 3)
-                    {
-                        breakCellL, breakCellR, breakHost,
-                    };
-                }
-
-                // 【课表行休息分隔线】第 i 行与第 i+1 行之间存在课间 → 追加一条 2px 分隔线行（跨两列，70% 不透明）。
-                //  作为独立 Grid 行插在本行所有子行（进度条/课间行）之后，_currentClassRows 索引与高亮/进度定位不受影响。
-                if (sepAfterRowsAv.Contains(i))
-                {
-                    grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
-                    var sepRowIdx = grid.RowDefinitions.Count - 1;
-                    var sepBorderAv = new Border
-                    {
-                        Height = 2,
-                        Background = GetBreakSeparatorBrushAv(),
-                        Opacity = 0.7,   // 【分隔线】70% 不透明
-                        Margin = new Thickness(0, 1, 0, 1)
-                    };
-                    Grid.SetColumnSpan(sepBorderAv, 2);
-                    Grid.SetRow(sepBorderAv, sepRowIdx);
-                    grid.Children.Add(sepBorderAv);
-                    _breakSeparatorLinesAv.Add(sepBorderAv);
-                    EnsureBreakSeparatorThemeSubAv();   // 首次建线时订阅主题切换（Stop 退订防泄漏）
-                }
             }
 
-            // 标题已作为 Grid 第 0 行内联（见上文 headerRowIdx），此处直接挂 Grid，
-            // 保证"今天/明天"两种状态共用同一套列宽与 SizeToContent 宽度计算，卡片宽度自适应且完全对齐。
-            _containerBorder.Child = grid;
-            _rootContent = grid;
-            // 【课表行休息分隔线】本次重建无分隔线 → 退订主题事件（旧线已随 Child 替换出树，防泄漏）
-            if (_breakSeparatorLinesAv.Count == 0)
-                UnsubscribeBreakSeparatorThemeAv();
-            // ---- 【新增课间动画】登记新建课间行视觉单元；如需 ENTER 动画 fire-and-forget 启动 ----
-            //   只在"上一帧不是 Breaking && 当前不是 EXIT 动画进行中 && 本次构建确实产出了课间行 3 元素"时播放 ENTER，
-            //   避免"SDK 内部课间切课间（同 break）RefreshSchedule 重建"、"EXIT 动画结束 RefreshSchedule 又回到 Breaking"
-            //   等场景下不必要的重放动画。
-            //   【例外：isColdStartAv 冷启动】跳过 ENTER，直接写本地 Opacity=1/Y=0，保证用户能立刻看到最终态
-            //   【★ 修复：初始化时课间文本 250ms 透明卡在上一课里】
-            //      时序 bug：启动时 StartInternal.Post 显式调用 RefreshSchedule #1（sentinel=-1 → isColdStartAv=true → 跳过 ENTER，正确）；
-            //                紧接着 500ms Timer 第一 Tick UpdateProgress：stateOrBreakChanged = Breaking code - (-1) = true → Post RefreshSchedule #2；
-            //                RefreshSchedule #2 入口 _lastRefreshStateCode 已被 #1 写为 Breaking int → isColdStartAv=false；
-            //                同时 #1 由 StartInternal.Post 直接调，不走 UpdateProgress，finally 同步 _wasBreakLastTickAv=true 没执行；
-            //                所以 RefreshSchedule #2 看到 _wasBreakLastTickAv=false（字段初始值）→ 命中 ENTER → 课间行 250ms Opacity=0 淡入！
-            //                250ms 内用户只有上一课 C0 文本可见 → 误认为"课间文本卡在上一课文本里"。
-            //      修复策略：用局部变量 prevWasBreakAv 先保存 ENTER 判断时的原始快照（=本次 RefreshSchedule 被调用时刻的上一帧快照），
-            //                再立刻把字段 _wasBreakLastTickAv 写为 true（只要本次构建确实产出了课间行）。
-            //                这样 ENTER 判断用"调用时刻的快照"保证正常"非 break→break"场景仍正确命中 ENTER；
-            //                而写字段保证下一次 RefreshSchedule 调用时看到"上次已在 break 中"→ 跳过 ENTER（修复初始化 2 次重建的 bug）。
-            _currentBreakRowVisualsAv = builtBreakVisualsAv;
-            if (builtBreakVisualsAv != null)
+            // 【抗宿主异常】下传当天全部课间（含区间与插入位置）：宿主推送中断后，子进程据此
+            //  自主判断"现在是否课间、该显示哪个课间行"，从而持续正确呈现，而不只是冻结最后一帧。
+            foreach (var breakItemAv in _breakItemsAv)
             {
-                // (1) 先快照"本次 RefreshSchedule 被调时刻的上一帧状态"（保留：保证 3 步快照语义，避免初始化连续重建误判其他分支）
-                _ = _wasBreakLastTickAv; // （保留读取以兼容旧快照模式语义，实际 ENTER 动画已删除）
-
-                // (2) ★ 立刻写字段 = true：只要本次构建产出课间行 → 锁定"在 break 中"
-                //     —— 下次 RefreshSchedule（下一 Tick / 5s 强制 / PropertyChanged Post）看到"上一帧已是 break"
-                _wasBreakLastTickAv = true;
-
-                // (3) 用户要求：删除「淡化渐变以外的所有动画」→ ENTER 不再执行任何 250ms TranslateY/淡入，
-                //     直接落地最终淡化可见状态：Opacity=1 / TT.Y=0（无论冷启动或过渡，立即渲染）。
-                EnsureBreakRowTransformAv(builtBreakVisualsAv);
-                foreach (var el in builtBreakVisualsAv)
+                var bsAv = ReflectGetStartTime(breakItemAv);
+                var beAv = ReflectGetEndTime(breakItemAv);
+                if (beAv <= bsAv) continue;   // 非法区间（时间点语义）跳过
+                // 插入位置 = 位于该课间之前的最后一节课索引（与课间行插入算法同源）
+                int afterIdxAv = -1;
+                for (int k = 0; k < _currentClassRows.Count; k++)
                 {
-                    try { el.Opacity = 1.0; } catch { /* ignore */ }
-                    try
-                    {
-                        if (el.RenderTransform is TranslateTransform ttAv) ttAv.Y = 0.0;
-                    }
-                    catch { /* ignore */ }
+                    if (ReflectGetEndTime(_currentClassRows[k].LayoutItem) <= bsAv) afterIdxAv = k;
+                    else break;
                 }
+                model.AllBreaks.Add(new FloatScheduleBreakModel
+                {
+                    AfterClassIndex = afterIdxAv,
+                    Name = ReflectGetBreakNameText(breakItemAv),
+                    TimeText = $"{FormatHhMm(bsAv)} - {FormatHhMm(beAv)}",
+                    StartSec = bsAv.TotalSeconds,
+                    EndSec = beAv.TotalSeconds,
+                });
             }
-            else
+            foreach (var sepIdxAv in sepAfterRowsAv)
+                model.SeparatorAfterClassIndex.Add(sepIdxAv);
+            // 进度比例 + 冻结锚点（原函数末尾"集中兜底"Apply 块统一进模型；进程内渲染在构建后立即写入真实 ratio，消除假 0% 快照）
+            var (classRatioAv, breakRatioAv, anchorAv) = ComputeProgressRatiosAv();
+            model.ClassProgressRatio = classRatioAv;
+            model.BreakProgressRatio = breakRatioAv;
+            model.Anchor = anchorAv;
+            _currentBreakLayoutItem = breakLayoutItem;
+
+            PublishModelAv(model);
+
+            // 【课间行 ENTER/EXIT 位移动画已按用户要求删除】仅保留"本帧是否构建了课间行"状态机标记：
+            //  UpdateProgress 以此在 Breaking→非Breaking 时触发同步重建（替代旧 EXIT 动画回调重建）。
+            _builtBreakRowAv = model.Break != null;
+            _wasBreakLastTickAv = _builtBreakRowAv;
+            if (!_builtBreakRowAv)
             {
-                // 本次没构建课间行（非 Breaking：None/OnClass/AfterSchool...）→ 写 false，保留状态机语义（EXIT 已删，仅作标记）
-                _wasBreakLastTickAv = false;
                 _currentBreakProgressIndicator = null;
                 _currentBreakProgressHost = null;
                 _currentBreakLayoutItem = null;
@@ -3835,80 +3848,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _lastRefreshStateCode = (int)curState;
             _lastRefreshBreakStartTicks = breakInsertAfterClassIdx >= 0 && breakLayoutItem != null ? breakStart.Ticks : -1;
             _lastRefreshBreakEndTicks   = breakInsertAfterClassIdx >= 0 && breakLayoutItem != null ? breakEnd.Ticks   : -1;
-            // 【修复：调试时间不立刻刷新 - Date 兜底快照】
-            //  记录本次 RefreshSchedule 构建时的调试时间 Date（非系统 DateTime.Today），
-            //  500ms Tick 检测 dateChanged 时以此为基线，跨天调试跳转即使 PropertyChanged 事件丢失也能在下一 Tick 强制 needRefresh。
+            // 【修复：调试时间不立刻刷新 - Date 兜底快照】记录本次 RefreshSchedule 构建时的调试时间 Date（非系统 DateTime.Today）。
             _lastRefreshDate = GetClassIslandNow().Date;
-
-            // ===== 【★ 用户报告：悬浮窗初始化以进度条 0% 为假快照 → 后续异常】集中兜底 =====
-            //  根因（与 Experience 601376 "多写入源覆盖"同构）：
-            //   RefreshSchedule 有 6 处调用（StartInternal 冷启动 / Settings 开开关 / 5s 硬清理 / EXIT 同步 / DebugTime / needRefresh Post），
-            //   但仅 DebugTime(L717-773) 和 needRefresh(L2224-2329) 两处知道"RefreshSchedule 之后必须立刻写真实 ratio 到新 UI indicator"，
-            //   其余 4 处漏掉 → 新 UI indicator Width = 构造默认 0、indicator.Tag = null →
-            //   首次 LayoutUpdated 触发时 L1438 fallback `Tag is double r ? r : 0.0` = 0.0 → indicator.Width = 0 * host.Width = 0（假 0% 快照）。
-            //   500ms 后 UpdateProgress 才修正，期间 0% 会被用户感知为"进度条卡住"，并与后续硬校验/PropertyChanged 触发的 RefreshSchedule 叠加造成视觉跳变或状态误判。
-            //  修复（集中兜底 = Experience 601376 "清空数据源同步 progress/currentIndex" 思想一致）：
-            //   在 RefreshSchedule 末尾（StartOrStopTimer 之前）**无条件同步 Apply 一次"本帧真实 ratio"**。此时 host.Bounds.Width 通常仍=0（尚未布局），
-            //   ApplyProgressRatioAv 走 else 分支把 ratio 缓存到 indicator.Tag → 布局就绪后 LayoutUpdated 回调 L1438 读 cached=Tag=真实值，不会再 fallback 到 0.0。
-            try
-            {
-                var svc = _lessonsService;
-                if (svc != null)
-                {
-                    var sRaw = ReflectProp(svc, "CurrentState");
-                    TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
-                    bool onC = s == TimeState.OnClass;
-                    bool brk = s == TimeState.Breaking;
-
-                    // -- 课间进度条 --
-                    if (brk)
-                    {
-                        // 课间进度条：真实时间定位当前课间空隙（SDK 滞后时也能正确推进/重置）
-                        var nn = GetClassIslandNow().TimeOfDay;
-                        var biB = FindBreakItemByRealTimeAv(nn, out var gsB, out var geB);
-                        if (biB != null && _currentBreakProgressIndicator != null)
-                        {
-                            double tb = (geB - gsB).TotalSeconds;
-                            if (tb > 0)
-                            {
-                                double breakRatio = Math.Clamp((nn - gsB).TotalSeconds / tb, 0.0, 1.0);
-                                ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, breakRatio);
-                            }
-                            else ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-                        }
-                        else if (_currentBreakProgressIndicator != null)
-                            ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-                    }
-                    else if (_currentBreakProgressIndicator != null)
-                        ApplyProgressRatioAv(_currentBreakProgressHost, _currentBreakProgressIndicator, 0.0);
-
-                    // -- 当前课进度条（用高亮行区间 + 真实时间，不再依赖 SDK 滞后 item）--
-                    if (onC)
-                    {
-                        // 高亮行：RefreshSchedule 上方已保证 onC 时 _currentOnClassIndex 非 -1（SDK 匹配确定高亮）
-                        if (_currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count &&
-                            _currentProgressIndicator != null)
-                        {
-                            var rowLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
-                            var st = ReflectGetStartTime(rowLi);
-                            var ed = ReflectGetEndTime(rowLi);
-                            double t = (ed - st).TotalSeconds;
-                            if (t <= 0) { ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0); }
-                            else
-                            {
-                                var nn = GetClassIslandNow().TimeOfDay;
-                                double classProgressRatio = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
-                                ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, classProgressRatio);
-                            }
-                        }
-                        else if (_currentProgressIndicator != null)
-                            ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
-                    }
-                    else if (_currentProgressIndicator != null)
-                        ApplyProgressRatioAv(_currentProgressHost, _currentProgressIndicator, 0.0);
-                }
-            }
-            catch { /* 绝对兜底：即使 Apply 失败，下一次 500ms UpdateProgress Tick 也会修正，不能影响 RefreshSchedule 主流程 */ }
 
             StartOrStopTimer();
         }
@@ -3917,42 +3858,178 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _logger.LogError(ex, "RefreshSchedule 异常");
             try
             {
-                var isDark = ThemeHelper.IsDarkTheme();
-                var errorPanel = new StackPanel
+                if (hasContainerAv)
                 {
-                    MinWidth = 200
-                };
-                errorPanel.Children.Add(new TextBlock
+                    var isDark = ThemeHelper.IsDarkTheme();
+                    var errorPanel = new StackPanel
+                    {
+                        MinWidth = 200
+                    };
+                    errorPanel.Children.Add(new TextBlock
+                    {
+                        Text = "悬浮时间表",
+                        FontSize = fontSize,
+                        FontWeight = FontWeight.Bold,
+                        Foreground = isDark ? Brushes.White : Brushes.Black,
+                        Margin = new Thickness(0, 0, 0, 6)
+                    });
+                    errorPanel.Children.Add(new TextBlock
+                    {
+                        Text = "加载中...",
+                        FontSize = Math.Max(8, fontSize - 2),
+                        Foreground = isDark ? Brushes.LightGray : Brushes.DimGray
+                    });
+                    _containerBorder!.Child = errorPanel;
+                    _rootContent = errorPanel;
+                }
+                else if (IndependentRequested)
                 {
-                    Text = "悬浮时间表",
-                    FontSize = fontSize,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = isDark ? Brushes.White : Brushes.Black,
-                    Margin = new Thickness(0, 0, 0, 6)
-                });
-                errorPanel.Children.Add(new TextBlock
-                {
-                    Text = "加载中...",
-                    FontSize = Math.Max(8, fontSize - 2),
-                    Foreground = isDark ? Brushes.LightGray : Brushes.DimGray
-                });
-                _containerBorder.Child = errorPanel;
+                    // 独立进程：推送"加载中..."占位模型（对齐进程内错误面板行为；未连接时缓存供 Init 补发）
+                    PublishModelAv(new FloatScheduleRenderModel { PlaceholderText = "悬浮时间表 · 加载中..." });
+                }
             }
             catch { /* 极端兜底 */ }
         }
     }
 
-    /// <summary>"明日时间表"标题标识（强调色加粗，随主题自适应；仅在悬浮窗展示明天课表时使用）。</summary>
-    private static TextBlock CreateTomorrowTitleAv(int fontSize, IBrush accentBrush)
+    /// <summary>
+    /// 发布渲染模型：进程内有窗口 → 共享 FloatScheduleRenderer 构建控件树并接线进度条引用；
+    /// 独立进程模式 → 经管道推送同一模型（子进程用同一渲染器渲染，保证两种模式逐帧一致）。
+    /// </summary>
+    private void PublishModelAv(FloatScheduleRenderModel model)
     {
-        return new TextBlock
+        // 独立进程模式优先：进程内窗口对象可能仍存活（Connected 后只 Hide 未销毁），不能再走进程内渲染
+        if (IndependentActive)
         {
-            Text = "明日时间表",
-            FontSize = fontSize,
-            FontWeight = FontWeight.Bold,
-            Foreground = accentBrush,
-            Margin = new Thickness(0, 0, 0, 6)
+            _hostProcess?.SendModel(model);
+            _logger.LogDebug("独立进程模式：已推送渲染模型 rows={Rows} current={Cur} placeholder={Ph}",
+                model.Rows.Count, model.CurrentClassIndex, model.PlaceholderText != null);
+            return;
+        }
+        if (_window != null && _containerBorder != null)
+        {
+            FloatScheduleRenderer.ApplyCardStyle(_containerBorder, model);
+            var (root, refs) = FloatScheduleRenderer.Build(model);
+            _containerBorder.Child = root;
+            _rootContent = root;
+            _currentProgressHost = refs.ClassProgressHost;
+            _currentProgressIndicator = refs.ClassProgressIndicator;
+            _currentBreakProgressHost = refs.BreakProgressHost;
+            _currentBreakProgressIndicator = refs.BreakProgressIndicator;
+            // 构建后立即写入真实 ratio（原"集中兜底"块语义：消除新 UI 假 0% 快照）
+            FloatScheduleRenderer.ApplyProgressRatio(refs.ClassProgressHost, refs.ClassProgressIndicator, model.ClassProgressRatio);
+            FloatScheduleRenderer.ApplyProgressRatio(refs.BreakProgressHost, refs.BreakProgressIndicator, model.BreakProgressRatio);
+            // 分隔线主题订阅（进程内主题切换动态更新；独立进程模式由主题变化重发模型覆盖）
+            _breakSeparatorLinesAv.Clear();
+            _breakSeparatorLinesAv.AddRange(refs.SeparatorLines);
+            if (_breakSeparatorLinesAv.Count > 0) EnsureBreakSeparatorThemeSubAv();
+            else UnsubscribeBreakSeparatorThemeAv();
+        }
+        // 进程内渲染同时把模型写入 HostProcessService 缓存：独立模式刚开启（子进程未连接）时 Init 也能拿到最新数据
+        _hostProcess?.CacheModel(model);
+    }
+
+    /// <summary>
+    /// 计算"当前课/课间进度比例"与冻结锚点（原 RefreshSchedule 末尾"集中兜底"块提取，进程内与独立进程共用）。
+    /// 每次重取最新状态（与旧块一致，避免 Post 排队期间状态变化造成旧快照）。
+    /// </summary>
+    private (double classRatio, double breakRatio, FloatScheduleAnchor? anchor) ComputeProgressRatiosAv()
+    {
+        double classRatio = 0.0, breakRatio = 0.0;
+        var anchor = new FloatScheduleAnchor { SentUtcMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() };
+        try
+        {
+            var svc = _lessonsService;
+            if (svc == null) return (0.0, 0.0, anchor);
+            var sRaw = ReflectProp(svc, "CurrentState");
+            TimeState s = sRaw != null ? (TimeState)sRaw : TimeState.None;
+            bool onC = s == TimeState.OnClass;
+            bool brk = s == TimeState.Breaking;
+            anchor.OnClass = onC;
+            anchor.Breaking = brk;
+            var nn = GetClassIslandNow().TimeOfDay;
+            anchor.NowSecOfDay = nn.TotalSeconds;
+            if (brk)
+            {
+                var biB = FindBreakItemByRealTimeAv(nn, out var gsB, out var geB);
+                if (biB != null)
+                {
+                    anchor.BreakStartSec = gsB.TotalSeconds;
+                    anchor.BreakEndSec = geB.TotalSeconds;
+                    double tb = (geB - gsB).TotalSeconds;
+                    if (tb > 0) breakRatio = Math.Clamp((nn - gsB).TotalSeconds / tb, 0.0, 1.0);
+                }
+            }
+            if (onC && _currentOnClassIndex >= 0 && _currentOnClassIndex < _currentClassRows.Count)
+            {
+                var rowLi = _currentClassRows[_currentOnClassIndex].LayoutItem;
+                var st = ReflectGetStartTime(rowLi);
+                var ed = ReflectGetEndTime(rowLi);
+                anchor.ClassStartSec = st.TotalSeconds;
+                anchor.ClassEndSec = ed.TotalSeconds;
+                double t = (ed - st).TotalSeconds;
+                if (t > 0) classRatio = Math.Clamp((nn - st).TotalSeconds / t, 0.0, 1.0);
+            }
+        }
+        catch { /* 绝对兜底：与旧集中兜底块一致，异常不影响主流程 */ }
+        return (classRatio, breakRatio, anchor);
+    }
+
+    /// <summary>
+    /// 解析宿主悬浮窗实际生效的字体族名（供独立进程渲染对齐字形）。
+    /// 嵌入资源字体（avares://）无法跨进程解析 → 返回 null，由子进程窗口层兜底
+    /// "HarmonyOS Sans SC, Microsoft YaHei UI"。
+    /// </summary>
+    private static string? ResolveFloatingFontFamilySourceAv()
+    {
+        try
+        {
+            var app = Application.Current;
+            if (app == null) return null;
+            var variant = app.ActualThemeVariant ?? ThemeVariant.Light;
+            if (app.TryGetResource("ContentControlThemeFontFamily", variant, out var r) && r is FontFamily ff)
+            {
+                var src = ff.Name;
+                if (string.IsNullOrWhiteSpace(src)) return null;
+                if (src.Contains("avares", StringComparison.OrdinalIgnoreCase)) return null;
+                if (string.Equals(src, "Default", StringComparison.OrdinalIgnoreCase)) return null;
+                return src;
+            }
+        }
+        catch { /* ignore */ }
+        return null;
+    }
+
+    /// <summary>构建悬浮窗行为设置快照（独立进程模式经 settings 消息推送；枚举以 int 传输避免跨程序集类型依赖）。</summary>
+    private FloatScheduleWindowSettings BuildWindowSettingsSnapshotAv()
+    {
+        return new FloatScheduleWindowSettings
+        {
+            Layer = (int)_settings.FloatingScheduleWindowLayer,
+            TopmostRefreshMode = (int)_settings.FloatingScheduleTopmostRefreshMode,
+            ClickThrough = _settings.FloatingScheduleClickThrough,
+            HoverFade = _settings.FloatingScheduleHoverFade,
+            HoverFadeReverse = _settings.FloatingScheduleHoverFadeReverse,
+            EdgeHide = _settings.FloatingScheduleEdgeHide,
+            EdgeHideDelay = _settings.FloatingScheduleEdgeHideDelay,
+            RandomTitle = _settings.FloatingScheduleRandomTitle,
+            RandomTitleEnhanced = _settings.FloatingScheduleRandomTitleEnhanced,
+            PreventCapture = _settings.FloatingSchedulePreventCapture,
+            PositionX = _settings.FloatingSchedulePositionX,
+            PositionY = _settings.FloatingSchedulePositionY,
+            FollowHostLifetime = _settings.FloatingScheduleFollowHostLifetime,
+            // 下传子进程 exe 指纹：旧子进程在插件更新后据此识别自己已过期并退出
+            ExeStamp = _hostProcess?.ChildExeStamp ?? "",
         };
+    }
+
+    /// <summary>悬浮窗行为类设置变化 → 独立进程模式下重推设置快照（即时生效，无需重启 ClassIsland）。
+    /// 模式开启但子进程未连接时同样缓存快照（SendSettings 内部缓存，Init 时一并补发）。</summary>
+    private void PublishIndependentSettingsAv()
+    {
+        if (_hostProcess == null || !IndependentRequested) return;
+        try { _hostProcess.SendSettings(BuildWindowSettingsSnapshotAv()); }
+        catch (Exception ex) { _logger.LogDebug(ex, "PublishIndependentSettingsAv 异常（忽略）"); }
     }
 
     /// <summary>
@@ -4124,7 +4201,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     _breakRowExitPendingStateCode = -1;
                     _breakRowExitPendingBreakStart = -1;
                     _breakRowExitPendingBreakEnd = -1;
-                    _currentBreakRowVisualsAv = null;
+                    _builtBreakRowAv = false;
                     _currentBreakProgressIndicator = null;
                     _currentBreakProgressHost = null;
                 }
@@ -4143,8 +4220,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // ======== 【用户：删除淡化渐变动画以外的所有动画 Ava】课间 EXIT 不再播放 250ms TranslateY/淡出，直接整表重建 ========
             //   原实现：Breaking→非Breaking 先 EXIT 250ms 动画再回调 RefreshSchedule。现改为同步：
             //   立即写 pending 快照 + 复位 EXIT/ENTER 标志 + 调 RefreshSchedule()；淡化 Opacity 1↔0 的保留不影响（课间行 UI 被从 Children 移除自然"消失"，淡化仅用于 Hover）。
-            if (_wasBreakLastTickAv && !breaking && !_breakRowExitAnimatingAv &&
-                _currentBreakRowVisualsAv != null && _currentBreakRowVisualsAv.Count > 0)
+            if (_wasBreakLastTickAv && !breaking && !_breakRowExitAnimatingAv && _builtBreakRowAv)
             {
                 stateOrBreakChanged = false;
                 try { _breakRowExitCtsAv?.Cancel(); } catch { /* ignore */ }
@@ -4161,7 +4237,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 } catch { /* ignore */ }
                 _breakRowExitAnimatingAv = false;
                 _wasBreakLastTickAv = false;
-                _currentBreakRowVisualsAv = null;
+                _builtBreakRowAv = false;
                 _currentBreakProgressIndicator = null;
                 _currentBreakProgressHost = null;
                 _lastRefreshStateCode = stateCode;
@@ -4270,6 +4346,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 });
 
                 // 关键：needRefresh 分支不再对"旧 UI"再 Apply 任何东西（RefreshSchedule 马上重建）。直接 return。
+                return;
+            }
+
+            // 【独立进程模式】进度条由子进程按推送值更新：这里只推 progress 增量
+            // （整表重建触发源 stateOrBreakChanged/needRefresh/5s 硬刷新在上面已统一处理，RefreshSchedule 会顺带 SendModel）
+            if (IndependentActive)
+            {
+                var (crAv, brAv, _) = ComputeProgressRatiosAv();
+                _hostProcess?.SendProgress(crAv, brAv);
                 return;
             }
 

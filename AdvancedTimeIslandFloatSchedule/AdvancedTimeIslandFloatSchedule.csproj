@@ -1,0 +1,54 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- 时间表悬浮窗"独立进程模式"子进程。
+         设计约束（见 .trae\documents\floating-schedule-independent-process-mode.md）：
+         1. 框架依赖 + 单文件发布：产物只有一个 exe，Avalonia/Skia 运行时 DLL 一律不进插件包；
+            运行时通过 AssemblyLoadContext.Resolving + PATH 注入从 ClassIsland 安装目录借用。
+         2. 双 TFM 各出一个 exe，与宿主 Avalonia 代际精确配对：
+            net8.0-windows  -> ClassIsland 2.0.x（Avalonia 11.3.x）
+            net10.0-windows -> ClassIsland 2.1.x/Misha（Avalonia 12.1.x）
+            Avalonia 程序集版本随包版本走，跨代二进制不兼容，不能一个 exe 通吃。
+         3. 不引用 FluentAvalonia / ClassIsland.*：悬浮窗是纯代码 Avalonia 基础控件，
+            颜色/字体全部由渲染模型显式携带，无需主题资源。 -->
+
+    <PropertyGroup>
+        <TargetFrameworks>net8.0-windows;net10.0-windows</TargetFrameworks>
+        <OutputType>WinExe</OutputType>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <Nullable>enable</Nullable>
+        <AssemblyName>AdvancedTimeIslandFloatSchedule</AssemblyName>
+        <RootNamespace>AdvancedTimeIsland.FloatScheduleChild</RootNamespace>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+        <!-- 宿主只装了更高版本 .NET（如 Misha 的 .NET 10）时也能启动 net8 产物 -->
+        <RollForward>LatestMajor</RollForward>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+        <SelfContained>false</SelfContained>
+        <DefineConstants>$(DefineConstants);WINDOWS</DefineConstants>
+        <AvaloniaVersion Condition="'$(TargetFramework)' == 'net10.0-windows'">12.1.1</AvaloniaVersion>
+        <AvaloniaVersion Condition="'$(TargetFramework)' != 'net10.0-windows'">11.3.10</AvaloniaVersion>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- 仅编译期引用（ref 程序集），运行时 DLL 由宿主目录解析，严禁进包 -->
+        <PackageReference Include="Avalonia" Version="$(AvaloniaVersion)" ExcludeAssets="runtime;native" />
+        <PackageReference Include="Avalonia.Desktop" Version="$(AvaloniaVersion)" ExcludeAssets="runtime;native" />
+        <PackageReference Include="Avalonia.Skia" Version="$(AvaloniaVersion)" ExcludeAssets="runtime;native" />
+        <!-- 注意：不引用 Avalonia.Themes.Fluent。托盘图标/菜单已改为原生 Win32 实现
+             （见 FloatScheduleTrayIcon.cs），原因见该文件头部说明：宿主 ClassIsland 使用
+             FluentAvalonia，其依赖图中并不包含 Avalonia.Themes.Fluent，无法在运行时借用。 -->
+    </ItemGroup>
+
+    <ItemGroup>
+        <!-- 与主项目共享的渲染模型/渲染器/IPC 协议/Win32 帮助类（同一份源码编入两侧，防渲染漂移） -->
+        <Compile Include="..\Shared\FloatingSchedule\**\*.cs" LinkBase="Shared" />
+        <!-- 窗口图标复用 ApplicationIcon 的压缩 ico（EmbeddedResource 字节流构造 WindowIcon，单文件发布下最稳） -->
+        <EmbeddedResource Include="Assets\app.ico" />
+    </ItemGroup>
+
+</Project>

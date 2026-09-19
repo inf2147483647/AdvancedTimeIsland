@@ -65,6 +65,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         BuildInteractionGroup(mainPanel);
         BuildWindowAdvancedGroup(mainPanel);
         BuildRandomTitleGroup(mainPanel);
+        BuildIndependentProcessGroup(mainPanel);
 
         Content = new ScrollViewer
         {
@@ -123,7 +124,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             Minimum = 0.0m,
             Maximum = 1.0m,
             Increment = 0.05m,
-            Value = (decimal?)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.85, 0.0, 1.0),
+            Value = (decimal?)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.5, 0.0, 1.0),
             FormatString = "F2",
             HorizontalAlignment = HorizontalAlignment.Right
         };
@@ -134,7 +135,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         };
         AddSettingsExpanderItem(group,
             "背景不透明度",
-            "仅作用于卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.85",
+            "仅作用于卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.5",
             opacityBox);
 
         // 显示教师
@@ -599,6 +600,170 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             "阻止截图",
             "开启后，其他应用无法截取悬浮窗窗口内容，录制时也不会录制到悬浮窗。Windows 10 2004 及以上有效，更低版本回退为黑色遮挡。",
             preventCaptureToggle);
+
+        mainPanel.Children.Add(group);
+    }
+
+    // ==================== 5. 独立进程模式 ====================
+    private Avalonia.Threading.DispatcherTimer? _independentStatusTimer;
+
+    /// <summary>
+    /// "重启"按钮是否可用：模式开启 且 不在重启过程中 且 子进程不在启动过程中。
+    /// 统一出口，供按钮点击收尾 / 1s 轮询 / 模式开关联动三处复用。
+    /// </summary>
+    private bool ShouldEnableRestartButton()
+    {
+        var svc = Services.FloatScheduleHostProcessService.Instance;
+        var on = _settings?.FloatingScheduleIndependentProcess ?? false;
+        return on && svc != null && !svc.IsRestarting
+            && svc.Status != Services.FloatScheduleHostProcessService.ChildStatus.Starting;
+    }
+
+    private void BuildIndependentProcessGroup(StackPanel mainPanel)
+    {
+        var group = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Header", "独立进程模式");
+        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Description",
+            "由独立进程 AdvancedTimeIslandFloatSchedule.exe 渲染悬浮窗，防弹窗拦截能力更强（超级模式），且不受 ClassIsland 主程序卡顿影响。仅支持 Windows，非 Windows 平台此项禁用。");
+
+        // 非 Windows（Linux/macOS/Android）整组禁用
+        if (!OperatingSystem.IsWindows()) group.IsEnabled = false;
+
+        // 【不可关闭警告】"跟随启停=关"时子进程会在 ClassIsland 退出后继续存活以满足冻结显示需求，
+        //   更新插件（宿主替换/删除插件目录）期间它会干扰该过程，可能导致插件目录损坏。
+        //   用不可关闭的 Warning 级 FAInfoBar 常驻提示，提醒用户更新前先打开"跟随启停"。
+        var updateWarningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Title", "更新插件前务必注意");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Message", "更新插件前务必打开跟随启停,否则会导致插件严重损坏!!!");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(updateWarningBar, "Margin", new Thickness(0, 0, 0, 8));
+        AddChildToSettingsExpander(group, updateWarningBar);
+
+        // 1) 独立进程模式（主开关）
+        var independentToggle = CreateToggleSwitch(_settings?.FloatingScheduleIndependentProcess ?? false, isOn =>
+        {
+            if (_settings != null) _settings.FloatingScheduleIndependentProcess = isOn;
+        });
+        independentToggle.HorizontalAlignment = HorizontalAlignment.Right;
+        independentToggle.VerticalAlignment = VerticalAlignment.Center;
+        AddSettingsExpanderItem(group,
+            "独立进程模式",
+            "开启后悬浮课表改由独立进程渲染（进程名 AdvancedTimeIslandFloatSchedule）；关闭后回到进程内渲染。切换即时生效。",
+            independentToggle);
+
+        // 2) 随机进程名（与主开关联动禁用）
+        var randomNameToggle = CreateToggleSwitch(_settings?.FloatingScheduleRandomProcessName ?? false, isOn =>
+        {
+            if (_settings != null) _settings.FloatingScheduleRandomProcessName = isOn;
+        });
+        randomNameToggle.HorizontalAlignment = HorizontalAlignment.Right;
+        randomNameToggle.VerticalAlignment = VerticalAlignment.Center;
+        var randomNameItem = AddSettingsExpanderItem(group,
+            "随机进程名",
+            "以随机命名的临时副本启动子进程（任务管理器中进程名随机），进一步规避按进程名拦截。可能触发杀软误报，请知悉。",
+            randomNameToggle);
+
+        // 3) 强制重启进程（按钮）
+        var restartButton = new Button
+        {
+            Content = "重启",
+            Padding = new Thickness(14, 5),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        restartButton.Click += async (_, _) =>
+        {
+            var svc = Services.FloatScheduleHostProcessService.Instance;
+            if (svc == null || svc.IsRestarting) return;
+            // 重启过程立即禁用按钮：避免连点导致 Stop/Stop 交错（服务侧另有互斥兜底）
+            restartButton.IsEnabled = false;
+            try { await svc.RestartChildAsync(); }
+            catch { }
+            finally
+            {
+                restartButton.IsEnabled = ShouldEnableRestartButton();
+            }
+        };
+        var restartItem = AddSettingsExpanderItem(group,
+            "强制重启进程",
+            "立即终止并以当前设置重新启动子进程悬浮窗（约 1~2 秒恢复，无需重启 ClassIsland）。",
+            restartButton);
+
+        // 4) 单实例保护
+        var singleInstanceToggle = CreateToggleSwitch(_settings?.FloatingScheduleSingleInstanceProtection ?? true, isOn =>
+        {
+            if (_settings != null) _settings.FloatingScheduleSingleInstanceProtection = isOn;
+        });
+        singleInstanceToggle.HorizontalAlignment = HorizontalAlignment.Right;
+        singleInstanceToggle.VerticalAlignment = VerticalAlignment.Center;
+        AddSettingsExpanderItem(group,
+            "单实例保护",
+            "已有子进程实例时新进程直接退出并由插件接管连接。自下次子进程启动生效（无需重启）。",
+            singleInstanceToggle);
+
+        // 5) 跟随启停
+        var followToggle = CreateToggleSwitch(_settings?.FloatingScheduleFollowHostLifetime ?? true, isOn =>
+        {
+            if (_settings != null) _settings.FloatingScheduleFollowHostLifetime = isOn;
+        });
+        followToggle.HorizontalAlignment = HorizontalAlignment.Right;
+        followToggle.VerticalAlignment = VerticalAlignment.Center;
+        AddSettingsExpanderItem(group,
+            "跟随启停",
+            "开启后，ClassIsland 关闭或异常停止后，此程序将关闭；关闭后悬浮窗冻结显示最后课表（进度本地续走），ClassIsland 重启后自动重连恢复推送。",
+            followToggle);
+
+        // 状态文本（随主题深浅自适应；1s 轮询 HostProcessService.StatusText）
+        var statusText = new TextBlock
+        {
+            Text = "状态：未启用",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            Margin = new Thickness(0, 2, 0, 0)
+        };
+        AddSettingsExpanderItem(group, "子进程状态", "", statusText);
+
+        // 联动：随机进程名/重启按钮仅在独立模式开启（且不在重启/启动过程中）时可用
+        void SyncEnabled()
+        {
+            var on = _settings?.FloatingScheduleIndependentProcess ?? false;
+            randomNameItem.IsEnabled = on;
+            restartButton.IsEnabled = ShouldEnableRestartButton();
+        }
+        SyncEnabled();
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName == nameof(PluginSettings.FloatingScheduleIndependentProcess))
+                    SyncEnabled();
+            };
+        }
+
+        _independentStatusTimer = new Avalonia.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _independentStatusTimer.Tick += (_, _) =>
+        {
+            try
+            {
+                var svc = Services.FloatScheduleHostProcessService.Instance;
+                statusText.Text = "状态：" + (svc?.StatusText ?? "未启用");
+                // 【权威同步】重启进行中 / 子进程启动中 → 临时禁用"重启"按钮，避免过程中连点
+                restartButton.IsEnabled = ShouldEnableRestartButton();
+            }
+            catch { }
+        };
+        _independentStatusTimer.Start();
+        // 页面离开时停表防泄漏
+        DetachedFromVisualTree += (_, _) =>
+        {
+            try { _independentStatusTimer?.Stop(); } catch { }
+            _independentStatusTimer = null;
+        };
 
         mainPanel.Children.Add(group);
     }

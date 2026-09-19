@@ -158,6 +158,13 @@ function Build-Variant {
         return $false
     }
 
+
+    # Copy FloatSchedule child exe into plugin output dir -> Create-CipxPackage (full copy) picks it up
+    if (-not (Publish-FloatExe -TargetFramework $TargetFramework -OutputDir $OutputDir)) {
+        Write-Error "FloatSchedule child exe publish failed"
+        return $false
+    }
+
     return Create-CipxPackage -OutputDir $OutputDir -PackageName "$PackageBaseName.cipx"
 }
 
@@ -179,6 +186,42 @@ function Build-WpfVariant {
 
     return Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
 }
+
+function Publish-FloatExe {
+    param(
+        [string]$TargetFramework,
+        [string]$OutputDir
+    )
+
+    # Schedule floating-window "independent process mode" child exe.
+    # Framework-dependent + single file: output is ONE exe only; Avalonia/Skia runtime DLLs are
+    # resolved by the child process from the ClassIsland install directory at runtime (never packaged).
+    # Each cipx carries the TFM matching its host Avalonia generation:
+    #   net8.0  -> net8.0-windows  (Avalonia 11.3.x)
+    #   net10.0 -> net10.0-windows (Avalonia 12.1.x)
+    $childTfm = if ($TargetFramework -eq "net10.0") { "net10.0-windows" } else { "net8.0-windows" }
+    $proj = Join-Path $ProjectRoot "AdvancedTimeIslandFloatSchedule\AdvancedTimeIslandFloatSchedule.csproj"
+    $pubDir = Join-Path $ProjectRoot "AdvancedTimeIslandFloatSchedule\bin\publish\$childTfm"
+
+    Write-Host "`nPublishing FloatSchedule child exe ($childTfm, framework-dependent single-file)..."
+    dotnet publish $proj -c Release -f $childTfm -r win-x64 --self-contained false `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $pubDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "FloatSchedule publish failed for $childTfm"
+        return $false
+    }
+    $exe = Join-Path $pubDir "AdvancedTimeIslandFloatSchedule.exe"
+    if (-not (Test-Path $exe)) {
+        Write-Error "FloatSchedule exe not found: $exe"
+        return $false
+    }
+    Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandFloatSchedule.exe") -Force
+    $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
+    Write-Host "FloatSchedule exe: $sizeKB KB -> $OutputDir"
+    return $true
+}
+
 
 function New-ChecksumFile {
     param(

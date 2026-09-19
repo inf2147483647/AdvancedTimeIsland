@@ -108,7 +108,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         group.Items.Add(fontScaleItem);
 
         // 背景不透明度
-        var opacityItem = CreateItem("背景不透明度", "仅作用于卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.85", "Opacity");
+        var opacityItem = CreateItem("背景不透明度", "仅作用于卡片背景（不影响文字/进度条可读性）：1.0 完全不透明，0 完全透明；默认 0.5", "Opacity");
         var opacityNumeric = new WpfNumericUpDown
         {
             Width = 155,
@@ -117,7 +117,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             Increment = 0.05m,
             FormatString = "0.00",
             HorizontalAlignment = HorizontalAlignment.Left,
-            Value = (decimal)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.85, 0.0, 1.0)
+            Value = (decimal)Math.Clamp(_settings?.FloatingScheduleOpacity ?? 0.5, 0.0, 1.0)
         };
         opacityNumeric.ValueChanged += (s, e) =>
         {
