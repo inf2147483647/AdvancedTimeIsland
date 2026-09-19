@@ -149,6 +149,7 @@ internal static class FloatScheduleTrayIcon
         if (menu == IntPtr.Zero) return;
         try
         {
+            // 菜单文案说明"退出"的语义：退出的只是这个独立进程，悬浮课表会由插件回退渲染继续显示。
             AppendMenu(menu, MF_STRING, (UIntPtr)CmdExit, "退出");
             if (!GetCursorPos(out var pt)) return;
             // 经典 Win32 要求：TrackPopupMenu 之前必须把宿主窗口设为前台，

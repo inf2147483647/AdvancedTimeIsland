@@ -89,12 +89,26 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             return Status switch
             {
                 ChildStatus.Starting => "启动中...",
-                ChildStatus.Connected => "已连接 (PID " + (_childPid > 0 ? _childPid : (_childProcess != null && !_childProcess.HasExited ? _childProcess.Id : -1)) + ")",
+                ChildStatus.Connected => "已连接" + FormatConnectedPidSuffix(),
                 ChildStatus.Frozen => "冻结中（ClassIsland 已退出，本地继续走进度）",
                 ChildStatus.Failed => "失败：" + (_failReason ?? "未知原因") + "（已回退进程内渲染）",
                 _ => "未启用",
             };
         }
+    }
+
+    /// <summary>连接状态的 PID 后缀：优先用子进程 Ready 握手上报的 PID（adopt 场景没有 Process 句柄），
+    ///  其次用本服务跟踪的进程句柄；两者都拿不到时不显示 PID
+    ///  （避免出现 "已连接 (PID -1)" 这类无意义文案）。</summary>
+    private string FormatConnectedPidSuffix()
+    {
+        int pid = _childPid;
+        if (pid <= 0)
+        {
+            var p = _childProcess;
+            try { if (p != null && !p.HasExited) pid = p.Id; } catch { pid = -1; }
+        }
+        return pid > 0 ? $" (PID {pid})" : "";
     }
 
     private void SetStatus(ChildStatus s, string? failReason = null)
@@ -742,8 +756,11 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 lock (_stateLock) { settings = _cachedSettings; model = _cachedModel; visible = _cachedVisible; }
                 WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Init,
                     new FloatScheduleInitPayload { Settings = settings, Model = model }));
-                if (!visible)
-                    WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Visible, new FloatScheduleVisiblePayload { Visible = false }));
+                // 【修复：窗口存在却不可见】连接建立后**总是**补发一次当前可见性（原先只在"隐藏"时补发）：
+                //  子进程自身状态与插件缓存可能不同步 —— 典型如被 adopt 的子进程此前已收到 Visible(false)，
+                //  而插件缓存已是 true → 只发"变化"时会永远不再发 true → 该窗口永久隐藏（用户所见"悬浮窗不可见"）。
+                WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Visible,
+                    new FloatScheduleVisiblePayload { Visible = visible }));
 
                 try { Connected?.Invoke(); } catch (Exception ex) { _logger.LogDebug(ex, "Connected 事件回调异常（忽略）"); }
 

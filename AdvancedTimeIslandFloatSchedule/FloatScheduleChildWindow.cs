@@ -238,8 +238,12 @@ internal sealed class FloatScheduleChildWindow : Window
                             if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); }
                             // 托盘图标（原生 Win32 实现，独立于本窗口，无需等待窗口就绪）
                             try { FloatScheduleApp.Self?.EnsureTrayIcon(); } catch { }
-                            try { _pipe.Send(FloatScheduleIpcMsgType.Ready, new FloatScheduleReadyPayload { Pid = Environment.ProcessId }); } catch { }
                         }
+                        // 【修复：连接后插件显示 PID -1】Ready（PID 握手）必须**每次连接**都发，而不是只在首次收到数据时发：
+                        //  本进程早于 ClassIsland 启动（跟随启停=关 时上一代子进程冻结存活 / 手动先开独立程序）时，
+                        //  _firstDataReceived 可能已是 true（连过上一代宿主）→ 原先不再发 Ready →
+                        //  新宿主的插件收不到 PID，状态栏显示"已连接 (PID -1)"。
+                        try { _pipe.Send(FloatScheduleIpcMsgType.Ready, new FloatScheduleReadyPayload { Pid = Environment.ProcessId }); } catch { }
                         break;
                     }
                     case FloatScheduleIpcMsgType.Settings:
@@ -298,7 +302,8 @@ internal sealed class FloatScheduleChildWindow : Window
 
     /// <summary>用户从托盘图标选择"退出"。
     /// 必须先告知插件：否则插件会把这次退出当作"子进程意外退出"而自动重启（限频 3 次/30s），
-    /// 用户会看到悬浮窗"关不掉"。插件收到 ExitRequested 后会关闭悬浮时间表并停止跟踪。
+    /// 用户会看到悬浮窗"关不掉"。插件收到 ExitRequested 后会关闭独立进程模式并回退到进程内渲染
+    /// （悬浮课表继续显示，只是改由 ClassIsland 进程绘制），且停止跟踪本进程。
     /// 然后再退出本进程；即使插件无响应也会在 300ms 后自行退出，不留残留。</summary>
     public void RequestExitByUser()
     {

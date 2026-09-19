@@ -1902,6 +1902,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         ShowWindow();
                         RefreshSchedule();
                         ApplyWindowLayer();
+                        // 【修复：重启后窗口不显示（独立进程模式）】立刻下发一次可见性：
+                        //  子进程此前收到过 Visible(false)（关开关时）→ 只靠 500ms Tick 的 ApplyShouldHideAv 补齐，
+                        //  用户会看到"重启了但窗口不出现"。这里同步补发（隐藏规则仍按 EvaluateShouldHideAv 判定，不改变层级语义）。
+                        ApplyShouldHideAv();
                         ApplyClickThrough();      // 窗口打开时强制应用点击穿透状态
                         ApplyHoverFade(force: true); // 并同步指针淡化状态
                         StartOrStopTimer();
@@ -2153,10 +2157,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 用户在子进程托盘图标点了"退出"：关闭悬浮时间表主开关 + 退出独立进程模式，
-    /// 使用户可见结果就是"悬浮课表消失"（而不是回退成进程内悬浮窗继续显示）。
-    /// 设置写入顺序有讲究：先关主开关（走"关闭悬浮窗"分支，只停定时器），
-    /// 再关独立模式（其回退逻辑会因主开关已关闭而不创建进程内窗口，避免闪一下）。
+    /// 用户在子进程托盘图标点了"退出"：退出的只是"独立进程"这个渲染程序，
+    /// 悬浮课表本身继续显示 —— 因此**不再关闭悬浮窗总开关**，只关闭独立进程模式，
+    /// 由插件回退到进程内渲染（悬浮窗仍在原位置显示，只是改由 ClassIsland 进程绘制）。
     /// </summary>
     private void OnIndependentExitRequestedAv()
     {
@@ -2164,7 +2167,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             try
             {
-                if (_settings.EnableFloatingSchedule) _settings.EnableFloatingSchedule = false;
+                // 仅关独立进程模式：其回退逻辑（RestoreInProcessWindowAv）会因主开关仍为开
+                // 而立刻创建并显示进程内悬浮窗，用户可见结果 = "独立程序退出，悬浮窗回退到插件版"。
                 if (_settings.FloatingScheduleIndependentProcess) _settings.FloatingScheduleIndependentProcess = false;
             }
             catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentExitRequestedAv 异常（忽略）"); }

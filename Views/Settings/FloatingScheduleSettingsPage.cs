@@ -61,6 +61,7 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         };
         mainPanel.Children.Add(_titleTextBlock);
 
+        BuildEnableSwitchCard(mainPanel);   // 主开关单独展示在最前（不放进折叠栏）
         BuildBasicAppearanceGroup(mainPanel);
         BuildInteractionGroup(mainPanel);
         BuildWindowAdvancedGroup(mainPanel);
@@ -77,25 +78,82 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
 
     private TextBlock? _titleTextBlock;
 
-    // ==================== 1. 基础外观 ====================
-    private void BuildBasicAppearanceGroup(StackPanel mainPanel)
+    // ==================== 0. 启用悬浮时间表（单独展示，不放进折叠栏） ====================
+    /// <summary>
+    /// 悬浮窗总开关：按需求移出"基础外观"折叠栏，作为独立卡片展示在页面最前，
+    /// 使"悬浮窗开没开"一眼可见（此前它藏在折叠栏内，被外部关掉后不易察觉）。
+    /// 卡片样式对齐插件其它页面（ThemeHelper 卡片底色 + 深浅自适应文字）。
+    /// </summary>
+    private void BuildEnableSwitchCard(StackPanel mainPanel)
     {
-        var group = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Header", "基础外观");
-        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Description", "悬浮窗的启用开关与外观显示设置");
-
-        // 启用悬浮时间表
         var enableToggle = CreateToggleSwitch(_settings?.EnableFloatingSchedule ?? false, isOn =>
         {
             if (_settings != null) _settings.EnableFloatingSchedule = isOn;
         });
         enableToggle.HorizontalAlignment = HorizontalAlignment.Right;
         enableToggle.VerticalAlignment = VerticalAlignment.Center;
-        AddSettingsExpanderItem(group,
-            "启用悬浮时间表",
-            "打开后在桌面显示半透明悬浮课表窗口，关闭后窗口自动隐藏",
-            enableToggle);
 
+        var textPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 4,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = "启用悬浮时间表",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        });
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = "打开后在桌面显示半透明悬浮课表窗口，关闭后窗口自动隐藏",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = ColumnDefinitions.Parse("*, Auto"),
+            ColumnSpacing = 12
+        };
+        Grid.SetColumn(textPanel, 0);
+        grid.Children.Add(textPanel);
+        Grid.SetColumn(enableToggle, 1);
+        grid.Children.Add(enableToggle);
+
+        mainPanel.Children.Add(new Border
+        {
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            Child = grid
+        });
+
+        // 【修复：托盘"退出"后设置页开关不跟随真实设置】子进程托盘"退出"、自动化行动等会在外部改这个开关；
+        //  若页面不跟随，用户看到的仍是"已开启"，于是只在插件端去动别的项（如独立进程模式），
+        //  主开关实际仍是关的 → 悬浮窗始终不显示（用户所见："托盘退出后重启，悬浮窗不可见"）。
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(PluginSettings.EnableFloatingSchedule)) return;
+                var on = _settings.EnableFloatingSchedule;
+                if (enableToggle.IsChecked != on) enableToggle.IsChecked = on;
+            };
+        }
+    }
+
+    // ==================== 1. 基础外观 ====================
+    private void BuildBasicAppearanceGroup(StackPanel mainPanel)
+    {
+        var group = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Header", "基础外观");
+        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Description", "悬浮窗的外观显示设置");
+
+        // 启用悬浮时间表（已移出本折叠栏，单独展示在页面最前，见 BuildEnableSwitchCard）
         // 课程名字号
         var fontScaleBox = new NumericUpDown
         {
@@ -725,8 +783,12 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         {
             _settings.PropertyChanged += (_, e) =>
             {
-                if (e.PropertyName == nameof(PluginSettings.FloatingScheduleIndependentProcess))
-                    SyncEnabled();
+                if (e.PropertyName != nameof(PluginSettings.FloatingScheduleIndependentProcess)) return;
+                SyncEnabled();
+                // 【修复】子进程托盘"退出"会连带关闭本开关：页面必须同步为真实值，
+                //  否则用户看到它仍是开的，重启悬浮窗的动作会落到"其实没开"的状态上（悬浮窗不可见）。
+                var on = _settings.FloatingScheduleIndependentProcess;
+                if (independentToggle.IsChecked != on) independentToggle.IsChecked = on;
             };
         }
 

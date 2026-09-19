@@ -56,7 +56,10 @@ internal sealed class FloatSchedulePipeClient
             }
             catch (OperationCanceledException)
             {
-                break;
+                // 【修复：重启后窗口永不出现】仅"应用退出"（外层 ct 取消）才停止重连；
+                //  连接超时（上方 3s CancelAfter 触发）同样抛 OCE，原先直接 break → 一次超时即永久不再重连
+                //  → 收不到 Init → 窗口永远不显示（用户所见"重启悬浮窗后不可见"）。
+                if (ct.IsCancellationRequested) break;
             }
             catch
             {
