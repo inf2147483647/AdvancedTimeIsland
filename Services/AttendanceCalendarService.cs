@@ -7,12 +7,24 @@ using System.Net.Http;
 using System.Reflection;
 using System.Text.Encodings.Web;
 using System.Text.Json;
+using System.Threading;
 using System.Threading.Tasks;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia.Threading;
 
 namespace AdvancedTimeIsland.Services;
+
+/// <summary>
+/// 指定年份的节假日安排尚未公布（所有来源均正常响应但没有数据）。
+/// 与连通性故障区分开，避免把"还没公布"报成"网络不通"。
+/// </summary>
+public sealed class HolidayNotPublishedException : Exception
+{
+    public HolidayNotPublishedException(string message) : base(message)
+    {
+    }
+}
 
 /// <summary>
 /// 联网更新在校日历数据的结果。
@@ -24,6 +36,9 @@ public sealed class HolidayUpdateResult
 
     /// <summary>更新失败的年份及原因。</summary>
     public List<string> FailedYears { get; } = new();
+
+    /// <summary>节假日安排尚未公布的年份。</summary>
+    public List<int> UnpublishedYears { get; } = new();
 
     /// <summary>实际使用的数据来源描述。</summary>
     public string Source { get; set; } = string.Empty;
@@ -38,6 +53,10 @@ public sealed class HolidayUpdateResult
         if (UpdatedYears.Count > 0)
         {
             parts.Add($"已更新 {string.Join("、", UpdatedYears)} 年数据（来源：{Source}）");
+        }
+        if (UnpublishedYears.Count > 0)
+        {
+            parts.Add($"{string.Join("、", UnpublishedYears)} 年安排尚未公布，已跳过");
         }
         if (FailedYears.Count > 0)
         {
@@ -63,15 +82,26 @@ public class AttendanceCalendarService
     };
 
     /// <summary>
-    /// GitHub raw 高速镜像前缀，与汉服内容更新保持一致的回退链。
+    /// holiday-cn 仓库的 CDN 与镜像回退链。
+    /// jsDelivr CDN 在国内可达性最好（实测 ~90ms），因此排在 GitHub 直链之前；
+    /// 部分网络下 raw.githubusercontent.com 会被中间设备拦截并返回 502，故直链置于最后。
     /// </summary>
-    private static readonly string[] DownloadMirrorPrefixes =
+    private static readonly string[] HolidayCnUrlTemplates =
     {
-        "https://gh-proxy.com/",
-        "https://gh-proxy.at9.net/",
-        "https://ghproxy.net/",
-        "https://ghfast.top/"
+        "https://cdn.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{0}.json",
+        "https://fastly.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{0}.json",
+        "https://gcore.jsdelivr.net/gh/NateScarlet/holiday-cn@master/{0}.json",
+        "https://gh-proxy.com/https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{0}.json",
+        "https://gh-proxy.at9.net/https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{0}.json",
+        "https://ghproxy.net/https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{0}.json",
+        "https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{0}.json"
     };
+
+    /// <summary>
+    /// 单个数据源的请求超时。失效的镜像会一直挂着不返回，
+    /// 必须逐源限时，否则一个坏源就会拖住整个更新流程数十秒。
+    /// </summary>
+    private static readonly TimeSpan PerSourceTimeout = TimeSpan.FromSeconds(10);
 
     private static readonly HttpClient HttpClient = CreateHttpClient();
 
@@ -553,6 +583,11 @@ public class AttendanceCalendarService
                 result.UpdatedYears.Add(year);
                 result.Source = source;
             }
+            catch (HolidayNotPublishedException)
+            {
+                // 该年度尚未公布放假安排属于正常情况，不计为连接失败。
+                result.UnpublishedYears.Add(year);
+            }
             catch (Exception ex)
             {
                 result.FailedYears.Add($"{year} 年：{ex.Message}");
@@ -676,30 +711,27 @@ public class AttendanceCalendarService
     }
 
     /// <summary>
-    /// 按 GitHub raw 直链 → 高速镜像 → timor.tech 的顺序拉取某年份数据。
+    /// 按 CDN → 镜像 → GitHub 直链 → timor.tech 的顺序拉取某年份数据。
+    /// 每个来源独立限时，失效来源立即切换，不会拖住后续来源。
     /// </summary>
     private static async Task<(string Source, List<HolidayDay> Days)> FetchYearAsync(int year)
     {
         var errors = new List<string>();
+        var reachable = false;
 
-        var rawUrl = $"https://raw.githubusercontent.com/NateScarlet/holiday-cn/master/{year}.json";
-        var sources = new List<(string Name, string Url)> { ("GitHub", rawUrl) };
-        foreach (var prefix in DownloadMirrorPrefixes)
+        foreach (var template in HolidayCnUrlTemplates)
         {
-            sources.Add((new Uri(prefix).Host, prefix + rawUrl));
-        }
-
-        foreach (var (name, url) in sources)
-        {
+            var url = string.Format(template, year);
+            var name = new Uri(url).Host;
             try
             {
-                var json = await HttpClient.GetStringAsync(url).ConfigureAwait(false);
+                var json = await GetStringWithTimeoutAsync(url).ConfigureAwait(false);
+                reachable = true;
                 var days = ParseHolidayCn(json);
                 if (days.Count > 0)
                 {
                     return ($"holiday-cn/{name}", days);
                 }
-                errors.Add($"{name}：未解析到节假日数据");
             }
             catch (Exception ex)
             {
@@ -709,22 +741,38 @@ public class AttendanceCalendarService
 
         try
         {
-            var json = await HttpClient
-                .GetStringAsync($"https://timor.tech/api/holiday/year/{year}/")
-                .ConfigureAwait(false);
+            var json = await GetStringWithTimeoutAsync(
+                $"https://timor.tech/api/holiday/year/{year}/").ConfigureAwait(false);
+            reachable = true;
             var days = ParseTimorTech(json, year);
             if (days.Count > 0)
             {
                 return ("timor.tech", days);
             }
-            errors.Add("timor.tech：未解析到节假日数据");
         }
         catch (Exception ex)
         {
             errors.Add($"timor.tech：{ex.Message}");
         }
 
-        throw new InvalidOperationException(string.Join("；", errors));
+        // 所有来源都正常响应但没有数据：该年度的节假日安排尚未公布，不算连通性故障。
+        if (reachable)
+        {
+            throw new HolidayNotPublishedException("该年度节假日安排尚未公布");
+        }
+
+        throw new InvalidOperationException("所有来源均无法连接：" + string.Join("；", errors));
+    }
+
+    /// <summary>带单源超时的 GET 请求。</summary>
+    private static async Task<string> GetStringWithTimeoutAsync(string url)
+    {
+        using var cts = new CancellationTokenSource(PerSourceTimeout);
+        using var response = await HttpClient
+            .GetAsync(url, HttpCompletionOption.ResponseContentRead, cts.Token)
+            .ConfigureAwait(false);
+        response.EnsureSuccessStatusCode();
+        return await response.Content.ReadAsStringAsync(cts.Token).ConfigureAwait(false);
     }
 
     /// <summary>

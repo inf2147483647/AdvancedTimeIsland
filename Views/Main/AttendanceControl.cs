@@ -1,4 +1,5 @@
 using System;
+using System.ComponentModel;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
@@ -16,7 +17,8 @@ namespace AdvancedTimeIsland.Views.Main;
 
 /// <summary>
 /// 总在校时间统计（ATI）主界面组件：
-/// 以文字 + 进度条 / 进度环展示学期内的在校天数、时长、进度与剩余量。
+/// 以五段独立文案 + 进度条 / 进度环展示学期内的在校天数、时长、进度与剩余量。
+/// 五段文案分别为概要、累计时长、进度百分比、剩余天数、剩余时长，每段可单独设置字体样式。
 /// </summary>
 [ComponentInfo(
     "99aabbcc-0001-2233-4455-66778899aa03",
@@ -28,13 +30,26 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
 {
     private const double RingSize = 22;
     private const double RingStrokeThickness = 3;
+    private const int SegmentCount = 5;
+
+    /// <summary>相邻两段文案之间的分隔符，套用前一段的字体样式渲染。</summary>
+    private const string SegmentSeparator = " ";
+
+    /// <summary>分割线的线长与线宽，对齐 ClassIsland「课程表」组件的课程分隔线。</summary>
+    private const double DividerHeight = 25;
+    private const double DividerStrokeThickness = 2;
+
+    /// <summary>分割线两侧的间距，与线本身的间距叠加后使两段文案间约为 20px。</summary>
+    private const double DividerMargin = 4;
 
     private AttendanceViewModel vm;
     private readonly TimeBaseService _timeBaseService;
     private readonly AttendanceCalendarService _calendarService;
 
-    private TextBlock _mainText;
-    private TextBlock _subText;
+    private readonly TextBlock[] _segmentTexts = new TextBlock[SegmentCount];
+    private TextStyleSettings[]? _textStyles;
+
+    private StackPanel _textHost;
     private Panel _ringRoot;
     private Ellipse _ringBackground;
     private Avalonia.Controls.Shapes.Path _ringPath;
@@ -113,29 +128,23 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         _ringRoot.Children.Add(_ringPath);
         contentPanel.Children.Add(_ringRoot);
 
-        var textStack = new StackPanel
+        _textHost = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 6,
             VerticalAlignment = VerticalAlignment.Center
         };
-
-        _mainText = new TextBlock
+        for (var i = 0; i < SegmentCount; i++)
         {
-            Text = "...",
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.NoWrap
-        };
-        _subText = new TextBlock
-        {
-            Text = string.Empty,
-            IsVisible = false,
-            VerticalAlignment = VerticalAlignment.Center,
-            TextWrapping = TextWrapping.NoWrap
-        };
-        textStack.Children.Add(_mainText);
-        textStack.Children.Add(_subText);
-        contentPanel.Children.Add(textStack);
+            _segmentTexts[i] = new TextBlock
+            {
+                Text = string.Empty,
+                IsVisible = false,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextWrapping = TextWrapping.NoWrap
+            };
+        }
+        contentPanel.Children.Add(_textHost);
 
         dock.Children.Add(contentPanel);
 
@@ -143,38 +152,148 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         Content = rootBorder;
     }
 
-    private void UpdateFontStyles()
+    // ==================== 文案渲染 ====================
+
+    /// <summary>
+    /// 重建文本行：按可见性依次排列各段文案，并在相邻两段之间插入分隔符。
+    /// 分隔符套用其前一段的字体样式，避免与自定义字号不匹配。
+    /// </summary>
+    private void RebuildTextRow()
     {
-        UpdateTextBlockStyle(_mainText, Settings.FontColor);
-        UpdateTextBlockStyle(_subText, Settings.FontColor);
+        _textHost.Children.Clear();
+        if (vm == null || _textStyles == null)
+        {
+            return;
+        }
+
+        var previousIndex = -1;
+        for (var i = 0; i < SegmentCount; i++)
+        {
+            var segment = (AttendanceTextSegment)i;
+            if (!vm.IsSegmentVisible(segment))
+            {
+                continue;
+            }
+
+            if (previousIndex >= 0)
+            {
+                _textHost.Children.Add(Settings.ShowSegmentDivider
+                    ? CreateDivider()
+                    : CreateSeparator(previousIndex));
+            }
+
+            var textBlock = _segmentTexts[i];
+            textBlock.Text = vm.GetSegmentText(segment);
+            textBlock.IsVisible = true;
+            ApplyTextStyle(textBlock, _textStyles[i]);
+            _textHost.Children.Add(textBlock);
+            previousIndex = i;
+        }
     }
 
-    private void UpdateTextBlockStyle(TextBlock tb, string colorStr)
+    /// <summary>创建空格分隔符，套用其前一段的字体样式，避免与自定义字号不匹配。</summary>
+    private TextBlock CreateSeparator(int previousIndex)
     {
-        tb.FontSize = Settings.EnableCustomFontSize && Settings.FontSize > 0
-            ? Settings.FontSize
-            : FontFamilyHelper.GetBodyFontSize(tb);
-
-        tb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.EnableCustomFontColor);
-
-        if (Settings.EnableCustomFontFamily)
+        var separator = new TextBlock
         {
-            tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(Settings.FontFamily);
+            Text = SegmentSeparator,
+            VerticalAlignment = VerticalAlignment.Center,
+            TextWrapping = TextWrapping.NoWrap
+        };
+        ApplyTextStyle(separator, _textStyles![previousIndex]);
+        return separator;
+    }
+
+    /// <summary>
+    /// 创建段落间的竖线分割线，样式对齐 ClassIsland「课程表」组件的课程分隔线：
+    /// 2px 线宽、25px 线长、次要文字色、80% 不透明度。
+    /// 与宿主原生分割线组件一样用固定宽度的容器包裹，避免 0 宽度几何导致描边被挤出布局槽。
+    /// </summary>
+    private static Control CreateDivider()
+    {
+        var line = new Line
+        {
+            StartPoint = new Point(0, 0),
+            EndPoint = new Point(0, DividerHeight),
+            Stroke = GetDividerBrush(),
+            StrokeThickness = DividerStrokeThickness,
+            Opacity = 0.8,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var root = new Grid
+        {
+            Width = DividerStrokeThickness,
+            Margin = new Thickness(DividerMargin, 0, DividerMargin, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        root.Children.Add(line);
+        return root;
+    }
+
+    /// <summary>分割线画刷：优先取宿主主题的次要文字色，取不到时回退到本插件的分隔线颜色。</summary>
+    private static IBrush GetDividerBrush()
+    {
+        if (Application.Current?.Styles.TryGetResource("TextFillColorSecondaryBrush",
+                Application.Current.ActualThemeVariant, out var resource) == true && resource is IBrush brush)
+        {
+            return brush;
+        }
+        return ThemeHelper.GetSeparatorBrush();
+    }
+
+    /// <summary>按段落的字体样式渲染文本块；未开启自定义的项沿用宿主默认样式。</summary>
+    private static void ApplyTextStyle(TextBlock textBlock, TextStyleSettings style)
+    {
+        textBlock.FontSize = style.EnableCustomFontSize && style.FontSize > 0
+            ? style.FontSize
+            : FontFamilyHelper.GetBodyFontSize(textBlock);
+
+        textBlock.Foreground = ThemeHelper.GetColorBrush(style.FontColor, style.EnableCustomFontColor);
+
+        if (style.EnableCustomFontFamily)
+        {
+            textBlock.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(style.FontFamily);
         }
         else
         {
-            tb.ClearValue(TextBlock.FontFamilyProperty);
+            textBlock.ClearValue(TextBlock.FontFamilyProperty);
         }
 
-        if (Settings.EnableCustomFontWeight)
+        if (style.EnableCustomFontWeight)
         {
-            tb.FontWeight = FontFamilyHelper.GetFontWeightFromString(Settings.FontWeight);
+            textBlock.FontWeight = FontFamilyHelper.GetFontWeightFromString(style.FontWeight);
         }
         else
         {
-            tb.ClearValue(TextBlock.FontWeightProperty);
+            textBlock.ClearValue(TextBlock.FontWeightProperty);
         }
     }
+
+    /// <summary>重新绑定各段字体样式对象（设置对象被整体替换时调用）。</summary>
+    private void RefreshTextStyles()
+    {
+        if (_textStyles != null)
+        {
+            foreach (var style in _textStyles)
+            {
+                style.PropertyChanged -= OnTextStyleChanged;
+            }
+        }
+
+        var styles = new TextStyleSettings[SegmentCount];
+        for (var i = 0; i < SegmentCount; i++)
+        {
+            styles[i] = Settings.GetStyle((AttendanceTextSegment)i);
+            styles[i].PropertyChanged += OnTextStyleChanged;
+        }
+        _textStyles = styles;
+
+        RebuildTextRow();
+    }
+
+    // ==================== 进度渲染 ====================
 
     private void UpdateProgressColors()
     {
@@ -228,20 +347,17 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         _ringBackground.IsVisible = geometry != null;
     }
 
-    private void UpdateTexts()
-    {
-        _mainText.Text = vm.DisplayText;
-        _subText.Text = vm.SubText;
-        _subText.IsVisible = !string.IsNullOrEmpty(vm.SubText);
-    }
+    // ==================== 事件处理 ====================
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateFontStyles();
+        RebuildTextRow();
         UpdateProgressColors();
     }
 
-    private void OnBodyFontSizeChanged(object? sender, EventArgs e) => UpdateFontStyles();
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e) => RebuildTextRow();
+
+    private void OnTextStyleChanged(object? sender, PropertyChangedEventArgs e) => RebuildTextRow();
 
     protected override void OnInitialized()
     {
@@ -271,6 +387,8 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
             return;
         }
 
+        RefreshTextStyles();
+
         vm = new AttendanceViewModel(_timeBaseService, Settings, _calendarService);
         DataContext = vm;
 
@@ -279,20 +397,18 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateTexts();
+        RebuildTextRow();
         UpdateProgressDisplay();
-        UpdateFontStyles();
         UpdateProgressColors();
         UpdateProgressDisplayMode();
     }
 
-    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnVmPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
-            case nameof(vm.DisplayText):
-            case nameof(vm.SubText):
-                UpdateTexts();
+            case AttendanceViewModel.SegmentsPropertyName:
+                RebuildTextRow();
                 break;
             case nameof(vm.Progress):
             case nameof(vm.IsProgressAvailable):
@@ -301,22 +417,22 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         }
     }
 
-    private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
         switch (e.PropertyName)
         {
             case nameof(Settings.ProgressDisplayMode):
                 UpdateProgressDisplayMode();
                 break;
-            case nameof(Settings.FontSize):
-            case nameof(Settings.FontColor):
-            case nameof(Settings.FontFamily):
-            case nameof(Settings.FontWeight):
-            case nameof(Settings.EnableCustomFontSize):
-            case nameof(Settings.EnableCustomFontColor):
-            case nameof(Settings.EnableCustomFontFamily):
-            case nameof(Settings.EnableCustomFontWeight):
-                UpdateFontStyles();
+            case nameof(Settings.ShowSegmentDivider):
+                RebuildTextRow();
+                break;
+            case nameof(Settings.SummaryStyle):
+            case nameof(Settings.HoursStyle):
+            case nameof(Settings.ProgressStyle):
+            case nameof(Settings.RemainingDaysStyle):
+            case nameof(Settings.RemainingHoursStyle):
+                RefreshTextStyles();
                 break;
         }
     }
@@ -331,6 +447,16 @@ public class AttendanceControl : ComponentBase<AttendanceSettings>
         }
         FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
+
+        if (_textStyles != null)
+        {
+            foreach (var style in _textStyles)
+            {
+                style.PropertyChanged -= OnTextStyleChanged;
+            }
+            _textStyles = null;
+        }
+
         if (vm != null)
         {
             vm.PropertyChanged -= OnVmPropertyChanged;

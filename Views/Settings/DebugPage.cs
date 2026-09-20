@@ -240,17 +240,56 @@ public class DebugPage : SettingsPageBase
             Content = "下一年",
             Padding = new Thickness(12, 4, 12, 4)
         };
+        var backToCurrentYearButton = new Button
+        {
+            Content = "回到今年",
+            Padding = new Thickness(12, 4, 12, 4)
+        };
+        var yearJumpTextBox = new TextBox
+        {
+            Width = 90,
+            Watermark = "1-9999"
+        };
+        var jumpYearButton = new Button
+        {
+            Content = "快速跳转",
+            Padding = new Thickness(12, 4, 12, 4)
+        };
         var yearNavPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 12,
+            Spacing = 8,
             Margin = new Thickness(0, 8, 0, 0)
         };
+        var jumpPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        jumpPanel.Children.Add(new TextBlock
+        {
+            Text = "年份",
+            FontSize = 13,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = ThemeHelper.GetSubTextBrush()
+        });
+        jumpPanel.Children.Add(yearJumpTextBox);
+        jumpPanel.Children.Add(jumpYearButton);
+
         yearNavPanel.Children.Add(previousYearButton);
         yearNavPanel.Children.Add(yearBlock);
         yearNavPanel.Children.Add(nextYearButton);
-        Grid.SetRow(yearNavPanel, 1);
-        dialogGrid.Children.Add(yearNavPanel);
+        yearNavPanel.Children.Add(backToCurrentYearButton);
+
+        var yearNavContainer = new StackPanel
+        {
+            Orientation = Orientation.Vertical
+        };
+        yearNavContainer.Children.Add(yearNavPanel);
+        yearNavContainer.Children.Add(jumpPanel);
+        Grid.SetRow(yearNavContainer, 1);
+        dialogGrid.Children.Add(yearNavContainer);
 
         var subtitleBlock = new TextBlock
         {
@@ -358,8 +397,28 @@ public class DebugPage : SettingsPageBase
             {
                 previousYearButton.IsEnabled = year > 1;
                 nextYearButton.IsEnabled = year < 9999;
+                jumpYearButton.IsEnabled = true;
+                backToCurrentYearButton.IsEnabled = true;
                 isLoading = false;
             }
+        }
+
+        // 跳转到指定年份（限 1-9999）
+        async Task JumpToYearAsync(int targetYear)
+        {
+            if (isLoading)
+                return;
+
+            if (targetYear < 1 || targetYear > 9999)
+            {
+                yearJumpTextBox.Text = string.Empty;
+                yearJumpTextBox.Watermark = "请输入 1-9999";
+                return;
+            }
+
+            yearJumpTextBox.Text = string.Empty;
+            year = targetYear;
+            await LoadYearAsync(year);
         }
 
         previousYearButton.Click += async (s, e) =>
@@ -377,6 +436,46 @@ public class DebugPage : SettingsPageBase
                 return;
 
             year++;
+            await LoadYearAsync(year);
+        };
+
+        jumpYearButton.Click += async (s, e) =>
+        {
+            if (int.TryParse(yearJumpTextBox.Text?.Trim(), out var targetYear))
+            {
+                await JumpToYearAsync(targetYear);
+            }
+            else
+            {
+                yearJumpTextBox.Text = string.Empty;
+                yearJumpTextBox.Watermark = "请输入 1-9999";
+            }
+        };
+
+        yearJumpTextBox.KeyDown += async (s, e) =>
+        {
+            if (e.Key == Avalonia.Input.Key.Enter)
+            {
+                e.Handled = true;
+                if (int.TryParse(yearJumpTextBox.Text?.Trim(), out var targetYear))
+                {
+                    await JumpToYearAsync(targetYear);
+                }
+                else
+                {
+                    yearJumpTextBox.Text = string.Empty;
+                    yearJumpTextBox.Watermark = "请输入 1-9999";
+                }
+            }
+        };
+
+        backToCurrentYearButton.Click += async (s, e) =>
+        {
+            var currentYear = TimeBaseService.Instance?.GetCurrentTime().Year ?? DateTime.Now.Year;
+            if (currentYear < 1 || currentYear > 9999 || year == currentYear)
+                return;
+
+            year = currentYear;
             await LoadYearAsync(year);
         };
 

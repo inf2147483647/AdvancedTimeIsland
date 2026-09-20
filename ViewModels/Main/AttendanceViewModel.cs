@@ -23,24 +23,21 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
     private DateTime _lastRefreshedDate = DateTime.MinValue;
     private bool _isDisposed;
 
-    private string _displayText = string.Empty;
-    private string _subText = string.Empty;
+    private readonly string[] _segmentTexts = new string[5];
+    private readonly bool[] _segmentVisibility = new bool[5];
     private double _progress;
     private bool _isProgressAvailable;
 
-    /// <summary>主要统计文案，如"本学期已在校 82 天 / 共 100 天，约 656 小时"。</summary>
-    public string DisplayText
-    {
-        get => _displayText;
-        private set => Set(ref _displayText, value);
-    }
+    /// <summary>
+    /// 段落文案或可见性发生变化时通知的属性名（一次刷新同时更新全部段落）。
+    /// </summary>
+    public const string SegmentsPropertyName = "Segments";
 
-    /// <summary>次要统计文案，如"进度 82.0% · 剩余 18 天 · 约 144 小时"。</summary>
-    public string SubText
-    {
-        get => _subText;
-        private set => Set(ref _subText, value);
-    }
+    /// <summary>取指定段落的文案；不可见时内容为空。</summary>
+    public string GetSegmentText(AttendanceTextSegment segment) => _segmentTexts[(int)segment];
+
+    /// <summary>指定段落的文案当前是否应当显示。</summary>
+    public bool IsSegmentVisible(AttendanceTextSegment segment) => _segmentVisibility[(int)segment];
 
     /// <summary>进度百分比（0–100）。</summary>
     public double Progress
@@ -130,8 +127,7 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
                 _lastRefreshedDate = now.Date;
                 IsProgressAvailable = false;
                 Progress = 0;
-                DisplayText = "尚未获取学期开始日";
-                SubText = "请在「在校时间统计」设置页中指定学期开始日";
+                ApplySegments("尚未获取学期开始日（请在「在校时间统计」设置页中指定）", null, null, null, null);
                 return;
             }
 
@@ -143,61 +139,80 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
 
             IsProgressAvailable = stats.TotalInSchoolDays > 0;
             Progress = stats.ProgressPercent;
-            DisplayText = BuildDisplayText(stats);
-            SubText = BuildSubText(stats);
+            ApplyStatistics(stats);
         }
         catch (Exception ex)
         {
             // 计算过程中的异常不影响组件渲染，保留上一次的结果，但记录原因便于排查。
             _lastRefreshedDate = now.Date;
             System.Diagnostics.Debug.WriteLine($"[AttendanceViewModel] 刷新在校统计失败：{ex}");
+
+            // 首次刷新即失败时组件会完全没有内容，给一句可辨认的提示而不是空白。
+            if (!_segmentVisibility[(int)AttendanceTextSegment.Summary])
+            {
+                ApplySegments("在校统计暂不可用", null, null, null, null);
+            }
         }
     }
 
-    private string BuildDisplayText(AttendanceStatistics stats)
+    /// <summary>
+    /// 按学期状态与显示开关生成五段文案。
+    /// 每段独立成块，交由组件按各自的字体样式渲染；不需要显示的段落传 null。
+    /// </summary>
+    private void ApplyStatistics(AttendanceStatistics stats)
     {
+        // 未开学时只有状态提示有意义，其余段落一律隐藏。
         if (stats.NotStarted)
         {
             var daysToStart = (stats.StartDate - stats.Today).Days;
-            return $"距开学还有 {daysToStart} 天";
+            ApplySegments($"距开学还有 {daysToStart} 天", null, null, null, null);
+            return;
         }
 
-        if (stats.Finished)
-        {
-            return _settings.ShowSummaryText
+        var summary = _settings.ShowSummaryText
+            ? (stats.Finished
                 ? $"本学期已结束：共在校 {stats.TotalInSchoolDays} 天"
-                : "本学期已结束";
-        }
+                : $"本学期已在校 {stats.ElapsedInSchoolDays} 天 / 共 {stats.TotalInSchoolDays} 天")
+            : (stats.Finished ? "本学期已结束" : $"已在校 {stats.ElapsedInSchoolDays} 天");
 
-        var text = _settings.ShowSummaryText
-            ? $"本学期已在校 {stats.ElapsedInSchoolDays} 天 / 共 {stats.TotalInSchoolDays} 天"
-            : $"已在校 {stats.ElapsedInSchoolDays} 天";
+        // 学期结束后"已在校时长"与概要重复，不再单独显示。
+        var hours = !stats.Finished && _settings.ShowHoursText
+            ? FormatHours(stats.ElapsedHours)
+            : null;
 
-        if (_settings.ShowHoursText)
-        {
-            text += $"，{FormatHours(stats.ElapsedHours)}";
-        }
+        var progress = _settings.ShowPercentText && stats.TotalInSchoolDays > 0
+            ? $"进度 {stats.ProgressPercent:0.#}%"
+            : null;
 
-        return text;
+        var remainingDays = _settings.ShowRemainingText
+            ? (stats.Finished ? "剩余 0 天" : $"剩余 {stats.RemainingInSchoolDays} 天")
+            : null;
+
+        var remainingHours = _settings.ShowRemainingText && !stats.Finished
+            ? FormatHours(stats.RemainingHours)
+            : null;
+
+        ApplySegments(summary, hours, progress, remainingDays, remainingHours);
     }
 
-    private string BuildSubText(AttendanceStatistics stats)
+    /// <summary>写入五段文案并通知组件重建文本行。</summary>
+    private void ApplySegments(string? summary, string? hours, string? progress,
+        string? remainingDays, string? remainingHours)
     {
-        var parts = new List<string>();
+        SetSegment(AttendanceTextSegment.Summary, summary);
+        SetSegment(AttendanceTextSegment.Hours, hours);
+        SetSegment(AttendanceTextSegment.Progress, progress);
+        SetSegment(AttendanceTextSegment.RemainingDays, remainingDays);
+        SetSegment(AttendanceTextSegment.RemainingHours, remainingHours);
 
-        if (_settings.ShowPercentText && stats.TotalInSchoolDays > 0)
-        {
-            parts.Add($"进度 {stats.ProgressPercent:0.#}%");
-        }
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(SegmentsPropertyName));
+    }
 
-        if (_settings.ShowRemainingText)
-        {
-            parts.Add(stats.Finished
-                ? "剩余 0 天"
-                : $"剩余 {stats.RemainingInSchoolDays} 天 · {FormatHours(stats.RemainingHours)}");
-        }
-
-        return string.Join(" · ", parts);
+    private void SetSegment(AttendanceTextSegment segment, string? text)
+    {
+        var index = (int)segment;
+        _segmentTexts[index] = text ?? string.Empty;
+        _segmentVisibility[index] = !string.IsNullOrEmpty(text);
     }
 
     /// <summary>小时数文案：按设置决定是否保留一位小数。</summary>

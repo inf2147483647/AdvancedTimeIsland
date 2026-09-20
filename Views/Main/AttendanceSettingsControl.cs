@@ -19,25 +19,45 @@ namespace AdvancedTimeIsland.Views.Main;
 /// </summary>
 public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 {
+    /// <summary>字体样式表格中一行所对应的段落与其控件集合。</summary>
+    private sealed class TextStyleRow
+    {
+        public AttendanceTextSegment Segment;
+        public TextBlock Label = null!;
+        public NumericUpDown FontSize = null!;
+        public CheckBox EnableFontSize = null!;
+        public ColorPicker Color = null!;
+        public CheckBox EnableColor = null!;
+        public ComboBox FontFamily = null!;
+        public CheckBox EnableFontFamily = null!;
+        public ComboBox FontWeight = null!;
+        public CheckBox EnableFontWeight = null!;
+        public TextStyleSettings? Style;
+    }
+
+    /// <summary>字体样式表格的行顺序，与组件中从左到右的文案顺序一致。</summary>
+    private static readonly (AttendanceTextSegment Segment, string Label)[] TextStyleRows =
+    {
+        (AttendanceTextSegment.Summary, "概要文案"),
+        (AttendanceTextSegment.Hours, "累计时长"),
+        (AttendanceTextSegment.Progress, "进度百分比"),
+        (AttendanceTextSegment.RemainingDays, "剩余天数"),
+        (AttendanceTextSegment.RemainingHours, "剩余时长")
+    };
+
     private TextBlock _titleTextBlock;
     private TextBlock _descTextBlock;
     private TextBlock _scopeHintTextBlock;
+    private TextBlock _textStyleHintTextBlock;
     private readonly List<TextBlock> _labels = new();
     private readonly List<TextBlock> _dynamicTextBlocks = new();
     private readonly List<Border> _tableCellBorders = new();
     private readonly List<CheckBox> _checkBoxes = new();
-
-    private CheckBox _enableCustomFontSizeToggle;
-    private CheckBox _enableCustomFontColorToggle;
-    private CheckBox _enableCustomFontFamilyToggle;
-    private CheckBox _enableCustomFontWeightToggle;
-    private ColorPicker _colorPicker;
-    private NumericUpDown _fontSizeNumericUpDown;
-    private ComboBox _fontFamilyComboBox;
-    private ComboBox _fontWeightComboBox;
+    private readonly List<TextStyleRow> _textStyleRows = new();
 
     private ComboBox _progressDisplayModeComboBox;
     private ComboBox _timeBaseComboBox;
+    private CheckBox _showSegmentDividerCheckBox;
     private CheckBox _showSummaryTextCheckBox;
     private CheckBox _showHoursTextCheckBox;
     private CheckBox _showRemainingTextCheckBox;
@@ -94,8 +114,9 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         _labels.Add(progressModeLabel);
         displayPanel.Children.Add(progressModeRow);
 
+        _showSegmentDividerCheckBox = AddCheckBox(displayPanel, "在各段文案之间插入分割线");
         _showSummaryTextCheckBox = AddCheckBox(displayPanel, "显示概要文案（已在校 N 天 / 共 M 天）");
-        _showHoursTextCheckBox = AddCheckBox(displayPanel, "在概要文案中显示累计在校时长");
+        _showHoursTextCheckBox = AddCheckBox(displayPanel, "显示累计在校时长");
         _showRemainingTextCheckBox = AddCheckBox(displayPanel, "显示剩余在校天数与时长");
         _showPercentTextCheckBox = AddCheckBox(displayPanel, "显示进度百分比");
         _decimalizeHoursCheckBox = AddCheckBox(displayPanel, "时长保留一位小数（关闭则取整）");
@@ -115,6 +136,14 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 
         // ==================== 文案设置 ====================
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+
+        _textStyleHintTextBlock = new TextBlock
+        {
+            Text = "组件的文案分为五段，可分别设置字体样式；未开启自定义的项随主题与全局字号自适应。",
+            FontSize = 12,
+            TextWrapping = TextWrapping.Wrap
+        };
+        textPanel.Children.Add(_textStyleHintTextBlock);
 
         var tableScroll = new ScrollViewer
         {
@@ -156,7 +185,7 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         {
             grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         }
-        for (int i = 0; i < 2; i++)
+        for (int i = 0; i <= TextStyleRows.Length; i++)
         {
             grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         }
@@ -167,11 +196,20 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         AddTableHeader(grid, 0, 3, "自定义字体");
         AddTableHeader(grid, 0, 4, "自定义字重");
 
-        AddTableRowLabel(grid, 1, "在校统计");
-        AddTableCell(grid, 1, 1, CreateSizeCell(out _fontSizeNumericUpDown, out _enableCustomFontSizeToggle, OnEnableCustomFontSizeChanged, OnFontSizeChanged));
-        AddTableCell(grid, 1, 2, CreateColorCell(out _colorPicker, out _enableCustomFontColorToggle, OnEnableCustomFontColorChanged, OnColorChanged));
-        AddTableCell(grid, 1, 3, CreateFamilyCell(out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
-        AddTableCell(grid, 1, 4, CreateWeightCell(out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
+        for (var i = 0; i < TextStyleRows.Length; i++)
+        {
+            var gridRow = i + 1;
+            var row = new TextStyleRow { Segment = TextStyleRows[i].Segment };
+            _textStyleRows.Add(row);
+
+            AddTableRowLabel(grid, gridRow, TextStyleRows[i].Label, out var label);
+            row.Label = label;
+
+            AddTableCell(grid, gridRow, 1, CreateSizeCell(row));
+            AddTableCell(grid, gridRow, 2, CreateColorCell(row));
+            AddTableCell(grid, gridRow, 3, CreateFamilyCell(row));
+            AddTableCell(grid, gridRow, 4, CreateWeightCell(row));
+        }
 
         var outerBorder = new Border
         {
@@ -179,7 +217,7 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
             BorderBrush = ThemeHelper.GetSeparatorBrush(),
             IsHitTestVisible = false
         };
-        Grid.SetRowSpan(outerBorder, 2);
+        Grid.SetRowSpan(outerBorder, TextStyleRows.Length + 1);
         Grid.SetColumnSpan(outerBorder, 5);
         _tableCellBorders.Add(outerBorder);
         grid.Children.Add(outerBorder);
@@ -210,11 +248,11 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         grid.Children.Add(border);
     }
 
-    private void AddTableRowLabel(Grid grid, int row, string text)
+    private void AddTableRowLabel(Grid grid, int row, string text, out TextBlock textBlock)
     {
-        var tb = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
-        _dynamicTextBlocks.Add(tb);
-        var border = CreateCellBorder(tb);
+        textBlock = new TextBlock { Text = text, VerticalAlignment = VerticalAlignment.Center };
+        _dynamicTextBlocks.Add(textBlock);
+        var border = CreateCellBorder(textBlock);
         Grid.SetRow(border, row);
         Grid.SetColumn(border, 0);
         grid.Children.Add(border);
@@ -228,14 +266,15 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         grid.Children.Add(border);
     }
 
-    private static StackPanel CreateSizeCell(out NumericUpDown numericUpDown, out CheckBox toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<NumericUpDownValueChangedEventArgs> valueChangedHandler)
+    private StackPanel CreateSizeCell(TextStyleRow row)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
-        toggle.IsCheckedChanged += toggleHandler;
-        panel.Children.Add(toggle);
-        numericUpDown = new NumericUpDown
+        row.EnableFontSize = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        row.EnableFontSize.IsCheckedChanged += (_, _) => OnEnableCustomFontSizeChanged(row);
+        _checkBoxes.Add(row.EnableFontSize);
+        panel.Children.Add(row.EnableFontSize);
+
+        row.FontSize = new NumericUpDown
         {
             Width = 120,
             Minimum = 1,
@@ -244,55 +283,58 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
             FormatString = "0.00",
             VerticalAlignment = VerticalAlignment.Center
         };
-        numericUpDown.ValueChanged += valueChangedHandler;
-        panel.Children.Add(numericUpDown);
+        row.FontSize.ValueChanged += (_, _) => OnFontSizeChanged(row);
+        panel.Children.Add(row.FontSize);
         return panel;
     }
 
-    private static StackPanel CreateColorCell(out ColorPicker colorPicker, out CheckBox toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<ColorChangedEventArgs> colorChangedHandler)
+    private StackPanel CreateColorCell(TextStyleRow row)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
-        toggle.IsCheckedChanged += toggleHandler;
-        panel.Children.Add(toggle);
-        colorPicker = new ColorPicker { Width = 120, VerticalAlignment = VerticalAlignment.Center };
-        colorPicker.ColorChanged += colorChangedHandler;
-        panel.Children.Add(colorPicker);
+        row.EnableColor = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        row.EnableColor.IsCheckedChanged += (_, _) => OnEnableCustomFontColorChanged(row);
+        _checkBoxes.Add(row.EnableColor);
+        panel.Children.Add(row.EnableColor);
+
+        row.Color = new ColorPicker { Width = 120, VerticalAlignment = VerticalAlignment.Center };
+        row.Color.ColorChanged += (_, _) => OnColorChanged(row);
+        panel.Children.Add(row.Color);
         return panel;
     }
 
-    private static StackPanel CreateFamilyCell(out ComboBox comboBox, out CheckBox toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    private StackPanel CreateFamilyCell(TextStyleRow row)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
-        toggle.IsCheckedChanged += toggleHandler;
-        panel.Children.Add(toggle);
-        comboBox = new ComboBox { Width = 150, VerticalAlignment = VerticalAlignment.Center };
+        row.EnableFontFamily = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        row.EnableFontFamily.IsCheckedChanged += (_, _) => OnEnableCustomFontFamilyChanged(row);
+        _checkBoxes.Add(row.EnableFontFamily);
+        panel.Children.Add(row.EnableFontFamily);
+
+        row.FontFamily = new ComboBox { Width = 150, VerticalAlignment = VerticalAlignment.Center };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
-            comboBox.Items.Add(font);
+            row.FontFamily.Items.Add(font);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        panel.Children.Add(comboBox);
+        row.FontFamily.SelectionChanged += (_, _) => OnFontFamilyChanged(row);
+        panel.Children.Add(row.FontFamily);
         return panel;
     }
 
-    private static StackPanel CreateWeightCell(out ComboBox comboBox, out CheckBox toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
+    private StackPanel CreateWeightCell(TextStyleRow row)
     {
         var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
-        toggle = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
-        toggle.IsCheckedChanged += toggleHandler;
-        panel.Children.Add(toggle);
-        comboBox = new ComboBox { Width = 110, VerticalAlignment = VerticalAlignment.Center };
+        row.EnableFontWeight = new CheckBox { VerticalAlignment = VerticalAlignment.Center };
+        row.EnableFontWeight.IsCheckedChanged += (_, _) => OnEnableCustomFontWeightChanged(row);
+        _checkBoxes.Add(row.EnableFontWeight);
+        panel.Children.Add(row.EnableFontWeight);
+
+        row.FontWeight = new ComboBox { Width = 110, VerticalAlignment = VerticalAlignment.Center };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
-            comboBox.Items.Add(weight);
+            row.FontWeight.Items.Add(weight);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        panel.Children.Add(comboBox);
+        row.FontWeight.SelectionChanged += (_, _) => OnFontWeightChanged(row);
+        panel.Children.Add(row.FontWeight);
         return panel;
     }
 
@@ -338,6 +380,7 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
             return;
         }
 
+        Settings.ShowSegmentDivider = _showSegmentDividerCheckBox.IsChecked ?? false;
         Settings.ShowSummaryText = _showSummaryTextCheckBox.IsChecked ?? false;
         Settings.ShowHoursText = _showHoursTextCheckBox.IsChecked ?? false;
         Settings.ShowRemainingText = _showRemainingTextCheckBox.IsChecked ?? false;
@@ -345,105 +388,113 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         Settings.DecimalizeHours = _decimalizeHoursCheckBox.IsChecked ?? false;
     }
 
-    private void OnEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    private void OnEnableCustomFontSizeChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
+        row.Style.EnableCustomFontSize = row.EnableFontSize.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
+    private void OnEnableCustomFontColorChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
+        row.Style.EnableCustomFontColor = row.EnableColor.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    private void OnEnableCustomFontFamilyChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        Settings.EnableCustomFontFamily = _enableCustomFontFamilyToggle.IsChecked ?? false;
+        row.Style.EnableCustomFontFamily = row.EnableFontFamily.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    private void OnEnableCustomFontWeightChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        Settings.EnableCustomFontWeight = _enableCustomFontWeightToggle.IsChecked ?? false;
+        row.Style.EnableCustomFontWeight = row.EnableFontWeight.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnColorChanged(object? sender, ColorChangedEventArgs e)
+    private void OnColorChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        Settings.FontColor = _colorPicker.Color.ToString();
+        row.Style.FontColor = row.Color.Color.ToString();
     }
 
-    private void OnFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    private void OnFontSizeChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        if (_fontSizeNumericUpDown.Value.HasValue)
+        if (row.FontSize.Value.HasValue)
         {
-            Settings.FontSize = (double)_fontSizeNumericUpDown.Value.Value;
-        }
-    }
-
-    private void OnFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_isUpdatingControls)
-        {
-            return;
-        }
-
-        if (_fontFamilyComboBox.SelectedItem != null)
-        {
-            Settings.FontFamily = _fontFamilyComboBox.SelectedItem.ToString() ?? "";
+            row.Style.FontSize = (double)row.FontSize.Value.Value;
         }
     }
 
-    private void OnFontWeightChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnFontFamilyChanged(TextStyleRow row)
     {
-        if (_isUpdatingControls)
+        if (_isUpdatingControls || row.Style == null)
         {
             return;
         }
 
-        if (_fontWeightComboBox.SelectedItem != null)
+        if (row.FontFamily.SelectedItem != null)
         {
-            Settings.FontWeight = _fontWeightComboBox.SelectedItem.ToString() ?? "";
+            row.Style.FontFamily = row.FontFamily.SelectedItem.ToString() ?? string.Empty;
+        }
+    }
+
+    private void OnFontWeightChanged(TextStyleRow row)
+    {
+        if (_isUpdatingControls || row.Style == null)
+        {
+            return;
+        }
+
+        if (row.FontWeight.SelectedItem != null)
+        {
+            row.Style.FontWeight = row.FontWeight.SelectedItem.ToString() ?? string.Empty;
         }
     }
 
     private void UpdateControlsEnabled()
     {
-        _colorPicker.IsEnabled = Settings.EnableCustomFontColor;
-        _fontSizeNumericUpDown.IsEnabled = Settings.EnableCustomFontSize;
-        _fontFamilyComboBox.IsEnabled = Settings.EnableCustomFontFamily;
-        _fontWeightComboBox.IsEnabled = Settings.EnableCustomFontWeight;
+        foreach (var row in _textStyleRows)
+        {
+            if (row.Style == null)
+            {
+                continue;
+            }
+
+            row.Color.IsEnabled = row.Style.EnableCustomFontColor;
+            row.FontSize.IsEnabled = row.Style.EnableCustomFontSize;
+            row.FontFamily.IsEnabled = row.Style.EnableCustomFontFamily;
+            row.FontWeight.IsEnabled = row.Style.EnableCustomFontWeight;
+        }
     }
 
     private void UpdateThemeColors()
@@ -457,10 +508,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         {
             checkBox.Foreground = textBrush;
         }
-        _enableCustomFontSizeToggle.Foreground = textBrush;
-        _enableCustomFontColorToggle.Foreground = textBrush;
-        _enableCustomFontFamilyToggle.Foreground = textBrush;
-        _enableCustomFontWeightToggle.Foreground = textBrush;
         foreach (var tb in _dynamicTextBlocks)
         {
             tb.Foreground = textBrush;
@@ -473,6 +520,7 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         _titleTextBlock.Foreground = textBrush;
         _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         _scopeHintTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
+        _textStyleHintTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e) => UpdateThemeColors();
@@ -510,20 +558,26 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
                 TimeBaseType.ClassIslandTime => 2,
                 _ => 0
             };
+            _showSegmentDividerCheckBox.IsChecked = Settings.ShowSegmentDivider;
             _showSummaryTextCheckBox.IsChecked = Settings.ShowSummaryText;
             _showHoursTextCheckBox.IsChecked = Settings.ShowHoursText;
             _showRemainingTextCheckBox.IsChecked = Settings.ShowRemainingText;
             _showPercentTextCheckBox.IsChecked = Settings.ShowPercentText;
             _decimalizeHoursCheckBox.IsChecked = Settings.DecimalizeHours;
 
-            _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-            _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
-            _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
-            _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
-            _colorPicker.Color = ParseColor(Settings.FontColor);
-            _fontSizeNumericUpDown.Value = (decimal)Settings.FontSize;
-            _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
-            _fontWeightComboBox.SelectedItem = Settings.FontWeight;
+            foreach (var row in _textStyleRows)
+            {
+                var style = Settings.GetStyle(row.Segment);
+                row.Style = style;
+                row.EnableFontSize.IsChecked = style.EnableCustomFontSize;
+                row.EnableColor.IsChecked = style.EnableCustomFontColor;
+                row.EnableFontFamily.IsChecked = style.EnableCustomFontFamily;
+                row.EnableFontWeight.IsChecked = style.EnableCustomFontWeight;
+                row.Color.Color = ParseColor(style.FontColor);
+                row.FontSize.Value = (decimal)style.FontSize;
+                row.FontFamily.SelectedItem = style.FontFamily;
+                row.FontWeight.SelectedItem = style.FontWeight;
+            }
         }
         finally
         {
