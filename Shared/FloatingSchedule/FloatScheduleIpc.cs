@@ -66,13 +66,13 @@ public sealed class FloatScheduleErrorPayload
 public static class FloatScheduleIpc
 {
     /// <summary>固定命名管道名（服务器=插件进程）。</summary>
-    public const string PipeName = "AdvancedTimeIsland.FloatSchedule.v1";
+    public const string PipeName = "AdvancedTimeIsland.FloatSchedule.v2";
 
     /// <summary>协议版本；不匹配时双方按兼容处理（当前仅 1）。</summary>
     public const int ProtocolVersion = 1;
 
     /// <summary>子进程单实例 Mutex 名（"单实例保护"开启时使用）。</summary>
-    public const string SingleInstanceMutexName = @"Global\AdvancedTimeIsland.FloatSchedule.v1";
+    public const string SingleInstanceMutexName = @"Global\AdvancedTimeIsland.FloatSchedule.v2";
 
     /// <summary>宿主 ClassIsland 全局单实例 Mutex 名（子进程看门狗双保险：等待其 abandoned）。</summary>
     public const string HostInstanceMutexName = @"Global\ClassIsland.Lock";

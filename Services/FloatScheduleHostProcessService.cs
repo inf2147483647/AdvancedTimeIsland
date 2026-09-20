@@ -133,12 +133,111 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     public Task StartAsync(CancellationToken cancellationToken)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // 【独立程序更新提示】与独立进程模式开关无关：插件升级会随包重新分发子进程 exe，
+        //   很多用户并不知道它已更新、也不知道在哪里启用/管理 → 检测到变化就弹一条系统通知。
+        //   放到后台线程：读文件算哈希不阻塞宿主启动。
+        _ = Task.Run(CheckChildExeUpdatedAndNotify);
         if (ShouldUseIndependent())
         {
             EnsureAcceptLoopRunning();
             _ = EnsureChildAsync();
         }
         return Task.CompletedTask;
+    }
+
+    // ===================== 独立程序（子进程 exe）更新提示 =====================
+    //  触发条件：插件包内 AdvancedTimeIslandFloatSchedule.exe 的**内容哈希**与上次提示时记录的不一致。
+    //  为什么用内容哈希而不是"长度 + 最后写入时间"（ChildExeStamp 用的是后者，语义是"文件被替换过"）：
+    //    插件包解压/复制会刷新文件写入时间，用时间戳会"每次启动都判定为已更新"→ 反复弹通知；
+    //    内容哈希只在二进制真的变了时才变化，与"独立程序被更新"语义一致。
+    //  持久化标记保证同一版本只提示一次；发送失败也不重试（避免变成每次启动骚扰）。
+
+    private void CheckChildExeUpdatedAndNotify()
+    {
+        try
+        {
+            var srcDir = Path.GetDirectoryName(typeof(FloatScheduleHostProcessService).Assembly.Location);
+            if (string.IsNullOrEmpty(srcDir)) return;
+            var exePath = Path.Combine(srcDir, "AdvancedTimeIslandFloatSchedule.exe");
+            // 不含该 exe 的发行包（如 WPF 版）没有独立程序 → 不提示
+            if (!File.Exists(exePath)) return;
+
+            var hash = ComputeFileHash(exePath);
+            if (string.IsNullOrEmpty(hash)) return;
+            if (string.Equals(_settings.FloatingScheduleChildExeHash, hash, StringComparison.Ordinal)) return;
+
+            // 先落标记再发通知：通知被系统禁用/失败时，也不在下次启动重复提示
+            _settings.FloatingScheduleChildExeHash = hash;
+            _logger.LogInformation("FloatSchedule 独立程序已更新，发送系统通知提示");
+            ShowChildExeUpdatedToast();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "FloatSchedule 独立程序更新检查异常（忽略）"); }
+    }
+
+    private static string? ComputeFileHash(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            using var sha = SHA256.Create();
+            return Convert.ToHexString(sha.ComputeHash(fs));
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// 发送"悬浮时间表已更新"的 Windows 系统通知（走宿主平台通知服务，因此通知身份/图标 = ClassIsland）。
+    /// 全程反射解析：宿主版本差异或服务缺失时静默跳过，绝不影响插件其余功能。
+    /// </summary>
+    private void ShowChildExeUpdatedToast()
+    {
+        try
+        {
+            // 宿主平台服务所在程序集：优先按"程序集限定名"解析（该程序集尚未被加载时会顺带加载），
+            // 再退化为"在已加载程序集里按全名查找"；两者都拿不到（宿主版本差异）则静默跳过。
+            Type? tServices = null;
+            try
+            {
+                tServices = Type.GetType(
+                    "ClassIsland.Platforms.Abstraction.PlatformServices, ClassIsland.Platforms.Abstractions",
+                    throwOnError: false);
+            }
+            catch { }
+            tServices ??= FindLoadedType("ClassIsland.Platforms.Abstraction.PlatformServices");
+            var toast = tServices?
+                .GetProperty("DesktopToastService", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)?
+                .GetValue(null);
+            if (toast == null) return;
+            var m = toast.GetType().GetMethod("ShowToastAsync",
+                new[] { typeof(string), typeof(string), typeof(Action) });
+            m?.Invoke(toast, new object?[]
+            {
+                "AdvancedTimeIsland 悬浮时间表已更新",
+                "可在插件-独立进程 里管理启用",
+                null
+            });
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "发送悬浮时间表更新通知异常（忽略）"); }
+    }
+
+    /// <summary>在当前已加载程序集中按全名查找类型（ClassIsland 程序集优先，避免同名类型误命中）。</summary>
+    private static Type? FindLoadedType(string typeName)
+    {
+        try
+        {
+            var assemblies = AppDomain.CurrentDomain.GetAssemblies();
+            foreach (var asm in assemblies)
+            {
+                var name = asm.GetName().Name;
+                if (name == "ClassIsland" || name?.StartsWith("ClassIsland", StringComparison.Ordinal) == true)
+                {
+                    var t = asm.GetType(typeName);
+                    if (t != null) return t;
+                }
+            }
+        }
+        catch { }
+        return null;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -158,6 +158,8 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleRandomProcessName = false;
     private bool _floatingScheduleSingleInstanceProtection = true;
     private bool _floatingScheduleFollowHostLifetime = true;
+    // 上次"独立程序已更新"提示时记录的子进程 exe 内容哈希（内部标记：保证同一版本只提示一次）
+    private string _floatingScheduleChildExeHash = "";
 
     public string? CachedVersion
     {
@@ -714,6 +716,24 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleFollowHostLifetime != value)
             {
                 _floatingScheduleFollowHostLifetime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 上次"独立程序已更新"提示时记录的子进程 exe 内容哈希（内部标记，非用户设置）。
+    /// 用于判断插件升级后随包重新分发的 AdvancedTimeIslandFloatSchedule.exe 是否发生变化，
+    /// 从而只在真正更新时发一次系统通知，而不是每次启动都提示。
+    /// </summary>
+    public string FloatingScheduleChildExeHash
+    {
+        get => _floatingScheduleChildExeHash;
+        set
+        {
+            if (_floatingScheduleChildExeHash != value)
+            {
+                _floatingScheduleChildExeHash = value;
                 OnPropertyChanged();
             }
         }

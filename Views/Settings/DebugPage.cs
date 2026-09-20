@@ -15,6 +15,7 @@ using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Controls;
 using ClassIsland.Core.Enums.SettingsWindow;
 using ClassIsland.Shared;
 
@@ -101,6 +102,13 @@ public class DebugPage : SettingsPageBase
             ButtonShowFestivalList_OnClick);
         mainPanel.Children.Add(festivalListPanel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+
+        var emptyPanel = CreateSimpleTestPanel(
+            "啥都没有",
+            "打开",
+            ButtonEmpty_OnClick);
+        mainPanel.Children.Add(emptyPanel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         
         mainPanel.Children.Add(CreateMemoryLeakTestPanel());
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
@@ -183,6 +191,56 @@ public class DebugPage : SettingsPageBase
     {
         try { await ShowFestivalListDialogAsync(); }
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonShowFestivalList_OnClick 异常：{ex}"); }
+    }
+
+    private async void ButtonEmpty_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try { await ShowEmptyDialogAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonEmpty_OnClick 异常：{ex}"); }
+    }
+
+    /// <summary>
+    /// 展示 ClassIsland 官方样式的“啥都没有”空白占位符（ClassIsland.Core.Controls.Empty）。
+    /// </summary>
+    private async Task ShowEmptyDialogAsync()
+    {
+        var dialog = new Window
+        {
+            Title = "啥都没有",
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+
+        var empty = new Empty
+        {
+            MinHeight = 160,
+            Margin = new Thickness(24, 24, 24, 0),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var closeButton = new Button
+        {
+            Content = "关闭",
+            Padding = new Thickness(16, 8, 16, 8),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        closeButton.Click += (s, e) => dialog.Close();
+
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(16)
+        };
+        stack.Children.Add(empty);
+        stack.Children.Add(closeButton);
+
+        dialog.Content = stack;
+
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
     }
 
     private async Task ShowFestivalListDialogAsync()

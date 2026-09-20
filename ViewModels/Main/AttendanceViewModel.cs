@@ -188,8 +188,9 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
             ? (stats.Finished ? "剩余 0 天" : $"剩余 {stats.RemainingInSchoolDays} 天")
             : null;
 
+        // 剩余时长与剩余天数并列，同样加"剩余"前缀以便与前文的累计时长区分。
         var remainingHours = _settings.ShowRemainingText && !stats.Finished
-            ? FormatHours(stats.RemainingHours)
+            ? $"剩余{FormatHours(stats.RemainingHours)}"
             : null;
 
         ApplySegments(summary, hours, progress, remainingDays, remainingHours);
