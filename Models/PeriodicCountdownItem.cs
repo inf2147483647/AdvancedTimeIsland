@@ -419,4 +419,27 @@ public class PeriodicCountdownItem : INotifyPropertyChanged
             IsCompleted = false
         };
     }
+
+    /// <summary>创建副本（参考档案编辑的「克隆」，分配新 Id 避免冲突）。</summary>
+    public PeriodicCountdownItem Clone()
+    {
+        return new PeriodicCountdownItem
+        {
+            Id = Guid.NewGuid(),
+            Name = Name,
+            PeriodType = PeriodType,
+            Hour = Hour,
+            Minute = Minute,
+            Second = Second,
+            DayOfWeek = DayOfWeek,
+            DayOfMonth = DayOfMonth,
+            Month = Month,
+            EnableNotification = EnableNotification,
+            NotificationTitle = NotificationTitle,
+            NotificationContent = NotificationContent,
+            NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
+            NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
+            IsCompleted = false
+        };
+    }
 }

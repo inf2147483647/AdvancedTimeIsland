@@ -32,13 +32,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private CheckBox? _timeEnableCustomFontColorToggle;
     private CheckBox? _text4EnableCustomFontSizeToggle;
     private CheckBox? _text4EnableCustomFontColorToggle;
-    private ListBox? _countdownListBox;
-    private Button? _addButton;
-    private Button? _removeButton;
-    private Button? _editButton;
-
-    private TextBlock? _selectionHintTextBlock;
-    private System.Timers.Timer? _hintTimer;
+    private CountdownListEditor<LunarCountdownItem>? _listEditor;
 
     private NumericUpDown? _text1FontSizeNumericUpDown;
     private ColorPicker? _text1FontColorPicker;
@@ -60,9 +54,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBlock? _timeBaseGroupHeader;
     private TextBlock? _timeBaseLabel;
     private TextBlock? _listGroupHeader;
-    private TextBlock? _lunarHeader;
-    private TextBlock? _solarHeader;
-    private TextBlock? _notifyHeader;
 
     private ComboBox? _progressDisplayModeComboBox;
     private TextBlock? _progressDisplayModeLabel;
@@ -238,80 +229,18 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         _listGroupHeader = new TextBlock { Text = "农历倒计时列表" };
         var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
-        var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-
-        _lunarHeader = new TextBlock
-        {
-            Text = "农历日期",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_lunarHeader, 0);
-        headerGrid.Children.Add(_lunarHeader);
-
-        _solarHeader = new TextBlock
-        {
-            Text = "对应公历日期",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_solarHeader, 1);
-        headerGrid.Children.Add(_solarHeader);
-
-        _notifyHeader = new TextBlock
-        {
-            Text = "启用通知？",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_notifyHeader, 2);
-        headerGrid.Children.Add(_notifyHeader);
-        listPanel.Children.Add(headerGrid);
-
-        _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
-        _countdownListBox.SelectionChanged += (s, e) =>
-        {
-            if (_countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-            {
-                HideHint();
-            }
-        };
-        listPanel.Children.Add(_countdownListBox);
-
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-
-        _addButton = new Button { Content = "添加", Width = 60 };
-        _addButton.Click += OnAddClick;
-        buttonPanel.Children.Add(_addButton);
-
-        _removeButton = new Button { Content = "删除", Width = 60 };
-        _removeButton.Click += OnRemoveClick;
-        buttonPanel.Children.Add(_removeButton);
-
-        _editButton = new Button { Content = "编辑", Width = 60 };
-        _editButton.Click += OnEditClick;
-        buttonPanel.Children.Add(_editButton);
-
-        listPanel.Children.Add(buttonPanel);
-
-        _selectionHintTextBlock = new TextBlock
-        {
-            Text = "请选择一个农历倒计时",
-            IsVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12
-        };
-        listPanel.Children.Add(_selectionHintTextBlock);
-        listGroup.Content = listPanel;
+        _listEditor = new CountdownListEditor<LunarCountdownItem>(
+            () => Settings.CountdownItems,
+            items => Settings.CountdownItems = items,
+            item => item.Name,
+            item => GetLunarDateDescription(item) + " · " +
+                (item.GetTargetTimestamp() > 0
+                    ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()).ToString("yyyy-MM-dd HH:mm:ss")
+                    : "无效日期"),
+            BuildLunarDetailPanel,
+            LunarCountdownItem.CreateDefault,
+            item => item.Clone());
+        listGroup.Content = _listEditor;
         mainPanel.Children.Add(listGroup);
 
         var scrollViewer = new ScrollViewer
@@ -893,19 +822,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
     private void OnText2ButtonClick(object? sender, EventArgs e)
     {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-        }
-        else
-        {
-            if (_countdownListBox != null)
-            {
-                _countdownListBox.BringIntoView();
-            }
-            ShowHint();
-        }
+        // 不再弹窗编辑：滚动到「农历倒计时列表」内联编辑面板，并确保有选中项。
+        _listEditor?.FocusEditor();
     }
 
     private void UpdateThemeColors()
@@ -925,10 +843,7 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_simpleModeToggle != null) _simpleModeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_lunarHeader != null) _lunarHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_solarHeader != null) _solarHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
+        _listEditor?.UpdateThemeColors();
 
         if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -1103,9 +1018,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_text4FontSizeNumericUpDown != null) _text4FontSizeNumericUpDown.Value = (decimal)Settings.Text4FontSize;
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
 
-        UpdateCountdownList();
-
         AttachEventHandlers();
+
+        // Settings 此时已注入，构建农历倒计时列表与详情面板
+        _listEditor?.Refresh();
 
         _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
         _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
@@ -1131,8 +1047,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _hintTimer?.Stop();
-        _hintTimer?.Dispose();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
@@ -1358,70 +1272,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         }
     }
 
-    private void UpdateCountdownList()
-    {
-        if (_countdownListBox == null) return;
-        _countdownListBox.Items.Clear();
-        if (Settings.CountdownItems != null)
-        {
-            foreach (var item in Settings.CountdownItems)
-            {
-                var targetSolar = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
-                var lunarDesc = GetLunarDateDescription(item);
-
-                var container = new Grid();
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                container.Tag = item;
-
-                var lunarTextBlock = new TextBlock
-                {
-                    Text = $"{item.Name} - {lunarDesc}",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeHelper.GetTextBrush(),
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                Grid.SetColumn(lunarTextBlock, 0);
-                container.Children.Add(lunarTextBlock);
-
-                var solarTextBlock = new TextBlock
-                {
-                    Text = targetSolar.ToString("yyyy-MM-dd HH:mm:ss"),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeHelper.GetSubTextBrush(),
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                Grid.SetColumn(solarTextBlock, 1);
-                container.Children.Add(solarTextBlock);
-
-                var notifyPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                var notifySwitch = new ToggleSwitch
-                {
-                    IsChecked = item.EnableNotification,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                var currentItem = item;
-                notifySwitch.IsCheckedChanged += (s, e) =>
-                {
-                    currentItem.EnableNotification = notifySwitch.IsChecked == true;
-                };
-                notifyPanel.Children.Add(notifySwitch);
-                Grid.SetColumn(notifyPanel, 2);
-                container.Children.Add(notifyPanel);
-
-                var listBoxItem = new ListBoxItem
-                {
-                    Content = container,
-                    Tag = item
-                };
-
-                _countdownListBox.Items.Add(listBoxItem);
-            }
-        }
-    }
-
     private string GetLunarDateDescription(LunarCountdownItem item)
     {
         var yearName = LunarCalendarHelper.GetLunarYearName(item.LunarYear);
@@ -1442,148 +1292,60 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         return "";
     }
 
-    private void OnAddClick(object? sender, EventArgs e)
+    /// <summary>
+    /// 构建单个农历倒计时的详情编辑面板（内联显示，不再使用弹窗）。
+    /// 字段风格参考 ClassIsland「档案编辑」：官方 Field 标签在上、输入控件在下。
+    /// </summary>
+    private Control BuildLunarDetailPanel(LunarCountdownItem item)
     {
-        HideHint();
-        if (Settings.CountdownItems == null)
+        var panel = new StackPanel
         {
-            Settings.CountdownItems = new List<LunarCountdownItem>();
-        }
-        Settings.CountdownItems.Add(LunarCountdownItem.CreateDefault());
-        UpdateCountdownList();
-    }
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+            Margin = new Thickness(16)
+        };
 
-    private void OnRemoveClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            Settings.CountdownItems.RemoveAt(_countdownListBox.SelectedIndex);
-            UpdateCountdownList();
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
-
-    private void OnEditClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
-
-    private void ShowHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = true;
-            _hintTimer?.Stop();
-            _hintTimer = new System.Timers.Timer(5000);
-            _hintTimer.Elapsed += (s, e) =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(HideHint);
-            };
-            _hintTimer.AutoReset = false;
-            _hintTimer.Start();
-        }
-    }
-
-    private void HideHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = false;
-            _hintTimer?.Stop();
-        }
-    }
-
-    private void ShowEditDialog(LunarCountdownItem item, int order = 0)
-    {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编辑第{order}个农历倒计时" : "编辑农历倒计时");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-
-        var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        panel.Children.Add(CountdownDetailFields.SectionHeader("\uec92", "农历倒计时"));
 
         var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", "公历可用范围为1901-02-19 ~ 2101-01-28");
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", false);
-        contentPanel.Children.Add(infoBar);
+        panel.Children.Add(infoBar);
 
-        var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
-        var nameTextBox = new TextBox { Text = item.Name };
-        contentPanel.Children.Add(nameLabel);
-        contentPanel.Children.Add(nameTextBox);
+        panel.Children.Add(CountdownDetailFields.Text("名称", item.Name, v =>
+        {
+            item.Name = string.IsNullOrWhiteSpace(v) ? "新农历倒计时" : v;
+            _listEditor?.RefreshRow(item);
+        }, "新农历倒计时"));
 
-        var lunarGroup = new Expander { Header = new TextBlock { Text = "农历日期", Foreground = ThemeHelper.GetTextBrush() }, IsExpanded = true };
-        var lunarPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var yearRangePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        yearRangePanel.Children.Add(new TextBlock { Text = "年份范围:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
-        var yearRangeCombo = new ComboBox { Width = 180 };
+        // ---------- 农历日期 ----------
+        var yearRangeCombo = new ComboBox();
         foreach (var range in LunarCalendarHelper.GetAllYearRanges())
         {
             yearRangeCombo.Items.Add(range);
         }
-
         bool foundRange = false;
         foreach (var range in LunarCalendarHelper.GetAllYearRanges())
         {
-            if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+            if (LunarCalendarHelper.ParseYearRange(range, out var sY, out var eY) &&
+                item.LunarYear >= sY && item.LunarYear <= eY)
             {
-                if (item.LunarYear >= startYear && item.LunarYear <= endYear)
-                {
-                    yearRangeCombo.SelectedItem = range;
-                    foundRange = true;
-                    break;
-                }
+                yearRangeCombo.SelectedItem = range;
+                foundRange = true;
+                break;
             }
         }
         if (!foundRange)
             yearRangeCombo.SelectedItem = "1984-2043";
 
-        yearRangePanel.Children.Add(yearRangeCombo);
-        lunarPanel.Children.Add(yearRangePanel);
-
-        var yearRow = new Grid();
-        yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        yearRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var yearLabel = new TextBlock { Text = "天干地支年:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(yearLabel, 0);
-        yearRow.Children.Add(yearLabel);
-
-        var tianganCombo = new ComboBox { Width = 60 };
         var tiangan = new[] { "甲", "乙", "丙", "丁", "戊", "己", "庚", "辛", "壬", "癸" };
-        foreach (var t in tiangan) tianganCombo.Items.Add(t);
-        Grid.SetColumn(tianganCombo, 1);
-        yearRow.Children.Add(tianganCombo);
-
-        var dizhiLabel = new TextBlock { Text = "地支:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
-        Grid.SetColumn(dizhiLabel, 2);
-        yearRow.Children.Add(dizhiLabel);
-
-        var dizhiCombo = new ComboBox { Width = 60 };
         var dizhi = new[] { "子", "丑", "寅", "卯", "辰", "巳", "午", "未", "申", "酉", "戌", "亥" };
+        var tianganCombo = new ComboBox();
+        foreach (var t in tiangan) tianganCombo.Items.Add(t);
+        var dizhiCombo = new ComboBox();
         foreach (var d in dizhi) dizhiCombo.Items.Add(d);
-        Grid.SetColumn(dizhiCombo, 3);
-        yearRow.Children.Add(dizhiCombo);
-
         var tgIndex = (item.LunarYear - 4) % 10;
         if (tgIndex < 0) tgIndex += 10;
         var dzIndex = (item.LunarYear - 4) % 12;
@@ -1591,75 +1353,86 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         tianganCombo.SelectedIndex = tgIndex;
         dizhiCombo.SelectedIndex = dzIndex;
 
-        lunarPanel.Children.Add(yearRow);
-
-        var monthRow = new Grid();
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-
-        var monthLabel = new TextBlock { Text = "月:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(monthLabel, 0);
-        monthRow.Children.Add(monthLabel);
-
-        var monthCombo = new ComboBox { Width = 80 };
+        var monthCombo = new ComboBox();
         for (int i = 1; i <= 12; i++) monthCombo.Items.Add(i.ToString());
-        monthCombo.SelectedIndex = item.LunarMonth - 1;
-        Grid.SetColumn(monthCombo, 1);
-        monthRow.Children.Add(monthCombo);
+        monthCombo.SelectedIndex = Math.Clamp(item.LunarMonth, 1, 12) - 1;
 
-        var leapLabel = new TextBlock { Text = "闰月:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
-        Grid.SetColumn(leapLabel, 2);
-        monthRow.Children.Add(leapLabel);
-
-        var leapToggle = new ToggleSwitch { IsChecked = item.IsLeapMonth, Margin = new Avalonia.Thickness(4, 0, 0, 0) };
-        Grid.SetColumn(leapToggle, 3);
-        monthRow.Children.Add(leapToggle);
-
-        var dayLabel = new TextBlock { Text = "日:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(8, 0, 0, 0) };
-        Grid.SetColumn(dayLabel, 4);
-        monthRow.Children.Add(dayLabel);
-
-        var dayCombo = new ComboBox { Width = 80 };
+        var dayCombo = new ComboBox();
         for (int i = 1; i <= 30; i++) dayCombo.Items.Add(i.ToString());
-        dayCombo.SelectedIndex = item.LunarDay - 1;
-        Grid.SetColumn(dayCombo, 5);
-        monthRow.Children.Add(dayCombo);
+        dayCombo.SelectedIndex = Math.Clamp(item.LunarDay, 1, 30) - 1;
 
-        lunarPanel.Children.Add(monthRow);
-
-        var timeRow = new Grid();
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(260) });
-
-        var timeLabel = new TextBlock { Text = "时间:", Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(timeLabel, 0);
-        timeRow.Children.Add(timeLabel);
+        var leapToggle = new ToggleSwitch
+        {
+            IsChecked = item.IsLeapMonth,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
 
         var lunarTimePicker = new TimePicker
         {
-            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
+            HorizontalAlignment = HorizontalAlignment.Left,
             SelectedTime = new TimeSpan(item.Hour, item.Minute, item.Second)
         };
-        Grid.SetColumn(lunarTimePicker, 1);
-        timeRow.Children.Add(lunarTimePicker);
 
-        lunarPanel.Children.Add(timeRow);
+        // 程序化同步农历/公历控件时抑制提交，避免事件回环
+        var suppressCommit = false;
 
-        var solarGroup = new Expander { Header = new TextBlock { Text = "公历对照（可互转）", Foreground = ThemeHelper.GetTextBrush() }, IsExpanded = true };
-        var solarPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        // 天干地支 + 年份范围 -> 农历年份
+        int? ResolveLunarYear()
+        {
+            if (yearRangeCombo.SelectedItem == null || tianganCombo.SelectedIndex < 0 || dizhiCombo.SelectedIndex < 0)
+                return null;
+            var yearRange = yearRangeCombo.SelectedItem.ToString();
+            if (string.IsNullOrEmpty(yearRange)) return null;
+            var yearParts = yearRange.Split('-');
+            if (yearParts.Length != 2) return null;
+            if (!int.TryParse(yearParts[0], out var startYear) || !int.TryParse(yearParts[1], out var endYear))
+                return null;
 
-        var solarDateLabel = new TextBlock { Text = "公历日期:", Foreground = ThemeHelper.GetTextBrush() };
-        solarPanel.Children.Add(solarDateLabel);
+            var tg = tianganCombo.SelectedIndex;
+            var dz = dizhiCombo.SelectedIndex;
+            var baseYear = 4;
+            var yearOffset = 0;
+            while ((baseYear + yearOffset - 4) % 10 != tg || (baseYear + yearOffset - 4) % 12 != dz)
+            {
+                yearOffset++;
+                if (yearOffset > 60) return null;
+            }
+            var lunarYearVal = baseYear + yearOffset;
+            while (lunarYearVal < startYear) lunarYearVal += 60;
+            if (lunarYearVal > endYear) lunarYearVal -= 60;
+            return lunarYearVal;
+        }
 
-        var currentSolarDate = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : Plugin.GetCurrentTime();
+        void CommitLunarDate()
+        {
+            if (suppressCommit)
+                return;
+            var resolvedYear = ResolveLunarYear();
+            if (resolvedYear.HasValue)
+            {
+                item.LunarYear = resolvedYear.Value;
+            }
+            if (monthCombo.SelectedIndex >= 0) item.LunarMonth = monthCombo.SelectedIndex + 1;
+            if (dayCombo.SelectedIndex >= 0) item.LunarDay = dayCombo.SelectedIndex + 1;
+            item.IsLeapMonth = leapToggle.IsChecked == true;
+            if (lunarTimePicker.SelectedTime.HasValue)
+            {
+                item.Hour = lunarTimePicker.SelectedTime.Value.Hours;
+                item.Minute = lunarTimePicker.SelectedTime.Value.Minutes;
+                item.Second = lunarTimePicker.SelectedTime.Value.Seconds;
+            }
+            item.IsCompleted = false;
+            _listEditor?.RefreshRow(item);
+            SyncSolarFromLunar();
+        }
 
-        var solarDatePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        // ---------- 公历对照 ----------
+        var currentSolarDate = item.GetTargetTimestamp() > 0
+            ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp())
+            : Plugin.GetCurrentTime();
+
         var solarYearTextBox = new TextBox { Width = 80, Watermark = "年", Text = currentSolarDate.Year.ToString() };
         var solarMonthComboBox = new ComboBox { Width = 80 };
         for (int i = 1; i <= 12; i++) solarMonthComboBox.Items.Add($"{i}月");
@@ -1671,10 +1444,10 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(solarYearTextBox, (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox));
         solarMonthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
 
+        var solarDatePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         solarDatePanel.Children.Add(solarYearTextBox);
         solarDatePanel.Children.Add(solarMonthComboBox);
         solarDatePanel.Children.Add(solarDayComboBox);
-        solarPanel.Children.Add(solarDatePanel);
 
         var solarTimePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         var solarHourComboBox = new ComboBox { Width = 80 };
@@ -1688,213 +1461,140 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         solarSecondComboBox.SelectedIndex = currentSolarDate.Second;
 
         solarTimePanel.Children.Add(solarHourComboBox);
-        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         solarTimePanel.Children.Add(solarMinuteComboBox);
-        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        solarTimePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         solarTimePanel.Children.Add(solarSecondComboBox);
-        solarPanel.Children.Add(solarTimePanel);
 
-        var syncButton = new Button { Content = "同步公历→农历", Width = 150, HorizontalAlignment = HorizontalAlignment.Left };
-        syncButton.Click += (s, e) =>
+        void SyncSolarFromLunar()
         {
-            if (int.TryParse(solarYearTextBox.Text?.Trim(), out var year) &&
-                solarMonthComboBox.SelectedIndex >= 0 &&
-                solarDayComboBox.SelectedItem != null &&
-                int.TryParse(solarDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day) &&
-                solarHourComboBox.SelectedIndex >= 0 &&
-                solarMinuteComboBox.SelectedIndex >= 0 &&
-                solarSecondComboBox.SelectedIndex >= 0)
+            var solar = item.GetTargetTimestamp() > 0 ? UnixTimeHelper.FromUnixTimestamp(item.GetTargetTimestamp()) : (DateTime?)null;
+            if (!solar.HasValue) return;
+            solarYearTextBox.Text = solar.Value.Year.ToString();
+            solarMonthComboBox.SelectedIndex = solar.Value.Month - 1;
+            UpdateDayComboBox(solarYearTextBox, solarMonthComboBox, solarDayComboBox);
+            solarDayComboBox.SelectedItem = $"{solar.Value.Day}日";
+            solarHourComboBox.SelectedIndex = solar.Value.Hour;
+            solarMinuteComboBox.SelectedIndex = solar.Value.Minute;
+            solarSecondComboBox.SelectedIndex = solar.Value.Second;
+        }
+
+        var syncToLunarButton = new Button { Content = "同步公历 → 农历", HorizontalAlignment = HorizontalAlignment.Left };
+        syncToLunarButton.Click += (s, e) =>
+        {
+            if (!int.TryParse(solarYearTextBox.Text?.Trim(), out var year) ||
+                solarMonthComboBox.SelectedIndex < 0 ||
+                solarDayComboBox.SelectedItem == null ||
+                !int.TryParse(solarDayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day) ||
+                solarHourComboBox.SelectedIndex < 0 ||
+                solarMinuteComboBox.SelectedIndex < 0 ||
+                solarSecondComboBox.SelectedIndex < 0)
             {
-                var month = solarMonthComboBox.SelectedIndex + 1;
+                return;
+            }
+
+            try
+            {
+                var solarDate = new DateTime(year, solarMonthComboBox.SelectedIndex + 1, day,
+                    solarHourComboBox.SelectedIndex, solarMinuteComboBox.SelectedIndex, solarSecondComboBox.SelectedIndex);
+                if (!LunarCalendarHelper.IsDateSupported(solarDate)) return;
+
+                var lunarYear = LunarCalendarHelper.GetLunarYear(solarDate);
+                var lunarMonth = LunarCalendarHelper.GetLunarMonth(solarDate);
+                var isLeap = LunarCalendarHelper.IsLeapMonth(solarDate);
+                var lunarDay = LunarCalendarHelper.GetLunarDay(solarDate);
+                if (lunarYear == 0 || lunarMonth == 0 || lunarDay == 0) return;
+
+                var tgNew = (lunarYear - 4) % 10;
+                if (tgNew < 0) tgNew += 10;
+                var dzNew = (lunarYear - 4) % 12;
+                if (dzNew < 0) dzNew += 12;
+
+                // 程序化写入农历控件会逐个触发 CommitLunarDate（部分更新的中间状态），
+                // 此处抑制提交，最后统一按换算结果一次性落盘。
+                suppressCommit = true;
                 try
                 {
-                    var solarDate = new DateTime(year, month, day,
-                        solarHourComboBox.SelectedIndex, solarMinuteComboBox.SelectedIndex, solarSecondComboBox.SelectedIndex);
-
-                    if (!LunarCalendarHelper.IsDateSupported(solarDate))
-                    {
-                        return;
-                    }
-
-                    var lunarYear = LunarCalendarHelper.GetLunarYear(solarDate);
-                    var lunarMonth = LunarCalendarHelper.GetLunarMonth(solarDate);
-                    var isLeap = LunarCalendarHelper.IsLeapMonth(solarDate);
-                    var lunarDay = LunarCalendarHelper.GetLunarDay(solarDate);
-
-                    if (lunarYear == 0 || lunarMonth == 0 || lunarDay == 0)
-                    {
-                        return;
-                    }
-
-                    var tgIndexNew = (lunarYear - 4) % 10;
-                    if (tgIndexNew < 0) tgIndexNew += 10;
-                    var dzIndexNew = (lunarYear - 4) % 12;
-                    if (dzIndexNew < 0) dzIndexNew += 12;
-
-                    tianganCombo.SelectedIndex = tgIndexNew;
-                    dizhiCombo.SelectedIndex = dzIndexNew;
+                    tianganCombo.SelectedIndex = tgNew;
+                    dizhiCombo.SelectedIndex = dzNew;
                     monthCombo.SelectedIndex = lunarMonth - 1;
-                    leapToggle.IsChecked = isLeap;
                     dayCombo.SelectedIndex = lunarDay - 1;
+                    leapToggle.IsChecked = isLeap;
                     lunarTimePicker.SelectedTime = new TimeSpan(solarDate.Hour, solarDate.Minute, solarDate.Second);
 
                     foreach (var range in LunarCalendarHelper.GetAllYearRanges())
                     {
-                        if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                        if (LunarCalendarHelper.ParseYearRange(range, out var sY, out var eY) &&
+                            lunarYear >= sY && lunarYear <= eY)
                         {
-                            if (lunarYear >= startYear && lunarYear <= endYear)
-                            {
-                                yearRangeCombo.SelectedItem = range;
-                                break;
-                            }
+                            yearRangeCombo.SelectedItem = range;
+                            break;
                         }
                     }
                 }
-                catch { }
-            }
-        };
-        solarPanel.Children.Add(syncButton);
-
-        var syncButton2 = new Button { Content = "同步农历→公历", Width = 150, HorizontalAlignment = HorizontalAlignment.Left };
-        syncButton2.Click += (s, e) =>
-        {
-            if (yearRangeCombo.SelectedItem == null ||
-                tianganCombo.SelectedIndex < 0 ||
-                dizhiCombo.SelectedIndex < 0)
-                return;
-
-            var yearRange = yearRangeCombo.SelectedItem.ToString();
-            if (string.IsNullOrEmpty(yearRange)) return;
-
-            var yearParts = yearRange.Split('-');
-            if (yearParts.Length != 2) return;
-            if (!int.TryParse(yearParts[0], out var startYear)) return;
-            if (!int.TryParse(yearParts[1], out var endYear)) return;
-
-            var tg = tianganCombo.SelectedIndex;
-            var dz = dizhiCombo.SelectedIndex;
-
-            var baseYear = 4;
-            var yearOffset = 0;
-            while ((baseYear + yearOffset - 4) % 10 != tg ||
-                   (baseYear + yearOffset - 4) % 12 != dz)
-            {
-                yearOffset++;
-                if (yearOffset > 60) return;
-            }
-
-            var baseLunarYearVal = baseYear + yearOffset;
-            var lunarYearVal = baseLunarYearVal;
-
-            while (lunarYearVal < startYear)
-            {
-                lunarYearVal += 60;
-            }
-            if (lunarYearVal > endYear)
-            {
-                lunarYearVal -= 60;
-            }
-
-            var lunarMonthVal = monthCombo.SelectedIndex + 1;
-            var isLeapVal = leapToggle.IsChecked == true;
-            var lunarDayVal = dayCombo.SelectedIndex + 1;
-            var hourVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Hours : 0;
-            var minuteVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Minutes : 0;
-            var secondVal = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Seconds : 0;
-
-            var solarResult = LunarCalendarHelper.LunarToSolar(lunarYearVal, lunarMonthVal, isLeapVal, lunarDayVal, hourVal, minuteVal, secondVal);
-            if (solarResult.HasValue)
-            {
-                solarYearTextBox.Text = solarResult.Value.Year.ToString();
-                solarMonthComboBox.SelectedIndex = solarResult.Value.Month - 1;
-                solarDayComboBox.SelectedItem = $"{solarResult.Value.Day}日";
-                solarHourComboBox.SelectedIndex = solarResult.Value.Hour;
-                solarMinuteComboBox.SelectedIndex = solarResult.Value.Minute;
-                solarSecondComboBox.SelectedIndex = solarResult.Value.Second;
-            }
-        };
-        solarPanel.Children.Add(syncButton2);
-
-
-        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
-        contentPanel.Children.Add(notifyToggle);
-
-        lunarGroup.Content = lunarPanel;
-        contentPanel.Children.Add(lunarGroup);
-        solarGroup.Content = solarPanel;
-        contentPanel.Children.Add(solarGroup);
-
-        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
-        {
-            item.Name = nameTextBox.Text ?? "新农历倒计时";
-
-            if (yearRangeCombo.SelectedItem != null)
-            {
-                var yearRange = yearRangeCombo.SelectedItem.ToString();
-                if (!string.IsNullOrEmpty(yearRange))
+                finally
                 {
-                    var yearParts = yearRange.Split('-');
-                    if (yearParts.Length == 2 &&
-                        int.TryParse(yearParts[0], out var startYear) &&
-                        int.TryParse(yearParts[1], out var endYear))
-                    {
-                        var tg = tianganCombo.SelectedIndex >= 0 ? tianganCombo.SelectedIndex : 0;
-                        var dz = dizhiCombo.SelectedIndex >= 0 ? dizhiCombo.SelectedIndex : 0;
-
-                        var baseYear = 4;
-                        var yearOffset = 0;
-                        while ((baseYear + yearOffset - 4) % 10 != tg ||
-                               (baseYear + yearOffset - 4) % 12 != dz)
-                        {
-                            yearOffset++;
-                            if (yearOffset > 60) break;
-                        }
-
-                        var baseLunarYearVal = baseYear + yearOffset;
-                        var lunarYearVal = baseLunarYearVal;
-
-                        while (lunarYearVal < startYear)
-                        {
-                            lunarYearVal += 60;
-                        }
-                        if (lunarYearVal > endYear)
-                        {
-                            lunarYearVal -= 60;
-                        }
-
-                        item.LunarYear = lunarYearVal;
-                    }
+                    suppressCommit = false;
                 }
+
+                item.LunarYear = lunarYear;
+                item.LunarMonth = lunarMonth;
+                item.LunarDay = lunarDay;
+                item.IsLeapMonth = isLeap;
+                item.Hour = solarDate.Hour;
+                item.Minute = solarDate.Minute;
+                item.Second = solarDate.Second;
+                item.IsCompleted = false;
+                _listEditor?.RefreshRow(item);
             }
-            item.LunarMonth = monthCombo.SelectedIndex + 1;
-            item.IsLeapMonth = leapToggle.IsChecked == true;
-            item.LunarDay = dayCombo.SelectedIndex + 1;
-            item.Hour = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Hours : 0;
-            item.Minute = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Minutes : 0;
-            item.Second = lunarTimePicker.SelectedTime.HasValue ? lunarTimePicker.SelectedTime.Value.Seconds : 0;
-            item.EnableNotification = notifyToggle.IsChecked == true;
-            item.IsCompleted = false;
-
-            UpdateCountdownList();
-        });
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = contentPanel,
-            Margin = new Avalonia.Thickness(12, 12, 12, 0)
+            catch
+            {
+                // 日期非法时不做处理
+            }
         };
 
-        var mainPanel = new Grid();
-        mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        var syncToSolarButton = new Button { Content = "同步农历 → 公历", HorizontalAlignment = HorizontalAlignment.Left };
+        syncToSolarButton.Click += (s, e) => CommitLunarDate();
 
-        Grid.SetRow(scrollViewer, 0);
-        mainPanel.Children.Add(scrollViewer);
+        panel.Children.Add(CountdownDetailFields.Labeled("年份范围", yearRangeCombo));
 
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", mainPanel);
+        var ganzhiPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        ganzhiPanel.Children.Add(tianganCombo);
+        ganzhiPanel.Children.Add(dizhiCombo);
+        panel.Children.Add(CountdownDetailFields.Labeled("天干地支年", ganzhiPanel));
 
-        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        var monthRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        monthRow.Children.Add(new TextBlock { Text = "月", VerticalAlignment = VerticalAlignment.Center });
+        monthRow.Children.Add(monthCombo);
+        monthRow.Children.Add(new TextBlock { Text = "日", VerticalAlignment = VerticalAlignment.Center });
+        monthRow.Children.Add(dayCombo);
+        panel.Children.Add(CountdownDetailFields.Labeled("农历月日", monthRow));
+        panel.Children.Add(CountdownDetailFields.Labeled("闰月", leapToggle));
+        panel.Children.Add(CountdownDetailFields.Labeled("时间", lunarTimePicker));
+
+        panel.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 4) });
+        panel.Children.Add(CountdownDetailFields.SectionHeader("\ue917", "公历对照（可互转）"));
+        panel.Children.Add(CountdownDetailFields.Labeled("公历日期", solarDatePanel));
+        panel.Children.Add(CountdownDetailFields.Labeled("公历时间", solarTimePanel));
+
+        var syncButtons = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        syncButtons.Children.Add(syncToLunarButton);
+        syncButtons.Children.Add(syncToSolarButton);
+        panel.Children.Add(syncButtons);
+
+        yearRangeCombo.SelectionChanged += (s, e) => CommitLunarDate();
+        tianganCombo.SelectionChanged += (s, e) => CommitLunarDate();
+        dizhiCombo.SelectionChanged += (s, e) => CommitLunarDate();
+        monthCombo.SelectionChanged += (s, e) => CommitLunarDate();
+        dayCombo.SelectionChanged += (s, e) => CommitLunarDate();
+        leapToggle.IsCheckedChanged += (s, e) => CommitLunarDate();
+        lunarTimePicker.SelectedTimeChanged += (s, e) => CommitLunarDate();
+
+        panel.Children.Add(new Separator { Margin = new Thickness(0, 4, 0, 4) });
+        panel.Children.Add(CountdownDetailFields.SectionHeader("\uef2b", "通知设置"));
+        panel.Children.Add(CountdownDetailFields.Toggle("启用通知", item.EnableNotification, v => item.EnableNotification = v));
+
+        return panel;
     }
 
     private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)

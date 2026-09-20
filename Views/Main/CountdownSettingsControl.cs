@@ -43,13 +43,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private CheckBox? _timeEnableCustomFontWeightToggle;
     private CheckBox? _text4EnableCustomFontWeightToggle;
     private ComboBox? _timeBaseComboBox;
-    private ListBox? _countdownListBox;
-    private Button? _addButton;
-    private Button? _removeButton;
-    private Button? _editButton;
-
-    private TextBlock? _selectionHintTextBlock;
-    private System.Timers.Timer? _hintTimer;
+    private CountdownListEditor<CountdownItem>? _listEditor;
 
     private NumericUpDown? _text1FontSizeNumericUpDown;
     private ColorPicker? _text1FontColorPicker;
@@ -103,8 +97,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBlock? _hourSeparator;
     private TextBlock? _minuteSeparator;
     private TextBlock? _listGroupHeader;
-    private TextBlock? _nameHeader;
-    private TextBlock? _notifyHeader;
 
     private List<TextBlock> _dynamicTextBlocks = new();
     private List<Border> _tableCellBorders = new();
@@ -283,72 +275,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         };
         timePanel.Children.Add(_timeCorrectionToggle);
 
-        // --- 倒计时列表 ---
-        _listGroupHeader = new TextBlock { Text = "倒计时列表", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
-        timePanel.Children.Add(_listGroupHeader);
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-
-        _nameHeader = new TextBlock
-        {
-            Text = "倒计时目标时间",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_nameHeader, 0);
-        headerGrid.Children.Add(_nameHeader);
-
-        _notifyHeader = new TextBlock
-        {
-            Text = "启用通知？",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_notifyHeader, 1);
-        headerGrid.Children.Add(_notifyHeader);
-        timePanel.Children.Add(headerGrid);
-
-        _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
-        _countdownListBox.SelectionChanged += (s, e) =>
-        {
-            if (_countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-            {
-                HideHint();
-            }
-        };
-        timePanel.Children.Add(_countdownListBox);
-
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-
-        _addButton = new Button { Content = "添加", Width = 60 };
-        _addButton.Click += OnAddClick;
-        buttonPanel.Children.Add(_addButton);
-
-        _removeButton = new Button { Content = "删除", Width = 60 };
-        _removeButton.Click += OnRemoveClick;
-        buttonPanel.Children.Add(_removeButton);
-
-        _editButton = new Button { Content = "编辑", Width = 60 };
-        _editButton.Click += OnEditClick;
-        buttonPanel.Children.Add(_editButton);
-
-        timePanel.Children.Add(buttonPanel);
-
-        _selectionHintTextBlock = new TextBlock
-        {
-            Text = "请选择一个倒计时",
-            Foreground = Brushes.Orange,
-            IsVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12
-        };
-        timePanel.Children.Add(_selectionHintTextBlock);
-
         timeGroup.Content = timePanel;
         mainPanel.Children.Add(timeGroup);
 
@@ -403,6 +329,20 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
         appearanceGroup.Content = appearancePanel;
         mainPanel.Children.Add(appearanceGroup);
+
+        // ==================== 倒计时列表（主从式内联编辑，参考 ClassIsland 档案编辑） ====================
+        _listGroupHeader = new TextBlock { Text = "倒计时列表", FontSize = 12, FontWeight = FontWeight.Bold };
+        var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
+        _listEditor = new CountdownListEditor<CountdownItem>(
+            () => Settings.CountdownItems,
+            items => Settings.CountdownItems = items,
+            item => item.Name,
+            item => UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp).ToString("yyyy-MM-dd HH:mm:ss"),
+            BuildCountdownDetailPanel,
+            CountdownItem.CreateDefault,
+            item => item.Clone());
+        listGroup.Content = _listEditor;
+        mainPanel.Children.Add(listGroup);
 
         var scrollViewer = new ScrollViewer
         {
@@ -631,19 +571,8 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
 
     private void OnText2ButtonClick(object? sender, EventArgs e)
     {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-        }
-        else
-        {
-            if (_countdownListBox != null)
-            {
-                _countdownListBox.BringIntoView();
-            }
-            ShowHint();
-        }
+        // 不再弹窗编辑：滚动到「倒计时列表」内联编辑面板，并确保有选中项。
+        _listEditor?.FocusEditor();
     }
 
     private void UpdateThemeColors()
@@ -668,9 +597,7 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
         if (_progressDisplayModeLabel != null) _progressDisplayModeLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_nameHeader != null) _nameHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
+        _listEditor?.UpdateThemeColors();
 
         if (_enableCustomProgressColorToggle != null) _enableCustomProgressColorToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_timeCorrectionToggle != null) _timeCorrectionToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -944,9 +871,10 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
             _startSecondComboBox.SelectedIndex = startTime.Second;
         }
 
-        UpdateCountdownList();
-
         AttachEventHandlers();
+
+        // Settings 此时已注入，构建倒计时列表与详情面板
+        _listEditor?.Refresh();
 
         if (_text1EnableCustomFontSizeToggle != null)
             _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
@@ -1002,8 +930,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _hintTimer?.Stop();
-        _hintTimer?.Dispose();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
@@ -1204,143 +1130,30 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         }
     }
 
-    private void UpdateCountdownList()
+    /// <summary>
+    /// 构建单个倒计时的详情编辑面板（内联显示，不再使用弹窗）。
+    /// 字段风格参考 ClassIsland「档案编辑」：官方 Field 标签在上、输入控件在下。
+    /// </summary>
+    private Control BuildCountdownDetailPanel(CountdownItem item)
     {
-        if (_countdownListBox == null) return;
-        _countdownListBox.Items.Clear();
-        if (Settings.CountdownItems != null)
+        var panel = new StackPanel
         {
-            foreach (var item in Settings.CountdownItems)
-            {
-                var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+            Margin = new Thickness(16)
+        };
 
-                var container = new Grid();
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                container.Tag = item;
+        panel.Children.Add(CountdownDetailFields.SectionHeader("\ue9e9", "倒计时"));
 
-                var textBlock = new TextBlock
-                {
-                    Text = $"{item.Name} - {targetTime:yyyy-MM-dd HH:mm:ss}",
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeHelper.GetTextBrush(),
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                Grid.SetColumn(textBlock, 0);
-                container.Children.Add(textBlock);
-
-                var notifyPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                var notifySwitch = new ToggleSwitch
-                {
-                    IsChecked = item.EnableNotification,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                var currentItem = item;
-                notifySwitch.IsCheckedChanged += (s, e) =>
-                {
-                    currentItem.EnableNotification = notifySwitch.IsChecked == true;
-                };
-                notifyPanel.Children.Add(notifySwitch);
-                Grid.SetColumn(notifyPanel, 1);
-                container.Children.Add(notifyPanel);
-
-                var listBoxItem = new ListBoxItem
-                {
-                    Content = container,
-                    Tag = item
-                };
-
-                _countdownListBox.Items.Add(listBoxItem);
-            }
-        }
-    }
-
-    private void OnAddClick(object? sender, EventArgs e)
-    {
-        HideHint();
-        if (Settings.CountdownItems == null)
+        panel.Children.Add(CountdownDetailFields.Text("名称", item.Name, v =>
         {
-            Settings.CountdownItems = new List<CountdownItem>();
-        }
-        Settings.CountdownItems.Add(CountdownItem.CreateDefault());
-        UpdateCountdownList();
-    }
+            item.Name = string.IsNullOrWhiteSpace(v) ? "新倒计时" : v;
+            _listEditor?.RefreshRow(item);
+        }, "新倒计时"));
 
-    private void OnRemoveClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            Settings.CountdownItems.RemoveAt(_countdownListBox.SelectedIndex);
-            UpdateCountdownList();
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
-
-    private void OnEditClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
-
-    private void ShowHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = true;
-            _hintTimer?.Stop();
-            _hintTimer = new System.Timers.Timer(5000);
-            _hintTimer.Elapsed += (s, e) =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(HideHint);
-            };
-            _hintTimer.AutoReset = false;
-            _hintTimer.Start();
-        }
-    }
-
-    private void HideHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = false;
-            _hintTimer?.Stop();
-        }
-    }
-
-    private async void ShowEditDialog(CountdownItem item, int order = 0)
-    {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编写第{order}个倒计时" : "编辑倒计时");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-
-        var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
-
-        var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
-        var nameTextBox = new TextBox { Text = item.Name };
-        contentPanel.Children.Add(nameLabel);
-        contentPanel.Children.Add(nameTextBox);
-
-        var targetLabel = new TextBlock { Text = "目标时间:", Foreground = ThemeHelper.GetTextBrush() };
-        contentPanel.Children.Add(targetLabel);
-
+        // ---------- 目标时间 ----------
         var targetTime = UnixTimeHelper.FromUnixTimestamp(item.TargetTimestamp);
 
-        var datePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         var yearTextBox = new TextBox { Width = 80, Watermark = "年", Text = targetTime.Year.ToString() };
         var monthComboBox = new ComboBox { Width = 80 };
         for (int i = 1; i <= 12; i++) monthComboBox.Items.Add($"{i}月");
@@ -1352,12 +1165,11 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(yearTextBox, (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox));
         monthComboBox.SelectionChanged += (s, e) => UpdateDayComboBox(yearTextBox, monthComboBox, dayComboBox);
 
+        var datePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         datePanel.Children.Add(yearTextBox);
         datePanel.Children.Add(monthComboBox);
         datePanel.Children.Add(dayComboBox);
-        contentPanel.Children.Add(datePanel);
 
-        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         var hourComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 24; i++) hourComboBox.Items.Add(i.ToString("D2"));
         hourComboBox.SelectedIndex = targetTime.Hour;
@@ -1368,58 +1180,15 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         for (int i = 0; i < 60; i++) secondComboBox.Items.Add(i.ToString("D2"));
         secondComboBox.SelectedIndex = targetTime.Second;
 
+        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         timePanel.Children.Add(hourComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(minuteComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(secondComboBox);
-        contentPanel.Children.Add(timePanel);
 
-        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
-        contentPanel.Children.Add(notifyToggle);
-
-        var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = ThemeHelper.GetTextBrush() };
-        var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
-        contentPanel.Children.Add(notifyTitleLabel);
-        contentPanel.Children.Add(notifyTitleTextBox);
-
-        var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = ThemeHelper.GetTextBrush() };
-        var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
-        contentPanel.Children.Add(notifyContentLabel);
-        contentPanel.Children.Add(notifyContentTextBox);
-
-        var maskDurationLabel = new TextBlock { Text = "通知标题时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
-        var maskDurationTextBox = new TextBox { Text = item.NotificationMaskDurationSeconds.ToString() };
-        contentPanel.Children.Add(maskDurationLabel);
-        contentPanel.Children.Add(maskDurationTextBox);
-
-        var overlayDurationLabel = new TextBlock { Text = "通知内容时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
-        var overlayDurationTextBox = new TextBox { Text = item.NotificationOverlayDurationSeconds.ToString() };
-        contentPanel.Children.Add(overlayDurationLabel);
-        contentPanel.Children.Add(overlayDurationTextBox);
-
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Right };
-
-        var scrollViewer = new ScrollViewer
+        void CommitTargetTime()
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = contentPanel,
-            Margin = new Avalonia.Thickness(12, 12, 12, 0)
-        };
-
-        var mainPanel = new Grid();
-        mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        Grid.SetRow(scrollViewer, 0);
-        mainPanel.Children.Add(scrollViewer);
-
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", mainPanel);
-
-        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
-        {
-            item.Name = nameTextBox.Text ?? "新倒计时";
-
             if (int.TryParse(yearTextBox.Text?.Trim(), out var year) &&
                 monthComboBox.SelectedIndex >= 0 &&
                 dayComboBox.SelectedItem != null &&
@@ -1433,31 +1202,40 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
                     var target = new DateTime(year, monthComboBox.SelectedIndex + 1, day,
                         hourComboBox.SelectedIndex, minuteComboBox.SelectedIndex, secondComboBox.SelectedIndex);
                     item.TargetTimestamp = UnixTimeHelper.ToUnixTimestamp(target);
+                    item.IsCompleted = false;
+                    _listEditor?.RefreshRow(item);
                 }
-                catch { }
+                catch
+                {
+                    // 非法日期（如闰年判断失败）时保持原值
+                }
             }
+        }
 
-            item.EnableNotification = notifyToggle.IsChecked == true;
-            item.NotificationTitle = notifyTitleTextBox.Text ?? "倒计时到达";
-            item.NotificationContent = notifyContentTextBox.Text ?? "目标时间已到达！";
+        panel.Children.Add(CountdownDetailFields.Labeled("目标日期", datePanel));
+        panel.Children.Add(CountdownDetailFields.Labeled("目标时间", timePanel));
 
-            if (int.TryParse(maskDurationTextBox.Text, out int maskDuration))
-            {
-                item.NotificationMaskDurationSeconds = maskDuration;
-            }
+        hourComboBox.SelectionChanged += (s, e) => CommitTargetTime();
+        minuteComboBox.SelectionChanged += (s, e) => CommitTargetTime();
+        secondComboBox.SelectionChanged += (s, e) => CommitTargetTime();
+        dayComboBox.SelectionChanged += (s, e) => CommitTargetTime();
+        monthComboBox.SelectionChanged += (s, e) => CommitTargetTime();
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(yearTextBox, (s, e) => CommitTargetTime());
 
-            if (int.TryParse(overlayDurationTextBox.Text, out int overlayDuration))
-            {
-                item.NotificationOverlayDurationSeconds = overlayDuration;
-            }
+        panel.Children.Add(CountdownDetailFields.NotificationSection(
+            item.EnableNotification,
+            v => item.EnableNotification = v,
+            () => item.NotificationTitle,
+            v => item.NotificationTitle = string.IsNullOrWhiteSpace(v) ? "倒计时到达" : v,
+            () => item.NotificationContent,
+            v => item.NotificationContent = string.IsNullOrWhiteSpace(v) ? "目标时间已到达！" : v,
+            () => item.NotificationMaskDurationSeconds,
+            v => item.NotificationMaskDurationSeconds = v,
+            () => item.NotificationOverlayDurationSeconds,
+            v => item.NotificationOverlayDurationSeconds = v));
 
-            item.IsCompleted = false;
-            UpdateCountdownList();
-        });
-
-        await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        return panel;
     }
-
     private static void UpdateDayComboBox(TextBox yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
     {
         if (!int.TryParse(yearTextBox.Text?.Trim(), out var year))

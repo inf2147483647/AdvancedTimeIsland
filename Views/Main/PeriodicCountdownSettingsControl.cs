@@ -33,13 +33,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private CheckBox? _text4EnableCustomFontSizeToggle;
     private CheckBox? _text4EnableCustomFontColorToggle;
     private ComboBox? _timeBaseComboBox;
-    private ListBox? _countdownListBox;
-    private Button? _addButton;
-    private Button? _removeButton;
-    private Button? _editButton;
-
-    private TextBlock? _selectionHintTextBlock;
-    private System.Timers.Timer? _hintTimer;
+    private CountdownListEditor<PeriodicCountdownItem>? _listEditor;
 
     private NumericUpDown? _text1FontSizeNumericUpDown;
     private ColorPicker? _text1FontColorPicker;
@@ -62,9 +56,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private TextBlock? _timeBaseGroupHeader;
     private TextBlock? _timeBaseLabel;
     private TextBlock? _listGroupHeader;
-    private TextBlock? _nameHeader;
-    private TextBlock? _periodHeader;
-    private TextBlock? _notifyHeader;
 
     private ComboBox? _progressDisplayModeComboBox;
     private TextBlock? _progressDisplayModeLabel;
@@ -232,85 +223,18 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         progressDisplayModeGroup.Content = progressDisplayModePanel;
         _mainPanel.Children.Add(progressDisplayModeGroup);
 
-        // ==================== 倒计时列表 ====================
+        // ==================== 倒计时列表（主从式内联编辑，参考 ClassIsland 档案编辑） ====================
         _listGroupHeader = new TextBlock { Text = "倒计时列表" };
         var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
-        var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-
-        _nameHeader = new TextBlock
-        {
-            Text = "倒计时名称",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_nameHeader, 0);
-        headerGrid.Children.Add(_nameHeader);
-
-        _periodHeader = new TextBlock
-        {
-            Text = "周期",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_periodHeader, 1);
-        headerGrid.Children.Add(_periodHeader);
-
-        _notifyHeader = new TextBlock
-        {
-            Text = "启用通知？",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_notifyHeader, 2);
-        headerGrid.Children.Add(_notifyHeader);
-        listPanel.Children.Add(headerGrid);
-
-        _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
-        _countdownListBox.SelectionChanged += (s, e) =>
-        {
-            if (_countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-            {
-                HideHint();
-            }
-        };
-        listPanel.Children.Add(_countdownListBox);
-
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-
-        _addButton = new Button { Content = "添加", Width = 60 };
-        _addButton.Click += OnAddClick;
-        buttonPanel.Children.Add(_addButton);
-
-        _removeButton = new Button { Content = "删除", Width = 60 };
-        _removeButton.Click += OnRemoveClick;
-        buttonPanel.Children.Add(_removeButton);
-
-        _editButton = new Button { Content = "编辑", Width = 60 };
-        _editButton.Click += OnEditClick;
-        buttonPanel.Children.Add(_editButton);
-
-        listPanel.Children.Add(buttonPanel);
-
-        _selectionHintTextBlock = new TextBlock
-        {
-            Text = "请选择一个倒计时",
-            Foreground = Brushes.Orange,
-            IsVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12
-        };
-        listPanel.Children.Add(_selectionHintTextBlock);
-        listGroup.Content = listPanel;
+        _listEditor = new CountdownListEditor<PeriodicCountdownItem>(
+            () => Settings.CountdownItems,
+            items => Settings.CountdownItems = items,
+            item => item.Name,
+            item => GetPeriodTypeName(item.PeriodType) + DescribePeriodicTime(item),
+            BuildPeriodicDetailPanel,
+            PeriodicCountdownItem.CreateDefault,
+            item => item.Clone());
+        listGroup.Content = _listEditor;
         _mainPanel.Children.Add(listGroup);
 
         var scrollViewer = new ScrollViewer
@@ -484,19 +408,8 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void OnText2ButtonClick(object? sender, EventArgs e)
     {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-        }
-        else
-        {
-            if (_countdownListBox != null)
-            {
-                _countdownListBox.BringIntoView();
-            }
-            ShowHint();
-        }
+        // 不再弹窗编辑：滚动到「倒计时列表」内联编辑面板，并确保有选中项。
+        _listEditor?.FocusEditor();
     }
 
     private void UpdateThemeColors()
@@ -518,10 +431,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (_progressDisplayModeLabel != null) _progressDisplayModeLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_enableCustomProgressColorToggle != null) _enableCustomProgressColorToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_nameHeader != null) _nameHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_periodHeader != null) _periodHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
+        _listEditor?.UpdateThemeColors();
 
         if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
@@ -700,9 +610,10 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (_text4FontSizeNumericUpDown != null) _text4FontSizeNumericUpDown.Value = (decimal)Settings.Text4FontSize;
         if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
 
-        UpdateCountdownList();
-
         AttachEventHandlers();
+
+        // Settings 此时已注入，构建倒计时列表与详情面板
+        _listEditor?.Refresh();
 
         if (_text1EnableCustomFontSizeToggle != null)
             _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
@@ -738,8 +649,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _hintTimer?.Stop();
-        _hintTimer?.Dispose();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
@@ -827,68 +736,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         }
     }
 
-    private void UpdateCountdownList()
-    {
-        if (_countdownListBox == null) return;
-        _countdownListBox.Items.Clear();
-        if (Settings.CountdownItems != null)
-        {
-            foreach (var item in Settings.CountdownItems)
-            {
-                var container = new Grid();
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-                container.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-                container.Tag = item;
-
-                var textBlock = new TextBlock
-                {
-                    Text = item.Name,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeHelper.GetTextBrush(),
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                Grid.SetColumn(textBlock, 0);
-                container.Children.Add(textBlock);
-
-                var periodTextBlock = new TextBlock
-                {
-                    Text = GetPeriodTypeName(item.PeriodType),
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Foreground = ThemeHelper.GetSubTextBrush(),
-                    HorizontalAlignment = HorizontalAlignment.Center,
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                Grid.SetColumn(periodTextBlock, 1);
-                container.Children.Add(periodTextBlock);
-
-                var notifyPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                var notifySwitch = new ToggleSwitch
-                {
-                    IsChecked = item.EnableNotification,
-                    VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Avalonia.Thickness(0, 4, 0, 4)
-                };
-                var currentItem = item;
-                notifySwitch.IsCheckedChanged += (s, e) =>
-                {
-                    currentItem.EnableNotification = notifySwitch.IsChecked == true;
-                };
-                notifyPanel.Children.Add(notifySwitch);
-                Grid.SetColumn(notifyPanel, 2);
-                container.Children.Add(notifyPanel);
-
-                var listBoxItem = new ListBoxItem
-                {
-                    Content = container,
-                    Tag = item
-                };
-
-                _countdownListBox.Items.Add(listBoxItem);
-            }
-        }
-    }
-
     private string GetPeriodTypeName(PeriodType periodType)
     {
         return periodType switch
@@ -902,88 +749,28 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         };
     }
 
-    private void OnAddClick(object? sender, EventArgs e)
+    /// <summary>
+    /// 构建单个周期性倒计时的详情编辑面板（内联显示，不再使用弹窗）。
+    /// 字段风格参考 ClassIsland「档案编辑」：官方 Field 标签在上、输入控件在下。
+    /// </summary>
+    private Control BuildPeriodicDetailPanel(PeriodicCountdownItem item)
     {
-        HideHint();
-        if (Settings.CountdownItems == null)
+        var panel = new StackPanel
         {
-            Settings.CountdownItems = new List<PeriodicCountdownItem>();
-        }
-        Settings.CountdownItems.Add(PeriodicCountdownItem.CreateDefault());
-        UpdateCountdownList();
-    }
+            Orientation = Orientation.Vertical,
+            Spacing = 8,
+            Margin = new Thickness(16)
+        };
 
-    private void OnRemoveClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        panel.Children.Add(CountdownDetailFields.SectionHeader("\uec92", "周期性倒计时"));
+
+        panel.Children.Add(CountdownDetailFields.Text("名称", item.Name, v =>
         {
-            Settings.CountdownItems.RemoveAt(_countdownListBox.SelectedIndex);
-            UpdateCountdownList();
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
+            item.Name = string.IsNullOrWhiteSpace(v) ? "新周期性倒计时" : v;
+            _listEditor?.RefreshRow(item);
+        }, "新周期性倒计时"));
 
-    private void OnEditClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
-        {
-            var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
-            ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
-            HideHint();
-        }
-        else
-        {
-            ShowHint();
-        }
-    }
-
-    private void ShowHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = true;
-            _hintTimer?.Stop();
-            _hintTimer = new System.Timers.Timer(5000);
-            _hintTimer.Elapsed += (s, e) =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(HideHint);
-            };
-            _hintTimer.AutoReset = false;
-            _hintTimer.Start();
-        }
-    }
-
-    private void HideHint()
-    {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = false;
-            _hintTimer?.Stop();
-        }
-    }
-
-    private void ShowEditDialog(PeriodicCountdownItem item, int order = 0)
-    {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", order > 0 ? $"正在编辑第{order}个倒计时" : "编辑倒计时");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-
-        var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
-
-        var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
-        var nameTextBox = new TextBox { Text = item.Name };
-        contentPanel.Children.Add(nameLabel);
-        contentPanel.Children.Add(nameTextBox);
-
-        var periodLabel = new TextBlock { Text = "周期:", Foreground = ThemeHelper.GetTextBrush() };
-        contentPanel.Children.Add(periodLabel);
-
+        // ---------- 周期 ----------
         var periodComboBox = new ComboBox();
         periodComboBox.Items.Add("每小时");
         periodComboBox.Items.Add("每天");
@@ -991,12 +778,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         periodComboBox.Items.Add("每月");
         periodComboBox.Items.Add("每年");
         periodComboBox.SelectedIndex = (int)item.PeriodType;
-        contentPanel.Children.Add(periodComboBox);
 
-        var timeLabel = new TextBlock { Text = "时间:", Foreground = ThemeHelper.GetTextBrush() };
-        contentPanel.Children.Add(timeLabel);
-
-        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         var hourComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 24; i++) hourComboBox.Items.Add(i.ToString("D2"));
         hourComboBox.SelectedIndex = item.Hour;
@@ -1007,156 +789,132 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         for (int i = 0; i < 60; i++) secondComboBox.Items.Add(i.ToString("D2"));
         secondComboBox.SelectedIndex = item.Second;
 
+        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
         timePanel.Children.Add(hourComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(minuteComboBox);
-        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, Foreground = ThemeHelper.GetTextBrush(), VerticalAlignment = VerticalAlignment.Center });
+        timePanel.Children.Add(new TextBlock { Text = ":", FontSize = 16, VerticalAlignment = VerticalAlignment.Center });
         timePanel.Children.Add(secondComboBox);
-        contentPanel.Children.Add(timePanel);
 
-        var extraPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var dayOfWeekRow = new Grid();
-        dayOfWeekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        dayOfWeekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var dayOfWeekLabel = new TextBlock { Text = "星期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(dayOfWeekLabel, 0);
-        dayOfWeekRow.Children.Add(dayOfWeekLabel);
-
+        // 星期 / 日期 / 月份（按周期类型显隐）
         var dayOfWeekComboBox = new ComboBox();
-        dayOfWeekComboBox.Items.Add("星期日");
-        dayOfWeekComboBox.Items.Add("星期一");
-        dayOfWeekComboBox.Items.Add("星期二");
-        dayOfWeekComboBox.Items.Add("星期三");
-        dayOfWeekComboBox.Items.Add("星期四");
-        dayOfWeekComboBox.Items.Add("星期五");
-        dayOfWeekComboBox.Items.Add("星期六");
+        foreach (var d in new[] { "星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六" })
+        {
+            dayOfWeekComboBox.Items.Add(d);
+        }
         dayOfWeekComboBox.SelectedIndex = item.DayOfWeek;
-        Grid.SetColumn(dayOfWeekComboBox, 1);
-        dayOfWeekRow.Children.Add(dayOfWeekComboBox);
-        extraPanel.Children.Add(dayOfWeekRow);
-
-        var dayOfMonthRow = new Grid();
-        dayOfMonthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        dayOfMonthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var dayOfMonthLabel = new TextBlock { Text = "日期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(dayOfMonthLabel, 0);
-        dayOfMonthRow.Children.Add(dayOfMonthLabel);
+        var dayOfWeekField = CountdownDetailFields.Combo("星期", dayOfWeekComboBox, () =>
+        {
+            if (dayOfWeekComboBox.SelectedIndex >= 0)
+            {
+                item.DayOfWeek = dayOfWeekComboBox.SelectedIndex;
+                _listEditor?.RefreshRow(item);
+            }
+        });
 
         var dayOfMonthComboBox = new ComboBox { Width = 80 };
         for (int i = 1; i <= 31; i++) dayOfMonthComboBox.Items.Add($"{i}日");
         dayOfMonthComboBox.SelectedItem = $"{item.DayOfMonth}日";
-        Grid.SetColumn(dayOfMonthComboBox, 1);
-        dayOfMonthRow.Children.Add(dayOfMonthComboBox);
-        extraPanel.Children.Add(dayOfMonthRow);
-
-        var monthRow = new Grid();
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var monthLabel = new TextBlock { Text = "月份:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(monthLabel, 0);
-        monthRow.Children.Add(monthLabel);
+        var dayOfMonthField = CountdownDetailFields.Combo("日期", dayOfMonthComboBox, () =>
+        {
+            if (dayOfMonthComboBox.SelectedItem != null &&
+                int.TryParse(dayOfMonthComboBox.SelectedItem.ToString()?.Replace("日", ""), out var dom))
+            {
+                item.DayOfMonth = dom;
+                _listEditor?.RefreshRow(item);
+            }
+        });
 
         var monthComboBox = new ComboBox { Width = 80 };
         for (int i = 1; i <= 12; i++) monthComboBox.Items.Add($"{i}月");
         monthComboBox.SelectedIndex = item.Month - 1;
-        Grid.SetColumn(monthComboBox, 1);
-        monthRow.Children.Add(monthComboBox);
-        extraPanel.Children.Add(monthRow);
+        var monthField = CountdownDetailFields.Combo("月份", monthComboBox, () =>
+        {
+            if (monthComboBox.SelectedIndex >= 0)
+            {
+                item.Month = monthComboBox.SelectedIndex + 1;
+                _listEditor?.RefreshRow(item);
+            }
+        });
 
         void UpdateExtraVisibility()
         {
-            dayOfWeekRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Weekly;
-            dayOfMonthRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Monthly || periodComboBox.SelectedIndex == (int)PeriodType.Yearly;
-            monthRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Yearly;
+            var selected = (PeriodType)(periodComboBox.SelectedIndex >= 0 ? periodComboBox.SelectedIndex : (int)item.PeriodType);
+            dayOfWeekField.IsVisible = selected == PeriodType.Weekly;
+            dayOfMonthField.IsVisible = selected == PeriodType.Monthly || selected == PeriodType.Yearly;
+            monthField.IsVisible = selected == PeriodType.Yearly;
         }
 
-        periodComboBox.SelectionChanged += (s, e) => UpdateExtraVisibility();
+        void CommitTime()
+        {
+            if (hourComboBox.SelectedIndex >= 0) item.Hour = hourComboBox.SelectedIndex;
+            if (minuteComboBox.SelectedIndex >= 0) item.Minute = minuteComboBox.SelectedIndex;
+            if (secondComboBox.SelectedIndex >= 0) item.Second = secondComboBox.SelectedIndex;
+            item.IsCompleted = false;
+            _listEditor?.RefreshRow(item);
+        }
+
+        periodComboBox.SelectionChanged += (s, e) =>
+        {
+            if (periodComboBox.SelectedIndex >= 0)
+            {
+                item.PeriodType = (PeriodType)periodComboBox.SelectedIndex;
+                item.IsCompleted = false;
+                UpdateExtraVisibility();
+                _listEditor?.RefreshRow(item);
+            }
+        };
+        hourComboBox.SelectionChanged += (s, e) => CommitTime();
+        minuteComboBox.SelectionChanged += (s, e) => CommitTime();
+        secondComboBox.SelectionChanged += (s, e) => CommitTime();
+
+        panel.Children.Add(CountdownDetailFields.Labeled("周期", periodComboBox));
+        panel.Children.Add(CountdownDetailFields.Labeled("时间", timePanel));
+        panel.Children.Add(dayOfWeekField);
+        panel.Children.Add(dayOfMonthField);
+        panel.Children.Add(monthField);
         UpdateExtraVisibility();
 
-        contentPanel.Children.Add(extraPanel);
+        panel.Children.Add(CountdownDetailFields.NotificationSection(
+            item.EnableNotification,
+            v => item.EnableNotification = v,
+            () => item.NotificationTitle,
+            v => item.NotificationTitle = string.IsNullOrWhiteSpace(v) ? "周期性倒计时到达" : v,
+            () => item.NotificationContent,
+            v => item.NotificationContent = string.IsNullOrWhiteSpace(v) ? "目标时间已到达！" : v,
+            () => item.NotificationMaskDurationSeconds,
+            v => item.NotificationMaskDurationSeconds = v,
+            () => item.NotificationOverlayDurationSeconds,
+            v => item.NotificationOverlayDurationSeconds = v));
 
-        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
-        contentPanel.Children.Add(notifyToggle);
-
-        var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = ThemeHelper.GetTextBrush() };
-        var notifyTitleTextBox = new TextBox { Text = item.NotificationTitle };
-        contentPanel.Children.Add(notifyTitleLabel);
-        contentPanel.Children.Add(notifyTitleTextBox);
-
-        var notifyContentLabel = new TextBlock { Text = "通知内容:", Foreground = ThemeHelper.GetTextBrush() };
-        var notifyContentTextBox = new TextBox { Text = item.NotificationContent };
-        contentPanel.Children.Add(notifyContentLabel);
-        contentPanel.Children.Add(notifyContentTextBox);
-
-        var maskDurationLabel = new TextBlock { Text = "通知标题时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
-        var maskDurationTextBox = new TextBox { Text = item.NotificationMaskDurationSeconds.ToString() };
-        contentPanel.Children.Add(maskDurationLabel);
-        contentPanel.Children.Add(maskDurationTextBox);
-
-        var overlayDurationLabel = new TextBlock { Text = "通知内容时长(秒):", Foreground = ThemeHelper.GetTextBrush() };
-        var overlayDurationTextBox = new TextBox { Text = item.NotificationOverlayDurationSeconds.ToString() };
-        contentPanel.Children.Add(overlayDurationLabel);
-        contentPanel.Children.Add(overlayDurationTextBox);
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = contentPanel,
-            Margin = new Avalonia.Thickness(12, 12, 12, 0)
-        };
-
-        var _mainPanel = new Grid();
-        _mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        Grid.SetRow(scrollViewer, 0);
-        _mainPanel.Children.Add(scrollViewer);
-
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", _mainPanel);
-
-        FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
-        {
-            item.Name = nameTextBox.Text ?? "新周期性倒计时";
-            item.PeriodType = (PeriodType)(periodComboBox.SelectedIndex >= 0 ? periodComboBox.SelectedIndex : 1);
-
-            if (hourComboBox.SelectedIndex >= 0)
-                item.Hour = hourComboBox.SelectedIndex;
-            if (minuteComboBox.SelectedIndex >= 0)
-                item.Minute = minuteComboBox.SelectedIndex;
-            if (secondComboBox.SelectedIndex >= 0)
-                item.Second = secondComboBox.SelectedIndex;
-
-            if (dayOfWeekComboBox.SelectedIndex >= 0)
-                item.DayOfWeek = dayOfWeekComboBox.SelectedIndex;
-
-            if (dayOfMonthComboBox.SelectedItem != null && int.TryParse(dayOfMonthComboBox.SelectedItem.ToString()?.Replace("日", ""), out var dayOfMonth))
-                item.DayOfMonth = dayOfMonth;
-
-            if (monthComboBox.SelectedIndex >= 0)
-                item.Month = monthComboBox.SelectedIndex + 1;
-
-            item.EnableNotification = notifyToggle.IsChecked == true;
-            item.NotificationTitle = notifyTitleTextBox.Text ?? "周期性倒计时到达";
-            item.NotificationContent = notifyContentTextBox.Text ?? "目标时间已到达！";
-
-            if (int.TryParse(maskDurationTextBox.Text, out int maskDuration))
-            {
-                item.NotificationMaskDurationSeconds = maskDuration;
-            }
-
-            if (int.TryParse(overlayDurationTextBox.Text, out int overlayDuration))
-            {
-                item.NotificationOverlayDurationSeconds = overlayDuration;
-            }
-
-            item.IsCompleted = false;
-            UpdateCountdownList();
-        });
-
-        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        return panel;
     }
+
+    /// <summary>列表副标题：周期发生的具体时刻描述。</summary>
+    private static string DescribePeriodicTime(PeriodicCountdownItem item)
+    {
+        var time = $"{item.Hour:D2}:{item.Minute:D2}:{item.Second:D2}";
+        return item.PeriodType switch
+        {
+            PeriodType.Hourly => $" 每小时第 {item.Minute} 分 {item.Second} 秒",
+            PeriodType.Daily => $" {time}",
+            PeriodType.Weekly => $" {WeekName(item.DayOfWeek)} {time}",
+            PeriodType.Monthly => $" 每月 {item.DayOfMonth} 日 {time}",
+            PeriodType.Yearly => $" 每年 {item.Month}月{item.DayOfMonth}日 {time}",
+            _ => $" {time}"
+        };
+    }
+
+    private static string WeekName(int dayOfWeek) => dayOfWeek switch
+    {
+        0 => "星期日",
+        1 => "星期一",
+        2 => "星期二",
+        3 => "星期三",
+        4 => "星期四",
+        5 => "星期五",
+        6 => "星期六",
+        _ => "星期一"
+    };
+
 }

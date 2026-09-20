@@ -156,6 +156,23 @@ public class CountdownItem : INotifyPropertyChanged
             IsCompleted = false
         };
     }
+
+    /// <summary>创建副本（参考档案编辑的「克隆」，分配新 Id 避免冲突）。</summary>
+    public CountdownItem Clone()
+    {
+        return new CountdownItem
+        {
+            Id = Guid.NewGuid(),
+            Name = Name,
+            TargetTimestamp = TargetTimestamp,
+            EnableNotification = EnableNotification,
+            NotificationTitle = NotificationTitle,
+            NotificationContent = NotificationContent,
+            NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
+            NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
+            IsCompleted = false
+        };
+    }
 }
 
 

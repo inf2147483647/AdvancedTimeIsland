@@ -278,6 +278,29 @@ public class LunarCountdownItem : INotifyPropertyChanged
             IsCompleted = false
         };
     }
+
+    /// <summary>创建副本（参考档案编辑的「克隆」，分配新 Id 避免冲突）。</summary>
+    public LunarCountdownItem Clone()
+    {
+        return new LunarCountdownItem
+        {
+            Id = Guid.NewGuid(),
+            Name = Name,
+            LunarYear = LunarYear,
+            LunarMonth = LunarMonth,
+            IsLeapMonth = IsLeapMonth,
+            LunarDay = LunarDay,
+            Hour = Hour,
+            Minute = Minute,
+            Second = Second,
+            EnableNotification = EnableNotification,
+            NotificationTitle = NotificationTitle,
+            NotificationContent = NotificationContent,
+            NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
+            NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
+            IsCompleted = false
+        };
+    }
 }
 
 
