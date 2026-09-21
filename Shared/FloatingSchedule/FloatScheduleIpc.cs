@@ -81,6 +81,13 @@ public static class FloatScheduleIpc
     public const int ExitCodeAnotherInstance = 42;   // 单实例保护命中
     public const int ExitCodeMissingRuntime = 43;    // 宿主目录缺少 Avalonia/Skia 运行库
     public const int ExitCodeBadArgs = 44;           // 参数缺失/非法
+    // 独立程序与宿主 Avalonia 代际不匹配（插件包选错）：
+    //   本 exe 是"双 TFM 各一个"产物，Avalonia 跨代二进制不兼容，必须与宿主精确配对。
+    //   单独开一个退出码，避免像以前那样与"缺少运行库"混在一起被误报。
+    public const int ExitCodeAvaloniaMismatch = 45;
+    // Avalonia 启动阶段抛异常（非"文件缺失"、也非"代际不匹配"）：单独退出码，
+    //   让宿主端能提示"启动失败 + 子进程原始错误"，而不是笼统地把用户引向"缺少运行库"。
+    public const int ExitCodeAvaloniaStartFailed = 46;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 

@@ -491,12 +491,14 @@ internal sealed class FloatScheduleChildWindow : Window
         _lastAppliedClickThrough = through;
         try
         {
+            // 统一由 ComputeDesiredExStyle 收敛全部扩展样式位（TRANSPARENT 必须与 LAYERED 同存）。
+            // 注意：不要在此调用 SetLayeredWindowAttributes——Win8.x 上会使悬浮窗完全不可见
+            //  （原因见 FloatScheduleNative.ApplyExStyles 注释，对齐主项目 ApplyClickThrough）。
             ApplyExStylesSafe();
-            if (through)
+            if (through && FloatScheduleNative.GetForegroundWindow() == hwnd)
             {
-                FloatScheduleNative.SetLayeredWindowAttributes(hwnd, 0, 255, FloatScheduleNative.LWA_ALPHA);
-                if (FloatScheduleNative.GetForegroundWindow() == hwnd)
-                    FloatScheduleNative.MoveFocusToWindowBehind(hwnd);
+                // 若本窗口当前是前台窗口，把焦点交给 z-order 下方第一个可见窗口（对齐 ClassIsland）
+                FloatScheduleNative.MoveFocusToWindowBehind(hwnd);
             }
         }
         catch { }

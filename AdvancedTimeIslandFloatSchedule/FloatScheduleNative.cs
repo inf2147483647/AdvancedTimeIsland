@@ -41,10 +41,6 @@ internal static class FloatScheduleNative
     public const int WS_EX_TRANSPARENT = 0x00000020;
     public const int WS_EX_NOACTIVATE = 0x08000000;
 
-    [DllImport("user32.dll", SetLastError = true)]
-    public static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
-    public const uint LWA_ALPHA = 0x00000002;
-
     [DllImport("user32.dll")]
     public static extern bool SetForegroundWindow(IntPtr hWnd);
     [DllImport("user32.dll")]
@@ -92,14 +88,16 @@ internal static class FloatScheduleNative
     }
 
     /// <summary>读取当前 exStyle 并收敛到期望（值相同不写，避免高频触发 DWM 重评估闪烁）。
-    /// LAYERED 从无到有时必须 SetLayeredWindowAttributes(alpha=255) 声明分层属性。</summary>
+    /// 【★ 不要调用 SetLayeredWindowAttributes】置上 WS_EX_LAYERED 后再声明分层属性（alpha=255, LWA_ALPHA）
+    /// 会让 DWM 改用"分层窗口"合成路径，而 Avalonia 在 Win8.x 上走 RedirectionSurface（透明靠
+    /// DwmEnableBlurBehindWindow），其呈现内容不进入该路径 → 悬浮窗完全不可见（Win10/11 走 DComp 视觉树，
+    /// 故此前未暴露）。实测仅需 LAYERED|TRANSPARENT 即可穿透，无需分层属性；主项目 ApplyExStylesAv 与
+    /// WPF 版同样从不调用该 API（对齐 2.0.5.1 #8 修复）。</summary>
     public static bool ApplyExStyles(IntPtr hwnd, int target)
     {
         int current = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
         if (target == current) return false;
-        bool layeredGained = (current & WS_EX_LAYERED) == 0 && (target & WS_EX_LAYERED) != 0;
         SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)target);
-        if (layeredGained) SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA);
         return true;
     }
 

@@ -23,6 +23,20 @@ internal static class Program
     public static volatile bool FollowHostLifetime = true;
     public static bool SingleInstance { get; private set; } = true;
 
+    /// <summary>
+    /// 本 exe 编译期对应的 Avalonia 大版本（与 csproj 的 AvaloniaVersion 一一对应）。
+    /// 本 exe 是"双 TFM 各出一个"的产物，Avalonia 跨代二进制不兼容，必须与宿主精确配对：
+    /// 把宿主安装目录里的 Avalonia 大版本与它比对，即可在**调用任何 Avalonia 类型之前**判定包是否选错。
+    /// </summary>
+#if NET10_0_OR_GREATER
+    public const int ExpectedAvaloniaMajor = 12;   // net10.0-windows → Avalonia 12.x（ClassIsland 2.1.x / FA3）
+#else
+    public const int ExpectedAvaloniaMajor = 11;   // net8.0-windows  → Avalonia 11.x（ClassIsland 2.0.x / FA2）
+#endif
+
+    /// <summary>宿主下传的"期望 Avalonia 大版本"（0 = 宿主未下传）。</summary>
+    public static int HostExpectedAvaloniaMajor { get; private set; }
+
     private static Mutex? _singleMutex;
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -52,6 +66,31 @@ internal static class Program
                 File.Exists(Path.Combine(HostDir, "libSkiaSharp.dll")) ||
                 File.Exists(Path.Combine(HostDir, "runtimes", "win-x64", "native", "libSkiaSharp.dll"));
             if (!nativeOk) return FloatScheduleIpc.ExitCodeMissingRuntime;
+
+            // ②b Avalonia 代际预检：宿主安装目录里的 Avalonia 大版本必须与本 exe 的编译目标一致。
+            //   本 exe 与宿主 Avalonia 是"同一代才能加载"的关系（跨代 TypeLoad/MissingMethod 级别不兼容），
+            //   而两个 TFM 的 exe 文件名完全相同 → 用户很容易把 net8 包装进 Avalonia 12 的宿主里。
+            //   此处在**未触碰任何 Avalonia 类型之前**用文件版本号判定，给出专属退出码与明确提示，
+            //   不再让这种"包选错"退化成泛化启动异常、被宿主端误报为"缺少 Avalonia/Skia 运行库"。
+            //
+            //   两道判据（任一命中即判定包选错）：
+            //     a) 宿主下传的期望代际 ≠ 本 exe 编译目标 → exe 与插件 DLL 不同源（混装了不同 TFM 的产物）；
+            //     b) 宿主目录 Avalonia 文件版本 ≠ 本 exe 编译目标 → 包装错代际。
+            bool exePackageMismatch = HostExpectedAvaloniaMajor > 0 && HostExpectedAvaloniaMajor != ExpectedAvaloniaMajor;
+            var hostAvaloniaMajor = ReadHostAvaloniaMajor();
+            bool hostEngineMismatch = hostAvaloniaMajor > 0 && hostAvaloniaMajor != ExpectedAvaloniaMajor;
+            if (exePackageMismatch || hostEngineMismatch)
+            {
+                try
+                {
+                    Console.Error.WriteLine(
+                        $"ATI.FloatSchedule avalonia generation mismatch: host={hostAvaloniaMajor}.x, " +
+                        $"pluginExpects={HostExpectedAvaloniaMajor}, thisExe={ExpectedAvaloniaMajor}.x " +
+                        "(wrong plugin package for this ClassIsland build)");
+                }
+                catch { }
+                return FloatScheduleIpc.ExitCodeAvaloniaMismatch;
+            }
 
             // ③ 程序集解析：仅 UI 栈前缀按"简单名"从宿主目录加载（忽略 Version 桥接补丁差，如 ref 11.3.10 vs 宿主 11.3.17）
             System.Runtime.Loader.AssemblyLoadContext.Default.Resolving += (ctx, name) =>
@@ -101,21 +140,59 @@ internal static class Program
         }
     }
 
+    /// <summary>
+    /// 读取宿主安装目录里 Avalonia.Base.dll 的大版本号（0 = 读不到，调用方应跳过校验）。
+    /// 用文件版本而不是"尝试加载程序集"：此处必须早于任何 Avalonia 类型使用（JIT 期就可能抛 TypeLoad）。
+    /// </summary>
+    private static int ReadHostAvaloniaMajor()
+    {
+        try
+        {
+            var path = Path.Combine(HostDir, "Avalonia.Base.dll");
+            if (!File.Exists(path)) return 0;
+            var v = System.Diagnostics.FileVersionInfo.GetVersionInfo(path).FileVersion;
+            if (string.IsNullOrEmpty(v)) return 0;
+            var dot = v.IndexOf('.');
+            return int.TryParse(dot > 0 ? v[..dot] : v, out var major) ? major : 0;
+        }
+        catch { return 0; }
+    }
+
     private static int RunAvalonia(string[] args)
     {
         try
         {
             // 【启动速度】子进程仅运行于 Windows：显式指定 Win32 + Skia 后端，
             //   跳过 UsePlatformDetect 的跨平台多后端探测（逐个尝试 X11/macOS 等），缩短冷启动。
-            return AppBuilder.Configure<FloatScheduleApp>()
+            var builder = AppBuilder.Configure<FloatScheduleApp>()
                 .UseWin32()
-                .UseSkia()
-                .StartWithClassicDesktopLifetime(args);
+                .UseSkia();
+#if NET10_0_OR_GREATER
+            // 【修复：FA3（Avalonia 12）上独立进程必然启动失败】Avalonia 12 把"文本整形"拆成独立包
+            //   Avalonia.HarfBuzz，必须显式注册；否则 AppBuilder.Setup() 直接抛
+            //   InvalidOperationException: "No text shaping system configured. Consider calling UseHarfBuzz()"
+            //   → 被下面 catch 归一成"缺少运行库"退出码，用户看到的是完全错误的提示。
+            //   Avalonia 11 没有这个 API（整形内建于 UseSkia），故只在 net10 分支调用。
+            builder = builder.UseHarfBuzz();
+#endif
+            return builder.StartWithClassicDesktopLifetime(args);
         }
         catch (Exception ex)
         {
             try { Console.Error.WriteLine("ATI.FloatSchedule avalonia start failed: " + ex); } catch { }
-            return FloatScheduleIpc.ExitCodeMissingRuntime;
+            // 【修复：包选错被误报为"缺少运行库"】预检（②b）已按文件版本拦下绝大多数代际不匹配；
+            //   这里再按"实际加载到的 Avalonia 大版本"兜一道 —— 若确实不匹配，返回专属退出码，
+            //   让宿主端给出"插件包选错、该装哪个包"的准确提示，而不是泛化的运行库缺失。
+            try
+            {
+                var loadedMajor = typeof(Avalonia.Application).Assembly.GetName().Version?.Major ?? 0;
+                if (loadedMajor > 0 && loadedMajor != ExpectedAvaloniaMajor)
+                    return FloatScheduleIpc.ExitCodeAvaloniaMismatch;
+            }
+            catch { }
+            // 运行库确实就位、代际也匹配，却仍在启动阶段抛异常 → 归为"启动失败"（专属退出码），
+            //   宿主端据此提示"启动失败"并附上子进程 stderr，不再误报"缺少 Avalonia/Skia 运行库"。
+            return FloatScheduleIpc.ExitCodeAvaloniaStartFailed;
         }
     }
 
@@ -131,6 +208,9 @@ internal static class Program
                 case "--parent-pid" when i + 1 < args.Length && int.TryParse(args[i + 1], out var pid): ParentPid = pid; i++; break;
                 case "--follow-lifetime" when i + 1 < args.Length: FollowHostLifetime = args[++i] == "1"; break;
                 case "--single-instance" when i + 1 < args.Length: SingleInstance = args[++i] == "1"; break;
+                // 宿主下传的"期望 Avalonia 大版本"（宿主插件的编译目标）。仅在自校验**读不到**宿主
+                // Avalonia 文件版本、或与自身编译目标冲突时用于加严判定，正常时以自身编译目标为准。
+                case "--avalonia-major" when i + 1 < args.Length && int.TryParse(args[i + 1], out var avm): HostExpectedAvaloniaMajor = avm; i++; break;
             }
         }
         return !string.IsNullOrEmpty(PipeName);

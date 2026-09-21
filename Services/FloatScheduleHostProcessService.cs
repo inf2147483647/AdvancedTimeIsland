@@ -26,6 +26,40 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 {
     public enum ChildStatus { Off, Starting, Connected, Frozen, Failed }
 
+    /// <summary>
+    /// 随本插件包分发的子进程 exe 所编译对应的 Avalonia 大版本（与 AdvancedTimeIsland.csproj /
+    /// 子进程 csproj 的 AvaloniaVersion 一一对应）。Avalonia 跨代二进制不兼容，独立进程必须与宿主精确配对：
+    /// 用它和宿主运行时实际加载的 Avalonia 大版本比对，即可提前判定"插件包装错了"。
+    /// </summary>
+#if NET10_0_OR_GREATER
+    private const int ExpectedChildAvaloniaMajor = 12;   // net10.0 包 → Avalonia 12.x（ClassIsland 2.1.x / FA3）
+#else
+    private const int ExpectedChildAvaloniaMajor = 11;   // net8.0 包  → Avalonia 11.x（ClassIsland 2.0.x / FA2）
+#endif
+
+    /// <summary>宿主进程当前实际加载的 Avalonia 大版本（0 = 取不到，调用方应跳过校验）。</summary>
+    private static int GetHostAvaloniaMajor()
+    {
+        try { return typeof(Avalonia.Application).Assembly.GetName().Version?.Major ?? 0; }
+        catch { return 0; }
+    }
+
+    // 子进程 stderr 环形缓存（诊断用，只保留前 2KB）：启动阶段失败时用于给出真实原因。
+    private readonly StringBuilder _childStderr = new();
+    private const int ChildStderrMaxChars = 2000;
+
+    /// <summary>取子进程 stderr 的简短摘要（供状态文本展示；过长则截断）。无内容返回 null。</summary>
+    private string? TakeChildStderrSummary()
+    {
+        string s;
+        lock (_childStderr) s = _childStderr.ToString().Trim();
+        if (s.Length == 0) return null;
+        // 压成单行并截断，避免设置页状态文本被多行堆栈撑开
+        s = s.Replace("\r", " ").Replace("\n", " ").Trim();
+        while (s.Contains("  ")) s = s.Replace("  ", " ");
+        return s.Length > 300 ? s[..300] + "…" : s;
+    }
+
     /// <summary>供设置页读取状态（DI 单例，构造时写入）。</summary>
     public static FloatScheduleHostProcessService? Instance { get; private set; }
 
@@ -186,11 +220,23 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 发送"悬浮时间表已更新"的 Windows 系统通知（走宿主平台通知服务，因此通知身份/图标 = ClassIsland）。
+    /// 发送"悬浮时间表已更新"的系统通知（走宿主平台通知服务，因此通知身份/图标 = ClassIsland）。
     /// 全程反射解析：宿主版本差异或服务缺失时静默跳过，绝不影响插件其余功能。
+    /// Windows 8.x 降级：宿主的 DesktopToastService 依赖 Win10 的 ToastNotificationManagerCompat，
+    /// 在 Win8.x 上无法弹出 toast，故改为经典托盘气泡（<see cref="WindowsBalloonNotifier"/>）。
     /// </summary>
     private void ShowChildExeUpdatedToast()
     {
+        const string title = "AdvancedTimeIsland 悬浮时间表已更新";
+        const string body = "可在插件-独立进程 里管理启用";
+
+        // Windows 8.x（6.x）无桌面 toast 能力 → 降级为气泡通知后直接返回
+        if (Environment.OSVersion.Version.Major < 10)
+        {
+            WindowsBalloonNotifier.Show(title, body);
+            return;
+        }
+
         try
         {
             // 宿主平台服务所在程序集：优先按"程序集限定名"解析（该程序集尚未被加载时会顺带加载），
@@ -210,12 +256,7 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             if (toast == null) return;
             var m = toast.GetType().GetMethod("ShowToastAsync",
                 new[] { typeof(string), typeof(string), typeof(Action) });
-            m?.Invoke(toast, new object?[]
-            {
-                "AdvancedTimeIsland 悬浮时间表已更新",
-                "可在插件-独立进程 里管理启用",
-                null
-            });
+            m?.Invoke(toast, new object?[] { title, body, null });
         }
         catch (Exception ex) { _logger.LogDebug(ex, "发送悬浮时间表更新通知异常（忽略）"); }
     }
@@ -411,6 +452,24 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 return;
             }
 
+            // 【修复：包选错被误报为"缺少 Avalonia/Skia 运行库"】启动前先判定宿主 Avalonia 代际是否与本插件
+            //   （= 与随包分发的子进程 exe）匹配：两个 TFM 的 exe 文件名完全相同，用户极易把 net8 包装进
+            //   Avalonia 12（ClassIsland 2.1.x / FA3）的宿主里；此时子进程加载宿主 Avalonia 必然启动失败，
+            //   而子进程历史实现只回一个泛化退出码 43 → 宿主端错误地显示"缺少运行库"，
+            //   把用户引向"重装 ClassIsland"这种无效方向。这里直接给出准确结论与安装建议，且不再白等 spawn 超时。
+            int hostAvMajor = GetHostAvaloniaMajor();
+            if (hostAvMajor > 0 && hostAvMajor != ExpectedChildAvaloniaMajor)
+            {
+                var reason = $"独立程序与当前 ClassIsland 的 Avalonia 版本不匹配（宿主 Avalonia {hostAvMajor}，"
+                             + $"独立程序为 Avalonia {ExpectedChildAvaloniaMajor} 构建）：插件包选错了，请安装 "
+                             + $"{(hostAvMajor >= 12 ? "AdvancedTimeIsland-net10.0" : "AdvancedTimeIsland-net8.0-compat")} "
+                             + "版本的插件包后重试";
+                _logger.LogWarning("FloatSchedule 子进程 Avalonia 代际不匹配：host={Host}, child={Child}",
+                    hostAvMajor, ExpectedChildAvaloniaMajor);
+                SetStatus(ChildStatus.Failed, reason);
+                return;
+            }
+
             var (connected, exitCode) = await SpawnAndAwaitConnectAsync(exePath).ConfigureAwait(false);
 
             // 单实例命中（42）：存在无法重连上的残留实例（孤儿）→ 按名清理后重试一次
@@ -428,6 +487,14 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 {
                     FloatScheduleIpc.ExitCodeMissingRuntime => "ClassIsland 安装目录缺少 Avalonia/Skia 运行库",
                     FloatScheduleIpc.ExitCodeAnotherInstance => "清理残留实例后仍无法建立连接",
+                    FloatScheduleIpc.ExitCodeAvaloniaMismatch =>
+                        $"独立程序与当前 ClassIsland 的 Avalonia 版本不匹配（宿主 Avalonia {GetHostAvaloniaMajor()}，"
+                        + $"独立程序为 Avalonia {ExpectedChildAvaloniaMajor} 构建）：插件包选错了，请安装 "
+                        + $"{(GetHostAvaloniaMajor() >= 12 ? "AdvancedTimeIsland-net10.0" : "AdvancedTimeIsland-net8.0-compat")} "
+                        + "版本的插件包后重试",
+                    FloatScheduleIpc.ExitCodeAvaloniaStartFailed =>
+                        "独立程序启动失败（Avalonia 初始化异常）"
+                        + (TakeChildStderrSummary() is { } err ? "：" + err : "，请看 ClassIsland 日志"),
                     null => "子进程启动后未连接（可能被安全软件拦截）",
                     _ => $"子进程退出，退出码 {exitCode}",
                 };
@@ -475,12 +542,31 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             UseShellExecute = false,
             CreateNoWindow = true,
             Arguments = BuildChildArguments(),
+            // 捕获子进程 stderr：启动阶段失败时把原始异常带给用户/日志，
+            //   不再只给一个退出码（历史上正是这种信息缺失导致"缺运行库"式误判）。
+            RedirectStandardError = true,
         };
+        lock (_childStderr) _childStderr.Clear();
         var p = Process.Start(psi);
         if (p == null) return (false, null);
         _childProcess = p;
         p.EnableRaisingEvents = true;
         p.Exited += ChildExited;
+
+        // 异步排空 stderr（必须：RedirectStandardError 下若不读，管道缓冲区满会阻塞子进程写入）
+        try
+        {
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrEmpty(e.Data)) return;
+                lock (_childStderr)
+                {
+                    if (_childStderr.Length < ChildStderrMaxChars) _childStderr.AppendLine(e.Data);
+                }
+            };
+            p.BeginErrorReadLine();
+        }
+        catch { }
 
         // 【防僵尸·内核级保障】跟随启停=开 → 绑定 Job Object：宿主进程无论正常退出、崩溃
         //   还是被任务管理器强杀，内核都会在宿主结束时终止该子进程，杜绝"僵尸悬浮窗"。
@@ -743,6 +829,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         sb.Append(" --parent-pid ").Append(Environment.ProcessId);
         sb.Append(_settings.FloatingScheduleFollowHostLifetime ? " --follow-lifetime 1" : " --follow-lifetime 0");
         sb.Append(_settings.FloatingScheduleSingleInstanceProtection ? " --single-instance 1" : " --single-instance 0");
+        // 下传"期望的 Avalonia 大版本"：子进程据此对自己的宿主导向做二次校验（双保险，见 Program.cs ②b）
+        sb.Append(" --avalonia-major ").Append(ExpectedChildAvaloniaMajor);
         return sb.ToString();
     }
 

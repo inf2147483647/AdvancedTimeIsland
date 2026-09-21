@@ -44,6 +44,15 @@
              FluentAvalonia，其依赖图中并不包含 Avalonia.Themes.Fluent，无法在运行时借用。 -->
     </ItemGroup>
 
+    <ItemGroup Condition="'$(TargetFramework)' == 'net10.0-windows'">
+        <!-- Avalonia 12 起"文本整形"被拆成独立包 Avalonia.HarfBuzz，AppBuilder 必须显式 UseHarfBuzz()，
+             否则 Startup 直接抛 InvalidOperationException："No text shaping system configured"。
+             Avalonia 11 无此包/此 API（整形内建于 UseSkia），故仅 net10 分支引用，避免 net8 侧解析失败。
+             与其它 Avalonia 包一致：仅编译期引用，运行时 DLL 从宿主目录借用（宿主 FA3 目录里自带
+             Avalonia.HarfBuzz.dll / HarfBuzzSharp.dll / libHarfBuzzSharp.dll），严禁进包。 -->
+        <PackageReference Include="Avalonia.HarfBuzz" Version="$(AvaloniaVersion)" ExcludeAssets="runtime;native" />
+    </ItemGroup>
+
     <ItemGroup>
         <!-- 与主项目共享的渲染模型/渲染器/IPC 协议/Win32 帮助类（同一份源码编入两侧，防渲染漂移） -->
         <Compile Include="..\Shared\FloatingSchedule\**\*.cs" LinkBase="Shared" />
