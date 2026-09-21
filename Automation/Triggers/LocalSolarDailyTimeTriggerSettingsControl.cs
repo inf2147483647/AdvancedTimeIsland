@@ -73,16 +73,26 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -267,6 +277,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

@@ -115,26 +115,37 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+        _isLoading = true;
+        try
         {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
+
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarDay = _lunarDayComboBox.SelectedIndex + 1;

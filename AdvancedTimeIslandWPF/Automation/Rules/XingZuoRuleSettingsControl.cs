@@ -39,14 +39,25 @@ public class XingZuoRuleSettingsControl : RuleSettingsControlBase<XingZuoRuleSet
         Content = panel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _xingZuoComboBox.SelectedItem = Settings.TargetXingZuo;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _xingZuoComboBox.SelectedItem = Settings.TargetXingZuo;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetXingZuo = _xingZuoComboBox.SelectedItem as string ?? string.Empty;
     }

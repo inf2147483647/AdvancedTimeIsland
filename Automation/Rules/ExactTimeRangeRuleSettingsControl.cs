@@ -110,29 +110,40 @@ public class ExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<ExactTi
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var startInitialValue = Settings.StartTime;
-        ParseDateTimeString(startInitialValue, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
-        if (startYear > 0 && startMonth > 0 && startDay > 0)
+        _isLoading = true;
+        try
         {
-            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(startYear, startMonth, startDay));
-        }
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            if (Settings == null) return;
 
-        var endInitialValue = Settings.EndTime;
-        ParseDateTimeString(endInitialValue, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
-        if (endYear > 0 && endMonth > 0 && endDay > 0)
-        {
-            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(endYear, endMonth, endDay));
+            var startInitialValue = Settings.StartTime;
+            ParseDateTimeString(startInitialValue, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startYear > 0 && startMonth > 0 && startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(startYear, startMonth, startDay));
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            var endInitialValue = Settings.EndTime;
+            ParseDateTimeString(endInitialValue, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endYear > 0 && endMonth > 0 && endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(endYear, endMonth, endDay));
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
         }
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startDate = _startDatePicker.SelectedDate?.DateTime ?? DateTime.Today;

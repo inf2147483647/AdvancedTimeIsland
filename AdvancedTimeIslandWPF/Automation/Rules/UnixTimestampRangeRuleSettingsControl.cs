@@ -15,10 +15,32 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
 {
     private TextBox _startTimestampTextBox = null!;
     private TextBox _endTimestampTextBox = null!;
+    private bool _isLoading;
 
     public UnixTimestampRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            _startTimestampTextBox.Text = Settings.StartTimestamp.ToString();
+            _endTimestampTextBox.Text = Settings.EndTimestamp.ToString();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -99,6 +121,7 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         if (double.TryParse(_startTimestampTextBox.Text, out double startTimestamp))

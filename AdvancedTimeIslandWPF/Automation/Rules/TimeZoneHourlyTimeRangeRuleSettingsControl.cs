@@ -16,10 +16,51 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public TimeZoneHourlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (_hasLoaded) return;
+if (Settings == null) return;
+
+        _hasLoaded = true;
+_isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseTimeString(Settings.StartTime, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
+
+            ParseTimeString(Settings.EndTime, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     protected override void OnInitialized(EventArgs e)
@@ -201,6 +242,7 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

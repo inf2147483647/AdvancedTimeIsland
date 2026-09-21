@@ -41,14 +41,25 @@ public class JieQiRuleSettingsControl : RuleSettingsControlBase<JieQiRuleSetting
         Content = panel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _jieQiComboBox.SelectedItem = Settings.TargetJieQi;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _jieQiComboBox.SelectedItem = Settings.TargetJieQi;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetJieQi = _jieQiComboBox.SelectedItem as string ?? string.Empty;
     }

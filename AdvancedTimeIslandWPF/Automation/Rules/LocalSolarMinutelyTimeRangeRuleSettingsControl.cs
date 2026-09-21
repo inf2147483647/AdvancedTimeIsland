@@ -69,31 +69,41 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var startInitialValue = Settings.StartSecond;
-        if (int.TryParse(startInitialValue, out int startSecond))
-        {
-            _startSecondBox.Text = startSecond.ToString("D2");
-        }
-        else
-        {
-            _startSecondBox.Text = "00";
-        }
+            var startInitialValue = Settings.StartSecond;
+            if (int.TryParse(startInitialValue, out int startSecond))
+            {
+                _startSecondBox.Text = startSecond.ToString("D2");
+            }
+            else
+            {
+                _startSecondBox.Text = "00";
+            }
 
-        var endInitialValue = Settings.EndSecond;
-        if (int.TryParse(endInitialValue, out int endSecond))
-        {
-            _endSecondBox.Text = endSecond.ToString("D2");
+            var endInitialValue = Settings.EndSecond;
+            if (int.TryParse(endInitialValue, out int endSecond))
+            {
+                _endSecondBox.Text = endSecond.ToString("D2");
+            }
+            else
+            {
+                _endSecondBox.Text = "00";
+            }
         }
-        else
+        finally
         {
-            _endSecondBox.Text = "00";
+            _isLoading = false;
         }
     }
 
@@ -302,6 +312,7 @@ public class LocalSolarMinutelyTimeRangeRuleSettingsControl : RuleSettingsContro
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

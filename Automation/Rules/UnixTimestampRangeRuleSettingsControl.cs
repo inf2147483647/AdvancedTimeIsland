@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -17,10 +18,34 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
 {
     private TextBox _startTimestampTextBox = null!;
     private TextBox _endTimestampTextBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public UnixTimestampRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            _startTimestampTextBox.Text = Settings.StartTimestamp.ToString();
+            _endTimestampTextBox.Text = Settings.EndTimestamp.ToString();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -104,6 +129,9 @@ public class UnixTimestampRangeRuleSettingsControl : RuleSettingsControlBase<Uni
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
+        // 首次加载完成前不接受 UI 回写（Avalonia TextChanged 延迟投递，详见 HourlyTimeRangeRuleSettingsControl）。
+        if (!_hasLoaded) return;
         if (Settings == null) return;
 
         if (double.TryParse(_startTimestampTextBox.Text, out double startTimestamp))

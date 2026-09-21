@@ -71,38 +71,48 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+        _isLoading = true;
+        try
         {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
-        {
-            _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
-        }
-        else
-        {
-            _endDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+            if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
+            {
+                _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
+            }
+            else
+            {
+                _endDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -338,6 +348,7 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

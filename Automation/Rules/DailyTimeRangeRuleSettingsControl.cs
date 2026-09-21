@@ -95,21 +95,32 @@ public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTi
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

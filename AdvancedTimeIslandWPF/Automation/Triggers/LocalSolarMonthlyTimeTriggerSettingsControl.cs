@@ -72,21 +72,31 @@ public class LocalSolarMonthlyTimeTriggerSettingsControl : TriggerSettingsContro
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
-
-        if (day > 0)
+        _isLoading = true;
+        try
         {
-            _startDatePicker.SelectedDate = new DateTime(2024, 1, day);
+            if (Settings == null) return;
+
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
+
+            if (day > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(2024, 1, day);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -270,6 +280,7 @@ public class LocalSolarMonthlyTimeTriggerSettingsControl : TriggerSettingsContro
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startDate = _startDatePicker.SelectedDate ?? new DateTime(2024, 1, 1);

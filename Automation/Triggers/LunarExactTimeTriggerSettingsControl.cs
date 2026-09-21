@@ -240,68 +240,79 @@ public class LunarExactTimeTriggerSettingsControl : TriggerSettingsControlBase<L
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings != null && Settings.LunarYear > 0)
+        _isLoading = true;
+        try
         {
-            var tg = LunarCalendarHelper.GetTiangan(Settings.LunarYear);
-            var dz = LunarCalendarHelper.GetDizhi(Settings.LunarYear);
-            _tianganComboBox.SelectedItem = tg;
-            _dizhiComboBox.SelectedItem = dz;
-
-            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            if (Settings != null && Settings.LunarYear > 0)
             {
-                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                var tg = LunarCalendarHelper.GetTiangan(Settings.LunarYear);
+                var dz = LunarCalendarHelper.GetDizhi(Settings.LunarYear);
+                _tianganComboBox.SelectedItem = tg;
+                _dizhiComboBox.SelectedItem = dz;
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
                 {
-                    if (Settings.LunarYear >= startYear && Settings.LunarYear <= endYear)
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
                     {
-                        _yearRangeComboBox.SelectedItem = range;
-                        break;
+                        if (Settings.LunarYear >= startYear && Settings.LunarYear <= endYear)
+                        {
+                            _yearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
                     }
                 }
             }
-        }
-        else
-        {
-            _yearRangeComboBox.SelectedIndex = 2;
-            _tianganComboBox.SelectedIndex = 0;
-            _dizhiComboBox.SelectedIndex = 0;
-        }
+            else
+            {
+                _yearRangeComboBox.SelectedIndex = 2;
+                _tianganComboBox.SelectedIndex = 0;
+                _dizhiComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings != null && Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
-        {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
-        }
-        else
-        {
-            _lunarMonthComboBox.SelectedIndex = 0;
-        }
+            if (Settings != null && Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings != null)
-        {
-            _leapMonthCheckBox.IsChecked = Settings.IsLeapMonth;
-        }
-        else
-        {
-            _leapMonthCheckBox.IsChecked = false;
-        }
+            if (Settings != null)
+            {
+                _leapMonthCheckBox.IsChecked = Settings.IsLeapMonth;
+            }
+            else
+            {
+                _leapMonthCheckBox.IsChecked = false;
+            }
 
-        if (Settings != null && Settings.LunarDay > 0 && Settings.LunarDay <= 30)
-        {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings != null && Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
 
-        var initialValue = Settings?.TargetTime ?? "";
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings?.TargetTime ?? "";
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var yearRange = _yearRangeComboBox.SelectedItem as string;

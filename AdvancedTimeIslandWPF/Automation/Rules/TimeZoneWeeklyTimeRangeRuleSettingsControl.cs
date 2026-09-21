@@ -13,10 +13,62 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
     private ComboBox _endDayOfWeekComboBox = null!;
     private WpfTimePicker _startTimePicker = null!;
     private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneWeeklyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
+            {
+                _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
+            }
+            else
+            {
+                _endDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     protected override void OnInitialized(EventArgs e)
@@ -216,6 +268,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

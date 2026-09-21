@@ -84,14 +84,25 @@ public class FestivalRuleSettingsControl : RuleSettingsControlBase<FestivalRuleS
         return festivals;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _festivalComboBox.SelectedItem = Settings.TargetFestival;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _festivalComboBox.SelectedItem = Settings.TargetFestival;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetFestival = _festivalComboBox.SelectedItem as string ?? string.Empty;
     }

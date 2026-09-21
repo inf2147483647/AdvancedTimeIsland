@@ -109,12 +109,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     /// <summary>置底竞争的统计窗口。</summary>
     private static readonly TimeSpan BottomContentionWindowAv = TimeSpan.FromSeconds(10);
 
-    // ========== 点击穿透（对齐 ClassIsland WindowPlatformService.SetWindowFeature）==========
-    //  加上 WS_EX_LAYERED 后必须声明分层属性，否则部分系统上 DComp（WS_EX_NOREDIRECTIONBITMAP）
-    //  窗口的命中测试/呈现行为异常：alpha=255 + LWA_ALPHA 表示完全不透明，内容正常显示而点击可穿透。
-    [DllImport("user32.dll", SetLastError = true)]
-    private static extern bool SetLayeredWindowAttributes(IntPtr hwnd, uint crKey, byte bAlpha, uint dwFlags);
-    private const uint LWA_ALPHA_AV = 0x00000002;
+    // ========== 点击穿透（WS_EX_LAYERED | WS_EX_TRANSPARENT）==========
+    //  【★ 不要调用 SetLayeredWindowAttributes】2.0.4.3 曾按 ClassIsland 的做法在置上分层位后声明
+    //  分层属性（alpha=255, LWA_ALPHA），结果导致 Windows 8.1 上悬浮窗完全不显示（DWM 改用"分层窗口"
+    //  合成路径，而 Win8.1 上 Avalonia 的呈现（非 WinUIComposition）不向该路径提供内容 → 窗口空白不可见；
+    //  Win10/11 走 DComp 视觉树仍能显示，故此前未暴露）。
+    //  实测（2026-09，Avalonia 12.1.1 DComp 窗口，跨进程真实点击）证明：仅 LAYERED|TRANSPARENT 即可穿透，
+    //  无需分层属性；WPF 版（Win8.1 正常）也从不调用该 API。故这里只写样式位、不声明分层属性。
     // GW_HWNDNEXT=2：z-order 中本窗口下方的下一个窗口（用于把焦点让给下层窗口）
     private const uint GW_HWNDNEXT_AV = 2;
     [DllImport("user32.dll")]
@@ -2314,8 +2315,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  方案（对齐 ClassIsland 2.0 WindowPlatformService.SetWindowFeature + MainWindow.OnActivated，
     //  并保留经实测验证的 WindowStylesCallback 注入）：
     //   - ComputeDesiredExStyleAv 是全部扩展样式位的唯一期望状态源；不设 WS_EX_COMPOSITED；
-    //   - 穿透三件套 LAYERED|TRANSPARENT|NOACTIVATE 同时置位，并调用 SetLayeredWindowAttributes
-    //     (alpha=255, LWA_ALPHA) 声明分层属性（官方实现的关键步骤）；
+    //   - 穿透置位 LAYERED|TRANSPARENT（并加 NOACTIVATE）；不调用 SetLayeredWindowAttributes
+    //     （Win8.1 上会使窗口不可见，且实测穿透不需要，见常量区注释）；
     //   - OnAvaloniaWindowStylesAv 挂到 Avalonia 官方 WindowStylesCallback：Avalonia 每次重写样式前
     //     都会调用该回调注入期望位并被写回保存，样式位因此不再丢失（实测：挂 hook 后属性更新与
     //     Hide→Show 均保持穿透成功；未挂则 exStyle 由 0x82801A8 被抹成 0x200108，穿透失效）；
@@ -2358,13 +2359,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (hwnd == IntPtr.Zero) return;
             int current = (int)(long)GetWindowLong(hwnd, GWL_EXSTYLE);
             int target = ComputeDesiredExStyleAv(current);
+            // 注意：不要在此声明 WS_EX_LAYERED 的分层属性（SetLayeredWindowAttributes）——
+            //  会使 Win8.1 悬浮窗不可见，且实测穿透并不需要，详见常量区注释。
             if (target != current)
             {
-                // LAYERED 从无到有时必须声明分层属性（alpha=255 不透明），与 ClassIsland 实现一致
-                bool layeredGained = (current & WS_EX_LAYERED_AV) == 0 && (target & WS_EX_LAYERED_AV) != 0;
                 SetWindowLong(hwnd, GWL_EXSTYLE, (IntPtr)target);
-                if (layeredGained)
-                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA_AV);
+                // 仅在实际变化时打印（稳态不打印）：便于排查 Win8.1 等环境下的窗口显示/穿透问题
+                _logger.LogDebug("悬浮窗扩展样式更新：0x{Old:x} -> 0x{New:x}", current, target);
             }
         }
         catch (Exception ex) { _logger.LogDebug(ex, "ApplyExStylesAv 失败（忽略）"); }
@@ -2472,11 +2473,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
         catch { /* ignore */ }
     }
 
-    // ==================================== 点击穿透（对齐 ClassIsland WindowFeatures.Transparent）====================================
-    //   - Windows：LAYERED|TRANSPARENT|NOACTIVATE 三件套 + SetLayeredWindowAttributes(255, LWA_ALPHA)，
-    //     前台时把焦点转移给下层窗口；样式被 Avalonia 抹掉时由 Activated 事件自愈重新应用
+    // ==================================== 点击穿透（Win32 WS_EX_LAYERED | WS_EX_TRANSPARENT）====================================
+    //   - Windows：置 LAYERED|TRANSPARENT（穿透开启时再加 NOACTIVATE），前台时把焦点转移给下层窗口；
+    //     样式被 Avalonia 抹掉时由 WindowStylesCallback 注入 + Activated 事件自愈重新应用
     //   - 非 Windows（Linux/macOS X11/Wayland）：Avalonia 跨平台兜底——把根容器 IsHitTestVisible=false
     //   - 关闭时统一经 ComputeDesiredExStyleAv 清位，防止 AltTab 隐藏/拖拽链路残留样式
+    //   - 不调用 SetLayeredWindowAttributes（Win8.1 上会导致窗口不可见，且穿透并不需要，见常量区注释）
     private bool _lastAppliedClickThrough = false;
     private void ApplyClickThrough(bool force = false)
     {
@@ -2496,12 +2498,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 ApplyExStylesAv();
                 if (through)
                 {
-                    // ClassIsland SetWindowFeature(Transparent, true) 的两个关键收尾步骤：
-                    //  1) 声明分层属性 alpha=255（完全不透明），DComp 内容正常呈现且命中测试可穿透；
-                    //  2) 若本窗口当前是前台窗口，把焦点交给 z-order 下方第一个可见窗口。
-                    SetLayeredWindowAttributes(hwnd, 0, 255, LWA_ALPHA_AV);
                     // 便于现场排查：记录实际落地的扩展样式（应含 WS_EX_LAYERED|WS_EX_TRANSPARENT）
                     _logger.LogDebug("悬浮窗点击穿透已应用，exStyle=0x{Ex:x}", (long)GetWindowLong(hwnd, GWL_EXSTYLE));
+                    // 若本窗口当前是前台窗口，把焦点交给 z-order 下方第一个可见窗口（对齐 ClassIsland）
                     if (GetForegroundWindow() == hwnd)
                         MoveFocusToWindowBehindAv(hwnd);
                 }

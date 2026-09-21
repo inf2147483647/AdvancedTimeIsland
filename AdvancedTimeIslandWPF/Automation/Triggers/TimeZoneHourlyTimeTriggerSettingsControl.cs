@@ -15,11 +15,13 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
     private WpfNumericUpDown _startMinuteNumeric = null!;
     private WpfNumericUpDown _startSecondNumeric = null!;
     private bool _isLoading;
+    private bool _hasLoaded;
 
     public TimeZoneHourlyTimeTriggerSettingsControl()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)

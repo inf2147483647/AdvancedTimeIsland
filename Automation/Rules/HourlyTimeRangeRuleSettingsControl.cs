@@ -3,6 +3,7 @@ using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -15,10 +16,41 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public HourlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LoadSettingsToUi());
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (_hasLoaded) return;
+        if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            ParseTimeString(Settings.StartTime, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
+
+            ParseTimeString(Settings.EndTime, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -142,6 +174,11 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
+        // 首次加载完成前不接受 UI 回写：Avalonia 的 TextChanged 为延迟投递，
+        // 构造函数中给 TextBox 赋初值会在消息循环恢复后（设置注入之后、Loaded 之前）
+        // 触发本方法，若无此守卫会用构造期默认值覆盖刚注入的已保存设置。
+        if (!_hasLoaded) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

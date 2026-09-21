@@ -104,6 +104,11 @@
       <Page Remove="AdvancedTimeIslandWPF\**\*" />
       <Resource Remove="AdvancedTimeIslandWPF\**\*" />
       <EmbeddedResource Remove="AdvancedTimeIslandWPF\**\*" />
+      <!-- 排除配置持久化反射测试工具代码，避免被本项目默认递归编译 -->
+      <Compile Remove="Tools\**\*.cs" />
+      <None Remove="Tools\**\*" />
+      <Content Remove="Tools\**\*" />
+      <EmbeddedResource Remove="Tools\**\*" />
       <!-- 排除悬浮窗独立进程子项目代码，避免被本项目默认递归编译 -->
       <Compile Remove="AdvancedTimeIslandFloatSchedule\**\*.cs" />
       <None Remove="AdvancedTimeIslandFloatSchedule\**\*" />

@@ -129,27 +129,37 @@ public class TimeZoneExactTimeTriggerSettingsControl : TriggerSettingsControlBas
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            if (Settings == null) return;
+
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
+
+            var initialValue = Settings.StartTime;
+            ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (year > 0 && month > 0 && day > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(year, month, day);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-
-        var initialValue = Settings.StartTime;
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
+        finally
         {
-            _startDatePicker.SelectedDate = new DateTime(year, month, day);
+            _isLoading = false;
         }
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateTimeZone()
@@ -163,6 +173,7 @@ public class TimeZoneExactTimeTriggerSettingsControl : TriggerSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startDate = _startDatePicker.SelectedDate ?? DateTime.Today;

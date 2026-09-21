@@ -136,28 +136,39 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+        _isLoading = true;
+        try
         {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            if (Settings == null) return;
+
+            if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
+
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        else
+        finally
         {
-            _lunarMonthComboBox.SelectedIndex = 0;
+            _isLoading = false;
         }
-
-        _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
-
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarMonth = _lunarMonthComboBox.SelectedIndex + 1;

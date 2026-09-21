@@ -1,4 +1,4 @@
-﻿# Sync-OfflinePackages.ps1
+﻿﻿# Sync-OfflinePackages.ps1
 # Synchronize the plugin's NuGet offline source (repo-root 'packages\') so the
 # project can be built & packaged with no internet connection.
 #

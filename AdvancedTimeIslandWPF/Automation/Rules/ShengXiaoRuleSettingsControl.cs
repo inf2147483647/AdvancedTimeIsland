@@ -39,14 +39,25 @@ public class ShengXiaoRuleSettingsControl : RuleSettingsControlBase<ShengXiaoRul
         Content = panel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _shengXiaoComboBox.SelectedItem = Settings.TargetShengXiao;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _shengXiaoComboBox.SelectedItem = Settings.TargetShengXiao;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetShengXiao = _shengXiaoComboBox.SelectedItem as string ?? string.Empty;
     }

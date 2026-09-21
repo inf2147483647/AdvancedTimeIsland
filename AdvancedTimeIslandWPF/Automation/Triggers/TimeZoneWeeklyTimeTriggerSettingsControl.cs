@@ -174,31 +174,41 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+            if (Settings == null) return;
+
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
-        }
 
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
-        {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateTimeZone()
@@ -212,6 +222,7 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

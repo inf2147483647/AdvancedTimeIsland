@@ -71,21 +71,31 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        var initialValue = Settings.StartSecond;
-        if (int.TryParse(initialValue, out int second))
+        _isLoading = true;
+        try
         {
-            _startSecondBox.Text = second.ToString("D2");
+            if (Settings == null) return;
+
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            var initialValue = Settings.StartSecond;
+            if (int.TryParse(initialValue, out int second))
+            {
+                _startSecondBox.Text = second.ToString("D2");
+            }
+            else
+            {
+                _startSecondBox.Text = "00";
+            }
         }
-        else
+        finally
         {
-            _startSecondBox.Text = "00";
+            _isLoading = false;
         }
     }
 
@@ -289,6 +299,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

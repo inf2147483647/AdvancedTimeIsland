@@ -93,18 +93,28 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartSecond;
-        if (int.TryParse(initialValue, out int second))
-        {
-            _startSecondBox.Text = second.ToString("D2");
+            var initialValue = Settings.StartSecond;
+            if (int.TryParse(initialValue, out int second))
+            {
+                _startSecondBox.Text = second.ToString("D2");
+            }
+            else
+            {
+                _startSecondBox.Text = "00";
+            }
         }
-        else
+        finally
         {
-            _startSecondBox.Text = "00";
+            _isLoading = false;
         }
     }
 
@@ -131,6 +141,7 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

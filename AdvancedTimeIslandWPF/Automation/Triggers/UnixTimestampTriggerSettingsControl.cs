@@ -72,15 +72,26 @@ public class UnixTimestampTriggerSettingsControl : TriggerSettingsControlBase<Un
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        _timestampTextBox.Text = Settings.TargetTimestamp.ToString();
+            _timestampTextBox.Text = Settings.TargetTimestamp.ToString();
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         if (long.TryParse(_timestampTextBox.Text, out long timestamp))

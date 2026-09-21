@@ -129,35 +129,46 @@ public class LunarYearlyRuleSettingsControl : RuleSettingsControlBase<LunarYearl
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
-        {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
-        }
-        else
-        {
-            _lunarMonthComboBox.SelectedIndex = 0;
-        }
+            if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
-        {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
 
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarMonth = _lunarMonthComboBox.SelectedIndex + 1;

@@ -16,10 +16,52 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
     private WpfTimePicker _startTimePicker = null!;
     private DatePicker _endDatePicker = null!;
     private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneMonthlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseTimeString(Settings.StartTime, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(2024, 1, startDay);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseTimeString(Settings.EndTime, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTime(2024, 1, endDay);
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     protected override void OnInitialized(EventArgs e)
@@ -171,6 +213,7 @@ public class TimeZoneMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 开始时间

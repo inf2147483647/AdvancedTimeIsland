@@ -20,6 +20,7 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LoadSettingsToUi());
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -112,15 +113,28 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
         return groupPanel;
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int minute, out int second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int minute, out int second);
 
-        _startMinuteBox.Text = minute.ToString("D2");
-        _startSecondBox.Text = second.ToString("D2");
+            _startMinuteBox.Text = minute.ToString("D2");
+            _startSecondBox.Text = second.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void ValidateAndFormatTextBox(TextBox textBox)
@@ -146,6 +160,7 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

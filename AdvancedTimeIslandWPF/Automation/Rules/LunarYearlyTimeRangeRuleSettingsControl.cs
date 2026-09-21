@@ -23,10 +23,75 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
     private ComboBox _endDayComboBox = null!;
     private CheckBox _endIsLeapMonthCheckBox = null!;
     private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public LunarYearlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings.StartMonth > 0 && Settings.StartMonth <= 12)
+            {
+                _startMonthComboBox.SelectedIndex = Settings.StartMonth - 1;
+            }
+            else
+            {
+                _startMonthComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.StartDay > 0 && Settings.StartDay <= 30)
+            {
+                _startDayComboBox.SelectedIndex = Settings.StartDay - 1;
+            }
+            else
+            {
+                _startDayComboBox.SelectedIndex = 0;
+            }
+
+            _startIsLeapMonthCheckBox.IsChecked = Settings.StartIsLeapMonth;
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            if (Settings.EndMonth > 0 && Settings.EndMonth <= 12)
+            {
+                _endMonthComboBox.SelectedIndex = Settings.EndMonth - 1;
+            }
+            else
+            {
+                _endMonthComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndDay > 0 && Settings.EndDay <= 30)
+            {
+                _endDayComboBox.SelectedIndex = Settings.EndDay - 1;
+            }
+            else
+            {
+                _endDayComboBox.SelectedIndex = 0;
+            }
+
+            _endIsLeapMonthCheckBox.IsChecked = Settings.EndIsLeapMonth;
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -214,6 +279,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartMonth = _startMonthComboBox.SelectedIndex + 1;

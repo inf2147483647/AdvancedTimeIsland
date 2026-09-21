@@ -39,6 +39,7 @@ public class LocalSolarHourlyTimeTriggerSettingsControl : TriggerSettingsControl
         }
         InitializeComponent();
         Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -72,17 +73,31 @@ public class LocalSolarHourlyTimeTriggerSettingsControl : TriggerSettingsControl
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int minute, out int second);
-        _startMinuteBox.Text = minute.ToString("D2");
-        _startSecondBox.Text = second.ToString("D2");
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int minute, out int second);
+            _startMinuteBox.Text = minute.ToString("D2");
+            _startSecondBox.Text = second.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -305,6 +320,7 @@ public class LocalSolarHourlyTimeTriggerSettingsControl : TriggerSettingsControl
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

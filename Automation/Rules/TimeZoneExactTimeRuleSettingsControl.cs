@@ -2,6 +2,7 @@ using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -19,10 +20,52 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
     private TimePicker _startTimePicker = null!;
     private DatePicker _endDatePicker = null!;
     private TimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneExactTimeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseDateTimeString(Settings.StartTime, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startYear > 0 && startMonth > 0 && startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(startYear, startMonth, startDay));
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseDateTimeString(Settings.EndTime, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endYear > 0 && endMonth > 0 && endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(endYear, endMonth, endDay));
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     protected override void OnInitialized()
@@ -178,6 +221,7 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 开始时间

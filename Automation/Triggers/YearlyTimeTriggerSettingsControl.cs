@@ -95,22 +95,33 @@ public class YearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Yearl
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (month > 0 && day > 0)
+        _isLoading = true;
+        try
         {
-            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            if (Settings == null) return;
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (month > 0 && day > 0)
+            {
+                _datePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            }
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var date = _datePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);

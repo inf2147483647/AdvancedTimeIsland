@@ -3,6 +3,7 @@ using AdvancedTimeIsland.Helpers;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -20,10 +21,53 @@ public class LunarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<
 
     private ComboBox _endDayComboBox = null!;
     private TimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public LunarMonthlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings.StartDay > 0 && Settings.StartDay <= 30)
+            {
+                _startDayComboBox.SelectedIndex = Settings.StartDay - 1;
+            }
+            else
+            {
+                _startDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            if (Settings.EndDay > 0 && Settings.EndDay <= 30)
+            {
+                _endDayComboBox.SelectedIndex = Settings.EndDay - 1;
+            }
+            else
+            {
+                _endDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -163,6 +207,7 @@ public class LunarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDay = _startDayComboBox.SelectedIndex + 1;

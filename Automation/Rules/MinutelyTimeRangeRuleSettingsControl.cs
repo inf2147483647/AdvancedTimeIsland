@@ -3,6 +3,7 @@ using AdvancedTimeIsland.Helpers;using System;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
@@ -13,10 +14,39 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
 {
     private TextBox _startSecondBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
 
     public MinutelyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (int.TryParse(Settings.StartSecond, out int startSecond))
+            {
+                _startSecondBox.Text = startSecond.ToString("D2");
+            }
+
+            if (int.TryParse(Settings.EndSecond, out int endSecond))
+            {
+                _endSecondBox.Text = endSecond.ToString("D2");
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -120,6 +150,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

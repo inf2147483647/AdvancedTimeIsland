@@ -708,6 +708,10 @@ public class FpsChartControl : Control, IDisposable
         int startLabelIndex = visibleStartIndex - (visibleStartIndex % labelInterval);
         if (startLabelIndex < 0) startLabelIndex = 0;
         int requiredCount = (visibleEndIndex - startLabelIndex) / labelInterval + 1;
+        // 缩小/重置缩放时，ScrollViewer 的偏移量要到本方法返回后才会被修正，
+        // 此时 visibleStartIndex 可能已超过记录末尾，导致 requiredCount 为负数，
+        // 进而使下面的回收循环在空列表上取 _timeLabels[^1] 抛出 ArgumentOutOfRangeException。
+        if (requiredCount < 0) requiredCount = 0;
 
         while (_timeLabels.Count < requiredCount)
         {

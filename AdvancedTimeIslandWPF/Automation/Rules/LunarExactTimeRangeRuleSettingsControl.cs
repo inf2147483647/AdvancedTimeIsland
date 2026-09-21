@@ -30,10 +30,123 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
     private CheckBox _endLeapMonthCheckBox = null!;
     private ComboBox _endLunarDayComboBox = null!;
     private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public LunarExactTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings.StartLunarYear > 0)
+            {
+                _startTianganComboBox.SelectedItem = LunarCalendarHelper.GetTiangan(Settings.StartLunarYear);
+                _startDizhiComboBox.SelectedItem = LunarCalendarHelper.GetDizhi(Settings.StartLunarYear);
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                {
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    {
+                        if (Settings.StartLunarYear >= startYear && Settings.StartLunarYear <= endYear)
+                        {
+                            _startYearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                _startYearRangeComboBox.SelectedIndex = 2;
+                _startTianganComboBox.SelectedIndex = 0;
+                _startDizhiComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.StartLunarMonth > 0 && Settings.StartLunarMonth <= 12)
+            {
+                _startLunarMonthComboBox.SelectedIndex = Settings.StartLunarMonth - 1;
+            }
+            else
+            {
+                _startLunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _startLeapMonthCheckBox.IsChecked = Settings.StartIsLeapMonth;
+
+            if (Settings.StartLunarDay > 0 && Settings.StartLunarDay <= 30)
+            {
+                _startLunarDayComboBox.SelectedIndex = Settings.StartLunarDay - 1;
+            }
+            else
+            {
+                _startLunarDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.StartTargetTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            if (Settings.EndLunarYear > 0)
+            {
+                _endTianganComboBox.SelectedItem = LunarCalendarHelper.GetTiangan(Settings.EndLunarYear);
+                _endDizhiComboBox.SelectedItem = LunarCalendarHelper.GetDizhi(Settings.EndLunarYear);
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                {
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    {
+                        if (Settings.EndLunarYear >= startYear && Settings.EndLunarYear <= endYear)
+                        {
+                            _endYearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                _endYearRangeComboBox.SelectedIndex = 2;
+                _endTianganComboBox.SelectedIndex = 0;
+                _endDizhiComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndLunarMonth > 0 && Settings.EndLunarMonth <= 12)
+            {
+                _endLunarMonthComboBox.SelectedIndex = Settings.EndLunarMonth - 1;
+            }
+            else
+            {
+                _endLunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _endLeapMonthCheckBox.IsChecked = Settings.EndIsLeapMonth;
+
+            if (Settings.EndLunarDay > 0 && Settings.EndLunarDay <= 30)
+            {
+                _endLunarDayComboBox.SelectedIndex = Settings.EndLunarDay - 1;
+            }
+            else
+            {
+                _endLunarDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.EndTargetTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -570,6 +683,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 更新开始时间

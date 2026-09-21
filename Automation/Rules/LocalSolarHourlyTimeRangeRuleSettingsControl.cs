@@ -42,6 +42,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         }
         InitializeComponent();
         Loaded += OnLoaded;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LoadSettingsToUi());
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -75,22 +76,34 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startMinute, out int startSecond);
-        _startMinuteBox.Text = startMinute.ToString("D2");
-        _startSecondBox.Text = startSecond.ToString("D2");
-
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endMinute, out int endSecond);
-        _endMinuteBox.Text = endMinute.ToString("D2");
-        _endSecondBox.Text = endSecond.ToString("D2");
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -325,6 +338,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

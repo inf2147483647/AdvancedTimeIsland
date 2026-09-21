@@ -72,21 +72,31 @@ public class LocalSolarExactTimeTriggerSettingsControl : TriggerSettingsControlB
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        var initialValue = Settings.StartTime;
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
+        _isLoading = true;
+        try
         {
-            _startDatePicker.SelectedDate = new DateTime(year, month, day);
+            if (Settings == null) return;
+
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            var initialValue = Settings.StartTime;
+            ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (year > 0 && month > 0 && day > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(year, month, day);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -266,6 +276,7 @@ public class LocalSolarExactTimeTriggerSettingsControl : TriggerSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startDate = _startDatePicker.SelectedDate ?? DateTime.Today;

@@ -73,25 +73,35 @@ public class LocalSolarWeeklyTimeTriggerSettingsControl : TriggerSettingsControl
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+        _isLoading = true;
+        try
         {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -323,6 +333,7 @@ public class LocalSolarWeeklyTimeTriggerSettingsControl : TriggerSettingsControl
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

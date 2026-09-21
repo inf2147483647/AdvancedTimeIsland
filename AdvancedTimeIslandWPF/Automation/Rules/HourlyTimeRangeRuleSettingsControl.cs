@@ -12,10 +12,41 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public HourlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (_hasLoaded) return;
+        if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            ParseTimeString(Settings.StartTime, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
+
+            ParseTimeString(Settings.EndTime, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -134,6 +165,7 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

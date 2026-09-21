@@ -21,6 +21,7 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Avalonia.Threading.Dispatcher.UIThread.Post(() => LoadSettingsToUi());
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -158,24 +159,36 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         return groupPanel;
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _hasLoaded = true;
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int minute, out int second);
+
+            _startMinuteNumeric.Value = minute;
+            _startSecondNumeric.Value = second;
         }
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int minute, out int second);
-
-        _startMinuteNumeric.Value = minute;
-        _startSecondNumeric.Value = second;
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateTimeZone()
@@ -189,6 +202,7 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartTime = $"{(int)_startMinuteNumeric.Value:D2}-{(int)_startSecondNumeric.Value:D2}";

@@ -71,28 +71,38 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
-        if (startDay > 0)
+        _isLoading = true;
+        try
         {
-            _startDatePicker.SelectedDate = new DateTime(2024, 1, startDay);
-        }
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            if (Settings == null) return;
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
-        if (endDay > 0)
-        {
-            _endDatePicker.SelectedDate = new DateTime(2024, 1, endDay);
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(2024, 1, startDay);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTime(2024, 1, endDay);
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
         }
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -284,6 +294,7 @@ public class LocalSolarMonthlyTimeRangeRuleSettingsControl : RuleSettingsControl
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 开始时间

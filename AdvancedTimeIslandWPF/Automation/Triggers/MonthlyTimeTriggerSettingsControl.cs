@@ -117,27 +117,38 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
-
-        if (day >= 1 && day <= 31)
+        _isLoading = true;
+        try
         {
-            _dayComboBox.SelectedIndex = day - 1;
-        }
-        else
-        {
-            _dayComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
+
+            if (day >= 1 && day <= 31)
+            {
+                _dayComboBox.SelectedIndex = day - 1;
+            }
+            else
+            {
+                _dayComboBox.SelectedIndex = 0;
+            }
+
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var day = _dayComboBox.SelectedIndex + 1;

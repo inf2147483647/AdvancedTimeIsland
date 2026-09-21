@@ -135,27 +135,37 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            if (Settings == null) return;
+
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (month > 0 && day > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (month > 0 && day > 0)
+        finally
         {
-            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            _isLoading = false;
         }
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateTimeZone()
@@ -169,6 +179,7 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startDate = _startDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
