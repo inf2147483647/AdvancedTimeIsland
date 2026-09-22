@@ -1461,6 +1461,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
             ApplyHoverFade(force: true);
             // 【贴边隐藏】初次打开若保存的位置已贴边，防抖 250ms（等 SizeToContent 完成布局）后评估滑出
             ScheduleEdgeEvalAv();
+#if WINDOWS
+            // 【现场排查】宿主 Release 日志最低级别为 Information（Debug 不落盘），故用 Information 记录一次：
+            //  这行同时证明"窗口已创建"并给出最终落地的扩展样式（正常应含 0x80 TOOLWINDOW、0x80000 LAYERED；
+            //  开启穿透时应另有 0x20 TRANSPARENT）。若日志里完全没有本行，说明宿主 Host.StartAsync 未走到本服务
+            // （例如更早注册的其它插件 IHostedService 抛异常，导致后续服务不再启动），与本插件的窗口/样式无关。
+            try
+            {
+                var hwndLog = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+                if (hwndLog != IntPtr.Zero)
+                    _logger.LogInformation("悬浮时间表窗口已创建，exStyle=0x{Ex:x}", (long)GetWindowLong(hwndLog, GWL_EXSTYLE));
+            }
+            catch { }
+#endif
         };
         _window.Closing += (_, e) =>
         {

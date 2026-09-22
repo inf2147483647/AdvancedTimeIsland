@@ -44,6 +44,103 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         catch { return 0; }
     }
 
+    // ===================== 子进程 .NET 运行时预检（自包含宿主适配）=====================
+    //  背景：子进程是 framework-dependent（<SelfContained>false</SelfContained>），
+    //  hostfxr 必须能在"机器全局 dotnet root"里找到 shared\Microsoft.NETCore.App\<版本>。
+    //  自包含部署的 ClassIsland 把运行时平铺在自身程序目录（含 coreclr.dll），那不是合法的 dotnet root 布局，
+    //  子进程无法复用 → 独立进程模式在这类机器（如无全局 .NET 的 Win8.1）上根本起不来。
+    //  判定策略（宁可放行、不要误伤）：
+    //   1) 宿主自身就是框架依赖（程序目录无 coreclr.dll）→ 说明机器上必有全局运行时 → 直接放行；
+    //   2) 宿主是自包含 → 才去查找全局 dotnet root（环境变量 / 官方安装目录 / PATH）中的
+    //      Microsoft.NETCore.App，主版本 >= 子进程要求即放行（子进程 RollForward=LatestMajor，可用更高版本）；
+    //   3) 任何异常/取不到信息 → 放行（避免把本可用的机器误判为不可用，仅回退到旧行为）。
+    private static bool HostIsSelfContained()
+    {
+        try { return File.Exists(Path.Combine(AppContext.BaseDirectory, "coreclr.dll")); }
+        catch { return false; }
+    }
+
+#if NET10_0_OR_GREATER
+    /// <summary>子进程 TFM 要求的最低 .NET 运行时主版本（net10.0 包 → 10）。</summary>
+    private const int ChildRequiredRuntimeMajor = 10;
+#else
+    /// <summary>子进程 TFM 要求的最低 .NET 运行时主版本（net8.0 包 → 8）。</summary>
+    private const int ChildRequiredRuntimeMajor = 8;
+#endif
+
+    /// <summary>
+    /// 用户主动"重启"时放行一次预检：运行时可能装在非标准目录（预检枚举不到），
+    /// 让用户显式重试仍能走真实 spawn（失败也只是回到原有超时/重试行为），避免预检误伤。
+    /// </summary>
+    private int _skipRuntimePreflightOnce;
+
+    private bool TakeSkipRuntimePreflight() => Interlocked.Exchange(ref _skipRuntimePreflightOnce, 0) != 0;
+
+    /// <summary>
+    /// 预检：机器上是否存在可供 framework-dependent 子进程使用的**全局** .NET 运行时。
+    /// 返回 false 时通过 <paramref name="issue"/> 给出可直接展示给用户的原因。
+    /// </summary>
+    private static bool HasUsableChildRuntime(out string issue)
+    {
+        issue = "";
+        try
+        {
+            // 宿主是框架依赖 → 全局运行时必然存在（子进程与宿主用同一套解析规则）
+            if (!HostIsSelfContained()) return true;
+
+            foreach (var root in EnumerateDotnetRoots())
+            {
+                var shared = Path.Combine(root, "shared", "Microsoft.NETCore.App");
+                if (!Directory.Exists(shared)) continue;
+                foreach (var dir in Directory.EnumerateDirectories(shared))
+                {
+                    var name = Path.GetFileName(dir);
+                    var dot = name.IndexOf('.');
+                    if (dot <= 0) continue;
+                    if (int.TryParse(name.AsSpan(0, dot), out var major) && major >= ChildRequiredRuntimeMajor)
+                        return true;
+                }
+            }
+
+            issue = $"机器上未找到 .NET {ChildRequiredRuntimeMajor}+ 运行时（ClassIsland 为自包含部署时，"
+                    + "独立子进程无法借用其自带运行时）：请安装 .NET "
+                    + $"{ChildRequiredRuntimeMajor} 或更高版本运行时后重试独立进程模式";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            // 预检本身异常 → 放行（不误伤有运行库的机器）
+            issue = "预检异常（已放行）：" + ex.Message;
+            return true;
+        }
+    }
+
+    /// <summary>枚举可能的全局 dotnet 安装根目录（环境变量 → 官方默认安装位置 → PATH 中的 dotnet.exe）。</summary>
+    private static IEnumerable<string> EnumerateDotnetRoots()
+    {
+        foreach (var name in new[] { "DOTNET_ROOT", "DOTNET_ROOT(x64)", "DOTNET_ROOT_X64", "DOTNET_ROOT_ARM64" })
+        {
+            var v = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(v)) yield return v;
+        }
+
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrEmpty(pf)) yield return Path.Combine(pf, "dotnet");
+        var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        if (!string.IsNullOrEmpty(pf86)) yield return Path.Combine(pf86, "dotnet");
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrEmpty(local)) yield return Path.Combine(local, "Microsoft", "dotnet");
+
+        // PATH 中存在 dotnet.exe 的目录（便携/自定义安装）
+        foreach (var p in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        {
+            if (p.Length == 0) continue;
+            var ok = false;
+            try { ok = File.Exists(Path.Combine(p, "dotnet.exe")); } catch { }
+            if (ok) yield return p;
+        }
+    }
+
     // 子进程 stderr 环形缓存（诊断用，只保留前 2KB）：启动阶段失败时用于给出真实原因。
     private readonly StringBuilder _childStderr = new();
     private const int ChildStderrMaxChars = 2000;
@@ -404,6 +501,22 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     {
         if (!ShouldUseIndependent()) return;
         if (_pipeConnected) return;
+
+        // 【自包含宿主适配·预检】子进程是"框架依赖 + 单文件"（见其 csproj）：只能借用宿主目录里的
+        //  Avalonia/Skia 托管 DLL，但 .NET 运行时本身必须由 hostfxr 从**机器全局 dotnet root** 解析
+        //  （shared\Microsoft.NETCore.App\<版本>）。自包含部署的 ClassIsland 把运行时平铺在自身程序目录，
+        //  那不是合法的 dotnet root 布局 → 子进程无法复用，apphost 因缺少框架而失败（WinExe 还会弹出
+        //  "需要安装 .NET" 框并**挂住不退出**，既连不上也不退出）。
+        //  若不预检，这段期间独立模式已置 IndependentRequested=true → 进程内悬浮窗被禁用，
+        //  用户看到的就是"悬浮时间表完全不显示"（直到 spawn 超时 + 重试上限才回退）。
+        //  这里提前判定并立即置 Failed：上层 OnIndependentStatusChangedAv 会马上恢复进程内窗口。
+        if (!HasUsableChildRuntime(out var runtimeIssue) && !TakeSkipRuntimePreflight())
+        {
+            _logger.LogWarning("FloatSchedule 独立进程预检未通过（已回退进程内渲染）：{Issue}", runtimeIssue);
+            SetStatus(ChildStatus.Failed, runtimeIssue);
+            return;
+        }
+
         var alive = _childProcess;
         if (alive != null)
         {
@@ -695,6 +808,7 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 await StopChildUnderGateAsync(kill: true).ConfigureAwait(false);
                 SetStatus(ChildStatus.Off);
                 lock (_stateLock) { _startTicks.Clear(); }   // 用户主动重启 = 显式期望恢复，重置意外退出配额
+                Interlocked.Exchange(ref _skipRuntimePreflightOnce, 1);   // 用户显式重试 → 放行一次运行时预检
                 await EnsureChildUnderGateAsync(allowAdoptWait: false).ConfigureAwait(false);
             }
             finally { _lifecycleGate.Release(); }
