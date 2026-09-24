@@ -290,6 +290,7 @@ public class WomenswearPage : SettingsPageBase
 
         builder.AppendLine($"插件版本：AdvancedTimeIsland {GetPluginVersion()}");
         builder.AppendLine($"发生时间：{Plugin.GetCurrentTime():yyyy-MM-dd HH:mm:ss}");
+        builder.AppendLine($"出错的页面：应用设置->AdvancedTimeIsland调试->女装->JK 制服");
 
         // 归因段落：措辞对齐宿主 ProcessUnhandledException 中的插件告警文案
         if (blamedPlugin != null)
