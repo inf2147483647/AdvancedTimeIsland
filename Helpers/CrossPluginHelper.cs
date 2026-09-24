@@ -5,6 +5,7 @@ using System.Runtime.Loader;
 using AdvancedTimeIsland.Models;
 using Avalonia.Threading;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Models.Plugin;
 
 namespace AdvancedTimeIsland.Helpers;
 
@@ -133,45 +134,7 @@ public static class CrossPluginHelper
                 return _identifierScanResult;
 
             // 集合已变化：执行完整反射扫描并缓存结果
-            var found = false;
-            foreach (var context in AssemblyLoadContext.All)
-            {
-                foreach (var asm in context.Assemblies)
-                {
-                    if (asm.IsDynamic)
-                        continue;
-                    try
-                    {
-                        foreach (var type in asm.GetTypes())
-                        {
-                            // 只检查插件入口类型
-                            if (type.GetCustomAttribute<PluginEntrance>() == null)
-                                continue;
-                            // 真身双因子：标识符与签名两个常量必须同时匹配
-                            var idField = type.GetField("UniqueIdentifier",
-                                BindingFlags.Public | BindingFlags.Static);
-                            var sigField = type.GetField("IdentifierSignature",
-                                BindingFlags.Public | BindingFlags.Static);
-                            if (idField != null && idField.IsLiteral &&
-                                idField.GetValue(null) is string id &&
-                                string.Equals(id, FemboyTestIdentifier, StringComparison.Ordinal) &&
-                                sigField != null && sigField.IsLiteral &&
-                                sigField.GetValue(null) is string sig &&
-                                string.Equals(sig, FemboyTestIdentifierSignature, StringComparison.Ordinal))
-                            {
-                                found = true;
-                                break;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        // GetTypes 可能因引用缺失等抛异常，跳过该程序集
-                    }
-                    if (found) break;
-                }
-                if (found) break;
-            }
+            var found = FindFemboyTestEntranceType() != null;
 
             _identifierScanFingerprint = fingerprint;
             _identifierScanResult = found;
@@ -180,6 +143,83 @@ public static class CrossPluginHelper
         catch
         {
             return false;
+        }
+    }
+
+    /// <summary>
+    /// 在已加载程序集中扫描 FemboyTest 的插件入口类型（真身双因子校验：标识符与签名常量需同时匹配）。
+    /// 找到返回该类型，否则返回 null。供 <see cref="IsFemboyTestPresentByIdentifier"/> 与
+    /// <see cref="TryGetFemboyTestPluginInfo"/> 共用，保证两条路径判定完全一致。
+    /// </summary>
+    private static Type? FindFemboyTestEntranceType()
+    {
+        foreach (var context in AssemblyLoadContext.All)
+        {
+            foreach (var asm in context.Assemblies)
+            {
+                if (asm.IsDynamic)
+                    continue;
+                try
+                {
+                    foreach (var type in asm.GetTypes())
+                    {
+                        // 只检查插件入口类型
+                        if (type.GetCustomAttribute<PluginEntrance>() == null)
+                            continue;
+                        // 真身双因子：标识符与签名两个常量必须同时匹配
+                        var idField = type.GetField("UniqueIdentifier",
+                            BindingFlags.Public | BindingFlags.Static);
+                        var sigField = type.GetField("IdentifierSignature",
+                            BindingFlags.Public | BindingFlags.Static);
+                        if (idField != null && idField.IsLiteral &&
+                            idField.GetValue(null) is string id &&
+                            string.Equals(id, FemboyTestIdentifier, StringComparison.Ordinal) &&
+                            sigField != null && sigField.IsLiteral &&
+                            sigField.GetValue(null) is string sig &&
+                            string.Equals(sig, FemboyTestIdentifierSignature, StringComparison.Ordinal))
+                        {
+                            return type;
+                        }
+                    }
+                }
+                catch
+                {
+                    // GetTypes 可能因引用缺失等抛异常，跳过该程序集
+                }
+            }
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 解析 FemboyTest（同进程 CI2 插件版）对应的宿主 <see cref="PluginInfo"/>。
+    /// 复用与 <see cref="IsFemboyTestEnabled"/> 路径一完全一致的真身双因子扫描，
+    /// 再经 AssemblyLoadContext → PluginLoadContext.Info 映射——与宿主
+    /// DiagnosticService.GetPluginsByStacktrace 的归因方式同源，因此可用于
+    /// 让宿主按“错误由该插件引起”处理（即禁用该插件）。
+    /// 仅当 FemboyTest 以插件形式加载在本进程内时可解析；独立进程版/原生 exe 返回 null。
+    /// </summary>
+    public static PluginInfo? TryGetFemboyTestPluginInfo()
+    {
+        try
+        {
+            var entranceType = FindFemboyTestEntranceType();
+            if (entranceType == null)
+                return null;
+
+            var context = AssemblyLoadContext.GetLoadContext(entranceType.Assembly);
+            if (context == null)
+                return null;
+
+            // PluginLoadContext.Info 为宿主类型成员，用反射读取以保持对宿主程序集零编译期依赖
+            var infoProperty = context.GetType()
+                .GetProperty("Info", BindingFlags.Public | BindingFlags.Instance);
+            return infoProperty?.GetValue(context) as PluginInfo;
+        }
+        catch
+        {
+            return null;
         }
     }
 

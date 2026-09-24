@@ -154,6 +154,29 @@ public class Plugin : PluginBase
     }
 
     /// <summary>
+    /// 悬浮时间表启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序
+    /// 依次 await，<b>任一服务抛异常即中止后续启动</b>，注册在其后的插件宿主服务全部不会启动。
+    /// 实测（2026-09，Windows 8.1 + ClassIsland 2.1.0.1）：MediaIsland 依赖的 Windows.Media.Control 在 Win8.1 上
+    /// 不存在（COMException 0x80040111），其启动失败后本插件 FloatingScheduleService.StartAsync 永不执行
+    /// → 悬浮窗从不创建 → 表现为"悬浮时间表不显示"，且日志中没有任何本插件报错。
+    /// 插件加载/注册顺序由 ClassIsland 决定（随安装、更新而变化），故不能依赖顺序：这里延迟检查一次，
+    /// 若宿主未启动本服务则由兜底补齐（幂等，宿主已正常启动时为空操作）。
+    /// </summary>
+    private static void KickFloatingScheduleStartFallback()
+    {
+        _ = System.Threading.Tasks.Task.Run(async () =>
+        {
+            try
+            {
+                // 等宿主 Build/启动流程走完（Host.StartAsync 是 fire-and-forget，正常路径通常远早于此时完成）
+                await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+                ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>()?.EnsureStartedFallbackAv();
+            }
+            catch { /* 兜底失败不影响其它功能（悬浮窗仍需设置开关开启） */ }
+        });
+    }
+
+    /// <summary>
     /// 获取当前时间（应用插件全局偏移，基于NTP服务器时间）
     /// </summary>
     public static DateTime GetCurrentTime()
@@ -253,7 +276,11 @@ public class Plugin : PluginBase
         //   （HostedService 按注册顺序启动 → 管道监听先就绪；逆序停止 → 子进程收尾最后执行）。
         services.AddSingleton<Services.FloatScheduleHostProcessService>();
         services.AddHostedService(sp => sp.GetRequiredService<Services.FloatScheduleHostProcessService>());
-        services.AddHostedService<Services.FloatingScheduleService>();
+        // FloatingScheduleService 同样以"具体类型单例 + 工厂注册 IHostedService"的方式注册，
+        //  以便启动兜底能从容器里取到同一个实例（见下方 KickFloatingScheduleStartFallback）。
+        services.AddSingleton<Services.FloatingScheduleService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Services.FloatingScheduleService>());
+        KickFloatingScheduleStartFallback();
         services.AddHostedService<StartupDelayService>();
         services.AddHostedService<Services.FontSizeSyncService>();
         services.AddHostedService<Services.SemesterStartService>();
@@ -315,6 +342,7 @@ public class Plugin : PluginBase
 
         if (Settings.EnableExperimentalFeatures)
         {
+            services.AddComponent<SevenSegmentClockControl, SevenSegmentClockSettingsControl>();
             services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
             services.AddHostedService<Services.FpsBackgroundCollectorService>();
         }
@@ -1539,6 +1567,7 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+        services.AddSettingsPage<Views.Settings.WomenswearPage>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
         if (Settings.EnableExperimentalFeatures)

@@ -673,7 +673,34 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     // ===================== IHostedService =====================
+    // 【启动必须不依赖 StartAsync 被调用】0=尚未启动，1=已启动；StartAsync 与 EnsureStartedFallbackAv 竞争，
+    //  只有先到者真正执行 StartCoreAv。原因见 EnsureStartedFallbackAv 注释（Win8.1 上实测的"静默不显示"）。
+    private int _startInvokedAv;
+
     public Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (System.Threading.Interlocked.Exchange(ref _startInvokedAv, 1) == 1) return Task.CompletedTask;
+        StartCoreAv(cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序依次 await，
+    /// <b>任一服务抛异常即中止后续启动</b>（首个异常被 Host 记为 "Hosting failed to start" 后重新抛出，宿主不 await 该调用）。
+    /// 实测（2026-09，Windows 8.1 + ClassIsland 2.1.0.1）：其它插件（如 MediaIsland，其依赖的 Windows.Media.Control
+    /// 在 Win8.1 上不存在，抛 COMException 0x80040111）启动失败后，注册在它之后的插件宿主服务全部不会启动——
+    /// 本服务 StartAsync 永不执行 → 悬浮窗从不创建 → 表现为"悬浮时间表不显示"且日志中无任何本插件报错。
+    /// 注册顺序由 ClassIsland 按插件加载顺序决定，用户安装/更新插件即可能改变，故不能依赖顺序。
+    /// 由 Plugin.Initialize 延迟调用本方法补齐启动；幂等（宿主已正常启动则直接返回）。
+    /// </summary>
+    public void EnsureStartedFallbackAv()
+    {
+        if (System.Threading.Interlocked.Exchange(ref _startInvokedAv, 1) == 1) return;
+        _logger.LogWarning("宿主未启动本服务（Host.StartAsync 可能被其它插件的 IHostedService 异常中断），改用兜底启动悬浮时间表");
+        StartCoreAv(CancellationToken.None);
+    }
+
+    private void StartCoreAv(CancellationToken cancellationToken)
     {
         _retryCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -727,8 +754,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _hostProcess.StatusChanged += OnIndependentStatusChangedAv;
             _hostProcess.ExitRequestedByUser += OnIndependentExitRequestedAv;
         }
-
-        return Task.CompletedTask;
     }
 
     public Task StopAsync(CancellationToken cancellationToken)
@@ -737,6 +762,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             _retryCts?.Cancel();
             Stop();
+            // 允许宿主重启后再次启动（StartAsync/兜底启动的幂等闸门复位）
+            System.Threading.Interlocked.Exchange(ref _startInvokedAv, 0);
             if (_settingsChangedHandler != null)
                 _settings.PropertyChanged -= _settingsChangedHandler;
             if (_themeChangedHandler != null && Avalonia.Application.Current != null)

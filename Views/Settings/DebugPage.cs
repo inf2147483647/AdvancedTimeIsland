@@ -96,6 +96,19 @@ public class DebugPage : SettingsPageBase
         mainPanel.Children.Add(hanfuTemplatePanel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
 
+        // “女装”为隐藏入口：启用实验性功能后才在调试页可见（连同分隔线一起显隐）
+        var womenswearSection = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            IsVisible = Plugin.Instance?.Settings.EnableExperimentalFeatures ?? false
+        };
+        womenswearSection.Children.Add(CreateSimpleTestPanel(
+            "女装",
+            "进入",
+            ButtonWomenswear_OnClick));
+        womenswearSection.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+        mainPanel.Children.Add(womenswearSection);
+
         var festivalListPanel = CreateSimpleTestPanel(
             "显示节日列表",
             "查看",
@@ -185,6 +198,11 @@ public class DebugPage : SettingsPageBase
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
     {
         FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuTemplate");
+    }
+
+    private void ButtonWomenswear_OnClick(object? sender, RoutedEventArgs e)
+    {
+        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandWomenswear");
     }
 
     private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
