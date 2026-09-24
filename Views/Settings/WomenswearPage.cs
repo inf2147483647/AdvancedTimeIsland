@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -155,7 +156,7 @@ public class WomenswearPage : SettingsPageBase
     /// 行为与开发者菜单的“显示崩溃窗口”一致。该类型位于宿主主程序集（非 ClassIsland.Core），
     /// 插件没有编译期引用，故运行时从已加载程序集反射获取；不假定程序集名，避免宿主改名后失效。
     /// </summary>
-    private static void ShowHostCrashWindow()
+    private void ShowHostCrashWindow()
     {
         try
         {
@@ -179,11 +180,43 @@ public class WomenswearPage : SettingsPageBase
             // 因此这里不设置它们——与开发者菜单“显示崩溃窗口”的默认表现保持一致。
             crashWindowType.GetProperty("CrashInfo")?.SetValue(crashWindow, BuildCrashInfo(blamedPlugin, blamedDisabled));
 
-            crashWindow.Show();
+            // 让崩溃窗口占据设置窗口的焦点：走模态 ShowDialog（与宿主真实崩溃时
+            // await CrashWindow.ShowDialog(GetRootWindow()) 的做法一致）。
+            // 模态弹窗会独占焦点并阻止设置窗口输入；而非模态 Show() 若未设 Owner，
+            // 其 z 序可能被压在设置窗口之下，无法保证“抢到焦点”。
+            // 注：Avalonia 的 WindowBase.Owner setter 为 internal，不能直接赋值，
+            // 由 ShowDialog(owner) 在内部完成 owner 绑定。
+            var owner = FluentAvaloniaCompatibilityHelper.ResolveOwnerWindow(this);
+            _ = ShowCrashWindowAsync(crashWindow, owner);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"ShowHostCrashWindow failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 显示崩溃窗口并等待其关闭。单独抽成方法是为了让 ShowDialog 返回的 Task 始终被 await
+    /// 并就地捕获异常——若放任其成为未观察异常，会经 TaskScheduler.UnobservedTaskException
+    /// 触发宿主的崩溃处理流程（本机教学安全模式下会直接退出应用）。
+    /// 解析不到 owner 时降级为非模态显示。
+    /// </summary>
+    private static async Task ShowCrashWindowAsync(Window crashWindow, Window? owner)
+    {
+        try
+        {
+            if (owner != null && !ReferenceEquals(owner, crashWindow))
+            {
+                await crashWindow.ShowDialog(owner);
+            }
+            else
+            {
+                crashWindow.Show();
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ShowCrashWindowAsync failed: {ex}");
         }
     }
 
@@ -238,33 +271,81 @@ public class WomenswearPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 构造崩溃报告正文，格式仿照宿主 ProcessUnhandledException 使用的 e.ToString()
-    /// （异常信息 + 堆栈），并附带插件版本、发生时间，以及被归因为肇因的插件（如有），
-    /// 便于用户直接点“复制/反馈问题”。
+    /// 构造崩溃报告正文，结构对齐宿主 ProcessUnhandledException：先输出 TraceID 提示块，
+    /// 再输出被归因的插件告警（如有），最后是异常信息与堆栈（e.ToString() 形式），
+    /// 中间额外附带本插件的版本与发生时间，便于用户直接点“复制/反馈问题”。
     /// </summary>
     private static string BuildCrashInfo(PluginInfo? blamedPlugin, bool blamedDisabled)
     {
         var builder = new System.Text.StringBuilder();
-        builder.AppendLine("System.Exception: There is no pictures of JK uniform!");
+
+        // 头部提示块：与宿主 ProcessUnhandledException 生成的 traceInfo 结构一致。
+        // 宿主此处填 Sentry TraceId；本插件不接入 Sentry，改用插件主程序集
+        // （AdvancedTimeIsland.dll）的 MD5 作为等价的“可追溯标识”——同样为 32 位小写十六进制，
+        // 便于用户按构建产物对号入座。
+        builder.AppendLine("在向开发者提交问题时请保留以下信息：");
+        builder.AppendLine($"TraceID: {GetPluginDllMd5()}");
+        builder.AppendLine("================================");
         builder.AppendLine();
+
         builder.AppendLine($"插件版本：AdvancedTimeIsland {GetPluginVersion()}");
         builder.AppendLine($"发生时间：{Plugin.GetCurrentTime():yyyy-MM-dd HH:mm:ss}");
 
         // 归因段落：措辞对齐宿主 ProcessUnhandledException 中的插件告警文案
         if (blamedPlugin != null)
         {
-            builder.AppendLine("================================");
             builder.AppendLine("此问题可能由以下插件引起，请在向 ClassIsland 开发者反馈问题前先向以下插件的开发者反馈此问题：");
             builder.AppendLine($"- {blamedPlugin.Manifest.Name} [{blamedPlugin.Manifest.Id},{blamedPlugin.Manifest.Version}]");
             if (blamedDisabled)
             {
                 builder.AppendLine("以上异常插件已自动禁用，重启应用后生效。您可以在排除问题后前往【应用设置】->【插件】中重新启用这些插件，或在【应用设置】->【基本】中调整是否自动禁用异常插件。");
             }
+            builder.AppendLine("================================");
         }
 
-        builder.AppendLine("================================");
+        builder.AppendLine("System.Exception: There is no pictures of JK uniform!");
         builder.Append(new System.Diagnostics.StackTrace(true));
         return builder.ToString();
+    }
+
+    /// <summary>插件主程序集 MD5 的进程内缓存：同一进程内恒定，只需计算一次。</summary>
+    private static string? _pluginDllMd5;
+
+    /// <summary>
+    /// 取插件主程序集（AdvancedTimeIsland.dll）的 MD5，返回 32 位小写十六进制字符串，
+    /// 用作报告头部的 TraceID。宿主用 Sentry TraceId，本插件不接入 Sentry，
+    /// 故用构建产物的 MD5 作为等价的“可追溯标识”。读取失败时返回 unknown。
+    /// </summary>
+    private static string GetPluginDllMd5()
+    {
+        if (_pluginDllMd5 != null)
+        {
+            return _pluginDllMd5;
+        }
+
+        try
+        {
+            var assemblyLocation = Assembly.GetExecutingAssembly().Location;
+            if (!string.IsNullOrEmpty(assemblyLocation) && System.IO.File.Exists(assemblyLocation))
+            {
+                // 宿主运行时仍持有该程序集文件句柄，故用最宽松的共享方式打开，避免 IOException
+                using var stream = new System.IO.FileStream(
+                    assemblyLocation,
+                    System.IO.FileMode.Open,
+                    System.IO.FileAccess.Read,
+                    System.IO.FileShare.ReadWrite | System.IO.FileShare.Delete);
+                using var md5 = System.Security.Cryptography.MD5.Create();
+                var hash = md5.ComputeHash(stream);
+                _pluginDllMd5 = Convert.ToHexString(hash).ToLowerInvariant();
+                return _pluginDllMd5;
+            }
+        }
+        catch
+        {
+            // 读取失败：不缓存，允许后续调用重试
+        }
+
+        return "unknown";
     }
 
     /// <summary>

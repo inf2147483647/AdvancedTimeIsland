@@ -28,10 +28,11 @@ public sealed class FloatScheduleWindowSettings
     public bool FollowHostLifetime { get; set; } = true;
 
     /// <summary>
-    /// 子进程 exe 的"版本指纹"（长度-最后写入时间）。
-    /// 用途：插件被更新后（exe 已变化），跟随启停=关 时仍在运行的旧子进程据此发现自己已过期并主动退出，
-    /// 从而由插件启动与当前插件匹配的新版本实例，避免"更新插件后旧子进程继续接管"。
-    /// 空值表示插件尚未启动过子进程（无需校验）。
+    /// 插件包内独立程序 exe 的**内容指纹**（SHA256，由插件计算并下发）。
+    /// 用途：插件更新后（exe 内容已变化），跟随启停=关 时仍冻结存活的旧子进程据此发现自己已被淘汰
+    /// （它把自己的指纹与这里比对），主动以 <see cref="FloatScheduleIpc.ExitCodeSelfUpdate"/> 退出，
+    /// 由插件立即用新构建重启，避免"更新插件后旧子进程继续接管"导致新功能/修复永远不生效。
+    /// 空值表示宿主未下发指纹（更老的插件）→ 子进程不做校验。
     /// </summary>
     public string ExeStamp { get; set; } = "";
 }

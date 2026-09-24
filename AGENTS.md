@@ -9,8 +9,10 @@
 5. 新增页面都需要在Plugin.cs中注册
 6. 确保所有页面以及组件的Guid两两互异
 7. 尽量不要做出破坏性更改，如果出现破坏性更改，需要明确指出更改了什么，以及有什么影响
+8. 尽可能复用ClassIsland已有的组件样式，避免重复编写相同的代码
+9. 思考链（<thinking>标签内）使用中文
 
-在汉服页面中
+对于汉服页面：
 
 1. 新增页面需要按照hanfu_page_template.cs模板文件套用（不能套用别的文件）
 2. 新增页面后对应的按钮需要变为已开发的状态，更新按钮文本颜色为应用强调色
@@ -20,6 +22,4 @@
 
 最后调用AdvisorTool进行vibe review
 
-构建命令：dotnet build 2>&1 | Select-String -Pattern "error|Error" 
-当dotnet build 2>&1 | Select-String -Pattern "error|Error"执行没有任何输出时表示无错误,构建成功
-然后执行Build-Package.ps1打包插件
+然后执行Build-Package.ps1打包插件（构建命令已包含，全部success代表构建成功）

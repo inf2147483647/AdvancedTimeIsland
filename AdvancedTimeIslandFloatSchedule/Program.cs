@@ -37,6 +37,31 @@ internal static class Program
     /// <summary>宿主下传的"期望 Avalonia 大版本"（0 = 宿主未下传）。</summary>
     public static int HostExpectedAvaloniaMajor { get; private set; }
 
+    /// <summary>
+    /// 本进程 exe 的**内容指纹**（进程启动瞬间采集，= 本进程实际运行的代码身份）。
+    /// 用于自检"我是否已被新版插件淘汰"：插件在 Init 里下发其包内 exe 的内容指纹，
+    /// 与这里不一致 ⇒ 运行中的是旧构建 ⇒ 主动退出让插件用新版重启。
+    /// 【为何在启动瞬间采集、而不是收到 Init 时再读文件】插件重启子进程时会用新 exe 覆盖同一路径的
+    ///   运行副本；若到 Init 时才读文件，读到的已是新文件 → 指纹"自洽" → 永远检测不出被淘汰。
+    /// 【为何用内容哈希而非长度+修改时间】同一构建的不同副本（插件目录原文件 vs 临时副本）
+    ///   长度相同但修改时间必然不同，用时间戳会把"同版本"误判为"已更新"→ 每次宿主重启都无谓重启子进程
+    ///   （而 adopt 的设计目的正是让冻结窗口跨宿主重启存活）。
+    /// </summary>
+    public static string SelfExeHash { get; private set; } = "";
+
+    private static string ComputeSelfExeHash()
+    {
+        try
+        {
+            var p = Environment.ProcessPath;
+            if (string.IsNullOrEmpty(p) || !File.Exists(p)) return "";
+            using var fs = File.OpenRead(p);
+            using var sha = System.Security.Cryptography.SHA256.Create();
+            return Convert.ToHexString(sha.ComputeHash(fs));
+        }
+        catch { return ""; }
+    }
+
     private static Mutex? _singleMutex;
 
     [DllImport("kernel32.dll", SetLastError = true)]
@@ -56,6 +81,9 @@ internal static class Program
         {
             // ① 参数解析
             if (!ParseArgs(args)) return FloatScheduleIpc.ExitCodeBadArgs;
+
+            // ①b 采集自身 exe 内容指纹（必须最早：此后插件可能用新 exe 覆盖本路径的运行副本）
+            SelfExeHash = ComputeSelfExeHash();
 
             // ② 宿主目录运行库预检（托管 + 原生；目录式发布平铺根目录，保险起见同时探测 runtimes\win-x64\native）
             if (string.IsNullOrEmpty(HostDir) || !Directory.Exists(HostDir))

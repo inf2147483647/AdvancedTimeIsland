@@ -74,6 +74,14 @@ internal sealed class FloatScheduleChildWindow : Window
 
         Opened += OnOpened;
         PositionChanged += OnPositionChanged;
+        // 【修复：贴边隐藏后内容变矮/变窄 → 窗口整块跑出屏幕】
+        //   悬浮窗 SizeToContent：内容变化会改变窗口尺寸，而贴边隐藏位是按旧尺寸算的（left/top 含"减尺寸"项），
+        //   尺寸变小后窗口连可见条一起被推出屏幕 → 用户看到"时间表突然完全不见"。
+        // 这里在每次布局完成后按新尺寸重算隐藏位（未贴边时零开销早退，且尺寸未变时不重复处理）。
+        // 双钩（LayoutUpdated + Resized）：前者覆盖"内容重排但窗口尺寸尚未变"的中间态，
+        // 后者是"窗口客户区尺寸真的变了"的权威信号，任一先到都会按最终尺寸重算一次。
+        LayoutUpdated += (_, _) => RefreshEdgeGeometryOnResize();
+        Resized += (_, _) => RefreshEdgeGeometryOnResize();
         Activated += (_, _) => { try { if (_snap.ClickThrough) ApplyClickThrough(force: true); else ApplyExStylesSafe(); } catch { } };
 
         _pipe.MessageReceived += OnPipeMessage;
@@ -213,17 +221,26 @@ internal sealed class FloatScheduleChildWindow : Window
                         //   避免"旧子进程接管新插件"造成的错乱。
                         if (init?.Settings != null && init.Settings.ProtocolVersion != FloatScheduleIpc.ProtocolVersion)
                         {
-                            CloseAndExit();
+                            CloseAndExit(FloatScheduleIpc.ExitCodeSelfUpdate);
                             break;
                         }
-                        // exe 指纹校验：插件更新后其包内 exe 已变化，而本进程运行的仍是旧副本 ——
-                        //   主动退出，让插件启动与新版插件匹配的子进程（否则新功能/修复不会生效）。
+                        // 自身构建指纹校验（自检"我是否已被新版插件淘汰"）：
+                        //   插件下发它包内 exe 的内容指纹；与本进程启动瞬间采集的指纹不一致 ⇒ 运行中的是旧构建
+                        //   （典型：插件更新后，跟随启停=关 时冻结存活的旧子进程被新宿主 adopt）
+                        //   ⇒ 主动退出，让插件立刻用新构建重启一个新子进程；否则新功能/修复永远不会生效。
                         if (init?.Settings != null && !string.IsNullOrEmpty(init.Settings.ExeStamp))
                         {
-                            var selfStamp = GetSelfExeStamp();
-                            if (selfStamp != null && selfStamp != init.Settings.ExeStamp)
+                            var selfHash = Program.SelfExeHash;
+                            if (!string.IsNullOrEmpty(selfHash) && selfHash != init.Settings.ExeStamp)
                             {
-                                CloseAndExit();
+                                try
+                                {
+                                    Console.Error.WriteLine(
+                                        "ATI.FloatSchedule self-update detected (running build is obsolete); " +
+                                        "exiting with ExitCodeSelfUpdate so host restarts a fresh child");
+                                }
+                                catch { }
+                                CloseAndExit(FloatScheduleIpc.ExitCodeSelfUpdate);
                                 break;
                             }
                         }
@@ -279,25 +296,14 @@ internal sealed class FloatScheduleChildWindow : Window
         });
     }
 
-    void CloseAndExit()
+    /// <summary>关闭窗口并退出本进程。
+    /// exitCode 默认 0；自检发现"已被新版插件淘汰"时传 <see cref="FloatScheduleIpc.ExitCodeSelfUpdate"/>，
+    /// 宿主据此识别为计划内重启（不受"意外退出"限频约束）并立刻用新构建重启。</summary>
+    void CloseAndExit(int exitCode = 0)
     {
         try { _cts.Cancel(); } catch { }
         try { Close(); } catch { }
-        Environment.Exit(0);
-    }
-
-    /// <summary>本进程 exe 的"版本指纹"（长度-最后写入时间），用于判断自身是否已被新版插件淘汰。
-    /// 本进程运行的是临时目录副本；插件侧下发的指纹同样取自该副本文件，故正常运行必然一致。</summary>
-    static string? GetSelfExeStamp()
-    {
-        try
-        {
-            var p = Environment.ProcessPath;
-            if (string.IsNullOrEmpty(p)) return null;
-            var fi = new FileInfo(p);
-            return fi.Exists ? $"{fi.Length}-{fi.LastWriteTimeUtc.Ticks}" : null;
-        }
-        catch { return null; }
+        Environment.Exit(exitCode);
     }
 
     /// <summary>用户从托盘图标选择"退出"。
@@ -808,9 +814,9 @@ internal sealed class FloatScheduleChildWindow : Window
         if (!IsVisible || !_snap.EdgeHide || _edgeAnimating) return;
         try
         {
-            var screen = Screens?.ScreenFromWindow(this);
-            if (screen == null) return;
-            var wa = screen.WorkingArea;
+            // 工作区用缓存兜底：窗口已离屏（贴边隐藏）时 ScreenFromWindow 为 null，不能因此放弃评估
+            var waResolved = ResolveEdgeWorkArea();
+            if (waResolved is not { } wa) return;
             if (!TryGetWindowDeviceSize(out int w, out int h)) return;
             var pos = Position;
             if (_edgeHiddenAv && pos == _edgeHiddenPosAv) return;
@@ -841,7 +847,10 @@ internal sealed class FloatScheduleChildWindow : Window
                 return;
             }
 
-            if (!_edgeDockedAv || pos != _edgeHiddenPosAv)
+            // 贴边：当前位置若不是隐藏目标位（= 用户拖到的原始贴边位置）→ 记录为滑回目标。
+            // 【隐藏态不得覆盖】隐藏时 pos 就是隐藏位而非用户位置：尺寸变化等会造成它与
+            //   _edgeHiddenPosAv 暂时不一致，若无条件覆盖会把"用户位置"污染成屏幕外的隐藏位。
+            if (!_edgeDockedAv || (!_edgeHiddenAv && pos != _edgeHiddenPosAv))
             {
                 _edgeDockedPosAv = pos;
                 _edgeSideAv = side;
@@ -850,19 +859,114 @@ internal sealed class FloatScheduleChildWindow : Window
                 _edgeHoverLastIn = true;
             }
 
-            int hx = _edgeDockedPosAv.X, hy = _edgeDockedPosAv.Y;
-            switch (side)
+            if (!TryComputeEdgeHiddenPos(side, _edgeDockedPosAv, w, h, wa, out var hidden))
+                return;
+            _edgeHiddenPosAv = hidden;
+            _edgeLastSizeW = w;
+            _edgeLastSizeH = h;
+            // 【自愈】隐藏态下窗口必须正好停在"按当前尺寸算出的隐藏位"：尺寸变化后旧位置会让窗口
+            //   整块移出屏幕（连 6px 可见条都没有），这里立即纠正，使状态无需等下一次滑出就恢复正确。
+            if (_edgeHiddenAv && pos != hidden)
             {
-                case "left": hx = wa.X - w + EdgeHideVisibleStrip; break;
-                case "right": hx = wa.X + wa.Width - EdgeHideVisibleStrip; break;
-                case "top": hy = wa.Y - h + EdgeHideVisibleStrip; break;
-                case "bottom": hy = wa.Y + wa.Height - EdgeHideVisibleStrip; break;
+                try { Position = hidden; } catch { }
             }
-            _edgeHiddenPosAv = new PixelPoint(hx, hy);
             if (!_edgeHiddenAv && !_edgeSlideOutPending)
                 ScheduleEdgeSlideOut();
         }
         catch { }
+    }
+
+    /// <summary>
+    /// 计算"滑出隐藏位"：沿贴靠边移出，只保留 <see cref="EdgeHideVisibleStrip"/> 像素可见条。
+    /// 【必须按当前窗口尺寸算】left/top 的隐藏位含"减尺寸"项（边缘 - 宽/高 + 可见条），
+    /// 尺寸变化后旧隐藏位不再成立 —— 尺寸变小时窗口连可见条一起被推出屏幕（见 RefreshEdgeGeometryOnResize）。
+    /// </summary>
+    static bool TryComputeEdgeHiddenPos(string side, PixelPoint docked, int w, int h, PixelRect wa, out PixelPoint pos)
+    {
+        int hx = docked.X, hy = docked.Y;
+        switch (side)
+        {
+            case "left": hx = wa.X - w + EdgeHideVisibleStrip; break;
+            case "right": hx = wa.X + wa.Width - EdgeHideVisibleStrip; break;
+            case "top": hy = wa.Y - h + EdgeHideVisibleStrip; break;
+            case "bottom": hy = wa.Y + wa.Height - EdgeHideVisibleStrip; break;
+            default: pos = docked; return false;
+        }
+        pos = new PixelPoint(hx, hy);
+        return true;
+    }
+
+    // 贴边状态下最近一次已知的窗口设备像素尺寸（用于尺寸变化检测）
+    int _edgeLastSizeW, _edgeLastSizeH;
+    // 贴边时记录下来的屏幕工作区（隐藏位计算的权威来源，见 ResolveEdgeWorkArea）
+    PixelRect? _edgeWorkArea;
+
+    /// <summary>
+    /// 取"隐藏位计算所用的屏幕工作区"。
+    /// 【关键修复：离屏后查不到屏幕导致自愈永久卡死】
+    ///   贴边隐藏后窗口被移出屏幕，Avalonia 的 <c>Screens.ScreenFromWindow</c> 此时会返回 null
+    ///   （窗口矩形与任何显示器都不相交）。而"内容变矮需要重算隐藏位"恰恰发生在这种离屏状态下，
+    ///   若此刻才去查屏幕 → null → 算不出隐藏位 → 窗口永久停在屏幕外（连 6px 可见条都没有）。
+    ///   故：能查到屏幕（窗口在屏上时）就用实时值并刷新缓存；查不到就用"贴边时记录的"工作区兜底。
+    /// </summary>
+    PixelRect? ResolveEdgeWorkArea()
+    {
+        try
+        {
+            var screen = Screens?.ScreenFromWindow(this);
+            if (screen != null)
+            {
+                _edgeWorkArea = screen.WorkingArea;
+                return _edgeWorkArea;
+            }
+        }
+        catch { }
+        return _edgeWorkArea;
+    }
+
+    /// <summary>
+    /// 【修复：内容变矮/变窄后贴边隐藏的窗口整块跑出屏幕】
+    ///   贴边隐藏位是按"当时的窗口尺寸"算出来的，而悬浮窗是 SizeToContent：内容一变化（上课后课间行消失、
+    ///   课表行数变化、从有课切到无课占位等）窗口宽高就会变。旧隐藏位对旧尺寸成立：
+    ///     · 贴上边隐藏时 隐藏Y = 工作区上边 - 高度 + 6px → 高度变矮 → 窗口底边跑到屏幕上方 → 完全不可见；
+    ///     · 贴左边隐藏时 隐藏X = 工作区左边 - 宽度 + 6px → 宽度变窄 → 窗口右边跑到屏幕左侧 → 完全不可见。
+    ///   故布局（尺寸）变化时按新尺寸重算隐藏位；处于隐藏态则直接把窗口移到新隐藏位（可见条保持 6px）。
+    /// </summary>
+    void RefreshEdgeGeometryOnResize()
+    {
+        try
+        {
+            if (!_edgeDockedAv || _dragActive) return;      // 未贴边 / 拖拽中：与隐藏位无关
+            if (!TryGetWindowDeviceSize(out int w, out int h)) return;
+            if (w == _edgeLastSizeW && h == _edgeLastSizeH) return;   // 尺寸没变 → 零开销返回（避免布局回调循环）
+            // 【关键修复】只有应用成功才提交尺寸缓存：否则一旦某次应用失败（如窗口已离屏、算不出隐藏位），
+            //   缓存却已更新 → 此后永远判定"尺寸没变" → 再也不会重试，窗口永久停在屏幕外。
+            if (!ApplyEdgeHiddenPos(w, h)) return;
+            _edgeLastSizeW = w;
+            _edgeLastSizeH = h;
+        }
+        catch { }
+    }
+
+    /// <summary>按给定尺寸重算并应用隐藏位：隐藏态立即落位；滑出动画中则同步动画目标（旧目标只对旧尺寸成立）。
+    /// 返回是否成功算出了隐藏位（false = 算不出，调用方不得提交尺寸缓存，以便后续重试）。</summary>
+    bool ApplyEdgeHiddenPos(int w, int h)
+    {
+        if (_edgeSideAv is not { } side) return false;
+        // 工作区用缓存兜底：窗口已离屏时 ScreenFromWindow 为 null（正是需要重算的场景）
+        var waResolved = ResolveEdgeWorkArea();
+        if (waResolved is not { } work) return false;
+        if (!TryComputeEdgeHiddenPos(side, _edgeDockedPosAv, w, h, work, out var hidden)) return false;
+        _edgeHiddenPosAv = hidden;
+        if (_edgeHiddenAv && !_edgeAnimating)
+        {
+            try { Position = hidden; } catch { }
+        }
+        else if (_edgeAnimating && _edgeAnimWillHide)
+        {
+            _edgeAnimTarget = hidden;
+        }
+        return true;
     }
 
     void ScheduleEdgeSlideOut()
@@ -971,6 +1075,10 @@ internal sealed class FloatScheduleChildWindow : Window
         _edgeSideAv = null;
         _edgeHoverTicks = 0;
         _edgeHoverLastIn = false;
+        // 尺寸缓存归零：下次重新贴边时强制按当时尺寸重算隐藏位（避免沿用上一次贴边的尺寸基线）
+        _edgeLastSizeW = 0;
+        _edgeLastSizeH = 0;
+        _edgeWorkArea = null;   // 工作区缓存同理：下次重新贴边时按当时的屏幕实时采集
     }
 
     bool IsPointerInEdgeStrip()
@@ -1044,6 +1152,12 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         ApplyHoverFade();
         UpdateEdgeHover();
+        // 【修复：贴边隐藏位随尺寸自愈（关键）】50ms 常驻兜底重算隐藏位。
+        //   为什么不能只靠 LayoutUpdated / Resized：实测"下课(高393)→上课(矮362)"变矮时，
+        //   尺寸监听在"平台窗口真正改变尺寸"之前就拿到了旧尺寸（早退出、未重算），此后不再触发，
+        //   隐藏位永久停在 −387 → 窗口底边 −25 → 整块移出屏幕（可见条也消失）。
+        //   这里每 50ms 比对一次尺寸，尺寸真的变了就必定在下一拍纠正（未贴边时零开销早退）。
+        RefreshEdgeGeometryOnResize();
         // 防截图周期重设兜底（50ms×100=5s，对齐主进程 UpdateProgress 内兜底语义）
         _preventCaptureRecheckTick = (_preventCaptureRecheckTick + 1) % 100;
         if (_preventCaptureRecheckTick == 0) ApplyPreventCapture();

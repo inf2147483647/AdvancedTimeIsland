@@ -268,6 +268,17 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         //   很多用户并不知道它已更新、也不知道在哪里启用/管理 → 检测到变化就弹一条系统通知。
         //   放到后台线程：读文件算哈希不阻塞宿主启动。
         _ = Task.Run(CheckChildExeUpdatedAndNotify);
+        // 【修复：adopt 路径下旧子进程永不被淘汰】把"插件包内 exe 的内容指纹"提前算好：
+        //   走 adopt 时不会 spawn，原先该字段为空 → Init 里 ExeStamp 为空 → 子进程跳过版本自检
+        //   → 插件更新后旧构建的子进程永久存活，用户始终看到旧悬浮窗行为。
+        //   现在无论 adopt 还是 spawn，Init 都带着当前包内 exe 的指纹；子进程比对不一致即主动退出，
+        //   由本服务用新构建重启（见 ChildExited 对 ExitCodeSelfUpdate 的处理）。
+        try
+        {
+            var packagedExe = GetPackagedExePath();
+            if (packagedExe != null) ChildExeStamp = ComputeFileHash(packagedExe) ?? ChildExeStamp;
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "启动时计算子进程 exe 指纹异常（忽略）"); }
         if (ShouldUseIndependent())
         {
             EnsureAcceptLoopRunning();
@@ -278,20 +289,30 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
     // ===================== 独立程序（子进程 exe）更新提示 =====================
     //  触发条件：插件包内 AdvancedTimeIslandFloatSchedule.exe 的**内容哈希**与上次提示时记录的不一致。
-    //  为什么用内容哈希而不是"长度 + 最后写入时间"（ChildExeStamp 用的是后者，语义是"文件被替换过"）：
-    //    插件包解压/复制会刷新文件写入时间，用时间戳会"每次启动都判定为已更新"→ 反复弹通知；
-    //    内容哈希只在二进制真的变了时才变化，与"独立程序被更新"语义一致。
+    //  为什么用内容哈希而不是"长度 + 最后写入时间"：插件包解压/复制会刷新文件写入时间，
+    //    用时间戳会"每次启动都判定为已更新"→ 反复弹通知；内容哈希只在二进制真的变了时才变化。
     //  持久化标记保证同一版本只提示一次；发送失败也不重试（避免变成每次启动骚扰）。
+
+    /// <summary>插件包内随包分发的子进程 exe 路径（不存在时返回 null，如不含该 exe 的 WPF 发行包）。</summary>
+    private static string? GetPackagedExePath()
+    {
+        try
+        {
+            var srcDir = Path.GetDirectoryName(typeof(FloatScheduleHostProcessService).Assembly.Location);
+            if (string.IsNullOrEmpty(srcDir)) return null;
+            var srcExe = Path.Combine(srcDir, "AdvancedTimeIslandFloatSchedule.exe");
+            return File.Exists(srcExe) ? srcExe : null;
+        }
+        catch { return null; }
+    }
 
     private void CheckChildExeUpdatedAndNotify()
     {
         try
         {
-            var srcDir = Path.GetDirectoryName(typeof(FloatScheduleHostProcessService).Assembly.Location);
-            if (string.IsNullOrEmpty(srcDir)) return;
-            var exePath = Path.Combine(srcDir, "AdvancedTimeIslandFloatSchedule.exe");
             // 不含该 exe 的发行包（如 WPF 版）没有独立程序 → 不提示
-            if (!File.Exists(exePath)) return;
+            var exePath = GetPackagedExePath();
+            if (exePath == null) return;
 
             var hash = ComputeFileHash(exePath);
             if (string.IsNullOrEmpty(hash)) return;
@@ -645,9 +666,9 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         // "停止意图"清零放在真正 spawn 之前：保证此前的主动停止意图覆盖到 spawn 为止
         _stopRequested = false;
 
-        // 记录本次运行副本的"版本指纹"：插件更新后（exe 变化）旧子进程据此自我识别并退出，
-        //   避免跟随启停=关 时旧版本子进程被 adopt 后继续接管新插件。
-        ChildExeStamp = ComputeExeStamp(exePath) ?? "";
+        // 记录本次运行副本的"版本指纹"（内容哈希）：下发给子进程做自我版本校验，
+        //   插件更新后（exe 内容变化）旧子进程据此识别自身已被淘汰并主动退出，由本服务用新构建重启。
+        ChildExeStamp = ComputeFileHash(exePath) ?? "";
 
         var psi = new ProcessStartInfo
         {
@@ -819,18 +840,12 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     /// <summary>是否正在执行"强制重启"（设置页据此临时禁用重启按钮）。</summary>
     public bool IsRestarting => Volatile.Read(ref _restartInProgressInt) != 0;
 
-    /// <summary>当前运行副本 exe 的"版本指纹"（长度-最后写入时间）。下发给子进程用于自我版本校验。</summary>
+    /// <summary>
+    /// 插件包内独立程序 exe 的**内容指纹**（SHA256），随 Init 下发给子进程做"我是否已被淘汰"的自检。
+    /// 用内容哈希而非"长度+写入时间"：同一构建的不同副本（插件目录原文件 vs 临时运行副本）写入时间必然不同，
+    /// 用时间戳会把"同版本"误判为"已更新"→ 每次宿主重启都无谓重启子进程，adopt（冻结窗口跨宿主重启存活）失效。
+    /// </summary>
     public string ChildExeStamp { get; private set; } = "";
-
-    private static string? ComputeExeStamp(string exePath)
-    {
-        try
-        {
-            var fi = new FileInfo(exePath);
-            return fi.Exists ? $"{fi.Length}-{fi.LastWriteTimeUtc.Ticks}" : null;
-        }
-        catch { return null; }
-    }
 
     /// <summary>独立模式开关关闭：终止子进程并回到 Off（进程内渲染由 FloatingScheduleService 恢复）。</summary>
     public void NotifyModeDisabled()
@@ -896,10 +911,20 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         int? code = p != null ? TryGetExitCode(p) : null;
         if (code == FloatScheduleIpc.ExitCodeAnotherInstance) return;   // adopt 路径在 EnsureChildUnderGateAsync 处理
 
+        // 【计划内重启：子进程自检发现"自己已被新版插件淘汰"】
+        //   典型场景：插件更新后，跟随启停=关 时冻结存活的旧子进程被新宿主 adopt；
+        //   它比对 Init 下发的 exe 内容指纹与自身指纹不一致 → 主动退出（ExitCodeSelfUpdate）。
+        //   与"意外退出"的区别只有两点：语义（计划内）与无需 1s 退避（立刻换新构建）。
+        //   仍走同一套限频配额：万一"复制出的新副本损坏/指纹不符"导致子进程反复自退，
+        //   3 次/30s 后照常熔断到 Failed 并回退进程内渲染，绝不会演变成无上限的重启风暴。
+        bool selfUpdate = code == FloatScheduleIpc.ExitCodeSelfUpdate;
+        if (selfUpdate)
+            _logger.LogInformation("FloatSchedule 旧子进程已自检到插件更新，立即用新构建重启");
+
         // 意外退出 → 经闸门限频自动重启（3 次/30s，超限 Failed 回退进程内）
         _ = Task.Run(async () =>
         {
-            await Task.Delay(1000).ConfigureAwait(false);
+            if (!selfUpdate) await Task.Delay(1000).ConfigureAwait(false);
             if (_stopRequested || !ShouldUseIndependent()) return;
             await _lifecycleGate.WaitAsync().ConfigureAwait(false);
             try
@@ -963,10 +988,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     {
         try
         {
-            var srcDir = Path.GetDirectoryName(typeof(FloatScheduleHostProcessService).Assembly.Location);
-            if (string.IsNullOrEmpty(srcDir)) return null;
-            var srcExe = Path.Combine(srcDir, "AdvancedTimeIslandFloatSchedule.exe");
-            if (!File.Exists(srcExe)) return null;
+            var srcExe = GetPackagedExePath();
+            if (srcExe == null) return null;
 
             var runDir = Path.Combine(Path.GetTempPath(), "AdvancedTimeIslandFloatSchedule");
             try { Directory.CreateDirectory(runDir); } catch { }

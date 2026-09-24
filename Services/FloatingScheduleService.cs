@@ -1469,6 +1469,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // 对齐 ClassIsland MainWindow.OnActivated：窗口被激活（样式被 Avalonia 抹掉后用户点中窗口）时
         // 自愈式重新应用鼠标穿透/分层/AltTab 隐藏等扩展样式。事件随窗口生命周期，Close 后自动失效。
         _window.Activated += FloatingWindow_OnActivatedAv;
+        // 【修复：贴边隐藏后内容变矮/变窄 → 窗口整块跑出屏幕】
+        //   悬浮窗 SizeToContent：内容变化会改变窗口尺寸，而贴边隐藏位是按旧尺寸算的（left/top 含"减尺寸"项），
+        //   尺寸变小后窗口连可见条一起被推出屏幕 → 用户看到"时间表突然完全不见"。
+        //   这里在每次布局完成后按新尺寸重算隐藏位（未贴边时零开销早退，且尺寸未变时不重复处理）。
+        //   双钩（LayoutUpdated + Resized）：前者覆盖"内容重排但窗口尺寸尚未变"的中间态，
+        //   后者是"窗口客户区尺寸真的变了"的权威信号，任一先到都会按最终尺寸重算一次。
+        _window.LayoutUpdated += (_, _) => RefreshEdgeGeometryOnResizeAv();
+        _window.Resized += (_, _) => RefreshEdgeGeometryOnResizeAv();
         _window.Opened += (_, _) =>
         {
 #if WINDOWS
@@ -2620,9 +2628,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try
         {
             // 取窗口所在屏幕（对齐 ClassIsland MainWindow 用法：TopLevel.Screens 实例属性 + ScreenFromWindow）
-            var screen = _window.Screens?.ScreenFromWindow(_window);
-            if (screen == null) return;
-            var wa = screen.WorkingArea;
+            // 工作区用缓存兜底：窗口已离屏（贴边隐藏）时 ScreenFromWindow 为 null，不能因此放弃评估
+            var waResolved = ResolveEdgeWorkAreaAv();
+            if (waResolved is not { } wa) return;
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return;
             var pos = _window.Position;
             // 已处于隐藏态且位置就是隐藏目标 → 无需处理
@@ -2657,8 +2665,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 return;
             }
 
-            // 贴边：当前位置若不是隐藏目标位（= 用户拖到的原始贴边位置）→ 记录为滑回目标
-            if (!_edgeDockedAv || pos != _edgeHiddenPosAv)
+            // 贴边：当前位置若不是隐藏目标位（= 用户拖到的原始贴边位置）→ 记录为滑回目标。
+            // 【隐藏态不得覆盖】隐藏时 pos 就是隐藏位而非用户位置：尺寸变化等会造成它与
+            //   _edgeHiddenPosAv 暂时不一致，若无条件覆盖会把"用户位置"污染成屏幕外的隐藏位。
+            if (!_edgeDockedAv || (!_edgeHiddenAv && pos != _edgeHiddenPosAv))
             {
                 _edgeDockedPosAv = pos;
                 _edgeSideAv = side;
@@ -2668,21 +2678,118 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
 
             // 计算滑出后的隐藏位置：沿贴靠边移出，只保留 EdgeHideVisibleStripAv 像素可见条
-            int hx = _edgeDockedPosAv.X, hy = _edgeDockedPosAv.Y;
-            switch (side)
+            if (!TryComputeEdgeHiddenPosAv(side, _edgeDockedPosAv, w, h, wa, out var hiddenAv))
+                return;
+            _edgeHiddenPosAv = hiddenAv;
+            _edgeLastSizeWAv = w;
+            _edgeLastSizeHAv = h;
+            // 【自愈】隐藏态下窗口必须正好停在"按当前尺寸算出的隐藏位"：尺寸变化后旧位置会让窗口
+            //   整块移出屏幕（连 6px 可见条都没有），这里立即纠正，使状态无需等下一次滑出就恢复正确。
+            if (_edgeHiddenAv && pos != hiddenAv)
             {
-                case "left": hx = wa.X - w + EdgeHideVisibleStripAv; break;
-                case "right": hx = wa.X + wa.Width - EdgeHideVisibleStripAv; break;
-                case "top": hy = wa.Y - h + EdgeHideVisibleStripAv; break;
-                case "bottom": hy = wa.Y + wa.Height - EdgeHideVisibleStripAv; break;
+                try { _window.Position = hiddenAv; } catch { }
             }
-            _edgeHiddenPosAv = new PixelPoint(hx, hy);
             // 【贴边隐藏延迟】刚判定贴边不立即滑出，等待用户设置的延迟秒数（默认 3s）后再滑出；
             //  等待期间若光标进入可见条 / 用户拖走 / 关闭开关，延迟任务会被取消或重新校验后放弃。
             if (!_edgeHiddenAv && !_edgeSlideOutPendingAv)
                 ScheduleEdgeSlideOutAv();
         }
         catch (Exception ex) { _logger.LogDebug(ex, "贴边隐藏评估异常，忽略。"); }
+    }
+
+    /// <summary>
+    /// 计算"滑出隐藏位"：沿贴靠边移出，只保留 <see cref="EdgeHideVisibleStripAv"/> 像素可见条。
+    /// 【必须按当前窗口尺寸算】left/top 的隐藏位含"减尺寸"项（边缘 - 宽/高 + 可见条），
+    /// 尺寸变化后旧隐藏位不再成立 —— 尺寸变小时窗口连可见条一起被推出屏幕（见 RefreshEdgeGeometryOnResizeAv）。
+    /// </summary>
+    private static bool TryComputeEdgeHiddenPosAv(string side, PixelPoint docked, int w, int h, PixelRect wa, out PixelPoint pos)
+    {
+        int hx = docked.X, hy = docked.Y;
+        switch (side)
+        {
+            case "left": hx = wa.X - w + EdgeHideVisibleStripAv; break;
+            case "right": hx = wa.X + wa.Width - EdgeHideVisibleStripAv; break;
+            case "top": hy = wa.Y - h + EdgeHideVisibleStripAv; break;
+            case "bottom": hy = wa.Y + wa.Height - EdgeHideVisibleStripAv; break;
+            default: pos = docked; return false;
+        }
+        pos = new PixelPoint(hx, hy);
+        return true;
+    }
+
+    // 贴边状态下最近一次已知的窗口设备像素尺寸（用于尺寸变化检测）
+    private int _edgeLastSizeWAv, _edgeLastSizeHAv;
+    // 贴边时记录下来的屏幕工作区（隐藏位计算的权威来源，见 ResolveEdgeWorkAreaAv）
+    private PixelRect? _edgeWorkAreaAv;
+
+    /// <summary>
+    /// 取"隐藏位计算所用的屏幕工作区"。
+    /// 【关键修复：离屏后查不到屏幕导致自愈永久卡死】
+    ///   贴边隐藏后窗口被移出屏幕，Avalonia 的 <c>Screens.ScreenFromWindow</c> 此时会返回 null
+    ///   （窗口矩形与任何显示器都不相交）。而"内容变矮需要重算隐藏位"恰恰发生在这种离屏状态下，
+    ///   若此刻才去查屏幕 → null → 算不出隐藏位 → 窗口永久停在屏幕外（连 6px 可见条都没有）。
+    ///   故：能查到屏幕（窗口在屏上时）就用实时值并刷新缓存；查不到就用"贴边时记录的"工作区兜底。
+    /// </summary>
+    private PixelRect? ResolveEdgeWorkAreaAv()
+    {
+        try
+        {
+            if (_window == null) return _edgeWorkAreaAv;
+            var screen = _window.Screens?.ScreenFromWindow(_window);
+            if (screen != null)
+            {
+                _edgeWorkAreaAv = screen.WorkingArea;
+                return _edgeWorkAreaAv;
+            }
+        }
+        catch { }
+        return _edgeWorkAreaAv;
+    }
+
+    /// <summary>
+    /// 【修复：内容变矮/变窄后贴边隐藏的窗口整块跑出屏幕】
+    ///   贴边隐藏位是按"当时的窗口尺寸"算出来的，而悬浮窗是 SizeToContent：内容一变化（上课后课间行消失、
+    ///   课表行数变化、从有课切到无课占位等）窗口宽高就会变。旧隐藏位对旧尺寸成立：
+    ///     · 贴上边隐藏时 隐藏Y = 工作区上边 - 高度 + 6px → 高度变矮 → 窗口底边跑到屏幕上方 → 完全不可见；
+    ///     · 贴左边隐藏时 隐藏X = 工作区左边 - 宽度 + 6px → 宽度变窄 → 窗口右边跑到屏幕左侧 → 完全不可见。
+    ///   故布局（尺寸）变化时按新尺寸重算隐藏位；处于隐藏态则直接把窗口移到新隐藏位（可见条保持 6px）。
+    /// </summary>
+    private void RefreshEdgeGeometryOnResizeAv()
+    {
+        try
+        {
+            if (_window == null) return;
+            if (!_edgeDockedAv || _dragActiveAv) return;   // 未贴边 / 拖拽中：与隐藏位无关
+            if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return;
+            if (w == _edgeLastSizeWAv && h == _edgeLastSizeHAv) return;   // 尺寸没变 → 零开销返回（避免布局回调循环）
+            // 【关键修复】只有应用成功才提交尺寸缓存：否则一旦某次应用失败（如窗口已离屏、算不出隐藏位），
+            //   缓存却已更新 → 此后永远判定"尺寸没变" → 再也不会重试，窗口永久停在屏幕外。
+            if (!ApplyEdgeHiddenPosAv(w, h)) return;
+            _edgeLastSizeWAv = w;
+            _edgeLastSizeHAv = h;
+        }
+        catch { /* 布局回调中的异常不得外泄 */ }
+    }
+
+    /// <summary>按给定尺寸重算并应用隐藏位：隐藏态立即落位；滑出动画中则同步动画目标（旧目标只对旧尺寸成立）。
+    /// 返回是否成功算出了隐藏位（false = 算不出，调用方不得提交尺寸缓存，以便后续重试）。</summary>
+    private bool ApplyEdgeHiddenPosAv(int w, int h)
+    {
+        if (_window == null || _edgeSideAv is not { } side) return false;
+        // 工作区用缓存兜底：窗口已离屏时 ScreenFromWindow 为 null（正是需要重算的场景）
+        var waResolved = ResolveEdgeWorkAreaAv();
+        if (waResolved is not { } work) return false;
+        if (!TryComputeEdgeHiddenPosAv(side, _edgeDockedPosAv, w, h, work, out var hidden)) return false;
+        _edgeHiddenPosAv = hidden;
+        if (_edgeHiddenAv && !_edgeAnimatingAv)
+        {
+            try { _window.Position = hidden; } catch { }
+        }
+        else if (_edgeAnimatingAv && _edgeAnimWillHideAv)
+        {
+            _edgeAnimTargetAv = hidden;
+        }
+        return true;
     }
 
     /// <summary>发起一次滑入/滑出平移动画（200ms，CubicEaseOut 风格插值；不阻塞 UI 线程）。</summary>
@@ -2885,6 +2992,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _edgeSideAv = null;
         _edgeHoverTicksAv = 0;
         _edgeHoverLastInAv = false;
+        // 尺寸缓存归零：下次重新贴边时强制按当时尺寸重算隐藏位（避免沿用上一次贴边的尺寸基线）
+        _edgeLastSizeWAv = 0;
+        _edgeLastSizeHAv = 0;
+        _edgeWorkAreaAv = null;   // 工作区缓存同理：下次重新贴边时按当时的屏幕实时采集
     }
 
     // ============ 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能，Avalonia 端）============
@@ -3302,6 +3413,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 {
                     ApplyHoverFade();
                     UpdateEdgeHoverAv();   // 【贴边隐藏】复用 50ms 轮询：光标进入可见条滑回 / 离开滑回隐藏
+                    // 【修复：贴边隐藏位随尺寸自愈（关键）】50ms 常驻兜底重算隐藏位。
+                    //   为什么不能只靠 LayoutUpdated / Resized：实测"下课(高393)→上课(矮362)"变矮时，
+                    //   尺寸监听在"平台窗口真正改变尺寸"之前就拿到了旧尺寸（早退出、未重算），此后不再触发，
+                    //   隐藏位永久停在 −387 → 窗口底边 −25 → 整块移出屏幕（可见条也消失）。
+                    //   这里每 50ms 比对一次尺寸，尺寸真的变了就必定在下一拍纠正（未贴边时零开销早退）。
+                    RefreshEdgeGeometryOnResizeAv();
                 };
             }
             if (!_hoverFadeTimer.IsEnabled) _hoverFadeTimer.Start();

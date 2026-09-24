@@ -9,4 +9,3 @@ riderModule.iml
 /_ReSharper.Caches/
 # 配置持久化反射测试工具（本地开发用，不随插件分发、不入库）
 /Tools/
-.trae/

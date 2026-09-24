@@ -88,6 +88,9 @@ public static class FloatScheduleIpc
     // Avalonia 启动阶段抛异常（非"文件缺失"、也非"代际不匹配"）：单独退出码，
     //   让宿主端能提示"启动失败 + 子进程原始错误"，而不是笼统地把用户引向"缺少运行库"。
     public const int ExitCodeAvaloniaStartFailed = 46;
+    // 子进程自检发现"自己已被新版插件淘汰"（自身 exe 内容指纹 ≠ 插件下发的指纹）→ 主动退出。
+    // 宿主据此识别为**计划内重启**（不受"意外退出"限频约束），立即用新构建重启一个新子进程。
+    public const int ExitCodeSelfUpdate = 47;
 
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
 
