@@ -1,11 +1,13 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Runtime.Loader;
 using AdvancedTimeIsland.Models;
 using Avalonia.Threading;
 using ClassIsland.Core.Attributes;
-using ClassIsland.Core.Models.Plugin;
+using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Helpers;
 
@@ -148,8 +150,7 @@ public static class CrossPluginHelper
 
     /// <summary>
     /// 在已加载程序集中扫描 FemboyTest 的插件入口类型（真身双因子校验：标识符与签名常量需同时匹配）。
-    /// 找到返回该类型，否则返回 null。供 <see cref="IsFemboyTestPresentByIdentifier"/> 与
-    /// <see cref="TryGetFemboyTestPluginInfo"/> 共用，保证两条路径判定完全一致。
+    /// 找到返回该类型，否则返回 null。供 <see cref="IsFemboyTestPresentByIdentifier"/> 使用。
     /// </summary>
     private static Type? FindFemboyTestEntranceType()
     {
@@ -190,37 +191,6 @@ public static class CrossPluginHelper
         }
 
         return null;
-    }
-
-    /// <summary>
-    /// 解析 FemboyTest（同进程 CI2 插件版）对应的宿主 <see cref="PluginInfo"/>。
-    /// 复用与 <see cref="IsFemboyTestEnabled"/> 路径一完全一致的真身双因子扫描，
-    /// 再经 AssemblyLoadContext → PluginLoadContext.Info 映射——与宿主
-    /// DiagnosticService.GetPluginsByStacktrace 的归因方式同源，因此可用于
-    /// 让宿主按“错误由该插件引起”处理（即禁用该插件）。
-    /// 仅当 FemboyTest 以插件形式加载在本进程内时可解析；独立进程版/原生 exe 返回 null。
-    /// </summary>
-    public static PluginInfo? TryGetFemboyTestPluginInfo()
-    {
-        try
-        {
-            var entranceType = FindFemboyTestEntranceType();
-            if (entranceType == null)
-                return null;
-
-            var context = AssemblyLoadContext.GetLoadContext(entranceType.Assembly);
-            if (context == null)
-                return null;
-
-            // PluginLoadContext.Info 为宿主类型成员，用反射读取以保持对宿主程序集零编译期依赖
-            var infoProperty = context.GetType()
-                .GetProperty("Info", BindingFlags.Public | BindingFlags.Instance);
-            return infoProperty?.GetValue(context) as PluginInfo;
-        }
-        catch
-        {
-            return null;
-        }
     }
 
     /// <summary>
@@ -313,5 +283,127 @@ public static class CrossPluginHelper
             ResetEasterEggIfFemboyTestEnabled(settings);
         };
         timer.Start();
+    }
+
+    private static object? _pinyinService;
+    private static MethodInfo? _getFullPinyinListMethod;
+    private static bool _pinyinServiceLookupDone;
+
+    /// <summary>
+    /// 取文本的全拼候选（如“男娘”→<c>NanNiang</c>、“南梁”→<c>NanLiang</c>/<c>NaLiang</c>）。
+    /// 优先使用 LibPinyin4CI（https://github.com/lrsgzs/LibPinyin4CI）——它在本插件清单中登记为
+    /// <b>可选依赖</b>（<c>lrs2187.LibPinyin</c>，<c>isRequired: false</c>）：
+    /// 该插件在 Initialize 中把服务以 <c>AddSingleton&lt;IPinyinService, PinyinService&gt;</c> 注册进宿主 DI；
+    /// 其共享程序集 <c>LibPinyin4CI.Shared</c> 并非本插件的编译期依赖，故运行时按类型名反射取服务实例——
+    /// 既不引入程序集依赖，也不受各插件独立 AssemblyLoadContext 的类型标识差异影响。
+    /// 未安装、未启用或解析失败时回退到内置的 <see cref="SimplePinyinMatcher"/>。
+    /// 注意：LibPinyin 返回 TitleCase（如 <c>NanNiang</c>），简单匹配器返回小写，比较时请忽略大小写。
+    /// </summary>
+    public static IReadOnlyList<string> GetFullPinyinCandidates(string text)
+    {
+        if (string.IsNullOrEmpty(text))
+        {
+            return Array.Empty<string>();
+        }
+
+        var fromLibPinyin = TryGetFullPinyinFromLibPinyin(text);
+        if (fromLibPinyin.Count > 0)
+        {
+            return fromLibPinyin;
+        }
+
+        return SimplePinyinMatcher.GetFullPinyinCandidates(text);
+    }
+
+    /// <summary>通过 LibPinyin4CI 的 IPinyinService 取全拼候选；不可用时返回空列表（由调用方回退）。</summary>
+    private static IReadOnlyList<string> TryGetFullPinyinFromLibPinyin(string text)
+    {
+        try
+        {
+            var service = TryGetPinyinService();
+            var method = _getFullPinyinListMethod;
+            if (service == null || method == null)
+            {
+                return Array.Empty<string>();
+            }
+
+            return method.Invoke(service, new object[] { text }) is IEnumerable<string> candidates
+                ? candidates.ToList()
+                : Array.Empty<string>();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"TryGetFullPinyinFromLibPinyin failed: {ex}");
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// 解析 LibPinyin4CI 注册进宿主 DI 的 <c>IPinyinService</c> 实例。
+    /// 只解析一次（插件集合在启动后固定）；未安装或解析失败时返回 null。
+    /// </summary>
+    private static object? TryGetPinyinService()
+    {
+        if (_pinyinServiceLookupDone)
+        {
+            return _pinyinService;
+        }
+
+        _pinyinServiceLookupDone = true;
+        try
+        {
+            var serviceInterfaceType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType("LibPinyin4CI.Shared.Services.IPinyinService"))
+                .FirstOrDefault(type => type != null);
+            if (serviceInterfaceType == null)
+            {
+                return null;
+            }
+
+            _getFullPinyinListMethod = serviceInterfaceType.GetMethod(
+                "GetFullPinyinList", new[] { typeof(string) });
+            _pinyinService = IAppHost.Host?.Services.GetService(serviceInterfaceType);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"TryGetPinyinService failed: {ex}");
+        }
+
+        return _pinyinService;
+    }
+
+    /// <summary>
+    /// 自制简易拼音匹配：未安装可选依赖 LibPinyin4CI 时的回退实现。
+    /// 不做完整的汉字拼音表，只收录匹配基准 <c>nanniang</c> 及其编辑距离 1 邻域所需的常用字
+    /// （nan / niang / liang 三族）的音节，其余字符原样透传——透传字符会参与编辑距离计算，
+    /// 从而自然把无关文本排除在外。
+    /// 相比逐一列举中文字面量，它具备组合能力：男酿、南娘、楠娘 等未列举的组合同样能命中。
+    /// 返回单个候选（不展开多音字），统一为小写。
+    /// </summary>
+    private static class SimplePinyinMatcher
+    {
+        private static readonly Dictionary<char, string> _syllables = new()
+        {
+            // nan
+            ['男'] = "nan", ['南'] = "nan", ['楠'] = "nan", ['囡'] = "nan", ['难'] = "nan", ['喃'] = "nan",
+            // niang
+            ['娘'] = "niang", ['酿'] = "niang",
+            // liang：与 "nanniang" 编辑距离 1 的最常见落点
+            ['梁'] = "liang", ['凉'] = "liang", ['良'] = "liang", ['两'] = "liang", ['亮'] = "liang",
+            ['量'] = "liang", ['粮'] = "liang", ['谅'] = "liang",
+        };
+
+        public static IReadOnlyList<string> GetFullPinyinCandidates(string text)
+        {
+            var builder = new System.Text.StringBuilder(text.Length * 5);
+            foreach (var ch in text)
+            {
+                builder.Append(_syllables.TryGetValue(ch, out var syllable)
+                    ? syllable
+                    : char.ToLowerInvariant(ch).ToString());
+            }
+
+            return new[] { builder.ToString() };
+        }
     }
 }
