@@ -1222,6 +1222,12 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         monthComboBox.SelectionChanged += (s, e) => CommitTargetTime();
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(yearTextBox, (s, e) => CommitTargetTime());
 
+        // ---------- 仅计在校时长 ----------
+        //  开启后显示值只累计「在校时间」（在校日按「在校时间统计」口径判定，在校时段取当天课表首课→末课）；
+        //  仅影响显示值，到期通知仍在真实时间到达目标时触发。
+        panel.Children.Add(CountdownDetailFields.Toggle("仅计在校时长", item.CountOnlyInSchoolTime,
+            v => item.CountOnlyInSchoolTime = v));
+
         panel.Children.Add(CountdownDetailFields.NotificationSection(
             item.EnableNotification,
             v => item.EnableNotification = v,

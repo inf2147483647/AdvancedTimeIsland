@@ -31,14 +31,16 @@ public class CountdownControl : ComponentBase<CountdownSettings>
     private Border rootBorder;
     private StackPanel contentPanel;
     private readonly TimeBaseService _timeBaseService;
+    private readonly InSchoolCountdownCalculator _inSchoolCalc;
     private ProgressBar progressBar;
     private Panel circleProgressRoot;
     private Ellipse circleProgressBackground;
     private Avalonia.Controls.Shapes.Path circleProgressPath;
 
-    public CountdownControl(TimeBaseService tbs)
+    public CountdownControl(TimeBaseService tbs, InSchoolCountdownCalculator inSchoolCalc)
     {
         _timeBaseService = tbs;
+        _inSchoolCalc = inSchoolCalc;
         InitializeComponent();
     }
 
@@ -221,7 +223,8 @@ public class CountdownControl : ComponentBase<CountdownSettings>
         }
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
         vm = new CountdownViewModel(_timeBaseService, Settings,
-            UpdateText1Style, UpdateText2Style, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
+            UpdateText1Style, UpdateText2Style, UpdateText3Style, UpdateTimeStyle, UpdateText4Style,
+            _inSchoolCalc);
         DataContext = vm;
 
         UpdateDisplays();

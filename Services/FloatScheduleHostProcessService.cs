@@ -284,6 +284,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             EnsureAcceptLoopRunning();
             _ = EnsureChildAsync();
         }
+        // 【健康看门狗】与开关状态无关地常驻：模式可能在运行中才被打开，且它正是"子进程失联后无人拉起"的兜底
+        StartHealthWatchdog();
         return Task.CompletedTask;
     }
 
@@ -401,6 +403,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        // 先停看门狗：退出收尾期间不得再拉起子进程（跟随启停=关 时子进程本应保留冻结显示）
+        StopHealthWatchdog();
         // 插件退出（ClassIsland 正常关闭）：跟随启停=开 → 发 shutdown + 兜底 Kill（子进程消失）；
         //                        跟随启停=关 → 只关管道服务器，子进程进入冻结显示。
         // 经闸门串行收尾（与并发中的启动流程不会交错）；限时取闸门，避免退出被长时间阻塞。
@@ -430,6 +434,7 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     {
         try
         {
+            StopHealthWatchdog();
             _stopRequested = true;
             ClosePipe();
             try { _pipeServer?.Dispose(); } catch { }
@@ -512,6 +517,60 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try { await EnsureChildUnderGateAsync().ConfigureAwait(false); }
         finally { _lifecycleGate.Release(); }
+    }
+
+    // =====【健康看门狗】=====
+    //  为什么必须有：adopt 路径（跟随启停=关 时上一代宿主退出后冻结存活的子进程，被新宿主接管）
+    //  从不 spawn → _childProcess 恒为 null → 没有 Process.Exited 订阅。该子进程重连后拿到含新指纹的
+    //  Init，自检发现已被淘汰 → 以 ExitCodeSelfUpdate 主动退出；插件侧只收到管道断开
+    //  （MarkDisconnected → SetStatus(Starting)），ChildExited 永不触发。
+    //  而 EnsureChildAsync 仅在"服务启动 / 开关切换 / 进程退出事件"时被调用，没有任何周期性兜底
+    //  → 无人再拉起子进程，状态永久停在"启动中..."；此时独立模式仍被视为"已请求"，
+    //  进程内悬浮窗也处于禁用状态 → 用户什么都看不到。看门狗正是这条链路的兜底。
+    private Timer? _healthWatchdog;
+    private long _disconnectedSinceTicks;
+    private const int WatchdogIntervalMs = 1000;
+    //  必须明显大于子进程自身最坏重连周期（连接超时 3s + 退避 1s ≈ 4s），否则会把"正在重连"误判为故障而强杀。
+    private const int WatchdogRecoverMs = 8000;
+
+    private void StartHealthWatchdog()
+    {
+        _healthWatchdog ??= new Timer(_ => _ = WatchdogTickAsync(), null, WatchdogIntervalMs, WatchdogIntervalMs);
+    }
+
+    private void StopHealthWatchdog()
+    {
+        try { _healthWatchdog?.Dispose(); } catch { }
+        _healthWatchdog = null;
+    }
+
+    /// <summary>
+    /// 看门狗：独立模式生效且非主动停止时，若管道持续未连接超过 <see cref="WatchdogRecoverMs"/>，
+    /// 经生命周期闸门重启子进程（会先杀掉"仍存活但已断连"的进程与同名残留，再用当前构建拉起）。
+    /// 不介入的情形：主动停止意图、模式关闭、已熔断 Failed（此时上层已回退进程内渲染）、
+    /// 以及生命周期事务进行中（启动/重启/停止正在跑，它自己会收敛，抢占只会造成重复 spawn）。
+    /// </summary>
+    private async Task WatchdogTickAsync()
+    {
+        try
+        {
+            if (_stopRequested || !ShouldUseIndependent()) { _disconnectedSinceTicks = 0; return; }
+            if (_pipeConnected) { _disconnectedSinceTicks = 0; return; }
+            if (IsRestarting || _lifecycleGate.CurrentCount == 0) { _disconnectedSinceTicks = 0; return; }
+
+            var now = Environment.TickCount64;
+            if (_disconnectedSinceTicks == 0) { _disconnectedSinceTicks = now; return; }
+            if (now - _disconnectedSinceTicks < WatchdogRecoverMs) return;
+
+            _disconnectedSinceTicks = 0;   // 先复位：避免每秒重复介入
+            _logger.LogWarning("FloatSchedule 子进程超过 {Sec}s 未连接，看门狗主动拉起（覆盖 adopt 后自退出等无 Exited 事件的场景）",
+                WatchdogRecoverMs / 1000);
+            await RestartChildAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "FloatSchedule 看门狗异常（忽略，下一拍重试）");
+        }
     }
 
     /// <summary>确保子进程在跑（调用方必须已持有 _lifecycleGate）。

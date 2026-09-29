@@ -271,6 +271,33 @@ public class AttendanceCalendarService
     public string? LastScheduleReadError { get; private set; }
 
     /// <summary>
+    /// 读取指定日期档案中「第一节课开始 → 最后一节课下课」的时段窗口。
+    /// 仅认当天专属课表（不使用 CurrentClassPlan 兜底），供倒计时"仅计在校时长"按日扫描使用；
+    /// 当天无课表或没有启用课程时返回 false（调用方按"非在校时段"处理）。
+    /// 内部包含宿主反射查询，可在后台线程调用。
+    /// </summary>
+    public bool TryGetScheduleWindow(DateTime date, out TimeSpan start, out TimeSpan end)
+    {
+        start = end = TimeSpan.Zero;
+        try
+        {
+            var classPlan = ResolveClassPlan(date, allowCurrentClassPlanFallback: false);
+            if (classPlan == null) return false;
+
+            var classItems = GetEnabledClassItems(classPlan);
+            if (classItems.Count == 0) return false;
+
+            start = classItems.Min(x => x.Start);
+            end = classItems.Max(x => x.End);
+            return end > start;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 收集区间内「启用时间表为空」的日期（当天课表存在，但没有启用任何课程），
     /// 这些日期在校日统计中一律标记为非在校。
     /// 无法解析课表（宿主不可用、当天无课表安排）的日期不纳入结果，
@@ -700,6 +727,8 @@ public class AttendanceCalendarService
 
     private static void NotifyDataChanged()
     {
+        // 数据/配置版本号：每次广播变更递增，供"仅计在校时长"倒计时判断缓存是否过期。
+        Revision++;
         if (Dispatcher.UIThread.CheckAccess())
         {
             DataChanged?.Invoke(null, EventArgs.Empty);
@@ -709,6 +738,9 @@ public class AttendanceCalendarService
             Dispatcher.UIThread.Post(() => DataChanged?.Invoke(null, EventArgs.Empty));
         }
     }
+
+    /// <summary>在校日历数据 / 统计口径的版本号，每次数据变更递增（用于下游缓存失效判断）。</summary>
+    public static int Revision { get; private set; }
 
     /// <summary>
     /// 按 CDN → 镜像 → GitHub 直链 → timor.tech 的顺序拉取某年份数据。

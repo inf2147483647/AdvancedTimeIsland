@@ -268,6 +268,8 @@ public class Plugin : PluginBase
         services.AddSingleton<SharedRenderClockService>();
         services.AddSingleton<SemesterStartService>();
         services.AddSingleton<AttendanceCalendarService>();
+        // 「仅计在校时长」倒计时的逐日课表窗口缓存（多组件共享一份，避免重复扫描课表）
+        services.AddSingleton<InSchoolCountdownCalculator>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         // 【启动速度】悬浮窗相关服务前置注册：宿主 Host.StartAsync 顺序 await 各 IHostedService，
