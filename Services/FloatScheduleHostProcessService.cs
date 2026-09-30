@@ -260,8 +260,33 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     }
 
     // ===================== 生命周期 =====================
+    // 【启动必须不依赖 StartAsync 被调用】0=尚未启动，1=已启动；StartAsync 与 EnsureStartedFallback 竞争，
+    //  只有先到者真正执行 StartCore。原因见 EnsureStartedFallback 注释（Win8.1 上实测的宿主启动中断）。
+    private int _startInvoked;
 
     public Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _startInvoked, 1) == 1) return Task.CompletedTask;
+        StartCore(cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序依次 await，
+    /// <b>任一服务抛异常即中止后续启动</b>（实测 2026-09，Windows 8.1 + ClassIsland 2.1.0.1：MediaIsland 依赖的
+    /// Windows.Media.Control 在 Win8.1 上不存在）→ 注册在其后的本服务 StartAsync 永不执行：管道服务器不监听、
+    /// 子进程不启动、独立程序更新提示也不会发出，且日志中无任何本插件报错。
+    /// 由 Plugin.Initialize 延迟调用本方法补齐启动；幂等（宿主已正常启动则直接返回）。
+    /// 必须早于 FloatingScheduleService 的兜底（管道监听先就绪，见 Plugin 中的调用顺序）。
+    /// </summary>
+    public void EnsureStartedFallback()
+    {
+        if (Interlocked.Exchange(ref _startInvoked, 1) == 1) return;
+        _logger.LogWarning("宿主未启动本服务（Host.StartAsync 可能被其它插件的 IHostedService 异常中断），改用兜底启动悬浮窗独立进程服务");
+        StartCore(CancellationToken.None);
+    }
+
+    private void StartCore(CancellationToken cancellationToken)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         // 【独立程序更新提示】与独立进程模式开关无关：插件升级会随包重新分发子进程 exe，
@@ -286,7 +311,6 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         }
         // 【健康看门狗】与开关状态无关地常驻：模式可能在运行中才被打开，且它正是"子进程失联后无人拉起"的兜底
         StartHealthWatchdog();
-        return Task.CompletedTask;
     }
 
     // ===================== 独立程序（子进程 exe）更新提示 =====================
@@ -353,6 +377,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         // Windows 8.x（6.x）无桌面 toast 能力 → 降级为气泡通知后直接返回
         if (Environment.OSVersion.Version.Major < 10)
         {
+            _logger.LogInformation("当前系统 {Version} 不支持桌面 toast，改以托盘气泡发送悬浮时间表更新提示",
+                Environment.OSVersion.Version);
             WindowsBalloonNotifier.Show(title, body);
             return;
         }
@@ -428,6 +454,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         try { _cts?.Cancel(); } catch { }
         try { _pipeServer?.Dispose(); } catch { }
         _pipeServer = null;
+        // 允许宿主重启后再次启动（StartAsync/兜底启动的幂等闸门复位，与 FloatingScheduleService 一致）
+        System.Threading.Interlocked.Exchange(ref _startInvoked, 0);
     }
 
     public void Dispose()

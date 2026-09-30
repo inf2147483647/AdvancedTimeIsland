@@ -157,10 +157,11 @@ public class Plugin : PluginBase
     /// 悬浮时间表启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序
     /// 依次 await，<b>任一服务抛异常即中止后续启动</b>，注册在其后的插件宿主服务全部不会启动。
     /// 实测（2026-09，Windows 8.1 + ClassIsland 2.1.0.1）：MediaIsland 依赖的 Windows.Media.Control 在 Win8.1 上
-    /// 不存在（COMException 0x80040111），其启动失败后本插件 FloatingScheduleService.StartAsync 永不执行
-    /// → 悬浮窗从不创建 → 表现为"悬浮时间表不显示"，且日志中没有任何本插件报错。
+    /// 不存在（COMException 0x80040111），其启动失败后本插件的两个悬浮窗服务 StartAsync 均永不执行
+    /// → 悬浮窗从不创建、独立进程不启动、「独立程序已更新」提示也不发出，且日志中没有任何本插件报错。
     /// 插件加载/注册顺序由 ClassIsland 决定（随安装、更新而变化），故不能依赖顺序：这里延迟检查一次，
-    /// 若宿主未启动本服务则由兜底补齐（幂等，宿主已正常启动时为空操作）。
+    /// 若宿主未启动这两个服务则由兜底补齐（各自幂等，宿主已正常启动时为空操作）。
+    /// 顺序必须是 HostProcessService → FloatingScheduleService（与注册顺序一致：管道监听先就绪）。
     /// </summary>
     private static void KickFloatingScheduleStartFallback()
     {
@@ -170,6 +171,7 @@ public class Plugin : PluginBase
             {
                 // 等宿主 Build/启动流程走完（Host.StartAsync 是 fire-and-forget，正常路径通常远早于此时完成）
                 await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+                ClassIsland.Shared.IAppHost.TryGetService<Services.FloatScheduleHostProcessService>()?.EnsureStartedFallback();
                 ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>()?.EnsureStartedFallbackAv();
             }
             catch { /* 兜底失败不影响其它功能（悬浮窗仍需设置开关开启） */ }

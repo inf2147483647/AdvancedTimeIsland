@@ -21,6 +21,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ClassIsland.Shared;
 using ClassIsland.Shared.Enums;
 using ClassIsland.Shared.Models.Profile;
@@ -300,15 +301,25 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private DateTime _lastRefreshDate = DateTime.MinValue;
     // 宿主 SettingsService：反射 IAppHost.GetService<SettingsService>() 结果。Stop/关闭开关必须 Detach，防止插件被 SettingsService（宿主 singleton）强引用滞留内存。
     private object? _hostSettingsServiceAv;
-    // 宿主 SettingsService.Settings：INotifyPropertyChanged 源，保存引用以便 Detach 时 -=
-    private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjAv;
+    // 宿主 SettingsService.Settings（object 而非 INotifyPropertyChanged：隐藏规则只需要"能反射取属性"，
+    //  是否实现 INPC 只影响调试时间的即时刷新，不应因此让隐藏规则整体失效）。
+    private object? _hostSettingsObjAv;
+    // INPC 源单独保存，供调试时间订阅 / 退订使用
+    private System.ComponentModel.INotifyPropertyChanged? _hostSettingsNpcAv;
     private PropertyChangedEventHandler? _hostSettingsChangedHandlerAv;
+    // 解析失败只告警一次，避免 500ms 轮询路径刷日志
+    private bool _hostSettingsResolveWarnedAv;
 
     // ========== 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能）==========
     //  模式（FloatingScheduleHideMode）：FollowHost=0 跟随主界面隐藏规则；Basic=1 基础模式；
     //    Advanced=2 高级模式(复用宿主规则集)；Never=3 从不隐藏。检测走反射/宿主 DI，异常时保守"不隐藏"。
     private Avalonia.Controls.Window? _hostMainWndAv;      // 缓存宿主主窗口（解析失败→"跟随"时不遮蔽）
     private object? _hostRulesetServiceAv;                 // 缓存宿主 IRulesetService 实例
+    // 【与主界面同步起播】宿主主界面内容根的"目标可见性"读取器（ClassIsland.MainWindow.GetIsContentVisibleRequested）。
+    //  宿主隐藏主界面是 250ms 过场动画，GridRoot.IsVisible 要等动画结束才翻转；目标可见性在动画起播瞬间就翻转，
+    //  用它判定可让悬浮窗与主界面同刻起播（否则最多滞后 250ms + 轮询间隔）。
+    private Type? _hostContentVisibleGetterOwnerAv;        // 已解析该读取器的窗口类型（窗口类型变化时重新解析）
+    private MethodInfo? _hostContentVisibleGetterAv;
 
     // ========== 隐藏/显示过渡动画（对齐 ClassIsland 主界面 MainWindow.VisibilityAnimation）==========
     //  对齐 ClassIsland 的部分：时长 250ms（进出场一致）；入场缓动 cubic-bezier(0.25, 1, 0.5, 1)（减速，先快后慢）、
@@ -972,61 +983,109 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  退订：必须在 Stop() / EnableFloatingSchedule=false 分支 Detach，防止宿主 singleton 强引用插件对象导致内存泄漏。
 
     /// <summary>
-    /// 尝试拿宿主 SettingsService 并订阅 Settings.PropertyChanged。
-    /// 拿不到时仅 LogWarning，不会抛——下一 Tick 的 dateChanged 兜底 + sentinel=-1 强制 Refresh 仍可保证功能（延迟<=500ms）。
+    /// 解析宿主 SettingsService 与其 Settings 对象（隐藏规则与调试时间订阅共用）。
+    /// 【设计要点】悬浮窗的"基础模式 / 高级模式（规则集）"都依赖宿主的 Settings 对象，因此这里必须
+    ///   可被**隐藏判定按需调用并自愈**：旧实现只在建立悬浮窗时顺带订阅一次，解析失败（宿主服务尚未就绪、
+    ///   类型搬迁改名、Detach 之后）会让隐藏规则**静默失效**，而唯一症状是一条指向"调试时间"的告警，极易误导排查。
+    /// 解析顺序：已知类型名 → 扫描宿主程序集里名称含 SettingsService 的具体类型。失败不写缓存，下次调用重试。
+    /// </summary>
+    private bool EnsureHostSettingsResolvedAv()
+    {
+        if (_hostSettingsObjAv != null) return true;
+        try
+        {
+            if (IAppHost.Host == null) return false;
+            var sp = IAppHost.Host.Services;
+
+            var tSettingsSvc = FindHostServiceType("ClassIsland.Services.SettingsService")
+                            ?? FindHostServiceType("ClassIsland.Core.Services.SettingsService");
+            object? settingsSvc = tSettingsSvc != null ? sp.GetService(tSettingsSvc) : null;
+
+            if (settingsSvc == null)
+            {
+                // 兜底：宿主把 SettingsService 搬到别的命名空间 / 改名时，按"名称含 SettingsService 的具体类型"逐个试解析
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name?.StartsWith("ClassIsland", StringComparison.Ordinal) != true) continue;
+                    Type[] types;
+                    try { types = asm.GetTypes(); } catch { continue; }
+                    foreach (var t in types)
+                    {
+                        if (t.IsAbstract || t.IsInterface) continue;
+                        if (t.Name.IndexOf("SettingsService", StringComparison.Ordinal) < 0) continue;
+                        object? svc = null;
+                        try { svc = sp.GetService(t); } catch { }
+                        if (svc != null) { settingsSvc = svc; break; }
+                    }
+                    if (settingsSvc != null) break;
+                }
+            }
+
+            if (settingsSvc == null)
+            {
+                if (!_hostSettingsResolveWarnedAv)
+                {
+                    _hostSettingsResolveWarnedAv = true;
+                    _logger.LogWarning("FloatSchedule 未能解析宿主 SettingsService，隐藏悬浮窗（基础/高级模式）将不生效");
+                }
+                return false;
+            }
+
+            var settingsObj = settingsSvc.GetType()
+                .GetProperty("Settings", BindingFlags.Instance | BindingFlags.Public)?.GetValue(settingsSvc);
+            if (settingsObj == null)
+            {
+                if (!_hostSettingsResolveWarnedAv)
+                {
+                    _hostSettingsResolveWarnedAv = true;
+                    _logger.LogWarning("FloatSchedule 宿主的 SettingsService.Settings 为空，隐藏悬浮窗（基础/高级模式）将不生效");
+                }
+                return false;
+            }
+
+            _hostSettingsServiceAv = settingsSvc;
+            _hostSettingsObjAv = settingsObj;
+            _hostSettingsResolveWarnedAv = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "EnsureHostSettingsResolvedAv 异常（下次调用重试）");
+            _hostSettingsObjAv = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 订阅宿主 Settings.PropertyChanged（调试时间即时刷新）。
+    /// 拿不到时仅 LogWarning，不会抛——下一 Tick 的 dateChanged 兜底 + sentinel=-1 强制 Refresh 仍可保证功能（延迟&lt;=500ms）。
+    /// 【注意】这里不再因为"拿不到 / 非 INPC"就把已解析的 Settings 对象清空——隐藏规则依赖它，必须保留。
     /// </summary>
     private void EnsureHostSettingsSubscriptionAv()
     {
         // 已订阅：直接返回，避免重复 += 造成多次回调
         if (_hostSettingsChangedHandlerAv != null) return;
-        if (IAppHost.Host == null) return;
+        if (!EnsureHostSettingsResolvedAv()) return;
 
         try
         {
-            var sp = IAppHost.Host.Services;
-            // 与 TryStartWithRetryAsync 保持一致：先用 FindHostServiceType 拿 Type，避免直接 typeof JIT TypeLoadException 无法被 try 保护
-            var tSettingsSvc = FindHostServiceType("ClassIsland.Services.SettingsService")
-                            ?? FindHostServiceType("ClassIsland.Core.Services.SettingsService");
-            object? settingsSvc = null;
-            if (tSettingsSvc != null)
-                settingsSvc = sp.GetService(tSettingsSvc);
-
-            if (settingsSvc == null)
-            {
-                // 兜底：部分宿主可能把 SettingsService 注册为实现自身 interface，尝试反射公开接口
-                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: 获取 SettingsService 失败，调试时间将依赖 500ms Tick 兜底刷新");
-                return;
-            }
-
-            // 反射拿 .Settings 属性（类型 = ClassIsland.Models.Settings，实现了 INotifyPropertyChanged）
-            var propSettings = settingsSvc.GetType().GetProperty("Settings",
-                BindingFlags.Instance | BindingFlags.Public);
-            if (propSettings == null)
-            {
-                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 属性未找到，调试时间将依赖 500ms Tick 兜底刷新");
-                return;
-            }
-            var settingsObj = propSettings.GetValue(settingsSvc);
-            if (settingsObj is not System.ComponentModel.INotifyPropertyChanged npcSettings)
+            if (_hostSettingsObjAv is not System.ComponentModel.INotifyPropertyChanged npcSettings)
             {
                 _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 未实现 INotifyPropertyChanged，调试时间将依赖 500ms Tick 兜底刷新");
                 return;
             }
 
             // 成功：保存引用，构造 handler 并 +=
-            _hostSettingsServiceAv = settingsSvc;
-            _hostSettingsObjAv = npcSettings;
+            _hostSettingsNpcAv = npcSettings;
             _hostSettingsChangedHandlerAv = OnHostSettingsDebugTimeChangedAv;
             npcSettings.PropertyChanged += _hostSettingsChangedHandlerAv;
             _logger.LogInformation("EnsureHostSettingsSubscriptionAv: 已订阅宿主 SettingsService.Settings.PropertyChanged（调试时间即时刷新已启用）");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "EnsureHostSettingsSubscriptionAv 异常，调试时间将依赖 500ms Tick 兜底刷新");
-            // 失败兜底：把部分已赋值字段清零，避免 Detach 时 -= 空目标或错误目标
+            _logger.LogWarning(ex, "EnsureHostSettingsSubscriptionAv 订阅异常，调试时间将依赖 500ms Tick 兜底刷新");
             _hostSettingsChangedHandlerAv = null;
-            _hostSettingsObjAv = null;
-            _hostSettingsServiceAv = null;
+            _hostSettingsNpcAv = null;
         }
     }
 
@@ -1038,9 +1097,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
-            if (_hostSettingsChangedHandlerAv != null && _hostSettingsObjAv != null)
+            if (_hostSettingsChangedHandlerAv != null && _hostSettingsNpcAv != null)
             {
-                _hostSettingsObjAv.PropertyChanged -= _hostSettingsChangedHandlerAv;
+                _hostSettingsNpcAv.PropertyChanged -= _hostSettingsChangedHandlerAv;
             }
         }
         catch (Exception ex)
@@ -1049,10 +1108,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
         finally
         {
-            // 全部清零，保证下次 Ensure 会重新 Attach
+            // 只清"订阅"相关字段，保证下次 Ensure 会重新 Attach；
+            // 【不要清 _hostSettingsObjAv / _hostSettingsServiceAv】隐藏悬浮窗（基础/高级模式）依赖它们，
+            //   旧实现一并清零会让隐藏规则在 Detach 之后静默失效（且拿不到任何提示）。
             _hostSettingsChangedHandlerAv = null;
-            _hostSettingsObjAv = null;
-            _hostSettingsServiceAv = null;
+            _hostSettingsNpcAv = null;
         }
     }
 
@@ -3039,23 +3099,115 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  全部判定走反射/宿主 DI；任何异常或拿不到宿主资源时保守"不隐藏"，避免误遮蔽悬浮窗内容。
     private bool IsHostHideSettingOnAv(string propName)
     {
-        try { return ReflectProp(_hostSettingsObjAv, propName) is bool b && b; }
+        try
+        {
+            // 按需解析（宿主服务可能晚于悬浮窗建立才就绪；Detach 之后也需要重新取到）
+            if (_hostSettingsObjAv == null && !EnsureHostSettingsResolvedAv()) return false;
+            return ReflectProp(_hostSettingsObjAv, propName) is bool b && b;
+        }
         catch { return false; }
     }
 
-    /// <summary>解析并缓存宿主主窗口对象（仅用于读取 IsVisible）。</summary>
+    /// <summary>
+    /// 解析并缓存宿主主窗口对象（用于读取"主界面是否可见"）。
+    /// 解析顺序：① ClassIsland.Core.AppBase.Current.MainWindow（宿主持有的权威引用，2.1.x 起显式赋值）
+    ///          → ② Avalonia 生命周期 MainWindow → ③ 已打开窗口里类型名含 "MainWindow" 的那个
+    ///          → ④ 生命周期 MainWindow（保留旧行为）→ ⑤ 生命周期上的 MainWindow 属性（反射兜底）。
+    /// 【FA3 修复】Avalonia 12 下宿主的启动是异步的，ClassicDesktopStyleApplicationLifetime.MainWindow
+    ///   可能为 null（宿主 Show 主窗晚于 Start），旧实现直接判空 → "跟随主界面隐藏规则"整体失效；
+    ///   且 FA3 宿主会先创建启动画面窗口 SplashWindow，MainWindow 也可能指向它（关闭后会让悬浮窗被永久误判为"应隐藏"），
+    ///   故 ② 只采用"类型名像主窗口"的窗口。
+    /// </summary>
     private Avalonia.Controls.Window? ResolveHostMainWindowAv()
     {
         try
         {
+            // ① ClassIsland.Core.AppBase.Current.MainWindow（宿主自己维护的主窗口引用）
+            try
+            {
+                var tAppBase = FindHostServiceType("ClassIsland.Core.AppBase");
+                var app = tAppBase?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                var mw = app?.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public)
+                                 ?.GetValue(app) as Avalonia.Controls.Window;
+                if (mw != null) return mw;
+            }
+            catch { }
+
             var lifetime = Application.Current?.ApplicationLifetime;
-            if (lifetime == null) return null;
             if (lifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                return desktop.MainWindow;
+            {
+                // ② 生命周期主窗口（仅当类型名像主窗口，避免误取启动画面 SplashWindow）
+                if (IsLikelyHostMainWindowAv(desktop.MainWindow)) return desktop.MainWindow!;
+
+                // ③ 兜底：在已打开窗口里找宿主的 MainWindow（排除本插件自己的悬浮窗等）
+                try
+                {
+                    foreach (var w in desktop.Windows)
+                    {
+                        if (IsLikelyHostMainWindowAv(w)) return w!;
+                    }
+                }
+                catch { }
+
+                // ④ 保留旧行为：找不到名字匹配的窗口时仍用生命周期主窗口
+                if (desktop.MainWindow != null) return desktop.MainWindow;
+            }
             if (lifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime single)
                 return single.MainView as Avalonia.Controls.Window;
-            var p = lifetime.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public);
+
+            // ⑤ 理论兜底：生命周期上的 MainWindow 属性
+            var p = lifetime?.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public);
             return p?.GetValue(lifetime) as Avalonia.Controls.Window;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>窗口类型名是否像宿主主窗口（ClassIsland.MainWindow）。用于排除启动画面等短命/干扰窗口。</summary>
+    private static bool IsLikelyHostMainWindowAv(Avalonia.Controls.Window? w)
+        => w != null && w.GetType().Name.IndexOf("MainWindow", StringComparison.Ordinal) >= 0;
+
+    /// <summary>
+    /// 解析宿主主窗口的"内容根"（ClassIsland 主界面 x:Name="GridRoot" 的 Grid）。
+    /// 【FA3 修复】ClassIsland 2.1.x 起隐藏主界面不再 Hide() 窗口，而是把内容根 GridRoot 的 IsVisible 置 false
+    ///   （见 MainWindow.VisibilityAnimation.SetContentVisibilityImmediately，退场动画结束后才置 false），窗口本身始终可见。
+    ///   因此判断"主界面是否被隐藏"必须看内容根，只看 Window.IsVisible 会恒为 true。
+    ///   视觉树为前序遍历，最外层的 GridRoot 先被访问到，命中即主界面内容根。
+    /// </summary>
+    private static Avalonia.Controls.Control? ResolveHostMainContentRootAv(Avalonia.Controls.Window w)
+    {
+        try
+        {
+            return w.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Control>()
+                .FirstOrDefault(c => c.Name == "GridRoot");
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// 读取宿主主界面内容根的"目标可见性"（ClassIsland.MainWindow.GetIsContentVisibleRequested 附加属性）。
+    /// 该值由宿主样式绑定驱动，在隐藏/显示动画**起播瞬间**就翻转；而 GridRoot.IsVisible 要等动画结束才翻转。
+    /// 返回 null = 该宿主版本无此信号（退回看实际可见性，行为与旧版一致）。
+    /// </summary>
+    private bool? HostMainContentVisibleRequestedAv(Avalonia.Controls.Window w, Avalonia.Controls.Control root)
+    {
+        try
+        {
+            if (_hostContentVisibleGetterOwnerAv != w.GetType())
+            {
+                _hostContentVisibleGetterOwnerAv = w.GetType();
+                _hostContentVisibleGetterAv = null;
+                foreach (var m in w.GetType().GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (m.Name != "GetIsContentVisibleRequested" || m.ReturnType != typeof(bool)) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length != 1 || !ps[0].ParameterType.IsInstanceOfType(root)) continue;
+                    _hostContentVisibleGetterAv = m;
+                    break;
+                }
+            }
+            if (_hostContentVisibleGetterAv == null) return null;
+            return _hostContentVisibleGetterAv.Invoke(null, new object[] { root }) is bool b ? b : (bool?)null;
         }
         catch { return null; }
     }
@@ -3064,9 +3216,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
-            _hostMainWndAv ??= ResolveHostMainWindowAv();
-            if (_hostMainWndAv == null) return true;   // 拿不到主窗口 → 视为可见，不隐藏
-            return _hostMainWndAv.IsVisible;
+            var w = _hostMainWndAv;
+            if (w == null)
+            {
+                w = ResolveHostMainWindowAv();
+                if (w == null) return true;   // 拿不到主窗口 → 视为可见，不隐藏
+                // 只在"类型名像宿主主窗口"时缓存：启动画面等短命窗口不缓存，下次调用重新解析
+                if (IsLikelyHostMainWindowAv(w)) _hostMainWndAv = w;
+            }
+            if (!w.IsVisible) return false;
+            // 【FA3】窗口可见 ≠ 主界面可见：2.1.x 隐藏主界面只把内容根 GridRoot.IsVisible 置 false，窗口本身不隐藏
+            var contentRoot = ResolveHostMainContentRootAv(w);
+            if (contentRoot != null)
+            {
+                // 【与主界面同步起播】先看"目标可见性"（动画起播即翻转），避免等主界面动画播完（滞后 250ms+）才跟隐藏
+                if (HostMainContentVisibleRequestedAv(w, contentRoot) == false) return false;
+                if (!contentRoot.IsVisible) return false;
+            }
+            return true;
         }
         catch { return true; }
     }
@@ -3158,15 +3325,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             _hostRulesetServiceAv ??= ResolveHostRulesetServiceAv();
             if (_hostRulesetServiceAv == null) return false;
+            // 按需解析宿主 Settings（隐藏规则集就挂在它上面；旧实现依赖"建立悬浮窗时的订阅"顺带赋值，缺失即静默失效）
+            if (_hostSettingsObjAv == null && !EnsureHostSettingsResolvedAv()) return false;
             var rules = ReflectProp(_hostSettingsObjAv, "HideRules");
             if (rules == null) return false;
-            var m = _hostRulesetServiceAv.GetType().GetMethod("IsRulesetSatisfied",
-                BindingFlags.Instance | BindingFlags.Public);
+            // 按参数类型挑选重载：避免同名重载导致 AmbiguousMatchException，也容忍签名演进（不写死参数个数以外的东西）
+            System.Reflection.MethodInfo? m = null;
+            foreach (var cand in _hostRulesetServiceAv.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (cand.Name != "IsRulesetSatisfied") continue;
+                var ps = cand.GetParameters();
+                if (ps.Length != 1) continue;
+                if (!ps[0].ParameterType.IsInstanceOfType(rules)) continue;
+                m = cand;
+                break;
+            }
             if (m == null) return false;
-            var r = m.Invoke(_hostRulesetServiceAv, new[] { rules });
-            return r is bool b && b;
+            return m.Invoke(_hostRulesetServiceAv, new[] { rules }) is bool b && b;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "高级模式隐藏规则判定异常（保守视为不隐藏）");
+            return false;
+        }
     }
 
     /// <summary>按当前隐藏模式计算"是否应隐藏悬浮窗"。期望隐藏 → true；任何异常 → false（不隐藏）。</summary>
@@ -3701,7 +3882,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     // 【动画打断】动画进行中（或独立进程刚下发过可见性变化的窗口期内）以 50ms 频率重评隐藏规则：
                     //   规则集中途变动会被立即察觉并触发改向，否则 500ms Tick 远慢于 250ms 过渡动画，
                     //   只能等动画播完再放下一个。
+                    // 【跟随主界面同步起播】"跟随主界面隐藏规则"下也走 50ms 重评：500ms 轮询会让悬浮窗
+                    //   比主界面晚最多半秒才开始隐藏（叠加动画时长即肉眼可见的"滞后"）。
                     if (_hideAnimActiveAv ||
+                        _settings.FloatingScheduleHideMode == FloatingScheduleHideMode.FollowHost ||
                         (IndependentRequested &&
                          Environment.TickCount64 - _lastVisibleChangeTicksAv < HideAnimInterruptWindowMsAv))
                     {
