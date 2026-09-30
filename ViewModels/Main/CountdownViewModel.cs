@@ -16,6 +16,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly CountdownSettings _settings;
+    private readonly InSchoolCountdownCalculator? _inSchoolCalc;
     private IDisposable? _subscription;
     private readonly Action<string, double> _updateText1Style;
     private readonly Action<string, double> _updateText2Style;
@@ -25,6 +26,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private bool _isDisposed;
     private bool _isFirstUpdate = true;
     private bool _requiresHighFrequencyRefresh;
+
+    // ========== 仅计在校时长 ==========
+    //  残余时间改为累计"在校时段"秒数：逐日课表窗口由 InSchoolCountdownCalculator 后台构建并缓存，
+    //  此处只做轻量区间累加；缓存缺失/过期时后台重建，重建期间沿用旧缓存（不阻塞 UI 线程）。
+    private const int InSchoolBuildRetryMs = 2000;   // 重建失败/被跳过的重试节流间隔
+    private volatile bool _inSchoolBuilding;
+    private long _inSchoolBuildAttemptTicks;
 
     private string _text1Display = string.Empty;
     private string _text2Display = string.Empty;
@@ -158,10 +166,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         Action<string, double> updateText2Style = null,
         Action<string, double> updateText3Style = null,
         Action<string, double> updateTimeStyle = null,
-        Action<string, double> updateText4Style = null)
+        Action<string, double> updateText4Style = null,
+        InSchoolCountdownCalculator? inSchoolCalc = null)
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        _inSchoolCalc = inSchoolCalc;
         // 迁移旧版时间基准值
         var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
         if (migrated != _settings.TimeBaseType)
@@ -454,6 +464,17 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeLeft = timeLeftSpan.TotalSeconds;
         var timeLeftMs = timeLeftSpan.TotalMilliseconds;
 
+        // 【仅计在校时长】开启时，显示的剩余时间改为 (now, 目标时刻] 之间的在校秒数
+        //   （在校日 = 周末/节假日等排除规则之外的日子，在校时段 = 当天课表首课→末课）；
+        //   到期判定与通知仍在真实时间到达目标时触发，仅替换显示值。
+        if (currentItem.CountOnlyInSchoolTime && _inSchoolCalc != null)
+        {
+            EnsureInSchoolCache(now, currentTargetDate);
+            var inSchoolSeconds = _inSchoolCalc.ComputeRemainingSeconds(now, currentTargetDate);
+            timeLeft = inSchoolSeconds;
+            timeLeftMs = inSchoolSeconds * 1000.0;
+        }
+
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
         var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
@@ -479,6 +500,36 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             CurrentItem = currentItem,
             Percent = percent
         };
+    }
+
+    /// <summary>
+    /// 确保 [now.Date, target.Date] 的逐日在校窗口缓存可用；缺失或数据版本变化时后台重建。
+    /// 重建中/重建失败均沿用旧缓存（显示值可能短暂滞后，但不阻塞 UI 线程、不打断倒计时）。
+    /// </summary>
+    private void EnsureInSchoolCache(DateTime now, DateTime target)
+    {
+        var calc = _inSchoolCalc;
+        if (calc == null) return;
+        try
+        {
+            var stamp = AttendanceCalendarService.Revision;
+            if (calc.IsCacheValid(now.Date, target.Date, stamp)) return;
+            if (_inSchoolBuilding) return;
+            // 节流：避免构建持续失败时每个 Tick 都起后台任务
+            var ticks = Environment.TickCount64;
+            if (ticks - _inSchoolBuildAttemptTicks < InSchoolBuildRetryMs) return;
+            _inSchoolBuildAttemptTicks = ticks;
+            _inSchoolBuilding = true;
+            var start = now.Date.AddDays(-1);     // 前后各留 1 天，避免跨天瞬间缓存刚好不覆盖
+            var end = target.Date.AddDays(1);
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                try { calc.BuildRange(start, end, stamp); }
+                catch { }
+                finally { _inSchoolBuilding = false; }
+            });
+        }
+        catch { }
     }
 
     private void HandleItemCompleted(CountdownItem item)

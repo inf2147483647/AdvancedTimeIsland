@@ -157,10 +157,11 @@ public class Plugin : PluginBase
     /// 悬浮时间表启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序
     /// 依次 await，<b>任一服务抛异常即中止后续启动</b>，注册在其后的插件宿主服务全部不会启动。
     /// 实测（2026-09，Windows 8.1 + ClassIsland 2.1.0.1）：MediaIsland 依赖的 Windows.Media.Control 在 Win8.1 上
-    /// 不存在（COMException 0x80040111），其启动失败后本插件 FloatingScheduleService.StartAsync 永不执行
-    /// → 悬浮窗从不创建 → 表现为"悬浮时间表不显示"，且日志中没有任何本插件报错。
+    /// 不存在（COMException 0x80040111），其启动失败后本插件的两个悬浮窗服务 StartAsync 均永不执行
+    /// → 悬浮窗从不创建、独立进程不启动、「独立程序已更新」提示也不发出，且日志中没有任何本插件报错。
     /// 插件加载/注册顺序由 ClassIsland 决定（随安装、更新而变化），故不能依赖顺序：这里延迟检查一次，
-    /// 若宿主未启动本服务则由兜底补齐（幂等，宿主已正常启动时为空操作）。
+    /// 若宿主未启动这两个服务则由兜底补齐（各自幂等，宿主已正常启动时为空操作）。
+    /// 顺序必须是 HostProcessService → FloatingScheduleService（与注册顺序一致：管道监听先就绪）。
     /// </summary>
     private static void KickFloatingScheduleStartFallback()
     {
@@ -170,6 +171,7 @@ public class Plugin : PluginBase
             {
                 // 等宿主 Build/启动流程走完（Host.StartAsync 是 fire-and-forget，正常路径通常远早于此时完成）
                 await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
+                ClassIsland.Shared.IAppHost.TryGetService<Services.FloatScheduleHostProcessService>()?.EnsureStartedFallback();
                 ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>()?.EnsureStartedFallbackAv();
             }
             catch { /* 兜底失败不影响其它功能（悬浮窗仍需设置开关开启） */ }
@@ -260,7 +262,11 @@ public class Plugin : PluginBase
 
         // 汉服 Markdown 内容热更新：后台从 GitHub 最新 release 检查并下载，
         // 解压到插件目录的 Markdown 文件夹，不阻塞插件启动与 UI。
-        Helpers.HanfuMarkdownUpdater.Start();
+        // 【管理启用的功能】关闭「汉服指南」后不再下载（连页面都不注册，无需再拉取文档）。
+        if (Settings.EnableHanfuGuide)
+        {
+            Helpers.HanfuMarkdownUpdater.Start();
+        }
 
         services.AddSingleton(Settings);
 
@@ -268,6 +274,8 @@ public class Plugin : PluginBase
         services.AddSingleton<SharedRenderClockService>();
         services.AddSingleton<SemesterStartService>();
         services.AddSingleton<AttendanceCalendarService>();
+        // 「仅计在校时长」倒计时的逐日课表窗口缓存（多组件共享一份，避免重复扫描课表）
+        services.AddSingleton<InSchoolCountdownCalculator>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         // 【启动速度】悬浮窗相关服务前置注册：宿主 Host.StartAsync 顺序 await 各 IHostedService，
@@ -583,6 +591,20 @@ public class Plugin : PluginBase
                 }
 
                 return now >= startTimeThisMinute && now <= endTimeThisMinute;
+            }
+        );
+
+        // 注册规则：在指定时间范围内（周期 + 范围表达式，例如 "1,3-5,7~11"）
+        services.AddRule<SpecifiedTimeRangeRuleSettings, SpecifiedTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.specified_time_range",
+            "在指定时间范围内",
+            "\uecc3",
+            settings =>
+            {
+                if (settings is not SpecifiedTimeRangeRuleSettings s)
+                    return false;
+
+                return SpecifiedTimeRangeHelper.Matches(s.Expression, s.Period, GetCurrentTime());
             }
         );
 
@@ -1570,10 +1592,19 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.WomenswearPage>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
-        if (Settings.EnableExperimentalFeatures)
+        // 【管理启用的功能】帧率折线图及其分析页面：需先开启「实验性功能」（帧率采集依赖实验性功能下的
+        //   FpsMonitorControl / FpsBackgroundCollectorService），再由「帧率折线」开关控制是否注册（默认关闭）。
+        if (Settings.EnableExperimentalFeatures && Settings.EnableFpsChart)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
             services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
+        }
+
+        // 【管理启用的功能】汉服页面与「汉服指南」标签页：需先开启「实验性功能」，并由「汉服指南」开关控制
+        //   （默认开启）。关闭后这些页面不再注册（HanfuPageTemplate 模板不在此块内，始终注册），
+        //   同时不再下载汉服 Markdown（见上方 HanfuMarkdownUpdater.Start 的调用条件）。
+        if (Settings.EnableExperimentalFeatures && Settings.EnableHanfuGuide)
+        {
             services.AddSettingsPage<Views.Settings.HanfuPage>();
             services.AddSettingsPage<Views.Settings.MamianQunCeZhePage>();
             services.AddSettingsPage<Views.Settings.MamianQunBaiZhePage>();

@@ -595,6 +595,9 @@ public class EasterEggPage : UserControl
         return container;
     }
 
+    /// <summary>共享 HttpClient：避免每张图各建一个（原实现 20+ 张图会创建 20+ 个 HttpClient/连接池）。</summary>
+    private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
+
     private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)
     {
         try
@@ -603,22 +606,32 @@ public class EasterEggPage : UserControl
             var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
             var cachePath = Path.Combine(cacheDir, fileName);
 
-            if (File.Exists(cachePath))
+            // 【不阻塞 UI】缓存探测（磁盘 I/O）与位图解码放到后台线程：
+            //   本方法在构建页面时会被 20+ 张图各调用一次，命中缓存时原实现会在 UI 线程同步
+            //   完成 File.Exists + Bitmap 解码，直接造成打开彩蛋页/女装页明显卡顿。
+            var cachedBitmap = await Task.Run(() =>
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
-                imageControl.Source = bitmap;
+                if (!File.Exists(cachePath)) return null;
+                try { return new Avalonia.Media.Imaging.Bitmap(cachePath); }
+                catch { return null; }
+            });
+            if (cachedBitmap != null)
+            {
+                imageControl.Source = cachedBitmap;
                 return;
             }
 
-            using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-            using var response = await client.GetAsync(url);
+            using var response = await SharedHttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
-            using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
+            // 解码同样放后台（首次下载的图片体积不小，UI 线程解码会卡顿）
+            var bitmap2 = await Task.Run(() =>
+            {
+                using var ms = new MemoryStream(bytes);
+                return new Avalonia.Media.Imaging.Bitmap(ms);
+            });
             imageControl.Source = bitmap2;
 
             await Task.Run(() =>

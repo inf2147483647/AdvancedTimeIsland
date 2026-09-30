@@ -16,6 +16,7 @@ public class CountdownItem : INotifyPropertyChanged
     private int _notificationMaskDurationSeconds = 3;
     private int _notificationOverlayDurationSeconds = 10;
     private bool _isCompleted;
+    private bool _countOnlyInSchoolTime;
 
     public Guid Id
     {
@@ -134,6 +135,25 @@ public class CountdownItem : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// 仅计在校时长：开启后倒计时显示的剩余时间只累计「在校时间」——
+    /// 每个在校日内仅统计当天课表第一节课开始到最后一节课下课之间的时段，
+    /// 非在校日（周末/节假日/寒暑假）与在校时段之外倒计时暂停递减。
+    /// 仅影响显示值，到期通知仍在真实时间到达目标时触发。
+    /// </summary>
+    public bool CountOnlyInSchoolTime
+    {
+        get => _countOnlyInSchoolTime;
+        set
+        {
+            if (_countOnlyInSchoolTime != value)
+            {
+                _countOnlyInSchoolTime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -170,6 +190,7 @@ public class CountdownItem : INotifyPropertyChanged
             NotificationContent = NotificationContent,
             NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
             NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
+            CountOnlyInSchoolTime = CountOnlyInSchoolTime,
             IsCompleted = false
         };
     }

@@ -260,8 +260,33 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     }
 
     // ===================== 生命周期 =====================
+    // 【启动必须不依赖 StartAsync 被调用】0=尚未启动，1=已启动；StartAsync 与 EnsureStartedFallback 竞争，
+    //  只有先到者真正执行 StartCore。原因见 EnsureStartedFallback 注释（Win8.1 上实测的宿主启动中断）。
+    private int _startInvoked;
 
     public Task StartAsync(CancellationToken cancellationToken)
+    {
+        if (Interlocked.Exchange(ref _startInvoked, 1) == 1) return Task.CompletedTask;
+        StartCore(cancellationToken);
+        return Task.CompletedTask;
+    }
+
+    /// <summary>
+    /// 启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序依次 await，
+    /// <b>任一服务抛异常即中止后续启动</b>（实测 2026-09，Windows 8.1 + ClassIsland 2.1.0.1：MediaIsland 依赖的
+    /// Windows.Media.Control 在 Win8.1 上不存在）→ 注册在其后的本服务 StartAsync 永不执行：管道服务器不监听、
+    /// 子进程不启动、独立程序更新提示也不会发出，且日志中无任何本插件报错。
+    /// 由 Plugin.Initialize 延迟调用本方法补齐启动；幂等（宿主已正常启动则直接返回）。
+    /// 必须早于 FloatingScheduleService 的兜底（管道监听先就绪，见 Plugin 中的调用顺序）。
+    /// </summary>
+    public void EnsureStartedFallback()
+    {
+        if (Interlocked.Exchange(ref _startInvoked, 1) == 1) return;
+        _logger.LogWarning("宿主未启动本服务（Host.StartAsync 可能被其它插件的 IHostedService 异常中断），改用兜底启动悬浮窗独立进程服务");
+        StartCore(CancellationToken.None);
+    }
+
+    private void StartCore(CancellationToken cancellationToken)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         // 【独立程序更新提示】与独立进程模式开关无关：插件升级会随包重新分发子进程 exe，
@@ -284,7 +309,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             EnsureAcceptLoopRunning();
             _ = EnsureChildAsync();
         }
-        return Task.CompletedTask;
+        // 【健康看门狗】与开关状态无关地常驻：模式可能在运行中才被打开，且它正是"子进程失联后无人拉起"的兜底
+        StartHealthWatchdog();
     }
 
     // ===================== 独立程序（子进程 exe）更新提示 =====================
@@ -351,6 +377,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         // Windows 8.x（6.x）无桌面 toast 能力 → 降级为气泡通知后直接返回
         if (Environment.OSVersion.Version.Major < 10)
         {
+            _logger.LogInformation("当前系统 {Version} 不支持桌面 toast，改以托盘气泡发送悬浮时间表更新提示",
+                Environment.OSVersion.Version);
             WindowsBalloonNotifier.Show(title, body);
             return;
         }
@@ -401,6 +429,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
     public async Task StopAsync(CancellationToken cancellationToken)
     {
+        // 先停看门狗：退出收尾期间不得再拉起子进程（跟随启停=关 时子进程本应保留冻结显示）
+        StopHealthWatchdog();
         // 插件退出（ClassIsland 正常关闭）：跟随启停=开 → 发 shutdown + 兜底 Kill（子进程消失）；
         //                        跟随启停=关 → 只关管道服务器，子进程进入冻结显示。
         // 经闸门串行收尾（与并发中的启动流程不会交错）；限时取闸门，避免退出被长时间阻塞。
@@ -424,12 +454,15 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         try { _cts?.Cancel(); } catch { }
         try { _pipeServer?.Dispose(); } catch { }
         _pipeServer = null;
+        // 允许宿主重启后再次启动（StartAsync/兜底启动的幂等闸门复位，与 FloatingScheduleService 一致）
+        System.Threading.Interlocked.Exchange(ref _startInvoked, 0);
     }
 
     public void Dispose()
     {
         try
         {
+            StopHealthWatchdog();
             _stopRequested = true;
             ClosePipe();
             try { _pipeServer?.Dispose(); } catch { }
@@ -512,6 +545,60 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         await _lifecycleGate.WaitAsync().ConfigureAwait(false);
         try { await EnsureChildUnderGateAsync().ConfigureAwait(false); }
         finally { _lifecycleGate.Release(); }
+    }
+
+    // =====【健康看门狗】=====
+    //  为什么必须有：adopt 路径（跟随启停=关 时上一代宿主退出后冻结存活的子进程，被新宿主接管）
+    //  从不 spawn → _childProcess 恒为 null → 没有 Process.Exited 订阅。该子进程重连后拿到含新指纹的
+    //  Init，自检发现已被淘汰 → 以 ExitCodeSelfUpdate 主动退出；插件侧只收到管道断开
+    //  （MarkDisconnected → SetStatus(Starting)），ChildExited 永不触发。
+    //  而 EnsureChildAsync 仅在"服务启动 / 开关切换 / 进程退出事件"时被调用，没有任何周期性兜底
+    //  → 无人再拉起子进程，状态永久停在"启动中..."；此时独立模式仍被视为"已请求"，
+    //  进程内悬浮窗也处于禁用状态 → 用户什么都看不到。看门狗正是这条链路的兜底。
+    private Timer? _healthWatchdog;
+    private long _disconnectedSinceTicks;
+    private const int WatchdogIntervalMs = 1000;
+    //  必须明显大于子进程自身最坏重连周期（连接超时 3s + 退避 1s ≈ 4s），否则会把"正在重连"误判为故障而强杀。
+    private const int WatchdogRecoverMs = 8000;
+
+    private void StartHealthWatchdog()
+    {
+        _healthWatchdog ??= new Timer(_ => _ = WatchdogTickAsync(), null, WatchdogIntervalMs, WatchdogIntervalMs);
+    }
+
+    private void StopHealthWatchdog()
+    {
+        try { _healthWatchdog?.Dispose(); } catch { }
+        _healthWatchdog = null;
+    }
+
+    /// <summary>
+    /// 看门狗：独立模式生效且非主动停止时，若管道持续未连接超过 <see cref="WatchdogRecoverMs"/>，
+    /// 经生命周期闸门重启子进程（会先杀掉"仍存活但已断连"的进程与同名残留，再用当前构建拉起）。
+    /// 不介入的情形：主动停止意图、模式关闭、已熔断 Failed（此时上层已回退进程内渲染）、
+    /// 以及生命周期事务进行中（启动/重启/停止正在跑，它自己会收敛，抢占只会造成重复 spawn）。
+    /// </summary>
+    private async Task WatchdogTickAsync()
+    {
+        try
+        {
+            if (_stopRequested || !ShouldUseIndependent()) { _disconnectedSinceTicks = 0; return; }
+            if (_pipeConnected) { _disconnectedSinceTicks = 0; return; }
+            if (IsRestarting || _lifecycleGate.CurrentCount == 0) { _disconnectedSinceTicks = 0; return; }
+
+            var now = Environment.TickCount64;
+            if (_disconnectedSinceTicks == 0) { _disconnectedSinceTicks = now; return; }
+            if (now - _disconnectedSinceTicks < WatchdogRecoverMs) return;
+
+            _disconnectedSinceTicks = 0;   // 先复位：避免每秒重复介入
+            _logger.LogWarning("FloatSchedule 子进程超过 {Sec}s 未连接，看门狗主动拉起（覆盖 adopt 后自退出等无 Exited 事件的场景）",
+                WatchdogRecoverMs / 1000);
+            await RestartChildAsync().ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "FloatSchedule 看门狗异常（忽略，下一拍重试）");
+        }
     }
 
     /// <summary>确保子进程在跑（调用方必须已持有 _lifecycleGate）。

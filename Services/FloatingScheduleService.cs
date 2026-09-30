@@ -21,6 +21,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using ClassIsland.Shared;
 using ClassIsland.Shared.Enums;
 using ClassIsland.Shared.Models.Profile;
@@ -300,15 +301,53 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private DateTime _lastRefreshDate = DateTime.MinValue;
     // 宿主 SettingsService：反射 IAppHost.GetService<SettingsService>() 结果。Stop/关闭开关必须 Detach，防止插件被 SettingsService（宿主 singleton）强引用滞留内存。
     private object? _hostSettingsServiceAv;
-    // 宿主 SettingsService.Settings：INotifyPropertyChanged 源，保存引用以便 Detach 时 -=
-    private System.ComponentModel.INotifyPropertyChanged? _hostSettingsObjAv;
+    // 宿主 SettingsService.Settings（object 而非 INotifyPropertyChanged：隐藏规则只需要"能反射取属性"，
+    //  是否实现 INPC 只影响调试时间的即时刷新，不应因此让隐藏规则整体失效）。
+    private object? _hostSettingsObjAv;
+    // INPC 源单独保存，供调试时间订阅 / 退订使用
+    private System.ComponentModel.INotifyPropertyChanged? _hostSettingsNpcAv;
     private PropertyChangedEventHandler? _hostSettingsChangedHandlerAv;
+    // 解析失败只告警一次，避免 500ms 轮询路径刷日志
+    private bool _hostSettingsResolveWarnedAv;
 
     // ========== 悬浮窗隐藏（时间表悬浮窗"隐藏悬浮窗"功能）==========
     //  模式（FloatingScheduleHideMode）：FollowHost=0 跟随主界面隐藏规则；Basic=1 基础模式；
     //    Advanced=2 高级模式(复用宿主规则集)；Never=3 从不隐藏。检测走反射/宿主 DI，异常时保守"不隐藏"。
     private Avalonia.Controls.Window? _hostMainWndAv;      // 缓存宿主主窗口（解析失败→"跟随"时不遮蔽）
     private object? _hostRulesetServiceAv;                 // 缓存宿主 IRulesetService 实例
+    // 【与主界面同步起播】宿主主界面内容根的"目标可见性"读取器（ClassIsland.MainWindow.GetIsContentVisibleRequested）。
+    //  宿主隐藏主界面是 250ms 过场动画，GridRoot.IsVisible 要等动画结束才翻转；目标可见性在动画起播瞬间就翻转，
+    //  用它判定可让悬浮窗与主界面同刻起播（否则最多滞后 250ms + 轮询间隔）。
+    private Type? _hostContentVisibleGetterOwnerAv;        // 已解析该读取器的窗口类型（窗口类型变化时重新解析）
+    private MethodInfo? _hostContentVisibleGetterAv;
+
+    // ========== 隐藏/显示过渡动画（对齐 ClassIsland 主界面 MainWindow.VisibilityAnimation）==========
+    //  对齐 ClassIsland 的部分：时长 250ms（进出场一致）；入场缓动 cubic-bezier(0.25, 1, 0.5, 1)（减速，先快后慢）、
+    //    出场缓动 cubic-bezier(0.4, 0, 1, 1)（加速，先慢后快）；内容透明度同时 0↔1；
+    //    动画结束后才真正 Hide()；打断（规则反复翻转）时从**当前进度**重新补间（隐式动画语义），天然平滑。
+    //  运动方式（本插件差异）：**窗口整体向上滑到屏幕顶端之外**，而不是仅在窗口内平移内容——
+    //    窗口会把内容裁剪在自身边界内，只平移内容只会"原地消失"，无法产生"滑到屏幕顶端再滑出"的效果。
+    private static readonly TimeSpan HideShowDurationAv = TimeSpan.FromMilliseconds(250);
+    private static readonly Easing HideShowEntranceEasingAv = Easing.Parse("0.25, 1, 0.5, 1");
+    private static readonly Easing HideShowExitEasingAv = Easing.Parse("0.4, 0, 1, 1");
+    private const double HideShowDistanceExtraAv = 1.0;   // 与 ClassIsland 一致：额外 +1 余量，确保完全滑出
+    private bool _hideAnimActiveAv;              // 过渡动画进行中
+    private bool _hideAnimTargetHiddenAv;        // 动画目标：true=隐藏（结束后 Hide）
+    private bool _hiddenByAnimAv;                // 当前隐藏态由该动画造成（再次显示时需播入场动画）
+    private double _hideAnimProgressAv;          // 当前进度：0=完全可见，1=完全滑出屏幕顶端
+    private double _hideAnimFromAv;
+    private double _hideAnimTargetAv;
+    private long _hideAnimStartTicksAv;
+    private int _hideAnimDurationMsAv;
+    private Easing? _hideAnimEasingAv;
+    private Vector _hideAnimDeltaAv;             // 完全滑出屏幕顶端所需的 Y 位移增量（负值）
+    private PixelPoint? _hideAnimBasePosAv;      // 本次过渡的基准位置（用户放置位）
+    private DispatcherTimer? _hideAnimTimerAv;
+    // 【动画打断的检测频率】500ms Tick 远慢于 250ms 过渡动画，规则变动会漏掉、只能"播完再放下一个"。
+    //  故动画进行中以 50ms 频率重评；独立进程模式下动画在子进程，插件侧改为"可见性刚变化后的窗口期"内高频重评。
+    private const int HideAnimInterruptWindowMsAv = 1000;
+    private bool _lastSentVisibleAv = true;          // 独立进程模式：最近一次下发的可见性（用于识别变化时刻）
+    private long _lastVisibleChangeTicksAv;
 
     // ========== 悬浮窗层级重设频率 4 模式（Avalonia 端）==========
     //   0 OnWindowZOrderChanged → Win32 子类化 WM_WINDOWPOSCHANGED（非 Windows 退化 Mode 1）
@@ -895,6 +934,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // 【贴边隐藏】Stop 停止滑入/滑出动画计时器与防抖 CTS，防止回调访问已销毁窗口
         StopEdgeSlideTimerAv();
         _edgeAnimatingAv = false;
+        // 【隐藏/显示过渡动画】停止计时器、复位窗口位置与内容状态（窗口即将销毁）
+        CancelHideShowAv();
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
@@ -942,61 +983,109 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  退订：必须在 Stop() / EnableFloatingSchedule=false 分支 Detach，防止宿主 singleton 强引用插件对象导致内存泄漏。
 
     /// <summary>
-    /// 尝试拿宿主 SettingsService 并订阅 Settings.PropertyChanged。
-    /// 拿不到时仅 LogWarning，不会抛——下一 Tick 的 dateChanged 兜底 + sentinel=-1 强制 Refresh 仍可保证功能（延迟<=500ms）。
+    /// 解析宿主 SettingsService 与其 Settings 对象（隐藏规则与调试时间订阅共用）。
+    /// 【设计要点】悬浮窗的"基础模式 / 高级模式（规则集）"都依赖宿主的 Settings 对象，因此这里必须
+    ///   可被**隐藏判定按需调用并自愈**：旧实现只在建立悬浮窗时顺带订阅一次，解析失败（宿主服务尚未就绪、
+    ///   类型搬迁改名、Detach 之后）会让隐藏规则**静默失效**，而唯一症状是一条指向"调试时间"的告警，极易误导排查。
+    /// 解析顺序：已知类型名 → 扫描宿主程序集里名称含 SettingsService 的具体类型。失败不写缓存，下次调用重试。
+    /// </summary>
+    private bool EnsureHostSettingsResolvedAv()
+    {
+        if (_hostSettingsObjAv != null) return true;
+        try
+        {
+            if (IAppHost.Host == null) return false;
+            var sp = IAppHost.Host.Services;
+
+            var tSettingsSvc = FindHostServiceType("ClassIsland.Services.SettingsService")
+                            ?? FindHostServiceType("ClassIsland.Core.Services.SettingsService");
+            object? settingsSvc = tSettingsSvc != null ? sp.GetService(tSettingsSvc) : null;
+
+            if (settingsSvc == null)
+            {
+                // 兜底：宿主把 SettingsService 搬到别的命名空间 / 改名时，按"名称含 SettingsService 的具体类型"逐个试解析
+                foreach (var asm in AppDomain.CurrentDomain.GetAssemblies())
+                {
+                    if (asm.GetName().Name?.StartsWith("ClassIsland", StringComparison.Ordinal) != true) continue;
+                    Type[] types;
+                    try { types = asm.GetTypes(); } catch { continue; }
+                    foreach (var t in types)
+                    {
+                        if (t.IsAbstract || t.IsInterface) continue;
+                        if (t.Name.IndexOf("SettingsService", StringComparison.Ordinal) < 0) continue;
+                        object? svc = null;
+                        try { svc = sp.GetService(t); } catch { }
+                        if (svc != null) { settingsSvc = svc; break; }
+                    }
+                    if (settingsSvc != null) break;
+                }
+            }
+
+            if (settingsSvc == null)
+            {
+                if (!_hostSettingsResolveWarnedAv)
+                {
+                    _hostSettingsResolveWarnedAv = true;
+                    _logger.LogWarning("FloatSchedule 未能解析宿主 SettingsService，隐藏悬浮窗（基础/高级模式）将不生效");
+                }
+                return false;
+            }
+
+            var settingsObj = settingsSvc.GetType()
+                .GetProperty("Settings", BindingFlags.Instance | BindingFlags.Public)?.GetValue(settingsSvc);
+            if (settingsObj == null)
+            {
+                if (!_hostSettingsResolveWarnedAv)
+                {
+                    _hostSettingsResolveWarnedAv = true;
+                    _logger.LogWarning("FloatSchedule 宿主的 SettingsService.Settings 为空，隐藏悬浮窗（基础/高级模式）将不生效");
+                }
+                return false;
+            }
+
+            _hostSettingsServiceAv = settingsSvc;
+            _hostSettingsObjAv = settingsObj;
+            _hostSettingsResolveWarnedAv = false;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "EnsureHostSettingsResolvedAv 异常（下次调用重试）");
+            _hostSettingsObjAv = null;
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 订阅宿主 Settings.PropertyChanged（调试时间即时刷新）。
+    /// 拿不到时仅 LogWarning，不会抛——下一 Tick 的 dateChanged 兜底 + sentinel=-1 强制 Refresh 仍可保证功能（延迟&lt;=500ms）。
+    /// 【注意】这里不再因为"拿不到 / 非 INPC"就把已解析的 Settings 对象清空——隐藏规则依赖它，必须保留。
     /// </summary>
     private void EnsureHostSettingsSubscriptionAv()
     {
         // 已订阅：直接返回，避免重复 += 造成多次回调
         if (_hostSettingsChangedHandlerAv != null) return;
-        if (IAppHost.Host == null) return;
+        if (!EnsureHostSettingsResolvedAv()) return;
 
         try
         {
-            var sp = IAppHost.Host.Services;
-            // 与 TryStartWithRetryAsync 保持一致：先用 FindHostServiceType 拿 Type，避免直接 typeof JIT TypeLoadException 无法被 try 保护
-            var tSettingsSvc = FindHostServiceType("ClassIsland.Services.SettingsService")
-                            ?? FindHostServiceType("ClassIsland.Core.Services.SettingsService");
-            object? settingsSvc = null;
-            if (tSettingsSvc != null)
-                settingsSvc = sp.GetService(tSettingsSvc);
-
-            if (settingsSvc == null)
-            {
-                // 兜底：部分宿主可能把 SettingsService 注册为实现自身 interface，尝试反射公开接口
-                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: 获取 SettingsService 失败，调试时间将依赖 500ms Tick 兜底刷新");
-                return;
-            }
-
-            // 反射拿 .Settings 属性（类型 = ClassIsland.Models.Settings，实现了 INotifyPropertyChanged）
-            var propSettings = settingsSvc.GetType().GetProperty("Settings",
-                BindingFlags.Instance | BindingFlags.Public);
-            if (propSettings == null)
-            {
-                _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 属性未找到，调试时间将依赖 500ms Tick 兜底刷新");
-                return;
-            }
-            var settingsObj = propSettings.GetValue(settingsSvc);
-            if (settingsObj is not System.ComponentModel.INotifyPropertyChanged npcSettings)
+            if (_hostSettingsObjAv is not System.ComponentModel.INotifyPropertyChanged npcSettings)
             {
                 _logger.LogWarning("EnsureHostSettingsSubscriptionAv: SettingsService.Settings 未实现 INotifyPropertyChanged，调试时间将依赖 500ms Tick 兜底刷新");
                 return;
             }
 
             // 成功：保存引用，构造 handler 并 +=
-            _hostSettingsServiceAv = settingsSvc;
-            _hostSettingsObjAv = npcSettings;
+            _hostSettingsNpcAv = npcSettings;
             _hostSettingsChangedHandlerAv = OnHostSettingsDebugTimeChangedAv;
             npcSettings.PropertyChanged += _hostSettingsChangedHandlerAv;
             _logger.LogInformation("EnsureHostSettingsSubscriptionAv: 已订阅宿主 SettingsService.Settings.PropertyChanged（调试时间即时刷新已启用）");
         }
         catch (Exception ex)
         {
-            _logger.LogWarning(ex, "EnsureHostSettingsSubscriptionAv 异常，调试时间将依赖 500ms Tick 兜底刷新");
-            // 失败兜底：把部分已赋值字段清零，避免 Detach 时 -= 空目标或错误目标
+            _logger.LogWarning(ex, "EnsureHostSettingsSubscriptionAv 订阅异常，调试时间将依赖 500ms Tick 兜底刷新");
             _hostSettingsChangedHandlerAv = null;
-            _hostSettingsObjAv = null;
-            _hostSettingsServiceAv = null;
+            _hostSettingsNpcAv = null;
         }
     }
 
@@ -1008,9 +1097,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
-            if (_hostSettingsChangedHandlerAv != null && _hostSettingsObjAv != null)
+            if (_hostSettingsChangedHandlerAv != null && _hostSettingsNpcAv != null)
             {
-                _hostSettingsObjAv.PropertyChanged -= _hostSettingsChangedHandlerAv;
+                _hostSettingsNpcAv.PropertyChanged -= _hostSettingsChangedHandlerAv;
             }
         }
         catch (Exception ex)
@@ -1019,10 +1108,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
         finally
         {
-            // 全部清零，保证下次 Ensure 会重新 Attach
+            // 只清"订阅"相关字段，保证下次 Ensure 会重新 Attach；
+            // 【不要清 _hostSettingsObjAv / _hostSettingsServiceAv】隐藏悬浮窗（基础/高级模式）依赖它们，
+            //   旧实现一并清零会让隐藏规则在 Detach 之后静默失效（且拿不到任何提示）。
             _hostSettingsChangedHandlerAv = null;
-            _hostSettingsObjAv = null;
-            _hostSettingsServiceAv = null;
+            _hostSettingsNpcAv = null;
         }
     }
 
@@ -1528,7 +1618,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
             // 任何位置变化（最大化/最小化/系统拖拽/贴边滑回）都持久化到设置。
             // 【贴边隐藏】滑入/滑出动画过程中与隐藏态下不持久化，避免把"隐藏位"当成用户位置保存。
-            if (_window?.IsVisible == true && !_edgeAnimatingAv && !_edgeHiddenAv)
+            // 【隐藏/显示过渡动画】动画期间窗口会滑到屏幕顶端之外，同样不得持久化。
+            if (_window?.IsVisible == true && !_edgeAnimatingAv && !_edgeHiddenAv && !_hideAnimActiveAv)
             {
                 _settings.FloatingSchedulePositionX = e.Point.X;
                 _settings.FloatingSchedulePositionY = e.Point.Y;
@@ -1777,6 +1868,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_window == null) return;
         // 点击穿透模式下，完全禁止任何本地交互（也包含拖拽），保证用户点击一定会穿透到下方窗口。
         if (_settings.FloatingScheduleClickThrough) return;
+        // 隐藏/显示过渡动画期间禁止拖拽：动画正在移动窗口，此时接管位置会造成位置异常。
+        if (_hideAnimActiveAv) return;
 
         var point = e.GetCurrentPoint(_containerBorder);
         // 仅响应：鼠标左键按下 / 触摸 / 笔（数位板）。右键、中键不拖拽。
@@ -1796,6 +1889,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _dragActiveAv = true;
             _dragPointerAv = e.Pointer;
             _suppressTopmostRefreshAv = true;   // 【修复：拖动闪烁】拖动期间抑制 z-order/exstyle 重设（EndDragAv 恢复）
+            // 【隐藏/显示过渡动画】用户开始拖动 → 取消动画并让内容立即完全可见（隐藏条件由 500ms Tick 重评）
+            CancelHideShowAv();
             // 【拖动期间不运行贴边隐藏倒计时】拖动开始立即取消任何挂起的延迟滑出倒计时：
             //  否则延迟=0 时倒计时随时会归零、把窗口滑出隐藏，与正在进行的拖动打架。
             //  （拖动结束后 EndDragAv → ScheduleEdgeEvalAv 会按"松手位置"重新评估，非贴边则不隐藏）
@@ -2557,11 +2652,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
             return;
         }
 #endif
-        // 非 Windows：跨平台兜底
+        // 非 Windows：跨平台兜底（过渡动画期间保持不可交互，不覆盖动画的抑制状态）
         try
         {
             if (_containerBorder != null)
-                _containerBorder.IsHitTestVisible = !through;
+                _containerBorder.IsHitTestVisible = !through && !_hideAnimActiveAv;
         }
         catch { /* ignore */ }
     }
@@ -2600,7 +2695,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private void ScheduleEdgeEvalAv()
     {
         if (!_settings.FloatingScheduleEdgeHide) return;
-        if (_edgeAnimatingAv) return;   // 滑入/滑出动画自身触发的 PositionChanged 不再评估
+        if (_edgeAnimatingAv) return;   // 贴边滑入/滑出动画自身触发的 PositionChanged 不再评估
         // 注意：只 Cancel 旧 CTS 不 Dispose —— 旧动画 Task.Delay(ct) 可能仍在 await，
         //  Cancel 后立刻 Dispose 会让其抛 ObjectDisposedException 而非 OperationCanceledException。无链接注册的 CTS 交给 GC。
         try { _edgeEvalCtsAv?.Cancel(); } catch { /* ignore */ }
@@ -2624,7 +2719,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_window == null || !_window.IsVisible) return;
         if (!_settings.FloatingScheduleEdgeHide) return;
-        if (_edgeAnimatingAv) return;
+        if (_edgeAnimatingAv || _hideAnimActiveAv) return;   // 贴边滑移 / 隐藏显示过渡中不评估贴边（避免动画期间窗口被挪动）
         try
         {
             // 取窗口所在屏幕（对齐 ClassIsland MainWindow 用法：TopLevel.Screens 实例属性 + ScreenFromWindow）
@@ -2760,6 +2855,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             if (_window == null) return;
             if (!_edgeDockedAv || _dragActiveAv) return;   // 未贴边 / 拖拽中：与隐藏位无关
+            // 【隐藏/显示过渡动画】动画期间窗口位置由动画独占驱动：此处若按尺寸自愈写 Position 会与之争抢
+            if (_hideAnimActiveAv) return;
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return;
             if (w == _edgeLastSizeWAv && h == _edgeLastSizeHAv) return;   // 尺寸没变 → 零开销返回（避免布局回调循环）
             // 【关键修复】只有应用成功才提交尺寸缓存：否则一旦某次应用失败（如窗口已离屏、算不出隐藏位），
@@ -2895,7 +2992,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (!_settings.FloatingScheduleEdgeHide) return;
         if (_window == null || !_window.IsVisible) return;
-        if (!_edgeDockedAv || _edgeAnimatingAv) return;
+        if (!_edgeDockedAv || _edgeAnimatingAv || _hideAnimActiveAv) return;
         try
         {
             bool inStrip = IsPointerInEdgeStripAv();
@@ -2962,7 +3059,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // 延迟到点后重新校验状态：仍贴边、未隐藏、未在动画中、未在拖动 → 才滑出
         if (!_settings.FloatingScheduleEdgeHide) return;
         if (_window == null || !_window.IsVisible) return;
-        if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimatingAv) return;
+        if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimatingAv || _hideAnimActiveAv) return;
         if (_dragActiveAv) return;   // 【拖动阻止隐藏】用户仍在拖动 → 放弃本次滑出（松手后由 EndDrag 重新调度）
         EdgeSlideToAv(_edgeHiddenPosAv, willBeHidden: true);
     }
@@ -3002,23 +3099,115 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  全部判定走反射/宿主 DI；任何异常或拿不到宿主资源时保守"不隐藏"，避免误遮蔽悬浮窗内容。
     private bool IsHostHideSettingOnAv(string propName)
     {
-        try { return ReflectProp(_hostSettingsObjAv, propName) is bool b && b; }
+        try
+        {
+            // 按需解析（宿主服务可能晚于悬浮窗建立才就绪；Detach 之后也需要重新取到）
+            if (_hostSettingsObjAv == null && !EnsureHostSettingsResolvedAv()) return false;
+            return ReflectProp(_hostSettingsObjAv, propName) is bool b && b;
+        }
         catch { return false; }
     }
 
-    /// <summary>解析并缓存宿主主窗口对象（仅用于读取 IsVisible）。</summary>
+    /// <summary>
+    /// 解析并缓存宿主主窗口对象（用于读取"主界面是否可见"）。
+    /// 解析顺序：① ClassIsland.Core.AppBase.Current.MainWindow（宿主持有的权威引用，2.1.x 起显式赋值）
+    ///          → ② Avalonia 生命周期 MainWindow → ③ 已打开窗口里类型名含 "MainWindow" 的那个
+    ///          → ④ 生命周期 MainWindow（保留旧行为）→ ⑤ 生命周期上的 MainWindow 属性（反射兜底）。
+    /// 【FA3 修复】Avalonia 12 下宿主的启动是异步的，ClassicDesktopStyleApplicationLifetime.MainWindow
+    ///   可能为 null（宿主 Show 主窗晚于 Start），旧实现直接判空 → "跟随主界面隐藏规则"整体失效；
+    ///   且 FA3 宿主会先创建启动画面窗口 SplashWindow，MainWindow 也可能指向它（关闭后会让悬浮窗被永久误判为"应隐藏"），
+    ///   故 ② 只采用"类型名像主窗口"的窗口。
+    /// </summary>
     private Avalonia.Controls.Window? ResolveHostMainWindowAv()
     {
         try
         {
+            // ① ClassIsland.Core.AppBase.Current.MainWindow（宿主自己维护的主窗口引用）
+            try
+            {
+                var tAppBase = FindHostServiceType("ClassIsland.Core.AppBase");
+                var app = tAppBase?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                var mw = app?.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public)
+                                 ?.GetValue(app) as Avalonia.Controls.Window;
+                if (mw != null) return mw;
+            }
+            catch { }
+
             var lifetime = Application.Current?.ApplicationLifetime;
-            if (lifetime == null) return null;
             if (lifetime is Avalonia.Controls.ApplicationLifetimes.IClassicDesktopStyleApplicationLifetime desktop)
-                return desktop.MainWindow;
+            {
+                // ② 生命周期主窗口（仅当类型名像主窗口，避免误取启动画面 SplashWindow）
+                if (IsLikelyHostMainWindowAv(desktop.MainWindow)) return desktop.MainWindow!;
+
+                // ③ 兜底：在已打开窗口里找宿主的 MainWindow（排除本插件自己的悬浮窗等）
+                try
+                {
+                    foreach (var w in desktop.Windows)
+                    {
+                        if (IsLikelyHostMainWindowAv(w)) return w!;
+                    }
+                }
+                catch { }
+
+                // ④ 保留旧行为：找不到名字匹配的窗口时仍用生命周期主窗口
+                if (desktop.MainWindow != null) return desktop.MainWindow;
+            }
             if (lifetime is Avalonia.Controls.ApplicationLifetimes.ISingleViewApplicationLifetime single)
                 return single.MainView as Avalonia.Controls.Window;
-            var p = lifetime.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public);
+
+            // ⑤ 理论兜底：生命周期上的 MainWindow 属性
+            var p = lifetime?.GetType().GetProperty("MainWindow", BindingFlags.Instance | BindingFlags.Public);
             return p?.GetValue(lifetime) as Avalonia.Controls.Window;
+        }
+        catch { return null; }
+    }
+
+    /// <summary>窗口类型名是否像宿主主窗口（ClassIsland.MainWindow）。用于排除启动画面等短命/干扰窗口。</summary>
+    private static bool IsLikelyHostMainWindowAv(Avalonia.Controls.Window? w)
+        => w != null && w.GetType().Name.IndexOf("MainWindow", StringComparison.Ordinal) >= 0;
+
+    /// <summary>
+    /// 解析宿主主窗口的"内容根"（ClassIsland 主界面 x:Name="GridRoot" 的 Grid）。
+    /// 【FA3 修复】ClassIsland 2.1.x 起隐藏主界面不再 Hide() 窗口，而是把内容根 GridRoot 的 IsVisible 置 false
+    ///   （见 MainWindow.VisibilityAnimation.SetContentVisibilityImmediately，退场动画结束后才置 false），窗口本身始终可见。
+    ///   因此判断"主界面是否被隐藏"必须看内容根，只看 Window.IsVisible 会恒为 true。
+    ///   视觉树为前序遍历，最外层的 GridRoot 先被访问到，命中即主界面内容根。
+    /// </summary>
+    private static Avalonia.Controls.Control? ResolveHostMainContentRootAv(Avalonia.Controls.Window w)
+    {
+        try
+        {
+            return w.GetVisualDescendants()
+                .OfType<Avalonia.Controls.Control>()
+                .FirstOrDefault(c => c.Name == "GridRoot");
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// 读取宿主主界面内容根的"目标可见性"（ClassIsland.MainWindow.GetIsContentVisibleRequested 附加属性）。
+    /// 该值由宿主样式绑定驱动，在隐藏/显示动画**起播瞬间**就翻转；而 GridRoot.IsVisible 要等动画结束才翻转。
+    /// 返回 null = 该宿主版本无此信号（退回看实际可见性，行为与旧版一致）。
+    /// </summary>
+    private bool? HostMainContentVisibleRequestedAv(Avalonia.Controls.Window w, Avalonia.Controls.Control root)
+    {
+        try
+        {
+            if (_hostContentVisibleGetterOwnerAv != w.GetType())
+            {
+                _hostContentVisibleGetterOwnerAv = w.GetType();
+                _hostContentVisibleGetterAv = null;
+                foreach (var m in w.GetType().GetMethods(BindingFlags.Public | BindingFlags.Static))
+                {
+                    if (m.Name != "GetIsContentVisibleRequested" || m.ReturnType != typeof(bool)) continue;
+                    var ps = m.GetParameters();
+                    if (ps.Length != 1 || !ps[0].ParameterType.IsInstanceOfType(root)) continue;
+                    _hostContentVisibleGetterAv = m;
+                    break;
+                }
+            }
+            if (_hostContentVisibleGetterAv == null) return null;
+            return _hostContentVisibleGetterAv.Invoke(null, new object[] { root }) is bool b ? b : (bool?)null;
         }
         catch { return null; }
     }
@@ -3027,9 +3216,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
-            _hostMainWndAv ??= ResolveHostMainWindowAv();
-            if (_hostMainWndAv == null) return true;   // 拿不到主窗口 → 视为可见，不隐藏
-            return _hostMainWndAv.IsVisible;
+            var w = _hostMainWndAv;
+            if (w == null)
+            {
+                w = ResolveHostMainWindowAv();
+                if (w == null) return true;   // 拿不到主窗口 → 视为可见，不隐藏
+                // 只在"类型名像宿主主窗口"时缓存：启动画面等短命窗口不缓存，下次调用重新解析
+                if (IsLikelyHostMainWindowAv(w)) _hostMainWndAv = w;
+            }
+            if (!w.IsVisible) return false;
+            // 【FA3】窗口可见 ≠ 主界面可见：2.1.x 隐藏主界面只把内容根 GridRoot.IsVisible 置 false，窗口本身不隐藏
+            var contentRoot = ResolveHostMainContentRootAv(w);
+            if (contentRoot != null)
+            {
+                // 【与主界面同步起播】先看"目标可见性"（动画起播即翻转），避免等主界面动画播完（滞后 250ms+）才跟隐藏
+                if (HostMainContentVisibleRequestedAv(w, contentRoot) == false) return false;
+                if (!contentRoot.IsVisible) return false;
+            }
+            return true;
         }
         catch { return true; }
     }
@@ -3121,15 +3325,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             _hostRulesetServiceAv ??= ResolveHostRulesetServiceAv();
             if (_hostRulesetServiceAv == null) return false;
+            // 按需解析宿主 Settings（隐藏规则集就挂在它上面；旧实现依赖"建立悬浮窗时的订阅"顺带赋值，缺失即静默失效）
+            if (_hostSettingsObjAv == null && !EnsureHostSettingsResolvedAv()) return false;
             var rules = ReflectProp(_hostSettingsObjAv, "HideRules");
             if (rules == null) return false;
-            var m = _hostRulesetServiceAv.GetType().GetMethod("IsRulesetSatisfied",
-                BindingFlags.Instance | BindingFlags.Public);
+            // 按参数类型挑选重载：避免同名重载导致 AmbiguousMatchException，也容忍签名演进（不写死参数个数以外的东西）
+            System.Reflection.MethodInfo? m = null;
+            foreach (var cand in _hostRulesetServiceAv.GetType().GetMethods(BindingFlags.Instance | BindingFlags.Public))
+            {
+                if (cand.Name != "IsRulesetSatisfied") continue;
+                var ps = cand.GetParameters();
+                if (ps.Length != 1) continue;
+                if (!ps[0].ParameterType.IsInstanceOfType(rules)) continue;
+                m = cand;
+                break;
+            }
             if (m == null) return false;
-            var r = m.Invoke(_hostRulesetServiceAv, new[] { rules });
-            return r is bool b && b;
+            return m.Invoke(_hostRulesetServiceAv, new[] { rules }) is bool b && b;
         }
-        catch { return false; }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "高级模式隐藏规则判定异常（保守视为不隐藏）");
+            return false;
+        }
     }
 
     /// <summary>按当前隐藏模式计算"是否应隐藏悬浮窗"。期望隐藏 → true；任何异常 → false（不隐藏）。</summary>
@@ -3170,25 +3388,273 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (IndependentRequested)
         {
             bool wantHideInd = !_settings.EnableFloatingSchedule || EvaluateShouldHideAv();
-            _hostProcess?.SendVisible(!wantHideInd);
+            bool wantVisible = !wantHideInd;
+            // 记录"下发时刻"：动画在子进程，插件侧靠该时刻起的高频窗口期捕捉中途反转
+            if (wantVisible != _lastSentVisibleAv)
+            {
+                _lastSentVisibleAv = wantVisible;
+                _lastVisibleChangeTicksAv = Environment.TickCount64;
+            }
+            _hostProcess?.SendVisible(wantVisible);
             return;
         }
         if (_window == null || !_settings.EnableFloatingSchedule) return;
-        if (_dragActiveAv || _edgeAnimatingAv) return;      // 拖动/滑移中不打断
+        if (_dragActiveAv || _edgeAnimatingAv) return;      // 拖动/贴边滑移中不打断
         bool wantHide = EvaluateShouldHideAv();
+        if (_hideAnimActiveAv)
+        {
+            // 过渡动画进行中：目标翻转时从"当前进度"重新补间（隐式动画语义）——
+            //  规则反复切换只会平滑改向，不会"先播完再放下一个"，也不会漂移或抽动。
+            if (_hideAnimTargetHiddenAv != wantHide) StartHideShowAv(wantHide);
+            return;
+        }
         bool currentlyHidden = !_window.IsVisible;
         if (wantHide == currentlyHidden) return;
         if (wantHide)
         {
-            // 若正处于贴边滑出隐藏态：先恢复到贴边前位置再隐藏，避免恢复时闪现
-            try { if (_edgeHiddenAv) _window.Position = _edgeDockedPosAv; } catch { /* ignore */ }
-            HideWindow();
+            // 【退场】播与 ClassIsland 对齐的过渡动画（内容位移 + 淡化），动画结束后才真正 Hide()
+            if (!StartHideShowAv(true))
+            {
+                // 取不到内容/几何时的回退：先恢复到贴边前位置再隐藏，避免恢复时闪现
+                try { if (_edgeHiddenAv) _window.Position = _edgeDockedPosAv; } catch { /* ignore */ }
+                HideWindow();
+            }
         }
         else
         {
-            ShowWindow();
+            // 【入场】先恢复到用户位置并以"完全移出 + 透明"状态显示，再滑入 + 淡入
+            if (!StartHideShowAv(false)) ShowWindow();
             RefreshSchedule();
         }
+    }
+
+    /// <summary>
+    /// 计算"完全滑出屏幕顶端"所需的窗口 Y 位移增量：
+    /// 目标 Y = 工作区上边缘 − 内容高度 − 1（即内容底边刚好越过屏幕顶端）。
+    /// 之所以移动**窗口**而不是只移动内容：窗口会把内容裁剪在自身边界内，
+    /// 只平移内容只会"原地消失"，无法产生"滑到屏幕顶端再滑出"的效果。
+    /// </summary>
+    private bool TryResolveHideShowDeltaAv(out Vector delta)
+    {
+        delta = default;
+        if (_window == null) return false;
+        var waResolved = ResolveEdgeWorkAreaAv();
+        if (waResolved is not { } wa) return false;
+        if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return false;
+
+        double targetY = wa.Y - h - HideShowDistanceExtraAv;
+        delta = new Vector(0, targetY - _window.Position.Y);
+        return true;
+    }
+
+    /// <summary>按进度 p（0=完全可见，1=完全滑出屏幕顶端）应用窗口位移与内容透明度。</summary>
+    private void ApplyHideShowProgressAv(double p)
+    {
+        try
+        {
+            if (_window != null && _hideAnimBasePosAv is { } basePos)
+            {
+                _window.Position = new PixelPoint(
+                    basePos.X,
+                    (int)Math.Round(basePos.Y + _hideAnimDeltaAv.Y * p));
+            }
+        }
+        catch { }
+        try { if (_containerBorder != null) _containerBorder.Opacity = 1 - p; } catch { }
+    }
+
+    /// <summary>
+    /// 过渡动画期间禁止窗口交互（拖动/点击）：动画中窗口会滑到屏幕顶端之外，
+    /// 此时若允许拖拽会与动画争夺位置，并可能把屏幕外的坐标当成用户位置写进存档（位置异常）。
+    /// </summary>
+    private void SuppressInteractionAv()
+    {
+        try { if (_containerBorder != null) _containerBorder.IsHitTestVisible = false; } catch { }
+    }
+
+    /// <summary>过渡动画结束后按"点击穿透"设置恢复交互（穿透开启时仍不可交互）。</summary>
+    private void RestoreInteractionAv()
+    {
+        try
+        {
+            if (_containerBorder != null)
+                _containerBorder.IsHitTestVisible = !_settings.FloatingScheduleClickThrough;
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 开始 / 改向"隐藏或显示"过渡动画（250ms + ClassIsland 的两条贝塞尔缓动，透明度同时 0↔1）。
+    /// hidden=true → 退场：窗口整体向上滑到屏幕顶端之外，动画结束后 Hide()；
+    /// hidden=false → 入场：窗口先以"完全滑出 + 透明"状态显示，再滑回用户放置位并淡入（避免闪出一帧完整内容）。
+    /// 动画进行中再次调用表示"改向"：从当前进度向新目标补间，不跳变（等价于 ClassIsland 的隐式动画）。
+    /// 返回 false 表示取不到几何，调用方回退为即时 Hide/Show。
+    /// </summary>
+    private bool StartHideShowAv(bool hidden)
+    {
+        if (_window == null || _containerBorder == null) return false;
+        try
+        {
+            if (!_hideAnimActiveAv)
+            {
+                // 新的一次过渡：先确定基准位置（用户放置位）与"完全滑出屏幕顶端"的位移量
+                if (!hidden && !_window.IsVisible)
+                {
+                    // 入场且窗口当前不可见：先恢复到用户位置（贴边隐藏态下当前位是隐藏位）
+                    try
+                    {
+                        if (_edgeHiddenAv)
+                        {
+                            _window.Position = _edgeDockedPosAv;
+                            _edgeHiddenAv = false;
+                        }
+                    }
+                    catch { }
+                    try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                    _edgeSlideOutPendingAv = false;
+                }
+                _hideAnimBasePosAv = _window.Position;
+                if (!TryResolveHideShowDeltaAv(out var delta)) { RestoreInteractionAv(); return false; }
+                _hideAnimDeltaAv = delta;
+                SuppressInteractionAv();   // 动画期间禁止交互，避免与动画争夺位置
+
+                if (!hidden)
+                {
+                    // 入场：先落到"完全滑出 + 透明"状态再显示，避免先闪出一帧完整内容
+                    _hideAnimProgressAv = 1;
+                    ApplyHideShowProgressAv(1);
+                    ShowWindow();
+                }
+                else
+                {
+                    _hideAnimProgressAv = 0;
+                }
+            }
+            else if (TryResolveHideShowDeltaAv(out var deltaNow))
+            {
+                // 改向：基准与位移量沿用本次过渡，只更新目标（几何可能已变化，同步刷新位移量）
+                _hideAnimDeltaAv = deltaNow;
+            }
+
+            _hideAnimFromAv = _hideAnimProgressAv;
+            _hideAnimTargetHiddenAv = hidden;
+            _hideAnimTargetAv = hidden ? 1 : 0;
+            _hideAnimDurationMsAv = (int)HideShowDurationAv.TotalMilliseconds;
+            _hideAnimEasingAv = hidden ? HideShowExitEasingAv : HideShowEntranceEasingAv;
+            _hideAnimStartTicksAv = Environment.TickCount64;
+            _hideAnimActiveAv = true;
+            if (_hideAnimTimerAv == null)
+            {
+                _hideAnimTimerAv = new DispatcherTimer(DispatcherPriority.Render)
+                {
+                    Interval = TimeSpan.FromMilliseconds(1)   // Render 优先级下 1ms 间隔即"每帧一次"
+                };
+                _hideAnimTimerAv.Tick += HideShowTimer_TickAv;
+            }
+            _hideAnimTimerAv.Start();
+            return true;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "隐藏/显示过渡动画启动异常，回退即时切换。");
+            _hideAnimActiveAv = false;
+            RestoreInteractionAv();
+            return false;
+        }
+    }
+
+    private void HideShowTimer_TickAv(object? sender, EventArgs e)
+    {
+        if (_window == null) { StopHideShowTimerAv(); _hideAnimActiveAv = false; return; }
+        try
+        {
+            double u = (Environment.TickCount64 - _hideAnimStartTicksAv) / (double)_hideAnimDurationMsAv;
+            if (u >= 1.0)
+            {
+                FinishHideShowAv();
+                return;
+            }
+            double eased = _hideAnimEasingAv?.Ease(u) ?? u;
+            _hideAnimProgressAv = _hideAnimFromAv + (_hideAnimTargetAv - _hideAnimFromAv) * eased;
+            ApplyHideShowProgressAv(_hideAnimProgressAv);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "隐藏/显示过渡动画异常，直接落位。");
+            try { FinishHideShowAv(); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// 过渡动画完成：落到目标进度。目标是隐藏 → 标记隐藏态、Hide()，并把窗口位置复位到用户放置位、
+    /// 内容复位为"完全可见"（此时窗口不可见，不会闪出；下次入场再从"完全滑出"状态滑回）。
+    /// 目标是显示 → 清除隐藏态。
+    /// 全程保持"动画进行中"标志，避免复位过程中的位置变化被写进存档。
+    /// </summary>
+    private void FinishHideShowAv()
+    {
+        StopHideShowTimerAv();
+        if (!_hideAnimActiveAv) return;
+        _hideAnimProgressAv = _hideAnimTargetAv;
+        ApplyHideShowProgressAv(_hideAnimProgressAv);
+        if (_hideAnimTargetHiddenAv)
+        {
+            _hiddenByAnimAv = true;
+            // 贴边滑出态下窗口停在"贴边位"，隐藏期间尺寸自愈会依据旧标记把它挪回屏外 → 下次显示落在屏外。
+            //  这里复位"已滑出"标记（保留贴边记录），显示后由贴边状态机按原延迟重新滑出。
+            if (_edgeDockedAv)
+            {
+                _edgeHiddenAv = false;
+                _edgeHoverTicksAv = 0;
+                _edgeHoverLastInAv = false;
+                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                _edgeSlideOutPendingAv = false;
+            }
+            try { HideWindow(); } catch { }
+            // 隐藏后再复位：窗口位置回到用户放置位、内容恢复完全可见、进度归零
+            //（必须仍在"动画进行中"标志下执行，否则这几次位置写入会被 PositionChanged 持久化）
+            _hideAnimProgressAv = 0;
+            try
+            {
+                if (_window != null && _hideAnimBasePosAv is { } basePos) _window.Position = basePos;
+            }
+            catch { }
+            try { if (_containerBorder != null) _containerBorder.Opacity = 1; } catch { }
+        }
+        else
+        {
+            _hiddenByAnimAv = false;
+            RestoreInteractionAv();   // 动画结束：按点击穿透设置恢复交互
+        }
+        _hideAnimActiveAv = false;
+    }
+
+    /// <summary>
+    /// 取消过渡动画并让窗口立即回到用户放置位的"完全可见"状态（用户开始拖动 / 关闭开关 / Stop 时）。
+    /// 幂等。
+    /// </summary>
+    private void CancelHideShowAv()
+    {
+        StopHideShowTimerAv();
+        _hiddenByAnimAv = false;
+        _hideAnimProgressAv = 0;
+        try
+        {
+            if (_window != null && _hideAnimBasePosAv is { } basePos) _window.Position = basePos;
+        }
+        catch { }
+        try { if (_containerBorder != null) _containerBorder.Opacity = 1; } catch { }
+        _hideAnimActiveAv = false;
+        RestoreInteractionAv();
+    }
+
+    private void StopHideShowTimerAv()
+    {
+        try
+        {
+            if (_hideAnimTimerAv != null && _hideAnimTimerAv.IsEnabled) _hideAnimTimerAv.Stop();
+        }
+        catch { }
     }
 
     // ==================================== 指针移入淡化（参考 ClassIsland MainWindow.UpdateFadeStatus/GetMouseStatusByPos）====================================
@@ -3413,6 +3879,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 {
                     ApplyHoverFade();
                     UpdateEdgeHoverAv();   // 【贴边隐藏】复用 50ms 轮询：光标进入可见条滑回 / 离开滑回隐藏
+                    // 【动画打断】动画进行中（或独立进程刚下发过可见性变化的窗口期内）以 50ms 频率重评隐藏规则：
+                    //   规则集中途变动会被立即察觉并触发改向，否则 500ms Tick 远慢于 250ms 过渡动画，
+                    //   只能等动画播完再放下一个。
+                    // 【跟随主界面同步起播】"跟随主界面隐藏规则"下也走 50ms 重评：500ms 轮询会让悬浮窗
+                    //   比主界面晚最多半秒才开始隐藏（叠加动画时长即肉眼可见的"滞后"）。
+                    if (_hideAnimActiveAv ||
+                        _settings.FloatingScheduleHideMode == FloatingScheduleHideMode.FollowHost ||
+                        (IndependentRequested &&
+                         Environment.TickCount64 - _lastVisibleChangeTicksAv < HideAnimInterruptWindowMsAv))
+                    {
+                        ApplyShouldHideAv();
+                    }
                     // 【修复：贴边隐藏位随尺寸自愈（关键）】50ms 常驻兜底重算隐藏位。
                     //   为什么不能只靠 LayoutUpdated / Resized：实测"下课(高393)→上课(矮362)"变矮时，
                     //   尺寸监听在"平台窗口真正改变尺寸"之前就拿到了旧尺寸（早退出、未重算），此后不再触发，

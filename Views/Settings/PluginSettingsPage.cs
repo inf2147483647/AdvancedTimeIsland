@@ -1364,16 +1364,29 @@ public class PluginSettingsPage : UserControl
 
     public event EventHandler<bool>? EasterEggToggled;
 
+    /// <summary>
+    /// 「小工具」开关状态变化。关闭后主设置导航栏需立即移除「时间格式转换 / 时间计算器 / 专业名词解释」
+    /// 三个标签页（该选项无需重启即生效）。
+    /// </summary>
+    public event EventHandler<bool>? UtilitiesToggled;
+
     private async void OnManageFeaturesClick(object? sender, RoutedEventArgs e)
     {
         var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "管理启用的功能");
 
-        var contentPanel = new StackPanel { Spacing = 8, MaxHeight = 400 };
+        // 注意：不要再在此处嵌内层 ScrollViewer，也不要给本面板设 MaxHeight。
+        // FA3 的 FAContentDialog 模板把 Content 放在对话框自带的 ContentScrollViewer 中，
+        // 内容按无限高度测量；ScrollViewer 处于无限高度容器内时永远检测不到溢出（Avalonia 官方明确警告），
+        // 而外层 StackPanel 的 MaxHeight 只压缩容器自身、不约束内层 ScrollViewer 的测量，
+        // 超出部分会在 FA3 模板 ClipToBounds=True 的裁剪下永久不可见——新增开关后曾导致
+        // 「帧率折线 / 汉服指南 / 小工具」三个开关在 FA3 下消失。滚动统一交给对话框自身的
+        // ContentScrollViewer（FA2 / FA3 模板均有，按钮区固定在滚动区之外）。
+        var contentPanel = new StackPanel { Spacing = 8 };
 
         var descTextBlock = new TextBlock
         {
-            Text = "以下功能相对不常用，可按需开启或关闭。更改后需重启ClassIsland生效。",
+            Text = "以下功能相对不常用，可按需开启或关闭。更改后需重启ClassIsland生效（“小工具”除外，点击“确定，稍后重启”后立即生效）。",
             FontSize = 12,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = Avalonia.Media.TextWrapping.Wrap,
@@ -1381,17 +1394,11 @@ public class PluginSettingsPage : UserControl
         };
         contentPanel.Children.Add(descTextBlock);
 
-        var scrollViewer = new ScrollViewer
-        {
-            Content = new StackPanel { Spacing = 4 },
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
-        };
-        var featuresPanel = scrollViewer.Content as StackPanel;
+        var featuresPanel = new StackPanel { Spacing = 4 };
 
         // 农历开关项
         var lunarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLunarCalendar ?? true };
-        featuresPanel!.Children.Add(CreateFeatureToggleItem("农历", lunarToggle));
+        featuresPanel.Children.Add(CreateFeatureToggleItem("农历", lunarToggle));
 
         // 地方时开关项
         var localSolarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLocalSolarTime ?? true };
@@ -1421,7 +1428,22 @@ public class PluginSettingsPage : UserControl
         var festivalToggle = new ToggleSwitch { IsChecked = _settings?.EnableFestival ?? true };
         featuresPanel.Children.Add(CreateFeatureToggleItem("节日", festivalToggle));
 
-        contentPanel.Children.Add(scrollViewer);
+        // 帧率折线开关项（帧率折线图及其分析页面是否注册，默认关闭；采集依赖「实验性功能」）
+        var fpsChartToggle = new ToggleSwitch { IsChecked = _settings?.EnableFpsChart ?? false };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("帧率折线", fpsChartToggle,
+            "控制帧率折线图及其分析页面是否注册。需先开启“实验性功能”。"));
+
+        // 汉服指南开关项（170+ 汉服页面与「汉服指南」标签页、汉服 Markdown 下载，默认开启）
+        var hanfuGuideToggle = new ToggleSwitch { IsChecked = _settings?.EnableHanfuGuide ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("汉服指南", hanfuGuideToggle,
+            "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。"));
+
+        // 小工具开关项（主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认开启）
+        var utilitiesToggle = new ToggleSwitch { IsChecked = _settings?.EnableUtilities ?? true };
+        featuresPanel.Children.Add(CreateFeatureToggleItem("小工具", utilitiesToggle,
+            "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。点击“确定，稍后重启”后立即生效。"));
+
+        contentPanel.Children.Add(featuresPanel);
 
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", contentPanel);
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定并重启");
@@ -1444,7 +1466,18 @@ public class PluginSettingsPage : UserControl
             _settings.EnableShengXiao = shengXiaoToggle.IsChecked == true;
             _settings.EnableFestival = festivalToggle.IsChecked == true;
 
+            bool utilitiesBefore = _settings.EnableUtilities;
+            _settings.EnableFpsChart = fpsChartToggle.IsChecked == true;
+            _settings.EnableHanfuGuide = hanfuGuideToggle.IsChecked == true;
+            _settings.EnableUtilities = utilitiesToggle.IsChecked == true;
+
             RequestRestartAction?.Invoke();
+
+            // 「小工具」无需重启：立即通知主设置导航栏重建标签页
+            if (utilitiesBefore != _settings.EnableUtilities)
+            {
+                UtilitiesToggled?.Invoke(this, _settings.EnableUtilities);
+            }
 
             if (isPrimary)
             {
@@ -1453,19 +1486,38 @@ public class PluginSettingsPage : UserControl
         }
     }
 
-    private Control CreateFeatureToggleItem(string label, ToggleSwitch toggle)
+    private Control CreateFeatureToggleItem(string label, ToggleSwitch toggle, string? description = null)
     {
         var itemPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
-        var labelText = new TextBlock
+        Control labelControl = new TextBlock
         {
             Text = label,
             FontSize = 13,
             Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        // 可选的补充说明（放在标题下方，浅色小字）
+        if (!string.IsNullOrEmpty(description))
+        {
+            var labelPanel = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Spacing = 2,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            labelPanel.Children.Add(labelControl);
+            labelPanel.Children.Add(new TextBlock
+            {
+                Text = description,
+                FontSize = 11,
+                Foreground = ThemeHelper.GetSubTextBrush(),
+                TextWrapping = TextWrapping.Wrap
+            });
+            labelControl = labelPanel;
+        }
         toggle.VerticalAlignment = VerticalAlignment.Center;
         toggle.HorizontalAlignment = HorizontalAlignment.Right;
-        itemPanel.Children.Add(labelText);
+        itemPanel.Children.Add(labelControl);
         itemPanel.Children.Add(toggle);
         return itemPanel;
     }

@@ -31,6 +31,9 @@ public class AttendanceCalendarPage : SettingsPageBase
 
     private AttendanceStatisticsConfig Config => _calendar.Data.Config;
 
+    /// <summary>最近一次统计结果：切换分段方式（按周/按月）时直接复用，避免重复整学期计算。</summary>
+    private AttendanceStatistics? _lastStats;
+
     private TextBlock? _summaryTextBlock;
     private TextBlock? _summaryDetailTextBlock;
     private ProgressBar? _summaryProgressBar;
@@ -538,24 +541,162 @@ public class AttendanceCalendarPage : SettingsPageBase
 
     // ==================== 数据刷新 ====================
 
-    private void RefreshAll()
-    {
-        UpdateSemesterControls();
-        UpdateRuleControls();
-        RebuildVacationTable();
-        RebuildCustomDateTable();
-        RebuildHolidayTable();
-        RebuildPeriodTable();
-        _ = RefreshSummaryAsync();
+    /// <summary>刷新全部区域（异步分批执行，见 <see cref="RefreshAllAsync"/>）。</summary>
+    private void RefreshAll() => _ = RefreshAllAsync();
 
-        if (_statusTextBlock != null && string.IsNullOrEmpty(_statusTextBlock.Text))
+    /// <summary>
+    /// 刷新全部区域。
+    /// 【不阻塞 UI】分多批执行，并在每批之间用 <c>await Task.Yield()</c> 把控制权交还 UI 线程：
+    ///   各表格控件较多，一次性同步建完会让"打开设置页"出现明显卡顿；分批后界面在此期间可正常响应与重绘。
+    /// </summary>
+    private async Task RefreshAllAsync()
+    {
+        try
         {
-            var lastUpdated = _calendar.Data.LastUpdated;
-            var count = _calendar.Data.Holidays.Count + _calendar.Data.MakeupDays.Count;
-            _statusTextBlock.Text = lastUpdated == null
-                ? $"当前共 {count} 条节假日/调休记录。"
-                : $"当前共 {count} 条节假日/调休记录；最近联网更新：{lastUpdated:yyyy-MM-dd HH:mm}（{_calendar.Data.LastUpdateSource}）";
+            UpdateSemesterControls();
+            UpdateRuleControls();
+            await Task.Yield();
+
+            RebuildVacationTable();
+            await Task.Yield();
+
+            RebuildCustomDateTable();
+            await Task.Yield();
+
+            RebuildHolidayTable();
+            await Task.Yield();
+
+            // 统计概览与分段统计共用同一次整学期统计（原实现各自计算一遍，宿主课表反射查询被重复执行）
+            await RefreshStatisticsAsync();
+
+            if (_statusTextBlock != null && string.IsNullOrEmpty(_statusTextBlock.Text))
+            {
+                var lastUpdated = _calendar.Data.LastUpdated;
+                var count = _calendar.Data.Holidays.Count + _calendar.Data.MakeupDays.Count;
+                _statusTextBlock.Text = lastUpdated == null
+                    ? $"当前共 {count} 条节假日/调休记录。"
+                    : $"当前共 {count} 条节假日/调休记录；最近联网更新：{lastUpdated:yyyy-MM-dd HH:mm}（{_calendar.Data.LastUpdateSource}）";
+            }
         }
+        catch (Exception ex)
+        {
+            SetStatus($"刷新失败：{ex.Message}");
+        }
+    }
+
+    /// <summary>
+    /// 计算一次整学期统计，并同时刷新「统计概览」与「分段统计」。
+    /// 原实现由 <c>RefreshSummaryAsync</c> 与 <c>RebuildPeriodTableAsync</c> 各自
+    /// <c>Task.Run(ComputeStatistics)</c>，同一份结果被重复计算两遍（每次都逐日做宿主课表反射查询），
+    /// 这里合并为一次计算，减轻后台负载与 GC 压力。
+    /// </summary>
+    private async Task RefreshStatisticsAsync()
+    {
+        var config = Config;
+        var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
+        if (start == null)
+        {
+            _lastStats = null;
+            SetSummary("尚未获取学期开始日", "请在下方将学期开始日设为「手动指定」，或先在 ClassIsland 中配置学期开始时间。", 0);
+            ShowPeriodPlaceholder("尚未获取学期开始日，无法进行分段统计。");
+            return;
+        }
+
+        var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
+
+        AttendanceStatistics stats;
+        try
+        {
+            stats = await Task.Run(() => _calendar.ComputeStatistics(start.Value, end, DateTime.Now));
+        }
+        catch (Exception ex)
+        {
+            _lastStats = null;
+            SetSummary("统计失败", ex.Message, 0);
+            ShowPeriodPlaceholder($"分段统计失败：{ex.Message}");
+            return;
+        }
+
+        _lastStats = stats;
+        ApplySummary(stats);
+        ApplyPeriodTable(stats);
+    }
+
+    /// <summary>把统计结果写入「统计概览」区域。</summary>
+    private void ApplySummary(AttendanceStatistics stats)
+    {
+        if (stats.NotStarted)
+        {
+            SetSummary($"距开学还有 {(stats.StartDate - stats.Today).Days} 天",
+                $"学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}，预计在校 {stats.TotalInSchoolDays} 天。",
+                0);
+        }
+        else if (stats.Finished)
+        {
+            SetSummary($"本学期已结束：共在校 {stats.TotalInSchoolDays} 天，约 {stats.TotalHours:0.#} 小时",
+                $"学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}。",
+                100);
+        }
+        else
+        {
+            SetSummary(
+                $"本学期已在校 {stats.ElapsedInSchoolDays} 天 / 共 {stats.TotalInSchoolDays} 天，约 {stats.ElapsedHours:0.#} 小时",
+                $"进度 {stats.ProgressPercent:0.#}%；剩余 {stats.RemainingInSchoolDays} 天 · 约 {stats.RemainingHours:0.#} 小时；" +
+                $"每日在校时长 {stats.DailyHours:0.#} 小时（{DailyHoursSourceText()}）。",
+                stats.ProgressPercent);
+        }
+
+        if (_semesterRangeTextBlock != null)
+        {
+            _semesterRangeTextBlock.Text =
+                $"当前生效学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}（共 {stats.TotalCalendarDays} 个自然日）。";
+        }
+    }
+
+    /// <summary>按当前分段方式把统计结果写入「分段统计」表格。</summary>
+    private void ApplyPeriodTable(AttendanceStatistics stats)
+    {
+        if (_periodTableHost == null)
+        {
+            return;
+        }
+
+        var periods = _periodModeComboBox?.SelectedIndex == 1 ? stats.Monthly : stats.Weekly;
+
+        var rows = periods.Select(period => new[]
+        {
+            CreateCellText(period.Label),
+            CreateCellText(period.RangeText),
+            CreateCellText($"{period.ElapsedInSchoolDays} / {period.InSchoolDays} 天"),
+            CreateCellText($"{period.Hours:0.#} 小时")
+        }).ToList();
+
+        _periodTableHost.Children.Clear();
+        if (rows.Count == 0)
+        {
+            _periodTableHost.Children.Add(new TextBlock { Text = "当前区间内没有在校日。", Tag = "sub" });
+        }
+        else
+        {
+            _periodTableHost.Children.Add(CreateTable(
+                new[] { "分段", "日期范围", "已在校 / 总在校", "在校时长" },
+                new double[] { 110, 140, 130, 100 },
+                rows));
+        }
+        ApplyTheme();
+    }
+
+    /// <summary>在「分段统计」区域显示一条提示（拿不到统计结果时）。</summary>
+    private void ShowPeriodPlaceholder(string text)
+    {
+        if (_periodTableHost == null)
+        {
+            return;
+        }
+
+        _periodTableHost.Children.Clear();
+        _periodTableHost.Children.Add(new TextBlock { Text = text, Tag = "sub" });
+        ApplyTheme();
     }
 
     private void UpdateSemesterControls()
@@ -651,7 +792,7 @@ public class AttendanceCalendarPage : SettingsPageBase
                     _calendar.Data.Vacations.Remove(vacation);
                     _calendar.Save();
                     RebuildVacationTable();
-                    _ = RefreshSummaryAsync();
+                    _ = RefreshStatisticsAsync();
                 })
             })
             .ToList();
@@ -690,7 +831,7 @@ public class AttendanceCalendarPage : SettingsPageBase
                     items.Remove(day);
                     _calendar.Save();
                     RebuildCustomDateTable();
-                    _ = RefreshSummaryAsync();
+                    _ = RefreshStatisticsAsync();
                 })
             })
             .ToList();
@@ -723,7 +864,7 @@ public class AttendanceCalendarPage : SettingsPageBase
                     _calendar.Data.MakeupDays.Remove(day);
                     _calendar.Save();
                     RebuildHolidayTable();
-                    _ = RefreshSummaryAsync();
+                    _ = RefreshStatisticsAsync();
                 })
             });
         }
@@ -741,7 +882,7 @@ public class AttendanceCalendarPage : SettingsPageBase
                     _calendar.Data.Holidays.Remove(day);
                     _calendar.Save();
                     RebuildHolidayTable();
-                    _ = RefreshSummaryAsync();
+                    _ = RefreshStatisticsAsync();
                 })
             });
         }
@@ -755,117 +896,19 @@ public class AttendanceCalendarPage : SettingsPageBase
         ApplyTheme();
     }
 
-    private void RebuildPeriodTable() => _ = RebuildPeriodTableAsync();
-
-    private async Task RebuildPeriodTableAsync()
+    /// <summary>
+    /// 按当前分段方式重绘「分段统计」表格：数据取自最近一次统计结果（<see cref="_lastStats"/>），
+    /// 故切换分段方式（按周/按月）无需重算整学期。
+    /// </summary>
+    private void RebuildPeriodTable()
     {
-        if (_periodTableHost == null)
+        if (_lastStats != null)
         {
+            ApplyPeriodTable(_lastStats);
             return;
         }
 
-        var config = Config;
-        var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
-        if (start == null)
-        {
-            _periodTableHost.Children.Clear();
-            _periodTableHost.Children.Add(new TextBlock
-            {
-                Text = "尚未获取学期开始日，无法进行分段统计。",
-                Tag = "sub"
-            });
-            ApplyTheme();
-            return;
-        }
-
-        var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
-        var byMonth = _periodModeComboBox?.SelectedIndex == 1;
-
-        AttendanceStatistics stats;
-        try
-        {
-            stats = await Task.Run(() => _calendar.ComputeStatistics(start.Value, end, DateTime.Now));
-        }
-        catch (Exception ex)
-        {
-            _periodTableHost.Children.Clear();
-            _periodTableHost.Children.Add(new TextBlock { Text = $"分段统计失败：{ex.Message}", Tag = "sub" });
-            ApplyTheme();
-            return;
-        }
-
-        var periods = byMonth ? stats.Monthly : stats.Weekly;
-
-        var rows = periods.Select(period => new[]
-        {
-            CreateCellText(period.Label),
-            CreateCellText(period.RangeText),
-            CreateCellText($"{period.ElapsedInSchoolDays} / {period.InSchoolDays} 天"),
-            CreateCellText($"{period.Hours:0.#} 小时")
-        }).ToList();
-
-        _periodTableHost.Children.Clear();
-        if (rows.Count == 0)
-        {
-            _periodTableHost.Children.Add(new TextBlock { Text = "当前区间内没有在校日。", Tag = "sub" });
-        }
-        else
-        {
-            _periodTableHost.Children.Add(CreateTable(
-                new[] { "分段", "日期范围", "已在校 / 总在校", "在校时长" },
-                new double[] { 110, 140, 130, 100 },
-                rows));
-        }
-        ApplyTheme();
-    }
-
-    private async Task RefreshSummaryAsync()
-    {
-        try
-        {
-            var config = Config;
-            var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
-
-            if (start == null)
-            {
-                SetSummary("尚未获取学期开始日", "请在下方将学期开始日设为「手动指定」，或先在 ClassIsland 中配置学期开始时间。", 0);
-                return;
-            }
-
-            var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
-            var stats = await Task.Run(() => _calendar.ComputeStatistics(start.Value, end, DateTime.Now));
-
-            if (stats.NotStarted)
-            {
-                SetSummary($"距开学还有 {(stats.StartDate - stats.Today).Days} 天",
-                    $"学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}，预计在校 {stats.TotalInSchoolDays} 天。",
-                    0);
-            }
-            else if (stats.Finished)
-            {
-                SetSummary($"本学期已结束：共在校 {stats.TotalInSchoolDays} 天，约 {stats.TotalHours:0.#} 小时",
-                    $"学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}。",
-                    100);
-            }
-            else
-            {
-                SetSummary(
-                    $"本学期已在校 {stats.ElapsedInSchoolDays} 天 / 共 {stats.TotalInSchoolDays} 天，约 {stats.ElapsedHours:0.#} 小时",
-                    $"进度 {stats.ProgressPercent:0.#}%；剩余 {stats.RemainingInSchoolDays} 天 · 约 {stats.RemainingHours:0.#} 小时；" +
-                    $"每日在校时长 {stats.DailyHours:0.#} 小时（{DailyHoursSourceText()}）。",
-                    stats.ProgressPercent);
-            }
-
-            if (_semesterRangeTextBlock != null)
-            {
-                _semesterRangeTextBlock.Text =
-                    $"当前生效学期区间：{stats.StartDate:yyyy-MM-dd} ~ {stats.EndDate:yyyy-MM-dd}（共 {stats.TotalCalendarDays} 个自然日）。";
-            }
-        }
-        catch (Exception ex)
-        {
-            SetSummary("统计失败", ex.Message, 0);
-        }
+        _ = RefreshStatisticsAsync();
     }
 
     /// <summary>「每日在校时长」取值方式的展示文案。</summary>
@@ -913,8 +956,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             : SemesterEndSource.TotalWeeks;
 
         UpdateSemesterOptionEnabledState();
-        _ = RefreshSummaryAsync();
-        RebuildPeriodTable();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnDailyHoursSourceChanged(object? sender, SelectionChangedEventArgs e)
@@ -929,8 +971,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             : DailyHoursSource.Manual;
 
         UpdateSemesterOptionEnabledState();
-        _ = RefreshSummaryAsync();
-        RebuildPeriodTable();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnSemesterDateChanged(object? sender, DatePickerSelectedValueChangedEventArgs e)
@@ -949,8 +990,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             Config.ManualEndDate = _manualEndDatePicker.SelectedDate.Value.Date;
         }
 
-        _ = RefreshSummaryAsync();
-        RebuildPeriodTable();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnSemesterNumberChanged(object? sender, NumericUpDownValueChangedEventArgs e)
@@ -969,8 +1009,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             Config.DailyHours = (double)_dailyHoursNumericUpDown.Value.Value;
         }
 
-        _ = RefreshSummaryAsync();
-        RebuildPeriodTable();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnRuleChanged(object? sender, RoutedEventArgs e)
@@ -987,8 +1026,7 @@ public class AttendanceCalendarPage : SettingsPageBase
         Config.ExcludeVacations = _excludeVacationsCheckBox?.IsChecked ?? false;
         Config.RespectCustomDates = _respectCustomDatesCheckBox?.IsChecked ?? false;
 
-        _ = RefreshSummaryAsync();
-        RebuildPeriodTable();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnAddVacationClick(object? sender, RoutedEventArgs e)
@@ -1016,7 +1054,7 @@ public class AttendanceCalendarPage : SettingsPageBase
 
         _newVacationNameTextBox!.Text = string.Empty;
         RebuildVacationTable();
-        _ = RefreshSummaryAsync();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnAddCustomDateClick(object? sender, RoutedEventArgs e)
@@ -1046,7 +1084,7 @@ public class AttendanceCalendarPage : SettingsPageBase
 
         _newCustomNameTextBox!.Text = string.Empty;
         RebuildCustomDateTable();
-        _ = RefreshSummaryAsync();
+        _ = RefreshStatisticsAsync();
     }
 
     private void OnAddHolidayClick(object? sender, RoutedEventArgs e)
@@ -1076,7 +1114,7 @@ public class AttendanceCalendarPage : SettingsPageBase
 
         _newHolidayNameTextBox!.Text = string.Empty;
         RebuildHolidayTable();
-        _ = RefreshSummaryAsync();
+        _ = RefreshStatisticsAsync();
     }
 
     private async void OnUpdateFromNetworkClick(object? sender, RoutedEventArgs e)
@@ -1098,7 +1136,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             SetStatus(result.ToDisplayText());
 
             RebuildHolidayTable();
-            await RefreshSummaryAsync();
+            await RefreshStatisticsAsync();
         }
         catch (Exception ex)
         {
@@ -1120,7 +1158,7 @@ public class AttendanceCalendarPage : SettingsPageBase
             var count = _calendar.RestoreBuiltinData();
             SetStatus($"已恢复内置节假日数据，当前共 {count} 条记录（手动条目已保留）。");
             RebuildHolidayTable();
-            _ = RefreshSummaryAsync();
+            _ = RefreshStatisticsAsync();
         }
         catch (Exception ex)
         {
@@ -1174,7 +1212,7 @@ public class AttendanceCalendarPage : SettingsPageBase
         Loaded += OnLoaded;
     }
 
-    private void OnLoaded(object? sender, RoutedEventArgs e)
+    private async void OnLoaded(object? sender, RoutedEventArgs e)
     {
         Loaded -= OnLoaded;
 
@@ -1183,8 +1221,12 @@ public class AttendanceCalendarPage : SettingsPageBase
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
 
-        RefreshAll();
         ApplyTheme();
+
+        // 【不阻塞 UI】先让页面完成首帧渲染，再做数据相关的建表工作：
+        //   否则"打开设置页"时会先同步建完所有表格才画出界面，用户看到的是整页卡住。
+        await Task.Yield();
+        RefreshAll();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

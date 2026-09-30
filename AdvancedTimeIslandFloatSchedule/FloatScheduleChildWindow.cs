@@ -11,6 +11,7 @@ using System.IO;
 using System.Threading;
 using AdvancedTimeIsland.Shared.FloatingSchedule;
 using Avalonia;
+using Avalonia.Animation.Easings;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
@@ -385,10 +386,253 @@ internal sealed class FloatScheduleChildWindow : Window
         if (!_firstDataReceived) return;
         try
         {
-            if (visible) { Show(); ApplyWindowLayer(); ArmPositionReportingAfterSettle(); }
-            else { try { if (_edgeHiddenAv) Position = _edgeDockedPosAv; } catch { } Hide(); }
+            if (visible)
+            {
+                // 入场：窗口先以"完全移出 + 透明"状态显示，再滑入 + 淡入
+                if (!StartHideShow(false)) Show();
+                ApplyWindowLayer();
+                ArmPositionReportingAfterSettle();
+            }
+            else
+            {
+                // 退场：播内容位移 + 淡化的过渡动画，动画结束后才真正 Hide()
+                if (!StartHideShow(true))
+                {
+                    // 取不到几何时的回退：先恢复到贴边前位置再隐藏，避免恢复时闪现
+                    try { if (_edgeHiddenAv) Position = _edgeDockedPosAv; } catch { }
+                    Hide();
+                }
+            }
         }
         catch { }
+    }
+
+    // ===================== 隐藏/显示过渡动画（对齐 ClassIsland 主界面 MainWindow.VisibilityAnimation） =====================
+    //  对齐 ClassIsland 的部分：250ms；入场 cubic-bezier(0.25,1,0.5,1)（减速）、出场 cubic-bezier(0.4,0,1,1)（加速）；
+    //  内容透明度同时 0↔1；动画结束后才 Hide()；打断时从当前进度向新目标补间（隐式动画语义），不会漂移或抽动。
+    //  运动方式（本插件差异）：**窗口整体向上滑到屏幕顶端之外**，而不是仅在窗口内平移内容——
+    //  窗口会把内容裁剪在自身边界内，只平移内容只会"原地消失"，无法产生"滑到屏幕顶端再滑出"的效果。
+    static readonly TimeSpan HideShowDuration = TimeSpan.FromMilliseconds(250);
+    static readonly Easing HideShowEntranceEasing = Easing.Parse("0.25, 1, 0.5, 1");
+    static readonly Easing HideShowExitEasing = Easing.Parse("0.4, 0, 1, 1");
+    const double HideShowDistanceExtra = 1.0;
+    bool _hideAnimActive;
+    bool _hideAnimTargetHidden;
+    bool _hiddenByAnim;
+    double _hideAnimProgress;
+    double _hideAnimFrom;
+    double _hideAnimTarget;
+    long _hideAnimStartTicks;
+    int _hideAnimDurationMs;
+    Easing? _hideAnimEasing;
+    Vector _hideAnimDelta;                    // 完全滑出屏幕顶端所需的 Y 位移增量（负值）
+    PixelPoint? _hideAnimBasePos;             // 本次过渡的基准位置（用户放置位）
+    DispatcherTimer? _hideAnimTimer;
+
+    /// <summary>
+    /// 计算"完全滑出屏幕顶端"所需的窗口 Y 位移增量：
+    /// 目标 Y = 工作区上边缘 − 内容高度 − 1（即内容底边刚好越过屏幕顶端）。
+    /// 之所以移动**窗口**而不是只移动内容：窗口会把内容裁剪在自身边界内，
+    /// 只平移内容只会"原地消失"，无法产生"滑到屏幕顶端再滑出"的效果。
+    /// </summary>
+    bool TryResolveHideShowDelta(out Vector delta)
+    {
+        delta = default;
+        var waResolved = ResolveEdgeWorkArea();
+        if (waResolved is not { } wa) return false;
+        if (!TryGetWindowDeviceSize(out int w, out int h)) return false;
+
+        double targetY = wa.Y - h - HideShowDistanceExtra;
+        delta = new Vector(0, targetY - Position.Y);
+        return true;
+    }
+
+    /// <summary>按进度 p（0=完全可见，1=完全滑出屏幕顶端）应用窗口位移与内容透明度。</summary>
+    void ApplyHideShowProgress(double p)
+    {
+        try
+        {
+            if (_hideAnimBasePos is { } basePos)
+            {
+                Position = new PixelPoint(
+                    basePos.X,
+                    (int)Math.Round(basePos.Y + _hideAnimDelta.Y * p));
+            }
+        }
+        catch { }
+        try { _card.Opacity = 1 - p; } catch { }
+    }
+
+    /// <summary>
+    /// 过渡动画期间禁止窗口交互（拖动/点击）：动画中窗口会滑到屏幕顶端之外，
+    /// 此时若允许拖拽会与动画争夺位置，并可能把屏幕外的坐标当成用户位置上报给插件（位置异常）。
+    /// </summary>
+    void SuppressInteraction()
+    {
+        try { _card.IsHitTestVisible = false; } catch { }
+    }
+
+    /// <summary>过渡动画结束后按"点击穿透"设置恢复交互（穿透开启时仍不可交互）。</summary>
+    void RestoreInteraction()
+    {
+        try { _card.IsHitTestVisible = !_snap.ClickThrough; } catch { }
+    }
+
+    /// <summary>
+    /// 开始 / 改向"隐藏或显示"过渡动画（250ms + ClassIsland 的两条贝塞尔缓动，透明度同时 0↔1）。
+    /// hidden=true → 退场：窗口整体向上滑到屏幕顶端之外，动画结束后 Hide()；
+    /// hidden=false → 入场：窗口先以"完全滑出 + 透明"状态显示，再滑回用户放置位并淡入（避免闪出一帧完整内容）。
+    /// 动画进行中再次调用表示"改向"：从当前进度向新目标补间，不跳变（等价于 ClassIsland 的隐式动画）。
+    /// 返回 false 表示取不到几何，调用方回退为即时 Hide/Show。
+    /// </summary>
+    bool StartHideShow(bool hidden)
+    {
+        try
+        {
+            if (!_hideAnimActive)
+            {
+                // 新的一次过渡：先确定基准位置（用户放置位）与"完全滑出屏幕顶端"的位移量
+                if (!hidden && !IsVisible)
+                {
+                    // 入场且窗口当前不可见：先恢复到用户位置（贴边隐藏态下当前位是隐藏位）
+                    try
+                    {
+                        if (_edgeHiddenAv)
+                        {
+                            Position = _edgeDockedPosAv;
+                            _edgeHiddenAv = false;
+                        }
+                    }
+                    catch { }
+                    try { _edgeSlideOutDelayCts?.Cancel(); } catch { }
+                    _edgeSlideOutPending = false;
+                }
+                _hideAnimBasePos = Position;
+                if (!TryResolveHideShowDelta(out var delta)) { RestoreInteraction(); return false; }
+                _hideAnimDelta = delta;
+                SuppressInteraction();   // 动画期间禁止交互，避免与动画争夺位置
+
+                if (!hidden)
+                {
+                    // 入场：先落到"完全滑出 + 透明"状态再显示，避免先闪出一帧完整内容
+                    _hideAnimProgress = 1;
+                    ApplyHideShowProgress(1);
+                    Show();
+                }
+                else
+                {
+                    _hideAnimProgress = 0;
+                }
+            }
+            else if (TryResolveHideShowDelta(out var deltaNow))
+            {
+                // 改向：基准与位移量沿用本次过渡，只更新目标（几何可能已变化，同步刷新位移量）
+                _hideAnimDelta = deltaNow;
+            }
+
+            _hideAnimFrom = _hideAnimProgress;
+            _hideAnimTargetHidden = hidden;
+            _hideAnimTarget = hidden ? 1 : 0;
+            _hideAnimDurationMs = (int)HideShowDuration.TotalMilliseconds;
+            _hideAnimEasing = hidden ? HideShowExitEasing : HideShowEntranceEasing;
+            _hideAnimStartTicks = Environment.TickCount64;
+            _hideAnimActive = true;
+            _hideAnimTimer ??= new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(1) };
+            _hideAnimTimer.Tick -= HideShowTimer_Tick;
+            _hideAnimTimer.Tick += HideShowTimer_Tick;
+            _hideAnimTimer.Start();
+            return true;
+        }
+        catch
+        {
+            _hideAnimActive = false;
+            RestoreInteraction();
+            return false;
+        }
+    }
+
+    void HideShowTimer_Tick(object? sender, EventArgs e)
+    {
+        try
+        {
+            double u = (Environment.TickCount64 - _hideAnimStartTicks) / (double)_hideAnimDurationMs;
+            if (u >= 1.0)
+            {
+                FinishHideShow();
+                return;
+            }
+            double eased = _hideAnimEasing?.Ease(u) ?? u;
+            _hideAnimProgress = _hideAnimFrom + (_hideAnimTarget - _hideAnimFrom) * eased;
+            ApplyHideShowProgress(_hideAnimProgress);
+        }
+        catch
+        {
+            try { FinishHideShow(); } catch { }
+        }
+    }
+
+    /// <summary>
+    /// 过渡动画完成：落到目标进度。目标是隐藏 → 标记隐藏态、Hide()，并把窗口位置复位到用户放置位、
+    /// 内容复位为"完全可见"（此时窗口不可见，不会闪出；下次入场再从"完全滑出"状态滑回）。
+    /// 目标是显示 → 清除隐藏态。全程保持"动画进行中"标志，避免复位过程中的位置变化被上报持久化。
+    /// </summary>
+    void FinishHideShow()
+    {
+        StopHideShowTimer();
+        if (!_hideAnimActive) return;
+        _hideAnimProgress = _hideAnimTarget;
+        ApplyHideShowProgress(_hideAnimProgress);
+        if (_hideAnimTargetHidden)
+        {
+            _hiddenByAnim = true;
+            // 贴边滑出态下窗口停在"贴边位"，隐藏期间尺寸自愈会依据旧标记把它挪回屏外 → 下次显示落在屏外。
+            //  这里复位"已滑出"标记（保留贴边记录），显示后由贴边状态机按原延迟重新滑出。
+            if (_edgeDockedAv)
+            {
+                _edgeHiddenAv = false;
+                _edgeHoverTicks = 0;
+                _edgeHoverLastIn = false;
+                try { _edgeSlideOutDelayCts?.Cancel(); } catch { }
+                _edgeSlideOutPending = false;
+            }
+            try { Hide(); } catch { }
+            // 隐藏后再复位：窗口位置回到用户放置位、内容恢复完全可见、进度归零
+            //（必须仍在"动画进行中"标志下执行，否则位置变化会被上报给插件持久化）
+            _hideAnimProgress = 0;
+            try
+            {
+                if (_hideAnimBasePos is { } basePos) Position = basePos;
+            }
+            catch { }
+            try { _card.Opacity = 1; } catch { }
+        }
+        else
+        {
+            _hiddenByAnim = false;
+            RestoreInteraction();   // 动画结束：按点击穿透设置恢复交互
+        }
+        _hideAnimActive = false;
+    }
+
+    /// <summary>取消过渡动画并让窗口立即回到用户放置位的"完全可见"状态（用户开始拖动）。幂等。</summary>
+    void CancelHideShow()
+    {
+        StopHideShowTimer();
+        _hiddenByAnim = false;
+        _hideAnimProgress = 0;
+        try
+        {
+            if (_hideAnimBasePos is { } basePos) Position = basePos;
+        }
+        catch { }
+        try { _card.Opacity = 1; } catch { }
+        _hideAnimActive = false;
+        RestoreInteraction();
+    }
+
+    void StopHideShowTimer()
+    {
+        try { if (_hideAnimTimer != null && _hideAnimTimer.IsEnabled) _hideAnimTimer.Stop(); } catch { }
     }
 
     // ===================== 层级（置顶/置底 + 竞争防护，对齐 ApplyWindowLayer） =====================
@@ -508,7 +752,7 @@ internal sealed class FloatScheduleChildWindow : Window
             }
         }
         catch { }
-        try { _card.IsHitTestVisible = !through; } catch { }
+        try { _card.IsHitTestVisible = !through && !_hideAnimActive; } catch { }   // 过渡动画期间保持不可交互
     }
 
     void ApplyPreventCapture()
@@ -581,6 +825,8 @@ internal sealed class FloatScheduleChildWindow : Window
     void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_snap.ClickThrough) return;
+        // 隐藏/显示过渡动画期间禁止拖拽：动画正在移动窗口，此时接管位置会造成位置异常。
+        if (_hideAnimActive) return;
         var point = e.GetCurrentPoint(_card);
         bool isMouseLeft = e.Pointer.Type == PointerType.Mouse && point.Properties.IsLeftButtonPressed;
         bool isTouchOrPen = e.Pointer.Type == PointerType.Touch || e.Pointer.Type == PointerType.Pen;
@@ -593,6 +839,7 @@ internal sealed class FloatScheduleChildWindow : Window
             _dragActive = true;
             _dragPointer = e.Pointer;
             _suppressTopmostRefresh = true;
+            CancelHideShow();   // 【隐藏/显示过渡动画】拖动开始：取消动画并让内容立即完全可见
             try { _edgeSlideOutDelayCts?.Cancel(); } catch { }
             _edgeSlideOutPending = false;
             _lastDragMoveTick = 0;
@@ -706,7 +953,7 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         try
         {
-            if (_edgeAnimating || _edgeHiddenAv) return;   // 隐藏态/动画中位置不是用户位置
+            if (_edgeAnimating || _edgeHiddenAv || _hideAnimActive) return;   // 隐藏态/动画中位置不是用户位置
             if (!force && !_positionReportArmed) return;   // 稳定期内不落库，避免瞬态位置污染存档
             _pipe.Send(FloatScheduleIpcMsgType.Position, new FloatSchedulePositionPayload { X = Position.X, Y = Position.Y });
         }
@@ -770,7 +1017,8 @@ internal sealed class FloatScheduleChildWindow : Window
     void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
         if (_dragActive) return;
-        if (_hostVisible && IsVisible && !_edgeAnimating && !_edgeHiddenAv)
+        // 过渡动画驱动的位置变化不上报：动画期间窗口会滑到屏幕顶端之外，上报会被插件当成用户位置持久化
+        if (_hostVisible && IsVisible && !_edgeAnimating && !_edgeHiddenAv && !_hideAnimActive)
             ReportPosition();
         ScheduleEdgeEval();
     }
@@ -811,7 +1059,7 @@ internal sealed class FloatScheduleChildWindow : Window
 
     void EvaluateEdgeDock()
     {
-        if (!IsVisible || !_snap.EdgeHide || _edgeAnimating) return;
+        if (!IsVisible || !_snap.EdgeHide || _edgeAnimating || _hideAnimActive) return;   // 过渡动画中不评估贴边（避免动画期间窗口被挪动）
         try
         {
             // 工作区用缓存兜底：窗口已离屏（贴边隐藏）时 ScreenFromWindow 为 null，不能因此放弃评估
@@ -937,6 +1185,7 @@ internal sealed class FloatScheduleChildWindow : Window
         try
         {
             if (!_edgeDockedAv || _dragActive) return;      // 未贴边 / 拖拽中：与隐藏位无关
+            if (_hideAnimActive) return;                    // 过渡动画期间窗口位置由动画独占驱动
             if (!TryGetWindowDeviceSize(out int w, out int h)) return;
             if (w == _edgeLastSizeW && h == _edgeLastSizeH) return;   // 尺寸没变 → 零开销返回（避免布局回调循环）
             // 【关键修复】只有应用成功才提交尺寸缓存：否则一旦某次应用失败（如窗口已离屏、算不出隐藏位），
@@ -958,6 +1207,7 @@ internal sealed class FloatScheduleChildWindow : Window
         if (waResolved is not { } work) return false;
         if (!TryComputeEdgeHiddenPos(side, _edgeDockedPosAv, w, h, work, out var hidden)) return false;
         _edgeHiddenPosAv = hidden;
+        // 隐藏滑出/入场动画进行中不得直接写 Position（位置归动画独占，否则两处逐帧争抢 → 抽动）
         if (_edgeHiddenAv && !_edgeAnimating)
         {
             try { Position = hidden; } catch { }
@@ -991,7 +1241,7 @@ internal sealed class FloatScheduleChildWindow : Window
         catch { return; }
         _edgeSlideOutPending = false;
         if (!_snap.EdgeHide || !IsVisible) return;
-        if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimating || _dragActive) return;
+        if (!_edgeDockedAv || _edgeHiddenAv || _edgeAnimating || _dragActive || _hideAnimActive) return;
         EdgeSlideTo(_edgeHiddenPosAv, willBeHidden: true);
     }
 
@@ -1103,7 +1353,7 @@ internal sealed class FloatScheduleChildWindow : Window
     void UpdateEdgeHover()
     {
         if (!_snap.EdgeHide || !IsVisible) return;
-        if (!_edgeDockedAv || _edgeAnimating) return;
+        if (!_edgeDockedAv || _edgeAnimating || _hideAnimActive) return;
         try
         {
             bool inStrip = IsPointerInEdgeStrip();
