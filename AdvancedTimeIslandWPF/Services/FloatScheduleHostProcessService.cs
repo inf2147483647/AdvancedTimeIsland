@@ -1,0 +1,1130 @@
+// 时间表悬浮窗"独立进程模式"宿主侧服务（运行于 ClassIsland 1.x / WPF 插件进程内）。
+// 职责：
+//  1. 命名管道服务器（固定名 + ".wpf" 后缀，插件侧为 Server）：子进程为 Client，"跟随启停=关"时幸存的子进程
+//     可在 ClassIsland 重启后自动重连（adopt），恢复数据推送；
+//  2. 子进程生命周期：启动（含随机进程名副本）、意外退出限频重启、强制重启、模式关闭/插件退出时终止；
+//  3. 数据推送：缓存最新 settings/model/visible，连接建立时以 Init 一次性补发，之后增量推送；
+//  4. 状态机：Off/Starting/Connected/Frozen/Failed，供设置页状态文本展示；失败自动回退进程内渲染。
+// 相对 Avalonia 版的适配点（WPF / ClassIsland 1.x）：
+//  a) 管道名加 ".wpf" 后缀 —— 同机两代 ClassIsland 并存时互不抢管道（服务器实例数只有 1）；
+//  b) 子进程 exe 名为 AdvancedTimeIslandWPFFloatSchedule.exe（同样必须从 %TEMP% 副本运行）；
+//  c) 删除 Avalonia 代际校验，改为"Windows Desktop 运行时预检"（WPF 子进程是框架依赖应用）；
+//  d) "独立程序已更新"提示统一走托盘气泡（1.x 无 2.x 的 PlatformServices.DesktopToastService）。
+// 仅 Windows 生效；非 Windows 平台 ShouldUseIndependent() 恒为 false（设置页整组禁用）。
+using System;
+using System.Collections.Generic;
+using System.Diagnostics;
+using System.IO;
+using System.IO.Pipes;
+using System.Security.Cryptography;
+using System.Text;
+using System.Threading;
+using System.Threading.Tasks;
+using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Shared.FloatingSchedule;
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+
+namespace AdvancedTimeIsland.Services;
+
+public class FloatScheduleHostProcessService : IHostedService, IDisposable
+{
+    public enum ChildStatus { Off, Starting, Connected, Frozen, Failed }
+
+    /// <summary>
+    /// 本变体（WPF 宿主）的命名后缀：同时作为管道名与子进程单实例 Mutex 名的隔离标记。
+    /// 子进程侧（AdvancedTimeIslandWPFFloatSchedule）用同一规则命名 —— 管道名由 --pipe 下传，
+    /// Mutex 名则由子进程自行按 FloatScheduleIpc.SingleInstanceMutexName + ".wpf" 构造
+    ///（宿主不直接持有 Mutex，只用 --single-instance 下传是否启用单实例保护）。
+    /// 必要性：管道服务器实例数固定为 1，两代宿主共用同名管道会互相抢连 → 连接时通时断。
+    /// </summary>
+    private const string VariantSuffix = ".wpf";
+
+    /// <summary>本变体使用的命名管道名（服务器 = 插件进程；客户端名由子进程从 --pipe 参数取）。</summary>
+    public static readonly string PipeName = FloatScheduleIpc.PipeName + VariantSuffix;
+
+    /// <summary>本变体子进程 exe 文件名（随插件包分发，运行时复制到 %TEMP% 副本再启动）。</summary>
+    private const string ChildExeFileName = "AdvancedTimeIslandWPFFloatSchedule.exe";
+
+    // ===================== 子进程 .NET 运行时预检（框架依赖 WPF 子进程适配）=====================
+    //  背景：子进程是 framework-dependent WPF 应用（UseWPF + net8.0-windows），
+    //  hostfxr 必须能在"机器全局 dotnet root"里找到 shared\Microsoft.WindowsDesktop.App\<版本>
+    //  （WPF 子系统；基础运行时 Microsoft.NETCore.App 单独存在并不足以启动 WPF 应用，
+    //   但部分机器会由其它组件顺带装上桌面运行时，故两者都探测）。
+    //  自包含部署的 ClassIsland 把运行时平铺在自身程序目录（含 coreclr.dll），那不是合法的 dotnet root 布局，
+    //  子进程无法复用 → 独立进程模式在这类机器上根本起不来（apphost 缺框架时还会弹"需要安装 .NET"框并挂住）。
+    //  判定策略（宁可放行、不要误伤）：
+    //   1) 宿主自身就是框架依赖（程序目录无 coreclr.dll）→ 说明机器上必有全局运行时 → 直接放行；
+    //   2) 宿主是自包含 → 才去查找全局 dotnet root（环境变量 / 官方安装目录 / PATH）中的
+    //      Microsoft.WindowsDesktop.App；主版本 >= 子进程要求即放行（子进程 RollForward=LatestMajor，
+    //      可用更高版本）；
+    //   3) 任何异常/取不到信息 → 放行（避免把本可用的机器误判为不可用）。
+    private static bool HostIsSelfContained()
+    {
+        try { return File.Exists(Path.Combine(AppContext.BaseDirectory, "coreclr.dll")); }
+        catch { return false; }
+    }
+
+    /// <summary>子进程 TFM 要求的最低 .NET 运行时主版本（net8.0-windows 包 → 8）。</summary>
+    private const int ChildRequiredRuntimeMajor = 8;
+
+    /// <summary>
+    /// 用户主动"重启"时放行一次预检：运行时可能装在非标准目录（预检枚举不到），
+    /// 让用户显式重试仍能走真实 spawn（失败也只是回到原有超时/重试行为），避免预检误伤。
+    /// </summary>
+    private int _skipRuntimePreflightOnce;
+
+    private bool TakeSkipRuntimePreflight() => Interlocked.Exchange(ref _skipRuntimePreflightOnce, 0) != 0;
+
+    /// <summary>
+    /// 预检：机器上是否存在可供 framework-dependent WPF 子进程使用的**全局** .NET 运行时。
+    /// 返回 false 时通过 <paramref name="issue"/> 给出可直接展示给用户的原因。
+    /// </summary>
+    private static bool HasUsableChildRuntime(out string issue)
+    {
+        issue = "";
+        try
+        {
+            // 宿主是框架依赖 → 全局运行时必然存在（子进程与宿主用同一套解析规则）
+            if (!HostIsSelfContained()) return true;
+
+            foreach (var root in EnumerateDotnetRoots())
+            {
+                // 首选 WPF 子系统（Windows Desktop.App）；退而求其次看基础运行时
+                if (HasRuntimeAt(root, "Microsoft.WindowsDesktop.App") ||
+                    HasRuntimeAt(root, "Microsoft.NETCore.App"))
+                    return true;
+            }
+
+            issue = $"机器上未找到 .NET {ChildRequiredRuntimeMajor} Windows Desktop 运行时"
+                    + "（ClassIsland 为自包含部署时，独立子进程无法借用其自带运行时）：请安装 .NET "
+                    + $"{ChildRequiredRuntimeMajor} 桌面运行时或更高版本后重试独立进程模式";
+            return false;
+        }
+        catch (Exception ex)
+        {
+            // 预检本身异常 → 放行（不误伤有运行库的机器）
+            issue = "预检异常（已放行）：" + ex.Message;
+            return true;
+        }
+    }
+
+    /// <summary>检查某个 dotnet root 下 shared\&lt;框架名&gt; 是否存在主版本 >= 要求的运行时目录。</summary>
+    private static bool HasRuntimeAt(string root, string frameworkName)
+    {
+        var shared = Path.Combine(root, "shared", frameworkName);
+        if (!Directory.Exists(shared)) return false;
+        foreach (var dir in Directory.EnumerateDirectories(shared))
+        {
+            var name = Path.GetFileName(dir);
+            var dot = name.IndexOf('.');
+            if (dot <= 0) continue;
+            if (int.TryParse(name.AsSpan(0, dot), out var major) && major >= ChildRequiredRuntimeMajor)
+                return true;
+        }
+        return false;
+    }
+
+    /// <summary>枚举可能的全局 dotnet 安装根目录（环境变量 → 官方默认安装位置 → PATH 中的 dotnet.exe）。</summary>
+    private static IEnumerable<string> EnumerateDotnetRoots()
+    {
+        foreach (var name in new[] { "DOTNET_ROOT", "DOTNET_ROOT(x64)", "DOTNET_ROOT_X64", "DOTNET_ROOT_ARM64" })
+        {
+            var v = Environment.GetEnvironmentVariable(name);
+            if (!string.IsNullOrWhiteSpace(v)) yield return v;
+        }
+
+        var pf = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles);
+        if (!string.IsNullOrEmpty(pf)) yield return Path.Combine(pf, "dotnet");
+        var pf86 = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86);
+        if (!string.IsNullOrEmpty(pf86)) yield return Path.Combine(pf86, "dotnet");
+        var local = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+        if (!string.IsNullOrEmpty(local)) yield return Path.Combine(local, "Microsoft", "dotnet");
+
+        // PATH 中存在 dotnet.exe 的目录（便携/自定义安装）
+        foreach (var p in (Environment.GetEnvironmentVariable("PATH") ?? "").Split(Path.PathSeparator))
+        {
+            if (p.Length == 0) continue;
+            var ok = false;
+            try { ok = File.Exists(Path.Combine(p, "dotnet.exe")); } catch { }
+            if (ok) yield return p;
+        }
+    }
+
+    // 子进程 stderr 环形缓存（诊断用，只保留前 2KB）：启动阶段失败时用于给出真实原因。
+    private readonly StringBuilder _childStderr = new();
+    private const int ChildStderrMaxChars = 2000;
+
+    /// <summary>取子进程 stderr 的简短摘要（供状态文本展示；过长则截断）。无内容返回 null。</summary>
+    private string? TakeChildStderrSummary()
+    {
+        string s;
+        lock (_childStderr) s = _childStderr.ToString().Trim();
+        if (s.Length == 0) return null;
+        // 压成单行并截断，避免设置页状态文本被多行堆栈撑开
+        s = s.Replace("\r", " ").Replace("\n", " ").Trim();
+        while (s.Contains("  ")) s = s.Replace("  ", " ");
+        return s.Length > 300 ? s[..300] + "…" : s;
+    }
+
+    /// <summary>供设置页读取状态（DI 单例，构造时写入）。</summary>
+    public static FloatScheduleHostProcessService? Instance { get; private set; }
+
+    private readonly PluginSettings _settings;
+    private readonly ILogger<FloatScheduleHostProcessService> _logger;
+
+    private readonly object _stateLock = new();
+    private readonly object _writeLock = new();
+
+    private NamedPipeServerStream? _pipeServer;
+    private StreamWriter? _writer;
+    private CancellationTokenSource? _cts;
+    // 【诊断修复 6】_childProcess / _stopRequested 会被启动线程、ThreadPool(Exited)、UI 线程交叉读写，
+    // 加 volatile 保证可见性，避免"旧值判定"导致的重复重启/状态抖动。
+    private volatile Process? _childProcess;
+    private volatile bool _stopRequested;       // 主动停止（关闭模式/插件退出），抑制 Exited 自动重启
+    private volatile bool _pipeConnected;
+    private volatile int _childPid = -1;   // Ready 回报的真实 PID（adopt 场景没有 Process 句柄）
+
+    // 缓存：连接建立（含 adopt 重连）时以 Init 一次性补发，保证子进程永远能拿到最新数据
+    private FloatScheduleWindowSettings? _cachedSettings;
+    private FloatScheduleRenderModel? _cachedModel;
+    private bool _cachedVisible = true;
+
+    // 失败判定/限频重启：3 次/30s
+    private readonly Queue<long> _startTicks = new();
+    private const int MaxStartAttempts = 3;
+    private static readonly TimeSpan StartAttemptWindow = TimeSpan.FromSeconds(30);
+    private const int ReadyTimeoutMs = 20000;
+
+    private string? _failReason;
+
+    public event Action? Connected;
+    public event Action<int, int>? PositionReported;
+    public event Action? StatusChanged;
+    /// <summary>用户在子进程托盘图标点了"退出"（上层据此关闭悬浮时间表相关设置）。</summary>
+    public event Action? ExitRequestedByUser;
+
+    public FloatScheduleHostProcessService(PluginSettings settings, ILogger<FloatScheduleHostProcessService> logger)
+    {
+        _settings = settings;
+        _logger = logger;
+        Instance = this;
+    }
+
+    // ===================== 对外状态 =====================
+
+    public ChildStatus Status { get; private set; } = ChildStatus.Off;
+    public bool IsChildConnected => _pipeConnected;
+
+    /// <summary>独立进程模式是否应生效：开关开 + Windows + 未失败。子进程未连接时 FloatingScheduleService 仍走进程内渲染。</summary>
+    public bool ShouldUseIndependent() =>
+        _settings.FloatingScheduleIndependentProcess && OperatingSystem.IsWindows() && Status != ChildStatus.Failed;
+
+    public string StatusText
+    {
+        get
+        {
+            if (!_settings.FloatingScheduleIndependentProcess) return "未启用";
+            if (!OperatingSystem.IsWindows()) return "仅 Windows 支持";
+            return Status switch
+            {
+                ChildStatus.Starting => "启动中...",
+                ChildStatus.Connected => "已连接" + FormatConnectedPidSuffix(),
+                ChildStatus.Frozen => "冻结中（ClassIsland 已退出，本地继续走进度）",
+                ChildStatus.Failed => "失败：" + (_failReason ?? "未知原因") + "（已回退进程内渲染）",
+                _ => "未启用",
+            };
+        }
+    }
+
+    /// <summary>连接状态的 PID 后缀：优先用子进程 Ready 握手上报的 PID（adopt 场景没有 Process 句柄），
+    ///  其次用本服务跟踪的进程句柄；两者都拿不到时不显示 PID
+    ///  （避免出现 "已连接 (PID -1)" 这类无意义文案）。</summary>
+    private string FormatConnectedPidSuffix()
+    {
+        int pid = _childPid;
+        if (pid <= 0)
+        {
+            var p = _childProcess;
+            try { if (p != null && !p.HasExited) pid = p.Id; } catch { pid = -1; }
+        }
+        return pid > 0 ? $" (PID {pid})" : "";
+    }
+
+    private void SetStatus(ChildStatus s, string? failReason = null)
+    {
+        ChildStatus old;
+        lock (_stateLock)
+        {
+            old = Status;
+            if (Status == s && (failReason == null || _failReason == failReason)) return;
+            Status = s;
+            if (failReason != null) _failReason = failReason;
+            if (s != ChildStatus.Failed) _failReason = null;
+        }
+        // 状态变迁日志：便于现场核对"重启期间状态是否单调（Off→Starting→Connected）"、定位抖动来源
+        _logger.LogDebug("FloatSchedule 子进程状态: {Old} -> {New}{Reason}",
+            old, s, failReason == null ? "" : "（" + failReason + "）");
+        try { StatusChanged?.Invoke(); } catch { }
+    }
+
+    // ===================== 生命周期 =====================
+
+    public Task StartAsync(CancellationToken cancellationToken)
+    {
+        _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        // 【独立程序更新提示】与独立进程模式开关无关：插件升级会随包重新分发子进程 exe，
+        //   很多用户并不知道它已更新、也不知道在哪里启用/管理 → 检测到变化就弹一条系统通知。
+        //   放到后台线程：读文件算哈希不阻塞宿主启动。
+        _ = Task.Run(CheckChildExeUpdatedAndNotify);
+        // 【修复：adopt 路径下旧子进程永不被淘汰】把"插件包内 exe 的内容指纹"提前算好：
+        //   走 adopt 时不会 spawn，原先该字段为空 → Init 里 ExeStamp 为空 → 子进程跳过版本自检
+        //   → 插件更新后旧构建的子进程永久存活，用户始终看到旧悬浮窗行为。
+        //   现在无论 adopt 还是 spawn，Init 都带着当前包内 exe 的指纹；子进程比对不一致即主动退出，
+        //   由本服务用新构建重启（见 ChildExited 对 ExitCodeSelfUpdate 的处理）。
+        try
+        {
+            var packagedExe = GetPackagedExePath();
+            if (packagedExe != null) ChildExeStamp = ComputeFileHash(packagedExe) ?? ChildExeStamp;
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "启动时计算子进程 exe 指纹异常（忽略）"); }
+        if (ShouldUseIndependent())
+        {
+            EnsureAcceptLoopRunning();
+            _ = EnsureChildAsync();
+        }
+        return Task.CompletedTask;
+    }
+
+    // ===================== 独立程序（子进程 exe）更新提示 =====================
+    //  触发条件：插件包内 AdvancedTimeIslandWPFFloatSchedule.exe 的**内容哈希**与上次提示时记录的不一致。
+    //  为什么用内容哈希而不是"长度 + 最后写入时间"：插件包解压/复制会刷新文件写入时间，
+    //    用时间戳会"每次启动都判定为已更新"→ 反复弹通知；内容哈希只在二进制真的变了时才变化。
+    //  持久化标记保证同一版本只提示一次；发送失败也不重试（避免变成每次启动骚扰）。
+
+    /// <summary>插件包内随包分发的子进程 exe 路径（不存在时返回 null，如不含该 exe 的发行包）。</summary>
+    private static string? GetPackagedExePath()
+    {
+        try
+        {
+            var srcDir = Path.GetDirectoryName(typeof(FloatScheduleHostProcessService).Assembly.Location);
+            if (string.IsNullOrEmpty(srcDir)) return null;
+            var srcExe = Path.Combine(srcDir, ChildExeFileName);
+            return File.Exists(srcExe) ? srcExe : null;
+        }
+        catch { return null; }
+    }
+
+    private void CheckChildExeUpdatedAndNotify()
+    {
+        try
+        {
+            // 不含该 exe 的发行包没有独立程序 → 不提示
+            var exePath = GetPackagedExePath();
+            if (exePath == null) return;
+
+            var hash = ComputeFileHash(exePath);
+            if (string.IsNullOrEmpty(hash)) return;
+            if (string.Equals(_settings.FloatingScheduleChildExeHash, hash, StringComparison.Ordinal)) return;
+
+            // 先落标记再发通知：通知被系统禁用/失败时，也不在下次启动重复提示
+            _settings.FloatingScheduleChildExeHash = hash;
+            _logger.LogInformation("FloatSchedule 独立程序已更新，发送系统通知提示");
+            ShowChildExeUpdatedToast();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "FloatSchedule 独立程序更新检查异常（忽略）"); }
+    }
+
+    private static string? ComputeFileHash(string path)
+    {
+        try
+        {
+            using var fs = File.OpenRead(path);
+            using var sha = SHA256.Create();
+            return Convert.ToHexString(sha.ComputeHash(fs));
+        }
+        catch { return null; }
+    }
+
+    /// <summary>
+    /// 发送"悬浮时间表已更新"的系统通知。
+    /// WPF / ClassIsland 1.x 适配：1.x 没有 2.x 的 <c>PlatformServices.DesktopToastService</c>，
+    ///   故不再反射调用宿主 toast 服务，统一改用经典托盘气泡 <see cref="WindowsBalloonNotifier"/>
+    ///   （Shell_NotifyIcon(NIF_INFO)，Win8.x 及以上都可用）。气泡失败时内部静默降级，绝不影响插件其余功能。
+    /// </summary>
+    private static void ShowChildExeUpdatedToast()
+    {
+        const string title = "AdvancedTimeIsland 悬浮时间表已更新";
+        const string body = "可在插件-独立进程 里管理启用";
+        WindowsBalloonNotifier.Show(title, body);
+    }
+
+    public async Task StopAsync(CancellationToken cancellationToken)
+    {
+        // 插件退出（ClassIsland 正常关闭）：跟随启停=开 → 发 shutdown + 兜底 Kill（子进程消失）；
+        //                        跟随启停=关 → 只关管道服务器，子进程进入冻结显示。
+        // 经闸门串行收尾（与并发中的启动流程不会交错）；限时取闸门，避免退出被长时间阻塞。
+        bool gotGate = await _lifecycleGate.WaitAsync(TimeSpan.FromSeconds(3)).ConfigureAwait(false);
+        try
+        {
+            if (_settings.FloatingScheduleFollowHostLifetime)
+            {
+                await StopChildUnderGateAsync(kill: true).ConfigureAwait(false);
+            }
+            else
+            {
+                _stopRequested = true;   // 抑制 Exited 重启，但不杀子进程（子进程进入冻结显示）
+                ClosePipe();
+                SetStatus(ChildStatus.Frozen);
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "FloatSchedule StopAsync 收尾异常（忽略）"); }
+        finally { if (gotGate) _lifecycleGate.Release(); }
+
+        try { _cts?.Cancel(); } catch { }
+        try { _pipeServer?.Dispose(); } catch { }
+        _pipeServer = null;
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            _stopRequested = true;
+            ClosePipe();
+            try { _pipeServer?.Dispose(); } catch { }
+            _pipeServer = null;
+            try { _childProcess?.Dispose(); } catch { }
+            _childProcess = null;
+            GC.SuppressFinalize(this);
+        }
+        catch { }
+    }
+
+    // ===================== 对外发送 API（均可从 UI 线程调用，内部加锁异步写） =====================
+
+    public void CacheModel(FloatScheduleRenderModel model)
+    {
+        lock (_stateLock) _cachedModel = model;
+    }
+
+    public void SendModel(FloatScheduleRenderModel model)
+    {
+        lock (_stateLock) _cachedModel = model;
+        WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Model, model));
+    }
+
+    public void SendSettings(FloatScheduleWindowSettings settings)
+    {
+        lock (_stateLock) _cachedSettings = settings;
+        WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Settings, settings));
+    }
+
+    public void SendVisible(bool visible)
+    {
+        bool changed;
+        lock (_stateLock) { changed = _cachedVisible != visible; _cachedVisible = visible; }
+        if (changed)
+            WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Visible, new FloatScheduleVisiblePayload { Visible = visible }));
+    }
+
+    public void SendProgress(double classRatio, double breakRatio)
+    {
+        WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Progress,
+            new FloatScheduleProgressPayload { ClassRatio = classRatio, BreakRatio = breakRatio }));
+    }
+
+    private void WriteLine(string line)
+    {
+        if (!_pipeConnected) return;   // 断线丢弃（重连后由 Init 补发缓存，无需积压）
+        try
+        {
+            lock (_writeLock)
+            {
+                _writer?.WriteLine(line);
+                _writer?.Flush();
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "FloatSchedule 管道写入失败（视为断线，等待子进程重连）");
+            MarkDisconnected();
+        }
+    }
+
+    // ===================== 子进程启动 / 重启 / 停止 =====================
+
+    /// <summary>确保子进程在跑：先等 2s 观察 incoming 连接（adopt 已存活的孤儿子进程），无则启动新进程。
+    /// 防重入：多调用源（StartAsync / 设置开关 / Exited 重启）并发时只允许一个启动流程在跑；
+    /// 已有存活子进程时直接返回（杜绝"已存在一个悬浮窗进程仍反复启动新进程"）。</summary>
+    // =====【治本】进程生命周期串行闸门 =====
+    //  启动 / 停止 / 重启 / 模式切换 / 意外退出自动重启 全部经此闸门排队，
+    //  保证任意时刻只有一个生命周期事务在执行 —— 从根本上消除 Start 与 Stop 交错、
+    //  重复 spawn、状态与进程对象不一致等并发缺陷。UI 侧禁用按钮只是体验优化，不再是正确性依赖。
+    private readonly SemaphoreSlim _lifecycleGate = new(1, 1);
+    // 重启进行中标记（仅供 UI 展示；正确性由 _lifecycleGate 保证）
+    private int _restartInProgressInt;
+    // 管道 listener 就绪信号（握手：确保 listener 已开始监听再启动子进程，避免"连不上→反复重试"）
+    private volatile TaskCompletionSource<bool>? _listenerReadyTcs;
+
+    public async Task EnsureChildAsync()
+    {
+        await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+        try { await EnsureChildUnderGateAsync().ConfigureAwait(false); }
+        finally { _lifecycleGate.Release(); }
+    }
+
+    /// <summary>确保子进程在跑（调用方必须已持有 _lifecycleGate）。
+    /// 已有存活子进程 / 管道已连接 → 直接返回；否则确保 listener 就绪后启动。
+    /// allowAdoptWait=true 时先等 2s 观察是否有孤儿子进程重连（模式刚开启 / 插件刚启动场景）；
+    /// 主动重启时传 false —— 旧进程刚被杀，不存在可 adopt 的实例，白等只会拖慢重启。</summary>
+    private async Task EnsureChildUnderGateAsync(bool allowAdoptWait = true)
+    {
+        if (!ShouldUseIndependent()) return;
+        if (_pipeConnected) return;
+
+        // 【框架依赖 WPF 子进程适配·预检】子进程需要一个"机器全局"的 .NET Windows Desktop 运行时
+        //  （shared\Microsoft.WindowsDesktop.App），自包含部署的 ClassIsland 自带运行时平铺在自身目录，
+        //  不是合法的 dotnet root 布局 → 子进程 apphost 因缺少框架而失败（还会弹出"需要安装 .NET"框
+        //  并**挂住不退出**，既连不上也不退出）。
+        //  若不预检，这段期间独立模式已置 IndependentRequested=true → 进程内悬浮窗被禁用，
+        //  用户看到的就是"悬浮时间表完全不显示"（直到 spawn 超时 + 重试上限才回退）。
+        //  这里提前判定并立即置 Failed：上层状态变化回调会马上恢复进程内窗口。
+        if (!HasUsableChildRuntime(out var runtimeIssue) && !TakeSkipRuntimePreflight())
+        {
+            _logger.LogWarning("FloatSchedule 独立进程预检未通过（已回退进程内渲染）：{Issue}", runtimeIssue);
+            SetStatus(ChildStatus.Failed, runtimeIssue);
+            return;
+        }
+
+        var alive = _childProcess;
+        if (alive != null)
+        {
+            bool exited = true;
+            try { exited = alive.HasExited; } catch { }
+            if (!exited) return;
+            // 【防僵尸·句柄】已退出：释放 Process 句柄并解除事件订阅后清引用 ——
+            //   长时间运行 + 反复启停时若不释放，Process（含内部等待句柄）会持续累积。
+            _childProcess = null;
+            try { alive.Exited -= ChildExited; } catch { }
+            try { alive.Dispose(); } catch { }
+        }
+        SetStatus(ChildStatus.Starting);
+
+        // 管道监听单例 + 就绪握手（必须早于 spawn，否则子进程首次连接必然失败）
+        EnsureAcceptLoopRunning();
+        await WaitListenerReadyAsync(2000).ConfigureAwait(false);
+
+        // adopt：仅当存在"同名但未被本服务跟踪"的进程时才等待其重连 ——
+        //   典型来源：跟随启停=关 时，上一代宿主退出后冻结存活的子进程（它正每 1s 重连，等新宿主接管）。
+        //   子进程重连周期最坏 = 连接超时 3s + 退避 1s = 4s，故给 5s 窗口；
+        //   无残留时直接跳过等待，避免给插件首次启动平白增加延迟。
+        if (allowAdoptWait && HasOrphanChildProcess())
+        {
+            _logger.LogInformation("FloatSchedule 检测到未连接的子进程实例，等待其重连（adopt）");
+            for (int i = 0; i < 50 && !_pipeConnected; i++)
+                await Task.Delay(100).ConfigureAwait(false);
+            if (_pipeConnected)
+            {
+                _logger.LogInformation("FloatSchedule 已接管上一代子进程（adopt 成功）");
+                return;
+            }
+        }
+
+        // 【防僵尸·残留】到这里仍无连接：磁盘上存在的同名进程必是异常残留
+        //   （正常孤儿会在上面的 2s 窗口内重连上），清掉再启动 —— 否则新实例会被残留实例的
+        //   单实例 Mutex 挡回（退出码 42 往返），或与残留实例并存形成"僵尸悬浮窗"。
+        KillOrphanChildren();
+
+        try
+        {
+            var exePath = ResolveChildExePath();
+            if (exePath == null)
+            {
+                SetStatus(ChildStatus.Failed, $"子进程文件 {ChildExeFileName} 不存在（插件包不完整？）");
+                return;
+            }
+
+            // 注：Avalonia 版的"宿主 Avalonia 代际校验"在此**整体删除** —— WPF 子进程是框架依赖应用，
+            //   不加载宿主目录里的 Avalonia/Skia 托管 DLL，不存在跨代二进制配对问题；
+            //   运行时可用性改由上面的 HasUsableChildRuntime 预检负责（准确文案 + 立即回退）。
+
+            var (connected, exitCode) = await SpawnAndAwaitConnectAsync(exePath).ConfigureAwait(false);
+
+            // 单实例命中（42）：存在无法重连上的残留实例（孤儿）→ 按名清理后重试一次
+            if (!connected && exitCode == FloatScheduleIpc.ExitCodeAnotherInstance)
+            {
+                _logger.LogInformation("FloatSchedule 检测到未连接的残留子进程实例（退出码 42），清理后重试一次");
+                KillOrphanChildren();
+                await Task.Delay(300).ConfigureAwait(false);
+                (connected, exitCode) = await SpawnAndAwaitConnectAsync(exePath).ConfigureAwait(false);
+            }
+
+            if (!connected)
+            {
+                string reason = exitCode switch
+                {
+                    FloatScheduleIpc.ExitCodeMissingRuntime =>
+                        $"缺少 .NET {ChildRequiredRuntimeMajor} Windows Desktop 运行时（子进程为框架依赖的 WPF 应用）",
+                    FloatScheduleIpc.ExitCodeAnotherInstance => "清理残留实例后仍无法建立连接",
+                    null => "子进程启动后未连接（可能被安全软件拦截）",
+                    _ => $"子进程退出，退出码 {exitCode}",
+                };
+                SetStatus(ChildStatus.Failed, reason);
+                return;
+            }
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "FloatSchedule 子进程启动异常");
+            SetStatus(ChildStatus.Failed, "子进程启动异常: " + ex.Message);
+        }
+    }
+
+    /// <summary>等待管道 listener 真正开始监听（轮询就绪信号；超时即放弃，由子进程重连兜底）。
+    /// 目的：消除"子进程已启动但 listener 尚未建好"→ 首次连接失败 → 子进程退避重试 → 表现为启动慢/反复。
+    /// listener 每次（重）建时会把就绪信号重置为未完成，故重建期间等待方会正确继续等。</summary>
+    private async Task WaitListenerReadyAsync(int timeoutMs)
+    {
+        var deadline = Environment.TickCount64 + timeoutMs;
+        while (Environment.TickCount64 < deadline)
+        {
+            var tcs = _listenerReadyTcs;
+            if (tcs == null) { await Task.Delay(50).ConfigureAwait(false); continue; }
+            if (tcs.Task.IsCompletedSuccessfully) return;
+            await Task.Delay(50).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>启动一个子进程并等待其管道连接。返回（是否连接，退出码）。
+    /// 注意：这里不做限频记账 —— 记账只用于"意外退出"限频（见 ChildExited），
+    /// 若每次 spawn 都记账，用户连点几次"重启"就会把配额用尽而误熔断到 Failed。</summary>
+    private async Task<(bool connected, int? exitCode)> SpawnAndAwaitConnectAsync(string exePath)
+    {
+        // "停止意图"清零放在真正 spawn 之前：保证此前的主动停止意图覆盖到 spawn 为止
+        _stopRequested = false;
+
+        // 记录本次运行副本的"版本指纹"（内容哈希）：下发给子进程做自我版本校验，
+        //   插件更新后（exe 内容变化）旧子进程据此识别自身已被淘汰并主动退出，由本服务用新构建重启。
+        ChildExeStamp = ComputeFileHash(exePath) ?? "";
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = exePath,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            Arguments = BuildChildArguments(),
+            // 捕获子进程 stderr：启动阶段失败时把原始异常带给用户/日志，
+            //   不再只给一个退出码（历史上正是这种信息缺失导致"缺运行库"式误判）。
+            RedirectStandardError = true,
+        };
+        lock (_childStderr) _childStderr.Clear();
+        var p = Process.Start(psi);
+        if (p == null) return (false, null);
+        _childProcess = p;
+        p.EnableRaisingEvents = true;
+        p.Exited += ChildExited;
+
+        // 异步排空 stderr（必须：RedirectStandardError 下若不读，管道缓冲区满会阻塞子进程写入）
+        try
+        {
+            p.ErrorDataReceived += (_, e) =>
+            {
+                if (string.IsNullOrEmpty(e.Data)) return;
+                lock (_childStderr)
+                {
+                    if (_childStderr.Length < ChildStderrMaxChars) _childStderr.AppendLine(e.Data);
+                }
+            };
+            p.BeginErrorReadLine();
+        }
+        catch { }
+
+        // 【防僵尸·内核级保障】跟随启停=开 → 绑定 Job Object：宿主进程无论正常退出、崩溃
+        //   还是被任务管理器强杀，内核都会在宿主结束时终止该子进程，杜绝"僵尸悬浮窗"。
+        //   跟随启停=关 时不绑定（该设置下子进程本应脱离宿主继续冻结显示，绑定会导致其被误杀）。
+        //   注意：绑定关系在进程创建后无法解除，因此该设置变更时上层会重启子进程
+        //   （见 FloatingScheduleService.OnSettingsPropertyChanged 的 FollowHostLifetime 分支），
+        //   否则"开→关"后冻结存活语义会失效。
+        if (_settings.FloatingScheduleFollowHostLifetime)
+        {
+            try
+            {
+                if (!FloatScheduleJobObject.TryAssign(p))
+                    _logger.LogDebug("FloatSchedule 子进程未加入 Job Object（降级为子进程侧看门狗保障）");
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "FloatSchedule Job Object 绑定异常（忽略）"); }
+        }
+
+        // 等待管道连接（冷启动首次 JIT WPF 可能较慢，给 20s）
+        for (int i = 0; i < ReadyTimeoutMs / 100 && !_pipeConnected; i++)
+            await Task.Delay(100).ConfigureAwait(false);
+        if (_pipeConnected) return (true, null);
+        return (false, TryGetExitCode(p));
+    }
+
+    // 残留进程探测结果缓存：HasOrphanChildProcess 扫描一次后把命中 PID 记下，
+    //  供随后的 KillOrphanChildren 直接使用 —— 避免在启动路径上对系统做两次全量进程枚举（每次含逐进程句柄打开）。
+    private List<int> _detectedOrphanPids = new();
+    private bool _orphanScanDone;
+
+    /// <summary>本变体随机进程名前缀（必须与 Avalonia 版子进程区分）：
+    ///  两代子进程可能同机并存（如同时装了 ClassIsland 2.x/1.x），若沿用同一个 "ati_" 前缀，
+    ///  本服务的"清理残留孤儿"会把 Avalonia 版子进程一起杀掉。故改用 "atiw_"。</summary>
+    private const string RandomProcessNamePrefix = "atiw_";
+
+    private static bool IsChildProcessName(string name) =>
+        string.Equals(name, "AdvancedTimeIslandWPFFloatSchedule", StringComparison.OrdinalIgnoreCase) ||
+        name.StartsWith("atiw_", StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>是否存在"同名但未被本服务跟踪"的子进程（上一代冻结存活的子进程 / 异常残留）。
+    /// 用于决定是否需要进入 adopt 等待：没有残留就无需等待，可直接启动。同时记录 PID 供后续清理复用。</summary>
+    private bool HasOrphanChildProcess()
+    {
+        _detectedOrphanPids = new List<int>();
+        _orphanScanDone = true;
+        try
+        {
+            var current = _childProcess;
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (IsChildProcessName(p.ProcessName))
+                    {
+                        if (current != null)
+                        {
+                            try { if (p.Id == current.Id) continue; } catch { }
+                        }
+                        _detectedOrphanPids.Add(p.Id);
+                    }
+                }
+                catch { }
+                finally { try { p.Dispose(); } catch { } }
+            }
+        }
+        catch { }
+        return _detectedOrphanPids.Count > 0;
+    }
+
+    /// <summary>清理残留子进程（不含当前跟踪进程）。
+    /// 优先复用 HasOrphanChildProcess 的扫描结果；未探测过时才退化为按名全量扫描。</summary>
+    private void KillOrphanChildren()
+    {
+        List<int>? pids = null;
+        if (_orphanScanDone)
+        {
+            pids = _detectedOrphanPids;
+            _detectedOrphanPids = new List<int>();
+            _orphanScanDone = false;
+        }
+
+        try
+        {
+            if (pids != null)
+            {
+                foreach (var pid in pids)
+                {
+                    try
+                    {
+                        using var p = Process.GetProcessById(pid);   // 已退出会抛异常 → 忽略
+                        p.Kill(entireProcessTree: true);
+                        p.WaitForExit(2000);
+                    }
+                    catch { }
+                }
+                return;
+            }
+
+            var current = _childProcess;
+            foreach (var p in Process.GetProcesses())
+            {
+                try
+                {
+                    if (IsChildProcessName(p.ProcessName))
+                    {
+                        if (current != null)
+                        {
+                            try { if (p.Id == current.Id) continue; } catch { }
+                        }
+                        try { p.Kill(entireProcessTree: true); p.WaitForExit(2000); } catch { }
+                    }
+                }
+                catch { }
+                finally { try { p.Dispose(); } catch { } }
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>强制重启子进程（设置页按钮 / 随机进程名切换）。
+    /// 请求合并：已有重启在执行/排队时直接返回（重启是幂等操作，重复执行只会浪费）。
+    /// 关键区别：这里能安全合并，是因为整段 Stop→Start 都在 _lifecycleGate 内串行执行 ——
+    /// 正确性由闸门保证，而不是靠"拒绝请求"回避并发。</summary>
+    public async Task RestartChildAsync()
+    {
+        if (Interlocked.CompareExchange(ref _restartInProgressInt, 1, 0) != 0) return;
+        try
+        {
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                await StopChildUnderGateAsync(kill: true).ConfigureAwait(false);
+                SetStatus(ChildStatus.Off);
+                lock (_stateLock) { _startTicks.Clear(); }   // 用户主动重启 = 显式期望恢复，重置意外退出配额
+                Interlocked.Exchange(ref _skipRuntimePreflightOnce, 1);   // 用户显式重试 → 放行一次运行时预检
+                await EnsureChildUnderGateAsync(allowAdoptWait: false).ConfigureAwait(false);
+            }
+            finally { _lifecycleGate.Release(); }
+        }
+        finally { Interlocked.Exchange(ref _restartInProgressInt, 0); }
+    }
+
+    /// <summary>是否正在执行"强制重启"（设置页据此临时禁用重启按钮）。</summary>
+    public bool IsRestarting => Volatile.Read(ref _restartInProgressInt) != 0;
+
+    /// <summary>
+    /// 插件包内独立程序 exe 的**内容指纹**（SHA256），随 Init 下发给子进程做"我是否已被淘汰"的自检。
+    /// 用内容哈希而非"长度+写入时间"：同一构建的不同副本（插件目录原文件 vs 临时运行副本）写入时间必然不同，
+    /// 用时间戳会把"同版本"误判为"已更新"→ 每次宿主重启都无谓重启子进程，adopt（冻结窗口跨宿主重启存活）失效。
+    /// </summary>
+    public string ChildExeStamp { get; private set; } = "";
+
+    /// <summary>独立模式开关关闭：终止子进程并回到 Off（进程内渲染由 FloatingScheduleService 恢复）。</summary>
+    public void NotifyModeDisabled()
+    {
+        lock (_stateLock) { _startTicks.Clear(); }
+        SetStatus(ChildStatus.Off);
+        _ = Task.Run(async () =>
+        {
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try { await StopChildUnderGateAsync(kill: true).ConfigureAwait(false); }
+            finally { _lifecycleGate.Release(); }
+        });
+    }
+
+    /// <summary>停止子进程（调用方必须已持有 _lifecycleGate）。</summary>
+    private async Task StopChildUnderGateAsync(bool kill)
+    {
+        _stopRequested = kill;
+        if (_pipeConnected)
+        {
+            try { WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Shutdown, null)); } catch { }
+            // 给子进程 1.5s 优雅退出窗口
+            var p = _childProcess;
+            if (p != null && !p.HasExited)
+            {
+                try { await p.WaitForExitAsync(new CancellationTokenSource(1500).Token); } catch { }
+            }
+        }
+        ClosePipe();
+        var proc = _childProcess;
+        _childProcess = null;
+        if (proc != null)
+        {
+            try
+            {
+                if (!proc.HasExited)
+                {
+                    proc.Kill(entireProcessTree: true);
+                    // 【治本】必须确认旧进程真正退出后再返回：
+                    //   否则新进程可能因旧进程尚未释放"单实例 Mutex"而立刻以退出码 42 结束，
+                    //   进而走"清理残留 + 重试"往返 —— 表现为重启缓慢、甚至反复启停。
+                    using var killCts = new CancellationTokenSource(2000);
+                    try { await proc.WaitForExitAsync(killCts.Token).ConfigureAwait(false); } catch { }
+                }
+                else
+                {
+                    try { await proc.WaitForExitAsync(new CancellationTokenSource(2000).Token).ConfigureAwait(false); } catch { }
+                }
+            }
+            catch { }
+            try { proc.Dispose(); } catch { }
+        }
+    }
+
+    private void ChildExited(object? sender, EventArgs e)
+    {
+        // 只处理"当前代"子进程的退出：重启会替换 _childProcess，旧进程的 Exited 由 ThreadPool 异步投递，
+        //  若不校验会把新进程误当"意外退出"而重复触发自动重启。
+        if (!ReferenceEquals(sender, _childProcess)) return;
+        if (_stopRequested) return;
+        if (!ShouldUseIndependent()) return;
+        var p = _childProcess;
+        int? code = p != null ? TryGetExitCode(p) : null;
+        if (code == FloatScheduleIpc.ExitCodeAnotherInstance) return;   // adopt 路径在 EnsureChildUnderGateAsync 处理
+
+        // 【计划内重启：子进程自检发现"自己已被新版插件淘汰"】
+        //   典型场景：插件更新后，跟随启停=关 时冻结存活的旧子进程被新宿主 adopt；
+        //   它比对 Init 下发的 exe 内容指纹与自身指纹不一致 → 主动退出（ExitCodeSelfUpdate）。
+        //   与"意外退出"的区别只有两点：语义（计划内）与无需 1s 退避（立刻换新构建）。
+        //   仍走同一套限频配额：万一"复制出的新副本损坏/指纹不符"导致子进程反复自退，
+        //   3 次/30s 后照常熔断到 Failed 并回退进程内渲染，绝不会演变成无上限的重启风暴。
+        bool selfUpdate = code == FloatScheduleIpc.ExitCodeSelfUpdate;
+        if (selfUpdate)
+            _logger.LogInformation("FloatSchedule 旧子进程已自检到插件更新，立即用新构建重启");
+
+        // 意外退出 → 经闸门限频自动重启（3 次/30s，超限 Failed 回退进程内）
+        _ = Task.Run(async () =>
+        {
+            if (!selfUpdate) await Task.Delay(1000).ConfigureAwait(false);
+            if (_stopRequested || !ShouldUseIndependent()) return;
+            await _lifecycleGate.WaitAsync().ConfigureAwait(false);
+            try
+            {
+                lock (_stateLock)
+                {
+                    _startTicks.Enqueue(Environment.TickCount64);
+                    TrimStartTicks();
+                    if (_startTicks.Count > MaxStartAttempts)
+                    {
+                        SetStatus(ChildStatus.Failed, "子进程反复异常退出，已暂停自动重启");
+                        return;
+                    }
+                }
+                await EnsureChildUnderGateAsync(allowAdoptWait: false).ConfigureAwait(false);
+            }
+            finally { _lifecycleGate.Release(); }
+        });
+    }
+
+    private int? TryGetExitCode(Process p)
+    {
+        try { return p.HasExited ? p.ExitCode : (int?)null; }
+        catch { return null; }
+    }
+
+    private void TrimStartTicks()
+    {
+        var now = Environment.TickCount64;
+        while (_startTicks.Count > 0 && now - _startTicks.Peek() > (long)StartAttemptWindow.TotalMilliseconds)
+            _startTicks.Dequeue();
+    }
+
+    private string BuildChildArguments()
+    {
+        var hostDir = "";
+        try { hostDir = Path.GetDirectoryName(Environment.ProcessPath) ?? ""; } catch { }
+        var sb = new StringBuilder();
+        sb.Append("--host-dir \"").Append(hostDir).Append('"');
+        // 管道名下传本变体专用名（".wpf" 后缀），子进程据此建客户端，两侧必须一致
+        sb.Append(" --pipe ").Append(PipeName);
+        sb.Append(" --parent-pid ").Append(Environment.ProcessId);
+        sb.Append(_settings.FloatingScheduleFollowHostLifetime ? " --follow-lifetime 1" : " --follow-lifetime 0");
+        sb.Append(_settings.FloatingScheduleSingleInstanceProtection ? " --single-instance 1" : " --single-instance 0");
+        // 注：不再下传 --avalonia-major —— WPF 子进程是框架依赖应用，无 Avalonia 跨代配对问题；
+        //   运行时可用性由 HasUsableChildRuntime 预检负责。
+        // 保留 --host-dir：与子进程参数约定一致（子进程侧可按需使用，未知参数会被其解析器忽略）。
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 解析用于启动的子进程 exe 路径。
+    /// 【必须从临时目录副本运行 —— 否则会锁死插件目录导致"更新插件"损坏】
+    ///   若直接运行插件目录下的 exe，Windows 会锁定该文件；而"跟随启停=关"时子进程会在
+    ///   ClassIsland 退出后继续存活，此时更新插件（宿主删除/替换 Plugins\{id} 目录）会因文件
+    ///   被占用而失败或只删掉一部分 → 插件目录严重损坏。
+    ///   故无论是否开启"随机进程名"，一律把 exe 复制到 %TEMP%\AdvancedTimeIslandWPFFloatSchedule\ 下运行：
+    ///     - 随机进程名=关：副本沿用原名（任务管理器进程名仍是 AdvancedTimeIslandWPFFloatSchedule）
+    ///     - 随机进程名=开：副本随机命名（进程名随机，进一步规避按进程名拦截）
+    ///   副本不占用插件目录，插件可被正常更新；旧副本在每次启动前尽量清理。
+    /// </summary>
+    private string? ResolveChildExePath()
+    {
+        try
+        {
+            var srcExe = GetPackagedExePath();
+            if (srcExe == null) return null;
+
+            var runDir = Path.Combine(Path.GetTempPath(), "AdvancedTimeIslandWPFFloatSchedule");
+            try { Directory.CreateDirectory(runDir); } catch { }
+            CleanupOldExeCopies(runDir);
+
+            var name = _settings.FloatingScheduleRandomProcessName
+                ? RandomProcessNamePrefix + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant() + ".exe"
+                : ChildExeFileName;
+            var dst = Path.Combine(runDir, name);
+            try { if (File.Exists(dst)) File.Delete(dst); } catch { /* 仍被旧子进程占用 → 交由 File.Copy 覆盖判定 */ }
+            File.Copy(srcExe, dst, overwrite: true);
+            return dst;
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "ResolveChildExePath 异常");
+            return null;
+        }
+    }
+
+    /// <summary>清理运行目录内的旧 exe 副本（被旧子进程占用的跳过；spawn 前已尽量清理孤儿进程）。</summary>
+    private void CleanupOldExeCopies(string runDir)
+    {
+        try
+        {
+            foreach (var f in Directory.GetFiles(runDir, "*.exe"))
+            {
+                try { File.Delete(f); } catch { /* 占用中 → 跳过 */ }
+            }
+        }
+        catch { }
+    }
+
+    // ===================== 管道服务器 =====================
+
+    // 【诊断修复 5】accept 循环单例：原先仅凭 `_pipeServer == null` 判定，而循环在断开后的
+    //   500ms 重建延迟期间 `_pipeServer` 已为 null → 期间任何 EnsureChildAsync 都会再起一个循环，
+    //   两个循环用同名管道（maxNumberOfServerInstances=1）互相争抢 → 连接时通时断 → 状态反复跳变。
+    private int _acceptLoopRunning;
+    private void EnsureAcceptLoopRunning()
+    {
+        var cts = _cts;
+        if (cts == null || cts.IsCancellationRequested) return;
+        // 先挂一个"未完成"信号：保证调用方即使早于循环启动也能正确等待（循环顶部会重置为新的未完成信号）
+        if (_listenerReadyTcs == null)
+            _listenerReadyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        if (Interlocked.CompareExchange(ref _acceptLoopRunning, 1, 0) != 0) return;
+        _ = Task.Run(async () =>
+        {
+            try { await PipeAcceptLoopAsync(cts.Token).ConfigureAwait(false); }
+            finally { Interlocked.Exchange(ref _acceptLoopRunning, 0); }
+        });
+    }
+
+    private async Task PipeAcceptLoopAsync(CancellationToken ct)
+    {
+        while (!ct.IsCancellationRequested)
+        {
+            // 新一轮监听：重置就绪信号（等待方据此正确等待本次重建完成）
+            _listenerReadyTcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+            NamedPipeServerStream? server = null;
+            try
+            {
+                server = new NamedPipeServerStream(
+                    PipeName,
+                    PipeDirection.InOut,
+                    maxNumberOfServerInstances: 1,
+                    PipeTransmissionMode.Byte,
+                    PipeOptions.Asynchronous);
+                _pipeServer = server;
+                _listenerReadyTcs?.TrySetResult(true);   // 握手：已开始监听，可安全 spawn 子进程
+                await server.WaitForConnectionAsync(ct).ConfigureAwait(false);
+
+                var reader = new StreamReader(server, Encoding.UTF8);
+                StreamWriter writer;
+                lock (_writeLock)
+                {
+                    writer = new StreamWriter(server, new UTF8Encoding(false)) { AutoFlush = false };
+                    _writer = writer;
+                }
+                _pipeConnected = true;
+                SetStatus(ChildStatus.Connected);
+
+                // Init：一次性补发缓存（子进程渲染首帧 + 应用行为快照）
+                FloatScheduleWindowSettings? settings;
+                FloatScheduleRenderModel? model;
+                bool visible;
+                lock (_stateLock) { settings = _cachedSettings; model = _cachedModel; visible = _cachedVisible; }
+                WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Init,
+                    new FloatScheduleInitPayload { Settings = settings, Model = model }));
+                // 【修复：窗口存在却不可见】连接建立后**总是**补发一次当前可见性（原先只在"隐藏"时补发）：
+                //  子进程自身状态与插件缓存可能不同步 —— 典型如被 adopt 的子进程此前已收到 Visible(false)，
+                //  而插件缓存已是 true → 只发"变化"时会永远不再发 true → 该窗口永久隐藏（用户所见"悬浮窗不可见"）。
+                WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Visible,
+                    new FloatScheduleVisiblePayload { Visible = visible }));
+
+                try { Connected?.Invoke(); } catch (Exception ex) { _logger.LogDebug(ex, "Connected 事件回调异常（忽略）"); }
+
+                // 读循环：Ready / Position
+                string? line;
+                while (!ct.IsCancellationRequested && (line = await reader.ReadLineAsync(ct).ConfigureAwait(false)) != null)
+                {
+                    HandleChildLine(line);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogDebug(ex, "FloatSchedule 管道 accept 循环异常（0.5s 后重建 listener）");
+            }
+            finally
+            {
+                MarkDisconnected();
+                try { server?.Dispose(); } catch { }
+                if (_pipeServer == server) _pipeServer = null;
+            }
+            if (!ct.IsCancellationRequested)
+            {
+                // listener 重建间隔：缩短到 150ms（配合就绪握手，让重启/重连更快恢复）
+                try { await Task.Delay(150, ct).ConfigureAwait(false); } catch { break; }
+            }
+        }
+    }
+
+    private void HandleChildLine(string line)
+    {
+        if (!FloatScheduleIpc.TryDecode(line, out var type, out var data)) return;
+        switch (type)
+        {
+            case FloatScheduleIpcMsgType.Ready:
+                var ready = FloatScheduleIpc.Deserialize<FloatScheduleReadyPayload>(data);
+                _childPid = ready?.Pid ?? -1;
+                _logger.LogDebug("FloatSchedule 子进程 Ready: {Pid}", _childPid);
+                break;
+            case FloatScheduleIpcMsgType.Position:
+                var pos = FloatScheduleIpc.Deserialize<FloatSchedulePositionPayload>(data);
+                if (pos != null)
+                {
+                    try { PositionReported?.Invoke(pos.X, pos.Y); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "PositionReported 回调异常（忽略）"); }
+                }
+                break;
+            case FloatScheduleIpcMsgType.Error:
+                var err = FloatScheduleIpc.Deserialize<FloatScheduleErrorPayload>(data);
+                _logger.LogWarning("FloatSchedule 子进程错误: code={Code} msg={Msg}", err?.Code ?? -1, err?.Message ?? "?");
+                break;
+            case FloatScheduleIpcMsgType.ExitRequested:
+                // 用户从子进程托盘图标选择"退出"：这是主动退出，绝不能被当作"意外退出"自动重启
+                //（否则用户会看到悬浮窗关不掉）。先抑制自动重启，再通知上层关闭相关设置。
+                _logger.LogInformation("FloatSchedule 用户通过托盘图标请求退出悬浮课表");
+                _stopRequested = true;
+                try { ExitRequestedByUser?.Invoke(); }
+                catch (Exception ex) { _logger.LogDebug(ex, "ExitRequestedByUser 回调异常（忽略）"); }
+                break;
+        }
+    }
+
+    private void MarkDisconnected()
+    {
+        if (!_pipeConnected) return;
+        _pipeConnected = false;
+        lock (_writeLock)
+        {
+            try { _writer?.Dispose(); } catch { }
+            _writer = null;
+        }
+        // 【诊断修复 1】主动停止/重启路径（_stopRequested=true）不改状态：
+        //   此时断开是插件自己杀进程造成的，状态由调用方（RestartChildAsync/NotifyModeDisabled）负责设置，
+        //   否则会出现"已连接 → 冻结中 → 启动中 → 已连接"的状态抖动。
+        if (_stopRequested) return;
+        if (Status != ChildStatus.Connected) return;
+        // 【诊断修复 2】不再置 Frozen：Frozen 的语义是"宿主退出、子进程冻结显示"，而插件自己就是宿主，
+        //   子进程断开只会是崩溃/被杀，它会 1s 重连（或插件重启它）→ 统一置 Starting 等待恢复。
+        //   Frozen 仅由 StopAsync（插件正常退出且跟随启停=关）设置。
+        SetStatus(ChildStatus.Starting);
+    }
+
+    private void ClosePipe()
+    {
+        _pipeConnected = false;
+        lock (_writeLock)
+        {
+            try { _writer?.Dispose(); } catch { }
+            _writer = null;
+        }
+        try { _pipeServer?.Dispose(); } catch { }
+        _pipeServer = null;
+    }
+}

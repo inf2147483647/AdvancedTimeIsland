@@ -78,6 +78,20 @@
                 </ci:SettingsCard.Switcher>
             </ci:SettingsCard>
 
+            <!-- “女装”为隐藏入口：启用实验性功能后才在调试页可见（与 Avalonia 版一致） -->
+            <ci:SettingsCard x:Name="WomenswearCard"
+                             IconGlyph="GenderFemale"
+                             Header="女装"
+                             Description="进入女装隐藏页面，用于调试宿主崩溃窗口。"
+                             Margin="0 0 0 6"
+                             Visibility="Collapsed">
+                <ci:SettingsCard.Switcher>
+                    <Button Content="进入"
+                            Style="{DynamicResource MaterialDesignFlatButton}"
+                            Click="ButtonWomenswear_OnClick" />
+                </ci:SettingsCard.Switcher>
+            </ci:SettingsCard>
+
             <Separator Margin="0 16 0 8" />
             <ci:IconText Kind="Memory" Text="内存泄漏测试" Margin="0 0 0 8" />
 

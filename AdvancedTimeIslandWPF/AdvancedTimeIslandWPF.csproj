@@ -32,6 +32,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- 共享协议层（独立进程模式 IPC）：只链接协议/模型/设置快照三个文件，
+             不能通配 Shared\FloatingSchedule\**\* —— 该目录还含 FloatScheduleRenderer.cs（Avalonia 渲染器），
+             通配会把它编进 WPF 项目导致编译失败。 -->
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleIpc.cs" LinkBase="Shared\FloatingSchedule" />
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleRenderModel.cs" LinkBase="Shared\FloatingSchedule" />
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleWindowSettings.cs" LinkBase="Shared\FloatingSchedule" />
+    </ItemGroup>
+
+    <ItemGroup>
         <None Update="manifest.yml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

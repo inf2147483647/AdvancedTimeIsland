@@ -184,6 +184,12 @@ function Build-WpfVariant {
         return $false
     }
 
+    # Copy WPF FloatSchedule child exe into plugin output dir -> Create-CipxPackage (full copy) picks it up
+    if (-not (Publish-WpfFloatExe -OutputDir $OutputDir)) {
+        Write-Error "WPF FloatSchedule child exe publish failed"
+        return $false
+    }
+
     return Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
 }
 
@@ -219,6 +225,38 @@ function Publish-FloatExe {
     Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandFloatSchedule.exe") -Force
     $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
     Write-Host "FloatSchedule exe: $sizeKB KB -> $OutputDir"
+    return $true
+}
+
+
+function Publish-WpfFloatExe {
+    param(
+        [string]$OutputDir
+    )
+
+    # WPF 版悬浮窗"独立进程模式"子进程 exe（供 ClassIsland 1.x / AdvancedTimeIslandWPF 使用）。
+    # 框架依赖 + 单文件：运行时必须由机器全局的 .NET Desktop 运行时（Microsoft.WindowsDesktop.App）提供，
+    # 不从 ClassIsland 安装目录借任何 DLL，因此只需分发这一个 exe。
+    $childTfm = "net8.0-windows"
+    $proj = Join-Path $ProjectRoot "AdvancedTimeIslandWPFFloatSchedule\AdvancedTimeIslandWPFFloatSchedule.csproj"
+    $pubDir = Join-Path $ProjectRoot "AdvancedTimeIslandWPFFloatSchedule\bin\publish\$childTfm"
+
+    Write-Host "`nPublishing WPF FloatSchedule child exe ($childTfm, framework-dependent single-file)..."
+    dotnet publish $proj -c Release -f $childTfm -r win-x64 --self-contained false `
+        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
+        -o $pubDir
+    if ($LASTEXITCODE -ne 0) {
+        Write-Error "WPF FloatSchedule publish failed for $childTfm"
+        return $false
+    }
+    $exe = Join-Path $pubDir "AdvancedTimeIslandWPFFloatSchedule.exe"
+    if (-not (Test-Path $exe)) {
+        Write-Error "WPF FloatSchedule exe not found: $exe"
+        return $false
+    }
+    Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandWPFFloatSchedule.exe") -Force
+    $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
+    Write-Host "WPF FloatSchedule exe: $sizeKB KB -> $OutputDir"
     return $true
 }
 

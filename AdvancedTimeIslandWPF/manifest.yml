@@ -7,3 +7,8 @@ description: 高级时间管理插件，增强ClassIsland时间功能
 entranceAssembly: AdvancedTimeIsland.dll
 icon: icon.png
 url: https://github.com/inf2147483647/AdvancedTimeIsland
+# LibPinyin 为可选依赖：安装后崩溃归因的 Femboy 关键词匹配可借助其拼音服务识别近音写法
+# （如“南梁”≈“男娘”）；未安装时自动回退到内置近音字族表，功能不受影响。
+dependencies:
+  - id: lrs2187.LibPinyin
+    isRequired: false

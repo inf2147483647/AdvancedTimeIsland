@@ -28,6 +28,11 @@ public partial class DebugPage : SettingsPageBase
         MemoryLeakUnitComboBox.Items.Add("MiB");
         var unitIndex = Array.IndexOf(new[] { "Byte", "KiB", "MiB" }, MemoryLeakTestService.Instance.LeakUnit);
         MemoryLeakUnitComboBox.SelectedIndex = unitIndex >= 0 ? unitIndex : 1;
+
+        // “女装”为隐藏入口：启用实验性功能后才在调试页可见（与 Avalonia 版一致）
+        WomenswearCard.Visibility = (Plugin.Instance?.Settings.EnableExperimentalFeatures ?? false)
+            ? Visibility.Visible
+            : Visibility.Collapsed;
     }
 
     private void ButtonCrash_OnClick(object? sender, RoutedEventArgs e)
@@ -49,6 +54,12 @@ public partial class DebugPage : SettingsPageBase
     {
         IAppHost.TryGetService<IUriNavigationService>()?
             .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuTemplate?ci_keepHistory=true"));
+    }
+
+    private void ButtonWomenswear_OnClick(object? sender, RoutedEventArgs e)
+    {
+        IAppHost.TryGetService<IUriNavigationService>()?
+            .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandWomenswear?ci_keepHistory=true"));
     }
 
     private async Task ShowForceCrashDialog()

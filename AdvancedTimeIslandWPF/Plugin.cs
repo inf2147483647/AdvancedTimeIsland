@@ -244,10 +244,18 @@ public class Plugin : PluginBase
 
         services.AddSingleton<TimeBaseService>();
         services.AddSingleton<SharedRenderClockService>();
+        services.AddSingleton<AttendanceCalendarService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
         services.AddHostedService<StartupDelayService>();
         services.AddHostedService<Services.FontSizeSyncService>();
+        // 【启动顺序】悬浮窗独立进程宿主服务必须先于 FloatingScheduleService 注册：
+        //   HostedService 按注册顺序启动、逆序停止 —— 先启动的 HostProcessService 会把命名管道
+        //   listener 先建好，FloatingScheduleService 起来后即可直接向子进程推送；退出时 FloatingScheduleService
+        //   先收尾、再由 HostProcessService 终止子进程。同一实例以"具体类型单例 + 工厂注册 IHostedService"方式注册，
+        //   便于设置页/其它服务从容器取到同一个实例。
+        services.AddSingleton<Services.FloatScheduleHostProcessService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Services.FloatScheduleHostProcessService>());
         services.AddHostedService<Services.FloatingScheduleService>();
         services.AddHostedService<Services.SemesterStartService>();
 
@@ -260,6 +268,7 @@ public class Plugin : PluginBase
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
         services.AddComponent<YearWeekControl, YearWeekSettingsControl>();
         services.AddComponent<SemesterWeekControl, SemesterWeekSettingsControl>();
+        services.AddComponent<AttendanceControl, AttendanceSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
@@ -308,6 +317,7 @@ public class Plugin : PluginBase
 
         if (Settings.EnableExperimentalFeatures)
         {
+            services.AddComponent<SevenSegmentClockControl, SevenSegmentClockSettingsControl>();
             services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
             services.AddHostedService<Services.FpsBackgroundCollectorService>();
         }
@@ -1526,8 +1536,10 @@ public class Plugin : PluginBase
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
+        services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+        services.AddSettingsPage<Views.Settings.WomenswearPage>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
         if (Settings.EnableExperimentalFeatures)

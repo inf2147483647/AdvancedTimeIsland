@@ -16,6 +16,7 @@ using System.Windows.Media.Animation;
 using System.Windows.Threading;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Shared.FloatingSchedule;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Shared;
 using ClassIsland.Shared.Enums;
@@ -33,6 +34,17 @@ public class FloatingScheduleService : IDisposable, IHostedService
     private readonly PluginSettings _settings;
     private readonly ILogger<FloatingScheduleService> _logger;
     private Window? _window;
+
+    // ===================== 独立进程模式 =====================
+    //  两个层级的模式判定：
+    //   IndependentRequested = 开关开 + Windows + 未失败：为 true 时进程内悬浮窗必须"立即禁用"
+    //     （不创建、不显示、已存在的马上关闭），不论子进程是否已连接——这是用户需求，也避免
+    //     两个悬浮窗并存与 500ms Tick 反复 ShowWindow 造成行为紊乱。
+    //   IndependentActive = IndependentRequested + 子进程已连接：渲染出口从进程内控件切换到管道推送。
+    private readonly FloatScheduleHostProcessService? _hostProcess;
+    private bool IndependentRequested => _hostProcess?.ShouldUseIndependent() == true;
+    private bool IndependentActive => IndependentRequested && _hostProcess!.IsChildConnected;
+    private bool _lastIndependentFailedWpf;
     private Border? _containerBorder;
     private Grid? _tableGrid;
     // 【修复：进度条有时总是满的】
@@ -396,10 +408,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private static string FormatHhMm(TimeSpan ts) => $"{ts.Hours:D2}:{ts.Minutes:D2}";
 
-    public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger)
+    public FloatingScheduleService(PluginSettings settings, ILogger<FloatingScheduleService> logger,
+        FloatScheduleHostProcessService? hostProcess = null)
     {
         _settings = settings;
         _logger = logger;
+        _hostProcess = hostProcess;
         _refreshTimer = new DispatcherTimer(DispatcherPriority.Background)
         {
             Interval = TimeSpan.FromMilliseconds(500)
@@ -420,6 +434,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
             ApplyHoverFade();
             // 【贴边自动隐藏】复用同一 50ms 轮询推进状态机（不新增计时器）
             try { UpdateEdgeHideWpf(); } catch { /* ignore */ }
+            // 【贴边尺寸自愈·兜底】实测尺寸监听可能早于平台窗口真正变尺寸而早退，
+            //  且窗口已离屏时不会有新的布局回调，故常驻兜底重算一次（未贴边/尺寸未变时零开销早退）。
+            try { RefreshEdgeGeometryOnResizeWpf(); } catch { /* ignore */ }
         };
     }
 
@@ -480,6 +497,23 @@ public class FloatingScheduleService : IDisposable, IHostedService
         _settings.PropertyChanged += OnSettingsPropertyChanged;
         ThemeHelper.ThemeChanged += OnThemeChanged;
 
+        // 【独立进程模式】子进程连接/位置回报/状态变化/用户退出请求（Stop 中退订防泄漏）
+        if (_hostProcess != null)
+        {
+            _hostProcess.Connected += OnIndependentChildConnectedWpf;
+            _hostProcess.PositionReported += OnIndependentPositionReportedWpf;
+            _hostProcess.StatusChanged += OnIndependentStatusChangedWpf;
+            _hostProcess.ExitRequestedByUser += OnIndependentExitRequestedWpf;
+        }
+
+        // 【修复：重启时窗口位置被重置（根因一·插件侧）】启动流程最开始就把设置快照写入缓存
+        //  （SendSettings 内部缓存，未连接时由 Init 补发），保证子进程无论何时连上都能拿到含存档位置的设置。
+        try
+        {
+            if (IndependentRequested) _hostProcess?.SendSettings(BuildWindowSettingsSnapshotWpf());
+        }
+        catch { /* 预缓存失败不影响其它功能 */ }
+
         if (_settings.EnableFloatingSchedule)
         {
             // TryStartWithRetryAsync 是从异步 Task.Run/后台 Task 调用过来的（StartAsync fire-and-forget）。
@@ -491,6 +525,24 @@ public class FloatingScheduleService : IDisposable, IHostedService
                                  ?? System.Windows.Threading.Dispatcher.CurrentDispatcher;
                 if (dispatcher == null || dispatcher.CheckAccess()) action();
                 else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+
+            // 【独立进程模式】模式开启时进程内窗口一律不创建（由子进程渲染）：
+            //  这里只构建/缓存渲染模型（子进程未连接时供 Init 补发）并确保子进程在运行。
+            if (IndependentRequested)
+            {
+                RunOnUiThread(() =>
+                {
+                    if (_disposed) return;
+                    // 隐藏规则（基础/高级模式）判定留在插件进程，需要订阅宿主 Settings 才能读到宿主隐藏开关/规则集
+                    EnsureHostSettingsSubscriptionWpf();
+                    RefreshSchedule();
+                    ApplyShouldHideWpf();
+                    // 进度定时器承担独立模式下的进度增量推送与可见性重评（进程内窗口不在时它不会被 UI 分支短路）
+                    _refreshTimer.Start();
+                    _ = _hostProcess!.EnsureChildAsync();
+                });
+                return;
             }
 
             RunOnUiThread(() =>
@@ -530,6 +582,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         _settings.PropertyChanged -= OnSettingsPropertyChanged;
         ThemeHelper.ThemeChanged -= OnThemeChanged;
+        // 【独立进程模式】退订子进程事件
+        if (_hostProcess != null)
+        {
+            _hostProcess.Connected -= OnIndependentChildConnectedWpf;
+            _hostProcess.PositionReported -= OnIndependentPositionReportedWpf;
+            _hostProcess.StatusChanged -= OnIndependentStatusChangedWpf;
+            _hostProcess.ExitRequestedByUser -= OnIndependentExitRequestedWpf;
+        }
         // 【h4】悬浮窗层级重设频率 Detach：先解子类/停 Timer/退订宿主事件（hwnd 仍有效时先解 Win32 钩）
         DetachTopmostRefreshWpf();
         // 【修复：调试时间不立刻刷新 - 退订宿主 Settings PropertyChanged 防止内存泄漏】
@@ -556,6 +616,13 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (string.IsNullOrEmpty(e.PropertyName)) return;
+        // 【独立进程模式】悬浮窗行为/位置类设置变化 → 立即重推设置快照（子进程热应用，无需重启 ClassIsland）；
+        //  子进程只在 Init 时应用位置，拖拽后位置由子进程回报，Settings 中的 Position 变化不回推位置。
+        if (e.PropertyName!.StartsWith("FloatingSchedule", StringComparison.Ordinal) &&
+            e.PropertyName != nameof(PluginSettings.FloatingScheduleIndependentProcess))
+            PublishIndependentSettingsWpf();
+
         if (e.PropertyName == nameof(PluginSettings.EnableFloatingSchedule))
         {
             // 防御性切 UI 线程：设置 UI 的 PropertyChanged 通常由 SettingsControl.IsOn 在 UI 线程触发，
@@ -569,6 +636,18 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
             if (_settings.EnableFloatingSchedule)
             {
+                // 【独立进程模式】主开关打开且独立模式生效 → 进程内不建窗口，只缓存设置/模型并确保子进程在跑
+                if (IndependentRequested)
+                {
+                    RunOnUi(() =>
+                    {
+                        _hostProcess?.SendSettings(BuildWindowSettingsSnapshotWpf());
+                        RefreshSchedule();
+                        ApplyShouldHideWpf();
+                        _ = _hostProcess!.EnsureChildAsync();
+                    });
+                    return;
+                }
                 RunOnUi(() =>
                 {
                     EnsureWindow();
@@ -587,6 +666,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
             }
             else
             {
+                // 【独立进程模式】定时器即将停转，先显式通知子进程隐藏（未连接时缓存期望可见性，Init 后生效）
+                if (IndependentRequested) _hostProcess?.SendVisible(false);
                 RunOnUi(() =>
                 {
                     // 【h4】开关关闭：先 Detach Topmost 刷新触发源
@@ -719,6 +800,73 @@ public class FloatingScheduleService : IDisposable, IHostedService
             }
             RunOnUi(ApplyPreventCaptureWpf);
         }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleTomorrowShowMode) ||
+                 e.PropertyName == nameof(PluginSettings.FloatingScheduleTomorrowPlaceholderText) ||
+                 e.PropertyName == nameof(PluginSettings.FloatingScheduleTodayPlaceholderText))
+        {
+            // 【显示明天课表】模式/占位文案变化：立即重算今日/明日课表选择并重建
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(RefreshSchedule);
+        }
+        // ===================== 独立进程模式（4 设置项，全部即时生效、无需重启 ClassIsland） =====================
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleIndependentProcess))
+        {
+            void RunOnUi(Action action)
+            {
+                var dispatcher = System.Windows.Application.Current?.Dispatcher;
+                if (dispatcher == null || dispatcher.CheckAccess()) action();
+                else dispatcher.BeginInvoke(action, System.Windows.Threading.DispatcherPriority.Normal);
+            }
+            RunOnUi(() =>
+            {
+                if (_settings.FloatingScheduleIndependentProcess && OperatingSystem.IsWindows())
+                {
+                    // 开启：立即关闭原有进程内悬浮窗（用户要求：不等子进程连接，杜绝两个悬浮窗并存），
+                    // 再缓存最新设置/模型并启动子进程；子进程连接后由 Connected 事件推送完成接管。
+                    CloseInProcessWindowWpf();
+                    if (_hostProcess != null)
+                    {
+                        EnsureHostSettingsSubscriptionWpf();
+                        _hostProcess.SendSettings(BuildWindowSettingsSnapshotWpf());
+                        RefreshSchedule();   // 无进程内窗口 → 仅构建并缓存模型供 Init 补发
+                        ApplyShouldHideWpf(); // 缓存当前期望可见性
+                        _refreshTimer.Start();  // 进度定时器承担独立模式的进度/可见性推送
+                        _ = _hostProcess.EnsureChildAsync();
+                    }
+                }
+                else
+                {
+                    // 关闭：停止子进程（shutdown + 兜底 Kill），恢复进程内渲染
+                    try { _hostProcess?.NotifyModeDisabled(); } catch { }
+                    RestoreInProcessWindowWpf();
+                }
+            });
+        }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleRandomProcessName))
+        {
+            // 随机进程名变化：立即以新名副本重启子进程（<2s 恢复；不重启 ClassIsland）
+            if (_hostProcess != null && _hostProcess.ShouldUseIndependent())
+                _ = _hostProcess.RestartChildAsync();
+        }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleSingleInstanceProtection))
+        {
+            // 单实例保护仅在子进程启动时获取 Mutex：存值即可，自下次子进程启动生效，无需任何重启
+        }
+        else if (e.PropertyName == nameof(PluginSettings.FloatingScheduleFollowHostLifetime))
+        {
+            // 跟随启停变化必须**重启子进程**，不能只热更新：该设置决定子进程创建时是否被绑定到 Job Object
+            //  （=开：绑定 → 宿主退出/崩溃由内核清理；=关：不绑定 → 宿主退出后子进程冻结存活）。
+            //  Job 绑定在进程创建后无法解除，若只热更新，则"开→关"后宿主退出时子进程仍会被内核杀掉。
+            //  重启前先热更新，保证重启后 Init 补发的快照为最新值。
+            PublishIndependentSettingsWpf();
+            if (_hostProcess != null && _hostProcess.ShouldUseIndependent())
+                _ = _hostProcess.RestartChildAsync();
+        }
     }
 
     // ==================================== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）====================================
@@ -833,9 +981,652 @@ public class FloatingScheduleService : IDisposable, IHostedService
         }
     }
 
+    // ===================== 独立进程模式：模型构建 / 推送 / 事件联动 =====================
+
+    /// <summary>本次 RefreshSchedule 是否正在展示"明天课表"（四档模式判定结果）。</summary>
+    private bool _showingTomorrowWpf;
+
+    /// <summary>最近一次构建的渲染模型（独立进程模式下供进度增量推送复用）。</summary>
+    private FloatScheduleRenderModel? _lastIndependentModelWpf;
+
+    /// <summary>占位符与"显示明天课表"对齐：今天 / 明天各有独立配置项，留空时回退到各自默认文案。</summary>
+    private string ResolvePlaceholderTextWpf()
+    {
+        var text = _showingTomorrowWpf
+            ? _settings.FloatingScheduleTomorrowPlaceholderText
+            : _settings.FloatingScheduleTodayPlaceholderText;
+        if (string.IsNullOrWhiteSpace(text))
+            text = _showingTomorrowWpf ? "明天没有课程" : "今天没有课程";
+        return text;
+    }
+
+    /// <summary>WPF Color → 模型用 0xAARRGGBB。</summary>
+    private static uint ToArgbWpf(Color c) => ((uint)c.A << 24) | ((uint)c.R << 16) | ((uint)c.G << 8) | c.B;
+
+    private static uint ToArgbWpf(Brush? brush) =>
+        brush is SolidColorBrush scb ? ToArgbWpf(scb.Color) : 0xFF000000u;
+
+    /// <summary>
+    /// 判断课表是否存在至少一节"可展示"课程（有效时段条目 + 已启用课程），
+    /// 供"显示明天课表 → 无展示课程时显示"档位判定当天课表是否为空。
+    /// </summary>
+    private static bool PlanHasDisplayableRowsWpf(ClassPlan? classPlan)
+    {
+        if (classPlan == null) return false;
+        var validItems = new List<object>();
+        foreach (var x in ReflectGetValidTimeLayoutItems(classPlan))
+        {
+            if (x != null && ReflectGetTimeType(x) == 0) validItems.Add(x);
+        }
+        if (validItems.Count == 0) return false;
+
+        var classesList = ReflectGetClasses(classPlan);
+        for (int i = 0; i < validItems.Count; i++)
+        {
+            var layoutItem = validItems[i];
+            var start = ReflectGetStartTime(layoutItem);
+            var end = ReflectGetEndTime(layoutItem);
+
+            object? classInfo = null;
+            foreach (var c in classesList)
+            {
+                if (c == null) continue;
+                var curLi = ReflectGetCurrentTimeLayoutItem(c);
+                if (curLi == null) continue;
+                if (ReflectGetStartTime(curLi) == start && ReflectGetEndTime(curLi) == end) { classInfo = c; break; }
+            }
+            if (classInfo == null && i < classesList.Count) classInfo = classesList[i];
+            if (classInfo == null || !ReflectGetIsEnabled(classInfo)) continue;
+            return true;
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 独立进程模式的渲染模型构建：与进程内 RefreshSchedule 使用同一份数据来源与同一套显示规则
+    /// （教师名/时间文本/分隔线/课间行/明日课表），产出的模型交给子进程用 FloatScheduleWpfRenderer 渲染。
+    /// 进程内窗口不存在时也必须能工作（子进程接管期间 `_window` 为 null）。
+    /// </summary>
+    private void RefreshIndependentModelWpf()
+    {
+        try
+        {
+            var fontSize = (int)Math.Round(Math.Clamp(_settings.FloatingScheduleFontScale, 8, 32));
+            var isDark = ThemeHelper.IsDarkTheme();
+            var lessonsService = IAppHost.TryGetService<ILessonsService>();
+            var profileService = IAppHost.TryGetService<IProfileService>();
+
+            // ---- 今日 / 明日课表选择（与进程内实现同一套四档语义）----
+            var todayBase = GetClassIslandNow().Date;
+            var todayState = lessonsService?.CurrentState ?? TimeState.None;
+            var currentPlan = lessonsService?.CurrentClassPlan;
+            var todayPlanByDate = lessonsService?.GetClassPlanByDate(todayBase);
+            bool isAfterSchool = todayState == TimeState.AfterSchool || currentPlan == null;
+            _showingTomorrowWpf = _settings.FloatingScheduleTomorrowShowMode switch
+            {
+                FloatingScheduleTomorrowShowMode.Always => true,
+                FloatingScheduleTomorrowShowMode.AfterSchool => isAfterSchool,
+                FloatingScheduleTomorrowShowMode.OnEmpty => !PlanHasDisplayableRowsWpf(currentPlan ?? todayPlanByDate),
+                _ => false,
+            };
+            ClassPlan? classPlan = _showingTomorrowWpf
+                ? lessonsService?.GetClassPlanByDate(todayBase.AddDays(1))
+                : (currentPlan ?? todayPlanByDate);
+
+            var subjectsMap = ReflectBuildSubjectsMap(profileService?.Profile?.Subjects!);
+
+            // ---- 收集课程行 / 课间项 / 档案分隔线 ----
+            var classRows = new List<(object? ClassInfo, Subject? Subject, object LayoutItem)>();
+            _breakItemsWpf.Clear();
+            _separatorItemsWpf.Clear();
+            if (classPlan != null)
+            {
+                var validItemsRaw = ReflectGetValidTimeLayoutItems(classPlan);
+                var validItems = new List<object>();
+                foreach (var x in validItemsRaw)
+                {
+                    if (x == null) continue;
+                    if (ReflectGetTimeType(x) == 0) validItems.Add(x);
+                    else if (ReflectGetTimeType(x) == 1) _breakItemsWpf.Add(x);
+                    else if (ReflectGetTimeType(x) == 2) _separatorItemsWpf.Add(x);
+                }
+                validItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+                _breakItemsWpf.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+                _separatorItemsWpf.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+
+                var classesList = ReflectGetClasses(classPlan);
+                for (int i = 0; i < validItems.Count; i++)
+                {
+                    var layoutItem = validItems[i];
+                    var layoutStart = ReflectGetStartTime(layoutItem);
+                    var layoutEnd = ReflectGetEndTime(layoutItem);
+
+                    object? classInfo = null;
+                    foreach (var c in classesList)
+                    {
+                        if (c == null) continue;
+                        var curLi = ReflectGetCurrentTimeLayoutItem(c);
+                        if (curLi == null) continue;
+                        if (ReflectGetStartTime(curLi) == layoutStart && ReflectGetEndTime(curLi) == layoutEnd)
+                        { classInfo = c; break; }
+                    }
+                    if (classInfo == null && i < classesList.Count) classInfo = classesList[i];
+                    if (classInfo == null || !ReflectGetIsEnabled(classInfo)) continue;
+
+                    Subject? subject = null;
+                    var sid = ReflectGetSubjectId(classInfo);
+                    if (sid != Guid.Empty && subjectsMap.TryGetValue(sid, out var sbj)) subject = sbj;
+
+                    classRows.Add((classInfo, subject, layoutItem));
+                }
+            }
+
+            // ---- 颜色（与进程内实现同规格：卡片底色 × 用户不透明度；当前课=强调色 40%）----
+            var accentColor = GetAccentColor();
+            var bgBrush = ThemeHelper.GetCardBackgroundBrush();
+            var cardColor = bgBrush is SolidColorBrush scbCard ? scbCard.Color : Color.FromRgb(0x20, 0x20, 0x20);
+            byte bgAlpha = (byte)Math.Round(Math.Clamp(_settings.FloatingScheduleOpacity, 0.0, 1.0) * 255);
+            byte highlightAlpha = (byte)Math.Clamp((int)Math.Round(0.40 * 255), 0, 255);
+            var separatorLineColor = isDark ? Colors.White : Colors.Black;
+
+            var model = new FloatScheduleRenderModel
+            {
+                FontSize = fontSize,
+                // 嵌入资源字体（avares:// / pack://）无法跨进程解析，统一传 null 由子进程落到兜底字体链
+                FontFamilySource = null,
+                AccentArgb = ToArgbWpf(accentColor),
+                CardBackgroundArgb = (uint)(bgAlpha << 24 | cardColor.R << 16 | cardColor.G << 8 | cardColor.B),
+                BorderArgb = ToArgbWpf(ThemeHelper.GetSeparatorBrush()),
+                TextArgb = ToArgbWpf(ThemeHelper.GetTextBrush()),
+                SubTextArgb = ToArgbWpf(ThemeHelper.GetSubTextBrush()),
+                HighlightArgb = (uint)(highlightAlpha << 24 | accentColor.R << 16 | accentColor.G << 8 | accentColor.B),
+                BreakRowBackgroundArgb = isDark ? 0x14FFFFFFu : 0x14000000u,
+                SeparatorArgb = ToArgbWpf(separatorLineColor),
+                ShowTomorrow = _showingTomorrowWpf,
+            };
+
+            // ---- 当前课索引 / 课间行（明日课表不参与"当前课高亮 / 课间行"，那些语义只对当天成立）----
+            int currentIndex = -1;
+            FloatScheduleBreakModel? currentBreak = null;
+            double classRatio = 0, breakRatio = 0;
+            var nowTimeOfDay = GetClassIslandNow().TimeOfDay;
+            var curStateWpf = todayState;
+
+            if (curStateWpf == TimeState.OnClass && !_showingTomorrowWpf)
+            {
+                for (int i = 0; i < classRows.Count; i++)
+                {
+                    var stRow = ReflectGetStartTime(classRows[i].LayoutItem);
+                    var edRow = ReflectGetEndTime(classRows[i].LayoutItem);
+                    if (nowTimeOfDay >= stRow && nowTimeOfDay < edRow) { currentIndex = i; break; }
+                }
+                if (currentIndex < 0 && lessonsService != null)
+                {
+                    var curItem = ReflectGetCurrentTimeLayoutItemService(lessonsService);
+                    if (curItem != null)
+                    {
+                        var curS = ReflectGetStartTime(curItem);
+                        var curE = ReflectGetEndTime(curItem);
+                        for (int i = 0; i < classRows.Count; i++)
+                        {
+                            if (ReflectGetStartTime(classRows[i].LayoutItem) == curS &&
+                                ReflectGetEndTime(classRows[i].LayoutItem) == curE)
+                            { currentIndex = i; break; }
+                        }
+                    }
+                }
+            }
+            if (currentIndex >= 0 && currentIndex < classRows.Count)
+            {
+                var li = classRows[currentIndex].LayoutItem;
+                var st = ReflectGetStartTime(li);
+                var ed = ReflectGetEndTime(li);
+                if (ed > st)
+                    classRatio = Math.Clamp((nowTimeOfDay - st).TotalSeconds / (ed - st).TotalSeconds, 0.0, 1.0);
+            }
+
+            if (curStateWpf == TimeState.Breaking && classRows.Count >= 2 && lessonsService != null && !_showingTomorrowWpf)
+            {
+                var realBi = FindBreakItemByRealTimeWpf(nowTimeOfDay, out var bsReal, out var beReal);
+                var bLi = realBi ?? ReflectGetCurrentTimeLayoutItemService(lessonsService);
+                if (bLi != null && ReflectGetTimeType(bLi) == 1)
+                {
+                    var bs = realBi != null ? bsReal : ReflectGetStartTime(bLi);
+                    var be = realBi != null ? beReal : ReflectGetEndTime(bLi);
+                    var firstStart = ReflectGetStartTime(classRows[0].LayoutItem);
+                    var lastEnd = ReflectGetEndTime(classRows[classRows.Count - 1].LayoutItem);
+                    int insertAfter = -1;
+                    if (bs >= firstStart && be <= lastEnd)
+                    {
+                        int iMaxEndLeBs = -1;
+                        for (int k = 0; k < classRows.Count; k++)
+                        {
+                            if (ReflectGetEndTime(classRows[k].LayoutItem) <= bs) iMaxEndLeBs = k;
+                            else break;
+                        }
+                        int iMinStartGeBe = classRows.Count;
+                        for (int k = classRows.Count - 1; k >= 0; k--)
+                        {
+                            if (ReflectGetStartTime(classRows[k].LayoutItem) >= be) iMinStartGeBe = k;
+                            else break;
+                        }
+                        if (iMaxEndLeBs >= 0 && iMinStartGeBe < classRows.Count && iMaxEndLeBs < iMinStartGeBe)
+                            insertAfter = iMaxEndLeBs;
+                    }
+                    if (realBi == null && nowTimeOfDay.TotalSeconds - be.TotalSeconds > EndOverrunToleranceSecWpf)
+                    {
+                        int gapIdx = FindBreakGapIndexByRealTimeWpf(nowTimeOfDay, out var gs, out var ge);
+                        if (gapIdx >= 0)
+                        {
+                            insertAfter = gapIdx;
+                            bs = gs;
+                            be = ge;
+                        }
+                        else
+                        {
+                            insertAfter = -1;
+                        }
+                    }
+                    if (insertAfter >= 0)
+                    {
+                        currentBreak = new FloatScheduleBreakModel
+                        {
+                            AfterClassIndex = insertAfter,
+                            Name = ReflectGetBreakNameText(bLi),
+                            TimeText = $"{FormatHhMm(bs)} - {FormatHhMm(be)}",
+                            StartSec = bs.TotalSeconds,
+                            EndSec = be.TotalSeconds,
+                        };
+                        if (be > bs)
+                            breakRatio = Math.Clamp((nowTimeOfDay - bs).TotalSeconds / (be - bs).TotalSeconds, 0.0, 1.0);
+                    }
+                }
+            }
+
+            // ---- 全部课间项（子进程在宿主推送中断时据此按本地时钟自主判断课间状态）----
+            foreach (var b in _breakItemsWpf)
+            {
+                var bs = ReflectGetStartTime(b);
+                var be = ReflectGetEndTime(b);
+                int after = -1;
+                for (int k = 0; k < classRows.Count; k++)
+                {
+                    if (ReflectGetEndTime(classRows[k].LayoutItem) <= bs) after = k;
+                    else break;
+                }
+                model.AllBreaks.Add(new FloatScheduleBreakModel
+                {
+                    AfterClassIndex = after,
+                    Name = ReflectGetBreakNameText(b),
+                    TimeText = $"{FormatHhMm(bs)} - {FormatHhMm(be)}",
+                    StartSec = bs.TotalSeconds,
+                    EndSec = be.TotalSeconds,
+                });
+            }
+
+            // ---- 档案分隔线插入位置（i 行之后）----
+            foreach (var s in _separatorItemsWpf)
+            {
+                var sStart = ReflectGetStartTime(s);
+                int idx = -1;
+                for (int k = 0; k < classRows.Count; k++)
+                {
+                    if (ReflectGetEndTime(classRows[k].LayoutItem) <= sStart) idx = k;
+                    else break;
+                }
+                if (idx >= 0 && idx < classRows.Count - 1) model.SeparatorAfterClassIndex.Add(idx);
+            }
+
+            // ---- 课程行（终态字符串：课程名 / 教师名 / 时间区间 + 起止秒）----
+            foreach (var (_, subject, layoutItem) in classRows)
+            {
+                var start = ReflectGetStartTime(layoutItem);
+                var end = ReflectGetEndTime(layoutItem);
+
+                string? teacherTitle = null;
+                if (_settings.FloatingScheduleShowTeacher && subject != null && !string.IsNullOrWhiteSpace(subject.TeacherName))
+                {
+                    if (_settings.FloatingScheduleEnableFullTeacherName)
+                    {
+                        teacherTitle = subject.TeacherName.Trim();
+                    }
+                    else
+                    {
+                        var surname = subject.GetFirstName();
+                        if (!string.IsNullOrWhiteSpace(surname)) teacherTitle = surname + "老师";
+                    }
+                }
+
+                model.Rows.Add(new FloatScheduleRowModel
+                {
+                    Course = subject?.Name ?? "?",
+                    Teacher = teacherTitle,
+                    TimeText = $"{FormatHhMm(start)} - {FormatHhMm(end)}",
+                    StartSec = start.TotalSeconds,
+                    EndSec = end.TotalSeconds,
+                });
+            }
+
+            if (classRows.Count == 0)
+            {
+                // 空表占位（今天 / 明天各有独立文案）
+                model.PlaceholderText = ResolvePlaceholderTextWpf();
+            }
+            else
+            {
+                model.CurrentClassIndex = currentIndex;
+                model.Break = currentBreak;
+                model.ClassProgressRatio = classRatio;
+                model.BreakProgressRatio = breakRatio;
+                model.Anchor = new FloatScheduleAnchor
+                {
+                    ClassStartSec = currentIndex >= 0 && currentIndex < classRows.Count
+                        ? ReflectGetStartTime(classRows[currentIndex].LayoutItem).TotalSeconds : 0,
+                    ClassEndSec = currentIndex >= 0 && currentIndex < classRows.Count
+                        ? ReflectGetEndTime(classRows[currentIndex].LayoutItem).TotalSeconds : 0,
+                    BreakStartSec = currentBreak?.StartSec ?? 0,
+                    BreakEndSec = currentBreak?.EndSec ?? 0,
+                    NowSecOfDay = nowTimeOfDay.TotalSeconds,
+                    OnClass = currentIndex >= 0,
+                    Breaking = currentBreak != null,
+                    SentUtcMs = DateTimeOffset.UtcNow.ToUnixTimeMilliseconds(),
+                };
+            }
+
+            PublishModelWpf(model);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "RefreshIndependentModelWpf 异常（忽略）");
+        }
+    }
+
+    /// <summary>
+    /// 发布渲染模型：独立进程已连接 → 经管道推送（子进程渲染）；
+    /// 未连接时仅写入 HostProcessService 缓存，供子进程 Init 时补发。
+    /// </summary>
+    private void PublishModelWpf(FloatScheduleRenderModel model)
+    {
+        _lastIndependentModelWpf = model;
+        if (IndependentActive)
+        {
+            _hostProcess?.SendModel(model);
+            return;
+        }
+        _hostProcess?.CacheModel(model);
+    }
+
+    /// <summary>
+    /// 独立进程模式的进度增量推送（500ms Tick）：子进程据此平滑推进进度条。
+    /// 无进程内窗口时不能走 UpdateProgress 的 UI 分支，故此处自行完成两件事：
+    ///   ① 状态变化检测（上课/课间/跨天/连续课间超时）→ 重建并推送整表模型；
+    ///   ② 状态未变 → 只推送进度增量（避免每 500ms 重建整表）。
+    /// 另每 5s 无条件重建一次（与进程内实现的 5s 硬刷新同规格），覆盖“连续上课换行”等状态码看不出的变化。
+    /// </summary>
+    private void PushIndependentProgressWpf()
+    {
+        if (!_settings.EnableFloatingSchedule) return;
+        var model = _lastIndependentModelWpf;
+        if (model == null) return;
+
+        try
+        {
+            var lessonsService = IAppHost.TryGetService<ILessonsService>();
+            var stateCode = (int)(lessonsService?.CurrentState ?? TimeState.None);
+            long breakStartTicks = -1, breakEndTicks = -1;
+            if (lessonsService != null && lessonsService.CurrentState == TimeState.Breaking)
+            {
+                var curBreakLi = ReflectGetCurrentTimeLayoutItemService(lessonsService);
+                if (curBreakLi != null && ReflectGetTimeType(curBreakLi) == 1)
+                {
+                    breakStartTicks = ReflectGetStartTime(curBreakLi).Ticks;
+                    breakEndTicks = ReflectGetEndTime(curBreakLi).Ticks;
+                }
+            }
+
+            bool stateChanged = stateCode != _lastIndepStateCode
+                || breakStartTicks != _lastIndepBreakStartTicks
+                || breakEndTicks != _lastIndepBreakEndTicks;
+
+            // 连续课间 B1→B2：SDK 的 CurrentTimeLayoutItem 会滞后 1-2 Tick 仍返回 B1，
+            //  真实时间已越过 SDK 课间 End + 容忍 → 强制重建，课间行/进度条立即切到 B2。
+            if (!stateChanged && stateCode == (int)TimeState.Breaking && breakEndTicks > 0)
+            {
+                if (GetClassIslandNow().TimeOfDay.TotalSeconds - TimeSpan.FromTicks(breakEndTicks).TotalSeconds
+                    > EndOverrunToleranceSecWpf)
+                    stateChanged = true;
+            }
+            var todayDate = GetClassIslandNow().Date;
+            if (todayDate != _lastIndepDate) stateChanged = true;
+
+            _lastIndepStateCode = stateCode;
+            _lastIndepBreakStartTicks = breakStartTicks;
+            _lastIndepBreakEndTicks = breakEndTicks;
+            _lastIndepDate = todayDate;
+
+            _indepHardSyncCounter = (_indepHardSyncCounter + 1) % 10;
+            if (stateChanged || _indepHardSyncCounter == 0)
+            {
+                // 整表重建已携带最新进度比例，无需再单独推一次进度
+                RefreshIndependentModelWpf();
+                return;
+            }
+        }
+        catch { }
+        double classRatio = 0, breakRatio = 0;
+        try
+        {
+            if (!model.ShowTomorrow)
+            {
+                double nowSec = GetClassIslandNow().TimeOfDay.TotalSeconds;
+                int idx = model.CurrentClassIndex;
+                if (idx < 0 || idx >= model.Rows.Count)
+                {
+                    idx = -1;
+                    for (int i = 0; i < model.Rows.Count; i++)
+                    {
+                        var r = model.Rows[i];
+                        if (r.EndSec > r.StartSec && nowSec >= r.StartSec && nowSec < r.EndSec) { idx = i; break; }
+                    }
+                }
+                if (idx >= 0 && idx < model.Rows.Count)
+                {
+                    var row = model.Rows[idx];
+                    if (row.EndSec > row.StartSec)
+                        classRatio = Math.Clamp((nowSec - row.StartSec) / (row.EndSec - row.StartSec), 0.0, 1.0);
+                }
+                var brk = model.Break;
+                if (brk != null && brk.EndSec > brk.StartSec)
+                    breakRatio = Math.Clamp((nowSec - brk.StartSec) / (brk.EndSec - brk.StartSec), 0.0, 1.0);
+            }
+        }
+        catch { }
+        _hostProcess?.SendProgress(classRatio, breakRatio);
+    }
+
+    // 独立进程模式的状态快照（用于 500ms Tick 判断是否需要重建模型）
+    private int _lastIndepStateCode = -1;
+    private long _lastIndepBreakStartTicks = -1;
+    private long _lastIndepBreakEndTicks = -1;
+    private DateTime _lastIndepDate = DateTime.MinValue;
+    private int _indepHardSyncCounter;
+
+    /// <summary>构造下发给子进程的行为设置快照（位置用 WPF 侧的 DIP 口径，与进程内实现一致）。</summary>
+    private FloatScheduleWindowSettings BuildWindowSettingsSnapshotWpf() => new()
+    {
+        Layer = _settings.FloatingScheduleWindowLayer == FloatingScheduleWindowLayer.Topmost ? 1 : 0,
+        TopmostRefreshMode = (int)_settings.FloatingScheduleTopmostRefreshMode,
+        ClickThrough = _settings.FloatingScheduleClickThrough,
+        HoverFade = _settings.FloatingScheduleHoverFade,
+        HoverFadeReverse = _settings.FloatingScheduleHoverFadeReverse,
+        EdgeHide = _settings.FloatingScheduleEdgeHide,
+        EdgeHideDelay = _settings.FloatingScheduleEdgeHideDelay,
+        RandomTitle = _settings.FloatingScheduleRandomTitle,
+        RandomTitleEnhanced = _settings.FloatingScheduleRandomTitleEnhanced,
+        PreventCapture = _settings.FloatingSchedulePreventCapture,
+        PositionX = _settings.FloatingSchedulePositionX,
+        PositionY = _settings.FloatingSchedulePositionY,
+        FollowHostLifetime = _settings.FloatingScheduleFollowHostLifetime,
+        // 下传子进程 exe 指纹：旧子进程在插件更新后据此识别自己已过期并退出
+        ExeStamp = _hostProcess?.ChildExeStamp ?? "",
+    };
+
+    /// <summary>悬浮窗行为类设置变化 → 独立进程模式下重推设置快照（即时生效，无需重启 ClassIsland）。
+    /// 模式开启但子进程未连接时同样缓存快照（SendSettings 内部缓存，Init 时一并补发）。</summary>
+    private void PublishIndependentSettingsWpf()
+    {
+        if (_hostProcess == null || !IndependentRequested) return;
+        try { _hostProcess.SendSettings(BuildWindowSettingsSnapshotWpf()); }
+        catch (Exception ex) { _logger.LogDebug(ex, "PublishIndependentSettingsWpf 异常（忽略）"); }
+    }
+
+    /// <summary>子进程已连接：推送最新设置/模型/可见性完成接管（进程内窗口在模式开启瞬间即已关闭）。</summary>
+    private void OnIndependentChildConnectedWpf()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        void Run()
+        {
+            try
+            {
+                PublishIndependentSettingsWpf();
+                RefreshSchedule();
+                ApplyShouldHideWpf();
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentChildConnectedWpf 异常（忽略）"); }
+        }
+        if (dispatcher == null || dispatcher.CheckAccess()) Run();
+        else dispatcher.BeginInvoke(Run, DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// 独立模式状态变化：
+    ///  - 转入 Failed（子进程反复启动失败/缺运行库）→ 自动回退：恢复进程内悬浮窗（避免用户看不到任何课表）；
+    ///  - 从 Failed 恢复（用户点"重启"，ShouldUseIndependent 重新为 true）→ 立即再关闭进程内悬浮窗。
+    /// </summary>
+    private void OnIndependentStatusChangedWpf()
+    {
+        var hp = _hostProcess;
+        if (hp == null || !_settings.FloatingScheduleIndependentProcess) return;
+        bool failed = hp.Status == FloatScheduleHostProcessService.ChildStatus.Failed;
+        if (failed == _lastIndependentFailedWpf) return;
+        _lastIndependentFailedWpf = failed;
+
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        void Run()
+        {
+            if (failed)
+            {
+                if (_settings.EnableFloatingSchedule) RestoreInProcessWindowWpf();
+            }
+            else
+            {
+                CloseInProcessWindowWpf();
+            }
+        }
+        if (dispatcher == null || dispatcher.CheckAccess()) Run();
+        else dispatcher.BeginInvoke(Run, DispatcherPriority.Normal);
+    }
+
+    /// <summary>
+    /// 用户在子进程托盘图标点了"退出"：退出的只是"独立进程"这个渲染程序，悬浮课表本身继续显示 ——
+    /// 因此**不再关闭悬浮窗总开关**，只关闭独立进程模式，由插件回退到进程内渲染。
+    /// </summary>
+    private void OnIndependentExitRequestedWpf()
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        void Run()
+        {
+            try
+            {
+                if (_settings.FloatingScheduleIndependentProcess) _settings.FloatingScheduleIndependentProcess = false;
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentExitRequestedWpf 异常（忽略）"); }
+        }
+        if (dispatcher == null || dispatcher.CheckAccess()) Run();
+        else dispatcher.BeginInvoke(Run, DispatcherPriority.Normal);
+    }
+
+    /// <summary>子进程拖拽稳定后回报窗口位置（DIP）→ 写回设置（值相等不写，杜绝回环）。</summary>
+    private void OnIndependentPositionReportedWpf(int x, int y)
+    {
+        var dispatcher = System.Windows.Application.Current?.Dispatcher;
+        void Run()
+        {
+            try
+            {
+                if (_settings.FloatingSchedulePositionX != x) _settings.FloatingSchedulePositionX = x;
+                if (_settings.FloatingSchedulePositionY != y) _settings.FloatingSchedulePositionY = y;
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentPositionReportedWpf 写回位置异常（忽略）"); }
+        }
+        if (dispatcher == null || dispatcher.CheckAccess()) Run();
+        else dispatcher.BeginInvoke(Run, DispatcherPriority.Normal);
+    }
+
+    /// <summary>立即关闭并销毁进程内悬浮窗（独立模式开启 / 从 Failed 恢复时调用）。幂等。</summary>
+    private void CloseInProcessWindowWpf()
+    {
+        try
+        {
+            DetachTopmostRefreshWpf();
+            try { _randomTitleTimerWpf?.Stop(); } catch { }
+            HideWindow();
+            if (_window != null)
+            {
+                _allowClose = true;
+                try { _window.Close(); } catch { }
+                _allowClose = false;
+            }
+            // 释放窗口引用：EnsureWindow 守卫保证独立模式期间不再重建；回退时再重建
+            _window = null;
+            _containerBorder = null;
+            _tableGrid = null;
+            _lastWpfClickThroughApplied = false;
+            _currentProgressIndicator = null;
+            _currentProgressHost = null;
+            _currentBreakProgressIndicator = null;
+            _currentBreakProgressHost = null;
+            // 进度定时器保持运行（独立模式下用于推送进度增量与可见性）
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "CloseInProcessWindowWpf 异常（忽略）"); }
+    }
+
+    /// <summary>恢复进程内悬浮窗渲染（模式关闭 / 子进程 Failed 回退）。幂等：模式仍生效时直接返回。</summary>
+    private void RestoreInProcessWindowWpf()
+    {
+        try
+        {
+            if (IndependentRequested) return;
+            if (!_settings.EnableFloatingSchedule)
+            {
+                // 主开关关闭：只需停定时器与隐藏
+                DetachTopmostRefreshWpf();
+                HideWindow();
+                _refreshTimer.Stop();
+                _hoverFadeTimer?.Stop();
+                return;
+            }
+            EnsureWindow();
+            ShowWindow();
+            RefreshSchedule();
+            ApplyWindowLayer();
+            ApplyClickThrough();
+            ApplyHoverFade(force: true);
+            _refreshTimer.Start();
+            _hoverFadeTimer?.Start();
+            EnsureHostSettingsSubscriptionWpf();
+            if (_window != null) AttachTopmostRefreshWpf(_window, _settings.FloatingScheduleTopmostRefreshMode);
+            ApplyRandomTitleWpf();
+            StartOrStopRandomTitleTimerWpf();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "RestoreInProcessWindowWpf 异常（忽略）"); }
+    }
+
     private void EnsureWindow()
     {
         if (_window != null) return;
+        // 【独立进程模式】开关开启（含子进程尚未连接的启动窗口期）即不创建进程内窗口
+        if (IndependentRequested) return;
 
         _allowClose = false;
 
@@ -864,6 +1655,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
         _window.Loaded += OnWindowLoaded;
         _window.Closing += OnWindowClosing;
         _window.LocationChanged += OnWindowLocationChanged;
+
+        // 【修复：贴边隐藏后内容变矮/变窄 → 窗口整块跑出屏幕】
+        //   悬浮窗是 SizeToContent：内容变化会改变窗口尺寸，而贴边隐藏位是按旧尺寸算的（含“减尺寸”项），
+        //   尺寸变小后窗口连可见条一起被推出屏幕 → 用户看到“时间表突然完全不见”。
+        //   双钩（LayoutUpdated + SizeChanged）：前者覆盖“内容重排”信号，后者是“窗口尺寸真的变了”的权威信号，
+        //   任一先到都会按最终尺寸重算一次隐藏位（未贴边或尺寸未变时零开销早退）。事件随窗口生命周期，关闭后自动失效。
+        _window.LayoutUpdated += (_, _) => RefreshEdgeGeometryOnResizeWpf();
+        _window.SizeChanged += (_, _) => RefreshEdgeGeometryOnResizeWpf();
 
         _containerBorder = new Border
         {
@@ -932,6 +1731,22 @@ public class FloatingScheduleService : IDisposable, IHostedService
         try { ApplyHoverFade(force: true); } catch { /* ignore */ }
         // 【防止截图】hwnd 已建立，按设置应用窗口捕获亲和性（affinity 绑定 HWND，窗口重建需重设）
         try { ApplyPreventCaptureWpf(); } catch { /* ignore */ }
+
+        // 【现场排查】宿主 Release 日志最低级别为 Information（Debug 不落盘），故用 Information 记录一次：
+        //  这行同时证明“窗口已创建”并给出最终落地的扩展样式（正常应含 0x80 TOOLWINDOW、0x80000 LAYERED、
+        //  0x2000000 COMPOSITED；开启穿透时应另有 0x20 TRANSPARENT）。若日志里完全没有本行，说明宿主
+        //  Host.StartAsync 未走到本服务（例如更早注册的其它插件 IHostedService 抛异常，导致后续服务不再启动），
+        //  与本插件的窗口/样式无关。
+        try
+        {
+            var hwndLog = new System.Windows.Interop.WindowInteropHelper(_window!).Handle;
+            if (hwndLog != IntPtr.Zero)
+            {
+                _logger.LogInformation("悬浮时间表窗口已创建，exStyle=0x{Ex:x}",
+                    GetWindowLong(hwndLog, GWL_EXSTYLE).ToInt64());
+            }
+        }
+        catch { /* ignore */ }
     }
 
     private void OnWindowClosing(object? sender, CancelEventArgs e)
@@ -1289,6 +2104,123 @@ public class FloatingScheduleService : IDisposable, IHostedService
         }
     }
 
+    // 贴边状态下最近一次已知的窗口尺寸（DIP，用于尺寸变化检测）
+    private double _edgeLastSizeWWpf, _edgeLastSizeHWpf;
+    // 贴边时记录下来的屏幕工作区（DIP；隐藏位计算的权威来源，见 ResolveEdgeWorkAreaWpf）
+    private (double Left, double Top, double Right, double Bottom)? _edgeWorkAreaWpf;
+
+    /// <summary>
+    /// 取“隐藏位计算所用的屏幕工作区”：能查到屏幕（窗口在屏上）就用实时值并刷新缓存；
+    /// 查不到时用“贴边时记录的”工作区兜底——贴边隐藏后窗口被移出屏幕，
+    /// 而“内容变矮需要重算隐藏位”恰恰发生在这种离屏状态下，没有兜底会永久卡在屏幕外。
+    /// </summary>
+    private bool ResolveEdgeWorkAreaWpf(out double left, out double top, out double right, out double bottom)
+    {
+        if (TryGetWorkAreaDipWpf(out left, out top, out right, out bottom))
+        {
+            _edgeWorkAreaWpf = (left, top, right, bottom);
+            return true;
+        }
+
+        if (_edgeWorkAreaWpf is { } cached)
+        {
+            left = cached.Left;
+            top = cached.Top;
+            right = cached.Right;
+            bottom = cached.Bottom;
+            return true;
+        }
+
+        left = top = right = bottom = 0;
+        return false;
+    }
+
+    /// <summary>
+    /// 计算“滑出隐藏位”：沿贴靠边移出，只保留 <see cref="EdgeHideVisibleStripDip"/> 的可见条。
+    /// 【必须按当前窗口尺寸算】左/上边的隐藏位含“减宽/减高”项，尺寸变化后旧隐藏位不再成立
+    /// （尺寸变小时窗口连可见条一起被推出屏幕，见 <see cref="RefreshEdgeGeometryOnResizeWpf"/>）。
+    /// </summary>
+    private static bool TryComputeEdgeHiddenPosWpf(int side, double baseLeft, double baseTop,
+        double w, double h, double wl, double wt, double wr, double wb, out double hideLeft, out double hideTop)
+    {
+        hideLeft = baseLeft;
+        hideTop = baseTop;
+        switch (side)
+        {
+            case 1: hideLeft = wl - w + EdgeHideVisibleStripDip; break;   // 左：滑出，右缘留可见条
+            case 2: hideLeft = wr - EdgeHideVisibleStripDip; break;       // 右：滑出，左缘留可见条
+            case 3: hideTop = wt - h + EdgeHideVisibleStripDip; break;    // 上：滑出，下缘留可见条
+            case 4: hideTop = wb - EdgeHideVisibleStripDip; break;        // 下：滑出，上缘留可见条
+            default: return false;
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 按给定尺寸重算并应用隐藏位：隐藏态立即落位；滑出动画进行中则只更新目标字段
+    /// （动画结束后由下一轮尺寸检查重算落位）。
+    /// 返回是否成功算出隐藏位（false 时调用方不得提交尺寸缓存，以便后续重试）。
+    /// </summary>
+    private bool ApplyEdgeHiddenPosWpf(double w, double h)
+    {
+        if (_window == null || _edgeSideWpf == 0) return false;
+        if (!ResolveEdgeWorkAreaWpf(out var wl, out var wt, out var wr, out var wb)) return false;
+        if (!TryComputeEdgeHiddenPosWpf(_edgeSideWpf, _edgeNormalLeftWpf, _edgeNormalTopWpf, w, h,
+                wl, wt, wr, wb, out var hl, out var ht)) return false;
+
+        _edgeHiddenTargetLeftWpf = hl;
+        _edgeHiddenTargetTopWpf = ht;
+
+        if (_edgeHiddenWpf && !_edgeAnimatingWpf)
+        {
+            try
+            {
+                _window.BeginAnimation(Window.LeftProperty, null);
+                _window.BeginAnimation(Window.TopProperty, null);
+                _window.Left = hl;
+                _window.Top = ht;
+            }
+            catch { /* ignore */ }
+        }
+
+        return true;
+    }
+
+    /// <summary>
+    /// 【修复：内容变矮/变窄后贴边隐藏的窗口整块跑出屏幕】
+    ///   悬浮窗是 SizeToContent：内容一变化（下课/上课行增删、课表行数变化、有课切无课占位等）
+    ///   宽高就会变，而隐藏位是按旧尺寸算的（左/上边含“减宽/减高”项）：
+    ///     · 贴上边隐藏：隐藏 Y = 工作区上边 - 高度 + 6px → 高度变矮 → 窗口底边跑到屏幕上方 → 完全不可见；
+    ///     · 贴左边隐藏：隐藏 X = 工作区左边 - 宽度 + 6px → 宽度变窄 → 窗口右边跑到屏幕左侧 → 完全不可见。
+    ///   故尺寸变化时按新尺寸重算隐藏位；处于隐藏态则直接把窗口移到新隐藏位（可见条保持 6px）。
+    /// </summary>
+    private void RefreshEdgeGeometryOnResizeWpf()
+    {
+        try
+        {
+            if (_window == null) return;
+            // 未贴边 / 拖拽中：与隐藏位无关
+            if (_edgeSideWpf == 0 || _mouseDraggingWpf || _touchDragIdWpf >= 0) return;
+
+            double w = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
+            double h = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
+            if (w <= 0 || h <= 0) return;
+            // 尺寸没变 → 零开销返回（避免布局回调循环）
+            if (Math.Abs(w - _edgeLastSizeWWpf) < 0.5 && Math.Abs(h - _edgeLastSizeHWpf) < 0.5) return;
+
+            // 【关键修复】只有应用成功才提交尺寸缓存：否则某次应用失败（窗口已离屏、算不出隐藏位）后
+            //   缓存却已更新 → 此后永远判定“尺寸没变” → 再也不会重试，窗口永久停在屏幕外。
+            if (!ApplyEdgeHiddenPosWpf(w, h)) return;
+            _edgeLastSizeWWpf = w;
+            _edgeLastSizeHWpf = h;
+        }
+        catch
+        {
+            // 布局回调中的异常不得外泄
+        }
+    }
+
     /// <summary>
     /// 检测窗口当前贴靠的屏幕边缘。返回 0=不贴边；out 返回"若隐藏应滑到的目标位置"。
     /// </summary>
@@ -1296,7 +2228,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
     {
         hideLeft = hideTop = 0;
         if (_window == null) return 0;
-        if (!TryGetWorkAreaDipWpf(out var wl, out var wt, out var wr, out var wb)) return 0;
+        if (!ResolveEdgeWorkAreaWpf(out var wl, out var wt, out var wr, out var wb)) return 0;
 
         double w = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
         double h = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
@@ -1316,16 +2248,10 @@ public class FloatingScheduleService : IDisposable, IHostedService
         if (db < best) { best = db; side = 4; }
         if (side == 0) return 0;
 
-        hideLeft = _window.Left;
-        hideTop = _window.Top;
-        switch (side)
-        {
-            case 1: hideLeft = wl - w + EdgeHideVisibleStripDip; break;   // 左：滑出，右缘留 6px 可见条
-            case 2: hideLeft = wr - EdgeHideVisibleStripDip; break;       // 右：滑出，左缘留 6px 可见条
-            case 3: hideTop = wt - h + EdgeHideVisibleStripDip; break;    // 上：滑出，下缘留 6px
-            case 4: hideTop = wb - EdgeHideVisibleStripDip; break;        // 下：滑出，上缘留 6px
-        }
-        return side;
+        return TryComputeEdgeHiddenPosWpf(side, _window.Left, _window.Top, w, h, wl, wt, wr, wb,
+            out hideLeft, out hideTop)
+            ? side
+            : 0;
     }
 
     /// <summary>
@@ -1349,8 +2275,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 // 清除动画时钟 → 写本地值落地，避免动画值优先级导致后续直接赋值失效
                 win.BeginAnimation(Window.LeftProperty, null);
                 win.BeginAnimation(Window.TopProperty, null);
-                win.Left = toLeft;
-                win.Top = toTop;
+                // 【贴边尺寸自愈】滑出动画进行中若因内容尺寸变化更新了隐藏位目标，落地时以最新目标为准，
+                //   否则会落到只对旧尺寸成立的旧隐藏位（窗口可能因此整块停在屏幕外）。
+                var landLeft = _edgeHiddenWpf ? _edgeHiddenTargetLeftWpf : toLeft;
+                var landTop = _edgeHiddenWpf ? _edgeHiddenTargetTopWpf : toTop;
+                win.Left = landLeft;
+                win.Top = landTop;
             }
             catch { /* ignore */ }
             _edgeAnimatingWpf = false;
@@ -1445,6 +2375,9 @@ public class FloatingScheduleService : IDisposable, IHostedService
         //  记录正常位（滑回目标）与滑出目标位，安排/等待延迟，到期后才真正滑出隐藏。
         _edgeNormalLeftWpf = _window.Left;
         _edgeNormalTopWpf = _window.Top;
+        // 记录贴边时的窗口尺寸，作为“贴边尺寸自愈”的基线：此后尺寸变化才会触发隐藏位重算
+        _edgeLastSizeWWpf = _window.ActualWidth > 0 ? _window.ActualWidth : _window.Width;
+        _edgeLastSizeHWpf = _window.ActualHeight > 0 ? _window.ActualHeight : _window.Height;
         if (!_edgeSlideOutPendingWpf)
         {
             _edgeSlideOutPendingWpf = true;
@@ -1646,6 +2579,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
     /// <summary>检查并应用隐藏/显示，仅在"期望状态"与"当前实际状态"不同且非拖拽中时执行 Hide/Show。</summary>
     private void ApplyShouldHideWpf()
     {
+        if (IndependentRequested)
+        {
+            // 【独立进程模式】HideMode 规则判定全部留在插件进程（FollowHost 查宿主主窗可见性、基础/高级模式复用宿主设置与规则集），
+            // 子进程只跟随 visible 消息显示/隐藏。模式开启但未连接时也要走这里：SendVisible 会缓存期望可见性供 Init 后补发。
+            bool wantHideInd = !_settings.EnableFloatingSchedule || EvaluateShouldHideWpf();
+            _hostProcess?.SendVisible(!wantHideInd);
+            return;
+        }
         if (_window == null || !_settings.EnableFloatingSchedule) return;
         if (_mouseDraggingWpf || _touchDragIdWpf >= 0 || _edgeAnimatingWpf) return;   // 拖动/滑移中不打断
         bool wantHide = EvaluateShouldHideWpf();
@@ -1666,6 +2607,8 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private void ShowWindow()
     {
+        // 【独立进程模式】开关开启即禁止显示进程内窗口（UpdateProgress 500ms Tick 会反复走到这里）
+        if (IndependentRequested) return;
         try
         {
             _window?.Show();
@@ -2084,6 +3027,12 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
     private void RefreshSchedule()
     {
+        // 【独立进程模式】进程内不重建 UI：只构建/推送渲染模型（子进程未连接时缓存供 Init 补发）
+        if (IndependentRequested)
+        {
+            RefreshIndependentModelWpf();
+            return;
+        }
         if (_window == null || _containerBorder == null) return;
         // 【修复：初始化时处于课间无法显示时间表】冷启动 sentinel 识别：
         //   RefreshSchedule 顶部会把 _lastWpfRefreshStateCode 重置为 -1（见下方），因此必须在重置前捕获旧值。
@@ -2132,16 +3081,23 @@ public class FloatingScheduleService : IDisposable, IHostedService
             //  改为 GetClassIslandNow().Date（走宿主 ExactTimeService，含 DebugTimeOffsetSeconds + TimeOffsetSeconds 偏移），
             //  跨天调试时 ClassPlan 立刻抓目标日期课表，而不是停留在系统日期课。
             DateTime todayBaseWpf = GetClassIslandNow().Date;
-            ClassPlan? classPlan = null;
-            if (lessonsService != null)
+            // ---- 今日 / 明日课表选择（"显示明天课表"四档；参考 ClassIsland 课程表组件）----
+            //  与 ClassIsland 一致的"放学后"判定：当前时间状态为放学后，或当天课表未加载。
+            var todayStateForTomorrow = lessonsService?.CurrentState ?? TimeState.None;
+            var currentPlanWpf = lessonsService?.CurrentClassPlan;
+            var todayPlanByDateWpf = lessonsService?.GetClassPlanByDate(todayBaseWpf);
+            bool isAfterSchoolForTomorrow = todayStateForTomorrow == TimeState.AfterSchool || currentPlanWpf == null;
+            _showingTomorrowWpf = _settings.FloatingScheduleTomorrowShowMode switch
             {
-                classPlan = lessonsService.GetClassPlanByDate(todayBaseWpf);
-                // 有时 CurrentClassPlan 已经被加载，优先使用当前的
-                if (lessonsService.CurrentClassPlan != null)
-                {
-                    classPlan = lessonsService.CurrentClassPlan;
-                }
-            }
+                FloatingScheduleTomorrowShowMode.Always => true,
+                FloatingScheduleTomorrowShowMode.AfterSchool => isAfterSchoolForTomorrow,
+                FloatingScheduleTomorrowShowMode.OnEmpty => !PlanHasDisplayableRowsWpf(currentPlanWpf ?? todayPlanByDateWpf),
+                _ => false,
+            };
+            ClassPlan? classPlan = _showingTomorrowWpf
+                // 明天课表必须按日期独立取，不能复用 CurrentClassPlan（那是今天的课表）
+                ? lessonsService?.GetClassPlanByDate(todayBaseWpf.AddDays(1))
+                : (currentPlanWpf ?? todayPlanByDateWpf);
 
             // 取科目映射
             Dictionary<Guid, Subject> subjectsMap = ReflectBuildSubjectsMap(profileService?.Profile?.Subjects!);
@@ -2160,10 +3116,11 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
             var titleText = new TextBlock
             {
-                Text = "今日时间表",
+                // 【显示明天课表】标题与主题色对齐：明日课表用强调色加粗标识，当天课表用正文色
+                Text = _showingTomorrowWpf ? "明日时间表" : "今日时间表",
                 FontSize = fontSize,
                 FontWeight = FontWeights.Bold,
-                Foreground = textForeground,
+                Foreground = _showingTomorrowWpf ? new SolidColorBrush(GetAccentColor()) : textForeground,
                 VerticalAlignment = VerticalAlignment.Center,
                 Margin = new Thickness(0, 0, 0, 6)
             };
@@ -2240,10 +3197,10 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
             if (!hasClasses)
             {
-                // 占位符
+                // 占位符：与"显示明天课表"对齐（今天 / 明天各有独立配置项，留空时回退各自默认文案）
                 var placeholder = new TextBlock
                 {
-                    Text = "今天没有课程",
+                    Text = ResolvePlaceholderTextWpf(),
                     FontSize = fontSize,
                     Foreground = subtextForeground,
                     HorizontalAlignment = HorizontalAlignment.Center,
@@ -2304,7 +3261,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 var nowTimeOfDay = GetClassIslandNow().TimeOfDay;
                 var curStateWpf = lessonsService?.CurrentState ?? TimeState.None;
 
-                if (lessonsService != null && curStateWpf == TimeState.OnClass)
+                if (lessonsService != null && curStateWpf == TimeState.OnClass && !_showingTomorrowWpf)
                 {
                     // 【★ 时间跳变/连续上课 高亮定位】真实时间主选：
                     //  - 连续上课 C1→C2：now 一过 C1.End 即定位 C2（比等 SDK 推进更准）
@@ -2360,7 +3317,7 @@ public class FloatingScheduleService : IDisposable, IHostedService
                 TimeSpan breakEndWpf = default;
                 string breakNameWpf = "课间休息";
                 object? breakLayoutItemWpf = null;
-                if (curStateWpf == TimeState.Breaking && classRows.Count >= 2 && lessonsService != null)
+                if (curStateWpf == TimeState.Breaking && classRows.Count >= 2 && lessonsService != null && !_showingTomorrowWpf)
                 {
                     // 【★ 连续课间分别走进度】首选：真实时间定位当前课间项（连续课间 B1→B2→B3 各自独立区间，
                     //  课间行/进度条分别显示每个课间，而非课对空隙总长度）；找不到再回退 SDK CurrentTimeLayoutItem。
@@ -3161,6 +4118,14 @@ public class FloatingScheduleService : IDisposable, IHostedService
 
         // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（放在窗口可见性守卫之前，确保隐藏态下也能及时重显）
         ApplyShouldHideWpf();
+
+        // 【独立进程模式】无进程内窗口：只推送进度增量/可见性，不跑后面的 UI 分支（那些分支依赖进程内控件）
+        if (IndependentRequested)
+        {
+            PushIndependentProgressWpf();
+            return;
+        }
+
         if (_window == null || !_window.IsVisible) return;
 
         bool breaking = false;  // 提升到 try 外以便 finally 内同步 _wasBreakLastTickWpf

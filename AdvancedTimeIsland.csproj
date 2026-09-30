@@ -115,6 +115,12 @@
       <Content Remove="AdvancedTimeIslandFloatSchedule\**\*" />
       <AvaloniaResource Remove="AdvancedTimeIslandFloatSchedule\**\*" />
       <EmbeddedResource Remove="AdvancedTimeIslandFloatSchedule\**\*" />
+      <!-- 排除 WPF 版悬浮窗独立进程子项目代码，避免被本项目默认递归编译 -->
+      <Compile Remove="AdvancedTimeIslandWPFFloatSchedule\**\*.cs" />
+      <None Remove="AdvancedTimeIslandWPFFloatSchedule\**\*" />
+      <Content Remove="AdvancedTimeIslandWPFFloatSchedule\**\*" />
+      <AvaloniaResource Remove="AdvancedTimeIslandWPFFloatSchedule\**\*" />
+      <EmbeddedResource Remove="AdvancedTimeIslandWPFFloatSchedule\**\*" />
     </ItemGroup>
 
     <!-- 打包逻辑已统一交给 Build-Package.ps1 中的 Create-CipxPackage 函数执行，

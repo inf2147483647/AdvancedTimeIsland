@@ -1,0 +1,148 @@
+<ci:ComponentBase x:Class="AdvancedTimeIsland.Views.Main.AttendanceSettingsControl"
+                  x:TypeArguments="models:AttendanceSettings"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:local="clr-namespace:AdvancedTimeIsland.Views.Main"
+                  xmlns:models="clr-namespace:AdvancedTimeIsland.Models"
+                  xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                  mc:Ignorable="d"
+                  d:DesignHeight="700" d:DesignWidth="800"
+                  TextElement.Foreground="{DynamicResource MaterialDesignBody}">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{DynamicResource SettingsPageStackPanelStyle}">
+
+            <ci:IconText Kind="CalendarCheck" Text="总在校时间统计（ATI）设置" Margin="0 0 0 8" />
+
+            <TextBlock Text="统计学期内的在校天数与时长，自动排除周末、法定节假日与寒暑假，并展示学期进度与剩余量。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBodyLight}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+            <TextBlock Text="学期起止、每日在校时长、节假日与寒暑假等统计口径，请前往插件设置页的「在校时间统计」中配置。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBodyLight}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <!-- ==================== 显示设置 ==================== -->
+            <ci:IconText Kind="Tune" Text="显示设置" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="ProgressDisplayModeItem"
+                                IconGlyph="ProgressClock"
+                                Header="进度显示方式"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <ComboBox Width="240"
+                              HorizontalAlignment="Left"
+                              SelectionChanged="OnProgressDisplayModeChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="ShowSegmentDividerItem"
+                                IconGlyph="FormatVerticalAlignCenter"
+                                Header="在各段文案之间插入分割线"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="ShowSummaryTextItem"
+                                IconGlyph="TextShort"
+                                Header="显示概要文案（已在校 N 天 / 共 M 天）"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="ShowHoursTextItem"
+                                IconGlyph="TimerSand"
+                                Header="显示累计在校时长"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="ShowRemainingTextItem"
+                                IconGlyph="CalendarClock"
+                                Header="显示剩余在校天数与时长"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="ShowPercentTextItem"
+                                IconGlyph="Percent"
+                                Header="显示进度百分比"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <ci:SettingsControl x:Name="DecimalizeHoursItem"
+                                IconGlyph="Decimal"
+                                Header="时长保留一位小数（关闭则取整）"
+                                Margin="0,4,0,8">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox VerticalAlignment="Center"
+                              Checked="OnDisplayOptionChanged"
+                              Unchecked="OnDisplayOptionChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <!-- ==================== 时间设置 ==================== -->
+            <Separator Margin="0 12 0 8" />
+            <ci:IconText Kind="ClockOutline" Text="时间设置" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="TimeBaseItem"
+                                IconGlyph="ClockOutline"
+                                Header="时间基准"
+                                Margin="0,4,0,8">
+                <ci:SettingsControl.Switcher>
+                    <ComboBox Width="240"
+                              HorizontalAlignment="Left"
+                              SelectionChanged="OnTimeBaseChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <!-- ==================== 文案设置 ==================== -->
+            <Separator Margin="0 12 0 8" />
+            <ci:IconText Kind="FormatText" Text="文案设置" Margin="0 0 0 8" />
+
+            <TextBlock Text="组件的文案分为五段，可分别设置字体样式；未开启自定义的项随主题与全局字号自适应。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBodyLight}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <!-- 字体样式表格：5 段 × 4 项，动态构建于 code-behind -->
+            <ScrollViewer HorizontalScrollBarVisibility="Auto"
+                          VerticalScrollBarVisibility="Disabled">
+                <StackPanel x:Name="FontStyleTableHost" />
+            </ScrollViewer>
+
+            <TextBlock Text="需要对应字体支持所选字重"
+                       FontSize="12"
+                       Foreground="{DynamicResource PrimaryHueMidBrush}"
+                       Margin="0,4,0,8" />
+
+        </StackPanel>
+    </ScrollViewer>
+</ci:ComponentBase>

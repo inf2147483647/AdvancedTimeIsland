@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -75,6 +75,32 @@ public enum FloatingScheduleHideMode
 }
 
 /// <summary>
+/// 悬浮窗"显示明天课表"模式（参考 ClassIsland 课程表组件的 TomorrowScheduleShowMode 四档索引语义）。
+/// </summary>
+public enum FloatingScheduleTomorrowShowMode
+{
+    /// <summary>
+    /// 0 - 不显示：悬浮窗始终显示当天课表。
+    /// </summary>
+    Never = 0,
+
+    /// <summary>
+    /// 1 - 放学后显示（默认，与 ClassIsland 一致）：当天课程结束（或当天课表未加载）后切换为明天课表。
+    /// </summary>
+    AfterSchool = 1,
+
+    /// <summary>
+    /// 2 - 总是显示：悬浮窗始终显示明天课表。
+    /// </summary>
+    Always = 2,
+
+    /// <summary>
+    /// 3 - 无展示课程时显示：当天没有可展示课程时切换为明天课表。
+    /// </summary>
+    OnEmpty = 3
+}
+
+/// <summary>
 /// 插件全局设置
 /// </summary>
 public class PluginSettings : INotifyPropertyChanged
@@ -123,6 +149,16 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleRandomTitle = false;
     private bool _floatingScheduleRandomTitleEnhanced = false;
     private bool _floatingSchedulePreventCapture = false;
+    private FloatingScheduleTomorrowShowMode _floatingScheduleTomorrowShowMode = FloatingScheduleTomorrowShowMode.AfterSchool;
+    private string _floatingScheduleTomorrowPlaceholderText = "明天没有课程";
+    private string _floatingScheduleTodayPlaceholderText = "今天没有课程";
+    // ===== 独立进程模式（时间表悬浮窗由 AdvancedTimeIslandWPFFloatSchedule.exe 渲染；仅 Windows）=====
+    private bool _floatingScheduleIndependentProcess = false;
+    private bool _floatingScheduleRandomProcessName = false;
+    private bool _floatingScheduleSingleInstanceProtection = true;
+    private bool _floatingScheduleFollowHostLifetime = true;
+    // 上次"独立程序已更新"提示时记录的子进程 exe 内容哈希（内部标记：保证同一版本只提示一次）
+    private string _floatingScheduleChildExeHash = "";
 
     public string? CachedVersion
     {
@@ -836,6 +872,141 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingSchedulePreventCapture != value)
             {
                 _floatingSchedulePreventCapture = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 显示明天课表模式（不显示 / 放学后显示[默认] / 总是显示 / 无展示课程时显示）。
+    /// 参考 ClassIsland 课程表组件的 TomorrowScheduleShowMode：放学后显示 = 当天状态为放学后或当天课表未加载时，
+    /// 悬浮窗改为展示明天课表；若明天无课程则显示"明天无课程时的占位符"。
+    /// </summary>
+    public FloatingScheduleTomorrowShowMode FloatingScheduleTomorrowShowMode
+    {
+        get => _floatingScheduleTomorrowShowMode;
+        set
+        {
+            if (_floatingScheduleTomorrowShowMode != value)
+            {
+                _floatingScheduleTomorrowShowMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 显示明天课表且明天没有课程时的占位符文案（默认为"明天没有课程"）。
+    /// </summary>
+    public string FloatingScheduleTomorrowPlaceholderText
+    {
+        get => _floatingScheduleTomorrowPlaceholderText;
+        set
+        {
+            if (_floatingScheduleTomorrowPlaceholderText != value)
+            {
+                _floatingScheduleTomorrowPlaceholderText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 显示当天课表但当天没有课程时的占位符文案（默认为"今天没有课程"）。
+    /// </summary>
+    public string FloatingScheduleTodayPlaceholderText
+    {
+        get => _floatingScheduleTodayPlaceholderText;
+        set
+        {
+            if (_floatingScheduleTodayPlaceholderText != value)
+            {
+                _floatingScheduleTodayPlaceholderText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 独立进程模式：时间表悬浮窗改由独立进程 AdvancedTimeIslandWPFFloatSchedule.exe 渲染
+    /// （防弹窗拦截"超级模式"，且不受 ClassIsland 主程序卡顿影响）。仅 Windows 支持，默认关闭。
+    /// 子进程起不来或未连接时会自动回退到进程内窗口渲染。
+    /// </summary>
+    public bool FloatingScheduleIndependentProcess
+    {
+        get => _floatingScheduleIndependentProcess;
+        set
+        {
+            if (_floatingScheduleIndependentProcess != value)
+            {
+                _floatingScheduleIndependentProcess = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 随机进程名：以随机命名的临时副本启动子进程（进一步规避按进程名拦截；可能触发杀软误报）。默认关闭。
+    /// </summary>
+    public bool FloatingScheduleRandomProcessName
+    {
+        get => _floatingScheduleRandomProcessName;
+        set
+        {
+            if (_floatingScheduleRandomProcessName != value)
+            {
+                _floatingScheduleRandomProcessName = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 单实例保护：子进程启动时获取全局 Mutex，已有实例则直接退出并由插件接管连接。默认开启。
+    /// </summary>
+    public bool FloatingScheduleSingleInstanceProtection
+    {
+        get => _floatingScheduleSingleInstanceProtection;
+        set
+        {
+            if (_floatingScheduleSingleInstanceProtection != value)
+            {
+                _floatingScheduleSingleInstanceProtection = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 跟随启停：开启后 ClassIsland 关闭或异常停止后，此程序将关闭；
+    /// 关闭后 ClassIsland 退出时悬浮窗冻结显示最后课表，ClassIsland 重启后自动重连恢复推送。默认开启。
+    /// </summary>
+    public bool FloatingScheduleFollowHostLifetime
+    {
+        get => _floatingScheduleFollowHostLifetime;
+        set
+        {
+            if (_floatingScheduleFollowHostLifetime != value)
+            {
+                _floatingScheduleFollowHostLifetime = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 上次"独立程序已更新"提示时记录的子进程 exe 内容哈希（内部标记，非用户设置）。
+    /// 用于判断插件升级后随包重新分发的 AdvancedTimeIslandWPFFloatSchedule.exe 是否发生变化，
+    /// 从而只在真正更新时发一次系统通知，而不是每次启动都提示。
+    /// </summary>
+    public string FloatingScheduleChildExeHash
+    {
+        get => _floatingScheduleChildExeHash;
+        set
+        {
+            if (_floatingScheduleChildExeHash != value)
+            {
+                _floatingScheduleChildExeHash = value;
                 OnPropertyChanged();
             }
         }

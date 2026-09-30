@@ -60,10 +60,12 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             Margin = new Thickness(0, 0, 0, 12)
         });
 
+        BuildEnableSwitchCard(mainPanel);    // 主开关单独展示在最前（不放进折叠栏）
         BuildBasicAppearanceGroup(mainPanel);
         BuildInteractionGroup(mainPanel);
         BuildWindowAdvancedGroup(mainPanel);
         BuildRandomTitleGroup(mainPanel);
+        BuildIndependentProcessGroup(mainPanel);
 
         Content = new ScrollViewer
         {
@@ -73,20 +75,83 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
         };
     }
 
+    // ==================== 0. 启用悬浮时间表（单独展示，不放进折叠栏） ====================
+    /// <summary>
+    /// 悬浮窗总开关：按需求移出"基础外观"折叠栏，作为独立卡片展示在页面最前，
+    /// 使"悬浮窗开没开"一眼可见（此前它藏在折叠栏内，被外部关掉后不易察觉）。
+    /// </summary>
+    private void BuildEnableSwitchCard(StackPanel mainPanel)
+    {
+        var toggle = new System.Windows.Controls.Primitives.ToggleButton
+        {
+            IsChecked = _settings?.EnableFloatingSchedule ?? false,
+            Style = System.Windows.Application.Current?.TryFindResource("MaterialDesignSwitchToggleButton") as System.Windows.Style,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Right
+        };
+        void ApplyToggle()
+        {
+            if (_settings != null) _settings.EnableFloatingSchedule = toggle.IsChecked == true;
+        }
+        toggle.Checked += (_, _) => ApplyToggle();
+        toggle.Unchecked += (_, _) => ApplyToggle();
+
+        var textPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = "启用悬浮时间表",
+            FontSize = 16,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = ThemeHelper.GetTextBrush()
+        });
+        textPanel.Children.Add(new TextBlock
+        {
+            Text = "打开后在桌面显示半透明悬浮课表窗口，关闭后窗口自动隐藏",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 0)
+        });
+
+        var grid = new Grid();
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Grid.SetColumn(textPanel, 0);
+        grid.Children.Add(textPanel);
+        Grid.SetColumn(toggle, 1);
+        grid.Children.Add(toggle);
+
+        mainPanel.Children.Add(new Border
+        {
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            Margin = new Thickness(0, 0, 0, 16),
+            Child = grid
+        });
+
+        // 【修复：托盘"退出"后设置页开关不跟随真实设置】子进程托盘"退出"、自动化行动等会在外部改这个开关；
+        //  若页面不跟随，用户看到的仍是"已开启"，于是只在插件端去动别的项（如独立进程模式），
+        //  主开关实际仍是关的 → 悬浮窗始终不显示（用户所见："托盘退出后重启，悬浮窗不可见"）。
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(PluginSettings.EnableFloatingSchedule)) return;
+                var on = _settings.EnableFloatingSchedule;
+                if (toggle.IsChecked != on) toggle.IsChecked = on;
+            };
+        }
+    }
+
     // ==================== 1. 基础外观 ====================
     private void BuildBasicAppearanceGroup(StackPanel mainPanel)
     {
-        var group = CreateGroup("基础外观", "悬浮窗的启用开关与外观显示设置");
-
-        // 启用悬浮时间表
-        var enableItem = CreateItem("启用悬浮时间表", "打开后在桌面显示半透明悬浮课表窗口，关闭后窗口自动隐藏", "CalendarClock");
-        enableItem.IsOn = _settings?.EnableFloatingSchedule ?? false;
-        WatchIsOn(enableItem, () =>
-        {
-            if (_settings != null) _settings.EnableFloatingSchedule = enableItem.IsOn;
-        });
-        group.Items.Add(enableItem);
-
+        var group = CreateGroup("基础外观", "悬浮窗的外观显示设置");
         // 课程名字号
         var fontScaleItem = CreateItem("课程名字号", "课程名字体大小（单位 pt，范围 8 ~ 32，默认 18）；表头/时间/老师文字会按相对差值自动缩放", "FormatSize");
         var fontScaleNumeric = new WpfNumericUpDown
@@ -153,6 +218,77 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             };
         }
         group.Items.Add(fullTeacherItem);
+
+        // 显示明天课表（四档，参考 ClassIsland 课程表组件的 TomorrowScheduleShowMode）
+        var tomorrowModeItem = CreateItem("显示明天课表",
+            "设置什么时候在悬浮窗显示明天课表。\n· 不显示：始终显示当天课表。\n· 放学后显示（默认）：当天放学后（或当天课表未加载时）自动切换为明天课表。\n· 总是显示：始终显示明天课表。\n· 无展示课程时显示：当天没有可展示课程时切换为明天课表。",
+            "CalendarArrowRight");
+        var tomorrowModeCombo = new ComboBox { Width = 220, HorizontalAlignment = HorizontalAlignment.Left };
+        tomorrowModeCombo.Items.Add("不显示");
+        tomorrowModeCombo.Items.Add("放学后显示（默认）");
+        tomorrowModeCombo.Items.Add("总是显示");
+        tomorrowModeCombo.Items.Add("无展示课程时显示");
+        static int TomorrowModeToIndex(FloatingScheduleTomorrowShowMode m) => m switch
+        {
+            FloatingScheduleTomorrowShowMode.Never => 0,
+            FloatingScheduleTomorrowShowMode.AfterSchool => 1,
+            FloatingScheduleTomorrowShowMode.Always => 2,
+            FloatingScheduleTomorrowShowMode.OnEmpty => 3,
+            _ => 1
+        };
+        static FloatingScheduleTomorrowShowMode TomorrowIndexToMode(int i) => i switch
+        {
+            0 => FloatingScheduleTomorrowShowMode.Never,
+            1 => FloatingScheduleTomorrowShowMode.AfterSchool,
+            2 => FloatingScheduleTomorrowShowMode.Always,
+            3 => FloatingScheduleTomorrowShowMode.OnEmpty,
+            _ => FloatingScheduleTomorrowShowMode.AfterSchool
+        };
+        tomorrowModeCombo.SelectedIndex = TomorrowModeToIndex(
+            _settings?.FloatingScheduleTomorrowShowMode ?? FloatingScheduleTomorrowShowMode.AfterSchool);
+        tomorrowModeCombo.SelectionChanged += (s, e) =>
+        {
+            if (_settings != null && s is ComboBox cb)
+                _settings.FloatingScheduleTomorrowShowMode = TomorrowIndexToMode(cb.SelectedIndex);
+        };
+        tomorrowModeItem.Switcher = tomorrowModeCombo;
+        group.Items.Add(tomorrowModeItem);
+
+        // 今天无课程时的占位符
+        var todayPlaceholderItem = CreateItem("今天无课程时的占位符",
+            "显示当天课表、但当天没有课程时展示的文字；默认为\"今天没有课程\"。留空时回退为默认文案。",
+            "TextFields");
+        var todayPlaceholderBox = new TextBox
+        {
+            Width = 220,
+            Text = _settings?.FloatingScheduleTodayPlaceholderText ?? "今天没有课程",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        todayPlaceholderBox.TextChanged += (s, e) =>
+        {
+            if (_settings != null && s is TextBox tb)
+                _settings.FloatingScheduleTodayPlaceholderText = tb.Text ?? string.Empty;
+        };
+        todayPlaceholderItem.Switcher = todayPlaceholderBox;
+        group.Items.Add(todayPlaceholderItem);
+
+        // 明天无课程时的占位符
+        var tomorrowPlaceholderItem = CreateItem("明天无课程时的占位符",
+            "显示明天课表、但明天没有课程时展示的文字；默认为\"明天没有课程\"。留空时回退为默认文案。",
+            "TextFields");
+        var tomorrowPlaceholderBox = new TextBox
+        {
+            Width = 220,
+            Text = _settings?.FloatingScheduleTomorrowPlaceholderText ?? "明天没有课程",
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        tomorrowPlaceholderBox.TextChanged += (s, e) =>
+        {
+            if (_settings != null && s is TextBox tb)
+                _settings.FloatingScheduleTomorrowPlaceholderText = tb.Text ?? string.Empty;
+        };
+        tomorrowPlaceholderItem.Switcher = tomorrowPlaceholderBox;
+        group.Items.Add(tomorrowPlaceholderItem);
 
         mainPanel.Children.Add(group);
     }
@@ -432,6 +568,159 @@ public class FloatingScheduleSettingsPage : SettingsPageBase
             }
         }
         FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(group, "Footer", randomTitleToggle);
+
+        mainPanel.Children.Add(group);
+    }
+
+    // ==================== 5. 独立进程模式 ====================
+    private System.Windows.Threading.DispatcherTimer? _independentStatusTimer;
+
+    /// <summary>
+    /// "重启"按钮是否可用：模式开启 且 不在重启过程中 且 子进程不在启动过程中。
+    /// 统一出口，供按钮点击收尾 / 1s 轮询 / 模式开关联动三处复用。
+    /// </summary>
+    private bool ShouldEnableRestartButton()
+    {
+        var svc = Services.FloatScheduleHostProcessService.Instance;
+        var on = _settings?.FloatingScheduleIndependentProcess ?? false;
+        return on && svc != null && !svc.IsRestarting
+            && svc.Status != Services.FloatScheduleHostProcessService.ChildStatus.Starting;
+    }
+
+    private void BuildIndependentProcessGroup(StackPanel mainPanel)
+    {
+        var group = CreateGroup("独立进程模式",
+            "由独立进程 AdvancedTimeIslandWPFFloatSchedule.exe 渲染悬浮窗，防弹窗拦截能力更强（超级模式），且不受 ClassIsland 主程序卡顿影响。仅支持 Windows，非 Windows 平台此项禁用。",
+            "ApplicationExport");
+
+        // 非 Windows（Linux/macOS/Android）整组禁用
+        if (!OperatingSystem.IsWindows()) group.IsEnabled = false;
+
+        // 1) 独立进程模式（主开关）
+        var independentItem = CreateItem("独立进程模式",
+            "开启后悬浮课表改由独立进程渲染（进程名 AdvancedTimeIslandWPFFloatSchedule）；关闭后回到进程内渲染。切换即时生效。",
+            "ApplicationExport");
+        independentItem.IsOn = _settings?.FloatingScheduleIndependentProcess ?? false;
+        WatchIsOn(independentItem, () =>
+        {
+            if (_settings != null) _settings.FloatingScheduleIndependentProcess = independentItem.IsOn;
+        });
+        group.Items.Add(independentItem);
+
+        // 2) 随机进程名（与主开关联动禁用）
+        var randomNameItem = CreateItem("随机进程名",
+            "以随机命名的临时副本启动子进程（任务管理器中进程名随机），进一步规避按进程名拦截。可能触发杀软误报，请知悉。",
+            "DiceMultipleOutline");
+        randomNameItem.IsOn = _settings?.FloatingScheduleRandomProcessName ?? false;
+        WatchIsOn(randomNameItem, () =>
+        {
+            if (_settings != null) _settings.FloatingScheduleRandomProcessName = randomNameItem.IsOn;
+        });
+        group.Items.Add(randomNameItem);
+
+        // 3) 强制重启进程（按钮）
+        var restartButton = new Button
+        {
+            Content = "重启",
+            Padding = new Thickness(14, 5, 14, 5),
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        restartButton.Click += async (_, _) =>
+        {
+            var svc = Services.FloatScheduleHostProcessService.Instance;
+            if (svc == null || svc.IsRestarting) return;
+            // 重启过程立即禁用按钮：避免连点导致 Stop/Stop 交错（服务侧另有互斥兜底）
+            restartButton.IsEnabled = false;
+            try { await svc.RestartChildAsync(); }
+            catch { }
+            finally
+            {
+                restartButton.IsEnabled = ShouldEnableRestartButton();
+            }
+        };
+        var restartItem = CreateItem("强制重启进程",
+            "立即终止并以当前设置重新启动子进程悬浮窗（约 1~2 秒恢复，无需重启 ClassIsland）。",
+            "Restart");
+        restartItem.Switcher = restartButton;
+        group.Items.Add(restartItem);
+
+        // 4) 单实例保护
+        var singleInstanceItem = CreateItem("单实例保护",
+            "已有子进程实例时新进程直接退出并由插件接管连接。自下次子进程启动生效（无需重启）。",
+            "ShieldAccountOutline");
+        singleInstanceItem.IsOn = _settings?.FloatingScheduleSingleInstanceProtection ?? true;
+        WatchIsOn(singleInstanceItem, () =>
+        {
+            if (_settings != null) _settings.FloatingScheduleSingleInstanceProtection = singleInstanceItem.IsOn;
+        });
+        group.Items.Add(singleInstanceItem);
+
+        // 5) 跟随启停
+        var followItem = CreateItem("跟随启停",
+            "开启后，ClassIsland 关闭或异常停止后，此程序将关闭；关闭后悬浮窗冻结显示最后课表（进度本地续走），ClassIsland 重启后自动重连恢复推送。",
+            "PowerPlugOutline");
+        followItem.IsOn = _settings?.FloatingScheduleFollowHostLifetime ?? true;
+        WatchIsOn(followItem, () =>
+        {
+            if (_settings != null) _settings.FloatingScheduleFollowHostLifetime = followItem.IsOn;
+        });
+        group.Items.Add(followItem);
+
+        // 6) 子进程状态（1s 轮询 HostProcessService.StatusText）
+        var statusItem = CreateItem("子进程状态", "", "InformationOutline");
+        var statusText = new TextBlock
+        {
+            Text = "状态：未启用",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        statusItem.Switcher = statusText;
+        group.Items.Add(statusItem);
+
+        // 联动：随机进程名/重启按钮仅在独立模式开启（且不在重启/启动过程中）时可用
+        void SyncEnabled()
+        {
+            var on = _settings?.FloatingScheduleIndependentProcess ?? false;
+            randomNameItem.IsEnabled = on;
+            restartButton.IsEnabled = ShouldEnableRestartButton();
+        }
+        SyncEnabled();
+        if (_settings != null)
+        {
+            _settings.PropertyChanged += (_, e) =>
+            {
+                if (e.PropertyName != nameof(PluginSettings.FloatingScheduleIndependentProcess)) return;
+                SyncEnabled();
+                // 【修复】子进程托盘"退出"会连带关闭本开关：页面必须同步为真实值，
+                //  否则用户看到它仍是开的，重启悬浮窗的动作会落到"其实没开"的状态上（悬浮窗不可见）。
+                var on = _settings.FloatingScheduleIndependentProcess;
+                if (independentItem.IsOn != on) independentItem.IsOn = on;
+            };
+        }
+
+        _independentStatusTimer = new System.Windows.Threading.DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(1)
+        };
+        _independentStatusTimer.Tick += (_, _) =>
+        {
+            try
+            {
+                var svc = Services.FloatScheduleHostProcessService.Instance;
+                statusText.Text = "状态：" + (svc?.StatusText ?? "未启用");
+                // 【权威同步】重启进行中 / 子进程启动中 → 临时禁用"重启"按钮，避免过程中连点
+                restartButton.IsEnabled = ShouldEnableRestartButton();
+            }
+            catch { }
+        };
+        _independentStatusTimer.Start();
+        // 页面离开时停表防泄漏
+        Unloaded += (_, _) =>
+        {
+            try { _independentStatusTimer?.Stop(); } catch { }
+            _independentStatusTimer = null;
+        };
 
         mainPanel.Children.Add(group);
     }
