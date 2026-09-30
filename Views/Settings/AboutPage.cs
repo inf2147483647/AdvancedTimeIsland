@@ -14,6 +14,7 @@ using AdvancedTimeIsland.Models;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Controls;
 using ClassIsland.Shared;
 
 
@@ -50,6 +51,7 @@ public class AboutPage : SettingsPageBase
     private EasterEggDetector _easterEggDetector;
     private Border _iconBorder = null!;
     private TabControl? _tabControl;
+    private DrawerHost? _drawerHost;
     private bool _easterEggActive;
     private readonly PluginSettings? _pluginSettings;
 
@@ -97,6 +99,15 @@ public class AboutPage : SettingsPageBase
 
     private void InitializeComponent()
     {
+        // 【管理启用的功能】抽屉宿主必须在这里（创建标签栏之前）就建好：
+        // TabControl 添加第一个标签页时会自动选中它并触发 SelectionChanged → LoadTabContent，
+        // 其中会把本页的 FeatureDrawerHost 注入 PluginSettingsPage；
+        // 若此时宿主还没创建，注入的就是 null（且标签内容不会重建），点击「管理启用的功能...」将毫无反应。
+        _drawerHost = new DrawerHost
+        {
+            DrawerPlacement = DrawerHost.DrawerPlacementEnum.Right
+        };
+
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
@@ -137,7 +148,12 @@ public class AboutPage : SettingsPageBase
             BringIntoViewOnFocusChange = false
         };
 
-        Content = scrollViewer;
+        // 抽屉宿主挂在根页面（本页）上，而不是「插件设置」标签页内部：
+        // 嵌在标签页里时抽屉只能占据标签内容区的一部分，还会被标签栏与标签内容挤压。
+        // 抽屉内容由 PluginSettingsPage 构建后在此挂载（见 LoadTabContent）。
+        _drawerHost.Content = scrollViewer;
+
+        Content = _drawerHost;
     }
 
     /// <summary>
@@ -701,6 +717,9 @@ public class AboutPage : SettingsPageBase
                 case "PluginSettings":
                     var pluginSettings = new PluginSettingsPage(_pluginSettings);
                     pluginSettings.RequestRestartAction = ShowRestartButton;
+                    // 抽屉宿主在根页面上：本页只提供取值委托与抽屉内容，宿主在点击时才被取用
+                    // （避免本页创建时宿主尚未创建而注入 null）
+                    pluginSettings.FeatureDrawerHostProvider = () => _drawerHost;
                     if (_easterEggActive)
                     {
                         pluginSettings.ShowEasterEggSetting();

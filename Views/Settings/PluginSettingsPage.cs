@@ -5,10 +5,14 @@ using AdvancedTimeIsland.Services;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
+using Avalonia.Data.Converters;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using ClassIsland.Core.Controls;
 
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -553,6 +557,56 @@ public class PluginSettingsPage : UserControl
     private ToggleSwitch? _easterEggToggle;
     private Control? _easterEggExpander;
 
+    /// <summary>
+    /// 「管理启用的功能」表格中的一行：功能名 / 注释 / 是否启用，以及该行与设置项的读写映射。
+    /// 打开抽屉时按 Get 同步勾选状态，点击底部按钮时按 Set 统一提交。
+    /// </summary>
+    private sealed class FeatureItem : System.ComponentModel.INotifyPropertyChanged
+    {
+        private bool _isEnabled;
+
+        public required string Name { get; init; }
+
+        public required string Comment { get; init; }
+
+        public required Func<PluginSettings, bool> Get { get; init; }
+
+        public required Action<PluginSettings, bool> Set { get; init; }
+
+        // 供 DataGrid 的复选框列双向绑定，勾选后立即回写本属性
+        public bool IsEnabled
+        {
+            get => _isEnabled;
+            set
+            {
+                if (_isEnabled == value)
+                {
+                    return;
+                }
+
+                _isEnabled = value;
+                PropertyChanged?.Invoke(this, new System.ComponentModel.PropertyChangedEventArgs(nameof(IsEnabled)));
+            }
+        }
+
+        public event System.ComponentModel.PropertyChangedEventHandler? PropertyChanged;
+    }
+
+    private readonly List<FeatureItem> _featureItems = new();
+
+    /// <summary>
+    /// 「管理启用的功能」抽屉内容。抽屉宿主由根页面（AboutPage）提供——
+    /// 本页只是「插件设置」标签页，若把 DrawerHost 嵌在这里，抽屉只会占标签内容区一部分且被标签栏挤压。
+    /// </summary>
+    public Control? FeatureDrawerContent { get; private set; }
+
+    /// <summary>
+    /// 根页面承载的抽屉宿主提供者，由 AboutPage 在创建本页时注入。
+    /// 用委托而不是直接持有宿主引用：宿主可能晚于本页创建（标签栏添加第一个标签页时会立刻创建本页），
+    /// 直接注入会拿到 null，导致点击「管理启用的功能...」毫无反应。
+    /// </summary>
+    public Func<DrawerHost?>? FeatureDrawerHostProvider { get; set; }
+
     public Action? RequestRestartAction { get; set; }
 
     public PluginSettingsPage() : this(null)
@@ -752,6 +806,11 @@ public class PluginSettingsPage : UserControl
                 VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
                 BringIntoViewOnFocusChange = false
             };
+
+            // 【管理启用的功能】抽屉内容由本页构建，但宿主 DrawerHost 挂在根页面 AboutPage 上
+            // （详见 FeatureDrawerContent / FeatureDrawerHost 注释）。
+            InitializeFeatureItems();
+            FeatureDrawerContent = CreateFeatureDrawerContent();
 
             Content = scrollViewer;
         }
@@ -1370,156 +1429,393 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     public event EventHandler<bool>? UtilitiesToggled;
 
-    private async void OnManageFeaturesClick(object? sender, RoutedEventArgs e)
+    private void OnManageFeaturesClick(object? sender, RoutedEventArgs e)
     {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "管理启用的功能");
+        SyncFeatureTogglesFromSettings();
 
-        // 注意：不要再在此处嵌内层 ScrollViewer，也不要给本面板设 MaxHeight。
-        // FA3 的 FAContentDialog 模板把 Content 放在对话框自带的 ContentScrollViewer 中，
-        // 内容按无限高度测量；ScrollViewer 处于无限高度容器内时永远检测不到溢出（Avalonia 官方明确警告），
-        // 而外层 StackPanel 的 MaxHeight 只压缩容器自身、不约束内层 ScrollViewer 的测量，
-        // 超出部分会在 FA3 模板 ClipToBounds=True 的裁剪下永久不可见——新增开关后曾导致
-        // 「帧率折线 / 汉服指南 / 小工具」三个开关在 FA3 下消失。滚动统一交给对话框自身的
-        // ContentScrollViewer（FA2 / FA3 模板均有，按钮区固定在滚动区之外）。
-        var contentPanel = new StackPanel { Spacing = 8 };
-
-        var descTextBlock = new TextBlock
+        var host = ResolveFeatureDrawerHost();
+        if (host != null)
         {
-            Text = "以下功能相对不常用，可按需开启或关闭。更改后需重启ClassIsland生效（“小工具”除外，点击“确定，稍后重启”后立即生效）。",
-            FontSize = 12,
-            Foreground = ThemeHelper.GetSubTextBrush(),
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
-        };
-        contentPanel.Children.Add(descTextBlock);
-
-        var featuresPanel = new StackPanel { Spacing = 4 };
-
-        // 农历开关项
-        var lunarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLunarCalendar ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("农历", lunarToggle));
-
-        // 地方时开关项
-        var localSolarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLocalSolarTime ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("地方时", localSolarToggle));
-
-        // 区时开关项
-        var timeZoneToggle = new ToggleSwitch { IsChecked = _settings?.EnableTimeZoneTime ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("区时", timeZoneToggle));
-
-        // 星座开关项
-        var xingZuoToggle = new ToggleSwitch { IsChecked = _settings?.EnableXingZuo ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("星座", xingZuoToggle));
-
-        // 节气开关项
-        var jieQiToggle = new ToggleSwitch { IsChecked = _settings?.EnableJieQi ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("节气", jieQiToggle));
-
-        // 宜忌开关项
-        var dayYiJiToggle = new ToggleSwitch { IsChecked = _settings?.EnableDayYiJi ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("宜忌", dayYiJiToggle));
-
-        // 生肖开关项
-        var shengXiaoToggle = new ToggleSwitch { IsChecked = _settings?.EnableShengXiao ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("生肖", shengXiaoToggle));
-
-        // 节日开关项
-        var festivalToggle = new ToggleSwitch { IsChecked = _settings?.EnableFestival ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("节日", festivalToggle));
-
-        // 帧率折线开关项（帧率折线图及其分析页面是否注册，默认关闭；采集依赖「实验性功能」）
-        var fpsChartToggle = new ToggleSwitch { IsChecked = _settings?.EnableFpsChart ?? false };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("帧率折线", fpsChartToggle,
-            "控制帧率折线图及其分析页面是否注册。需先开启“实验性功能”。"));
-
-        // 汉服指南开关项（170+ 汉服页面与「汉服指南」标签页、汉服 Markdown 下载，默认开启）
-        var hanfuGuideToggle = new ToggleSwitch { IsChecked = _settings?.EnableHanfuGuide ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("汉服指南", hanfuGuideToggle,
-            "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。"));
-
-        // 小工具开关项（主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认开启）
-        var utilitiesToggle = new ToggleSwitch { IsChecked = _settings?.EnableUtilities ?? true };
-        featuresPanel.Children.Add(CreateFeatureToggleItem("小工具", utilitiesToggle,
-            "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。点击“确定，稍后重启”后立即生效。"));
-
-        contentPanel.Children.Add(featuresPanel);
-
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", contentPanel);
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定并重启");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "确定，稍后重启");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-
-        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
-        bool isPrimary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
-        bool isSecondary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultSecondary(result);
-            
-        if (isPrimary || isSecondary)
-        {
-            _settings!.EnableLunarCalendar = lunarToggle.IsChecked == true;
-            _settings.EnableLocalSolarTime = localSolarToggle.IsChecked == true;
-            _settings.EnableTimeZoneTime = timeZoneToggle.IsChecked == true;
-            _settings.EnableXingZuo = xingZuoToggle.IsChecked == true;
-            _settings.EnableJieQi = jieQiToggle.IsChecked == true;
-            _settings.EnableDayYiJi = dayYiJiToggle.IsChecked == true;
-            _settings.EnableShengXiao = shengXiaoToggle.IsChecked == true;
-            _settings.EnableFestival = festivalToggle.IsChecked == true;
-
-            bool utilitiesBefore = _settings.EnableUtilities;
-            _settings.EnableFpsChart = fpsChartToggle.IsChecked == true;
-            _settings.EnableHanfuGuide = hanfuGuideToggle.IsChecked == true;
-            _settings.EnableUtilities = utilitiesToggle.IsChecked == true;
-
-            RequestRestartAction?.Invoke();
-
-            // 「小工具」无需重启：立即通知主设置导航栏重建标签页
-            if (utilitiesBefore != _settings.EnableUtilities)
-            {
-                UtilitiesToggled?.Invoke(this, _settings.EnableUtilities);
-            }
-
-            if (isPrimary)
-            {
-                ClassIsland.Core.AppBase.Current.Restart();
-            }
+            host.IsDrawerOpen = true;
         }
     }
 
-    private Control CreateFeatureToggleItem(string label, ToggleSwitch toggle, string? description = null)
+    private void CloseFeatureDrawer()
     {
-        var itemPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
-        Control labelControl = new TextBlock
+        var host = ResolveFeatureDrawerHost();
+        if (host != null)
         {
-            Text = label,
-            FontSize = 13,
+            host.IsDrawerOpen = false;
+        }
+    }
+
+    /// <summary>
+    /// 在点击时才向根页面取抽屉宿主，并保证宿主的抽屉内容就是本页构建的内容。
+    /// </summary>
+    private DrawerHost? ResolveFeatureDrawerHost()
+    {
+        var host = FeatureDrawerHostProvider?.Invoke();
+        if (host != null && !ReferenceEquals(host.DrawerContent, FeatureDrawerContent))
+        {
+            host.DrawerContent = FeatureDrawerContent;
+        }
+
+        return host;
+    }
+
+    /// <summary>
+    /// 按设置同步表格内全部行的勾选状态。每次打开抽屉时调用，丢弃上次未提交的改动。
+    /// </summary>
+    private void SyncFeatureTogglesFromSettings()
+    {
+        if (_settings == null)
+        {
+            return;
+        }
+
+        foreach (var item in _featureItems)
+        {
+            item.IsEnabled = item.Get(_settings);
+        }
+    }
+
+    /// <summary>
+    /// 提交表格内全部勾选项。返回「小工具」是否发生变更（该选项无需重启，调用方据此立即刷新导航栏）。
+    /// </summary>
+    private bool ApplyFeatureSettings()
+    {
+        if (_settings == null)
+        {
+            return false;
+        }
+
+        var utilitiesBefore = _settings.EnableUtilities;
+        foreach (var item in _featureItems)
+        {
+            item.Set(_settings, item.IsEnabled);
+        }
+
+        return utilitiesBefore != _settings.EnableUtilities;
+    }
+
+    /// <summary>
+    /// 「应用并重启」：提交表格内全部勾选项后立即重启 ClassIsland。
+    /// 「小工具」无需重启，提交后立即通知主设置导航栏重建标签页。
+    /// </summary>
+    private void OnFeatureDrawerApplyAndRestartClick(object? sender, RoutedEventArgs e)
+    {
+        SubmitFeatureDrawer();
+        ClassIsland.Core.AppBase.Current.Restart();
+    }
+
+    /// <summary>
+    /// 「确定，稍后重启」：提交表格内全部勾选项，并请求重启
+    /// （设置窗口右上角出现「需要重启」按钮，由用户决定何时重启）。
+    /// </summary>
+    private void OnFeatureDrawerApplyLaterClick(object? sender, RoutedEventArgs e)
+    {
+        SubmitFeatureDrawer();
+    }
+
+    /// <summary>
+    /// 提交表格内的勾选项并关闭抽屉。设置项本身需重启 ClassIsland 后才生效，
+    /// 因此这里只负责落盘与请求重启提示，不直接重启。
+    /// </summary>
+    private void SubmitFeatureDrawer()
+    {
+        if (_settings == null)
+        {
+            CloseFeatureDrawer();
+            return;
+        }
+
+        var utilitiesChanged = ApplyFeatureSettings();
+
+        RequestRestartAction?.Invoke();
+
+        if (utilitiesChanged)
+        {
+            UtilitiesToggled?.Invoke(this, _settings.EnableUtilities);
+        }
+
+        CloseFeatureDrawer();
+    }
+
+    /// <summary>
+    /// 空注释不挂 ToolTip（否则悬停会弹出空提示框），非空时用全文替代被裁剪的显示文本。
+    /// </summary>
+    private static readonly FuncValueConverter<string?, string?> CommentToolTipConverter =
+        new(value => string.IsNullOrEmpty(value) ? null : value);
+
+    /// <summary>
+    /// 创建功能表格（对齐 SystemTools 的表格样式）并登记「勾选项 ↔ 设置项」的读写映射。
+    /// </summary>
+    private DataGrid CreateFeatureTable()
+    {
+        var table = new DataGrid
+        {
+            AutoGenerateColumns = false,
+            CanUserReorderColumns = false,
+            CanUserSortColumns = true,
+            IsReadOnly = false,
+            GridLinesVisibility = DataGridGridLinesVisibility.Horizontal,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            ItemsSource = _featureItems
+        };
+
+        // 单元格文字：正文 13 号（同 SystemTools），注释列超长时裁剪并挂 ToolTip 显示全文
+        table.Styles.Add(new Style(x => x.OfType<DataGridCell>().Descendant().OfType<TextBlock>())
+        {
+            Setters =
+            {
+                new Setter(TextBlock.FontSizeProperty, 13d)
+            }
+        });
+
+        var nameColumn = new DataGridTextColumn
+        {
+            Header = "功能",
+            Width = new DataGridLength(110),
+            IsReadOnly = true,
+            Binding = new Binding(nameof(FeatureItem.Name))
+        };
+
+        // Avalonia 的 DataGridTextColumn 没有 ElementStyle，注释列改用模板列以便裁剪超长文本并挂 ToolTip
+        var commentColumn = new DataGridTemplateColumn
+        {
+            Header = "注释",
+            Width = new DataGridLength(1, DataGridLengthUnitType.Star),
+            CellTemplate = new FuncDataTemplate<FeatureItem>((_, _) =>
+            {
+                var comment = new TextBlock
+                {
+                    TextTrimming = TextTrimming.CharacterEllipsis,
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+
+                // 文本必须走绑定，不能在模板里直接赋值：
+                // 这里声明了 supportsRecycling=true，DataGrid 会回收单元格控件复用给其它行，
+                // 复用时只换 DataContext、不会重新调用模板，硬编码的文本会残留在别的行上（注释错位）。
+                comment.Bind(TextBlock.TextProperty, new Binding(nameof(FeatureItem.Comment)));
+                comment.Bind(ToolTip.TipProperty, new Binding(nameof(FeatureItem.Comment))
+                {
+                    Converter = CommentToolTipConverter
+                });
+                return comment;
+            }, true)
+        };
+
+        var enabledColumn = new DataGridCheckBoxColumn
+        {
+            Header = "启用？",
+            Width = new DataGridLength(80),
+            Binding = new Binding(nameof(FeatureItem.IsEnabled)) { Mode = BindingMode.TwoWay }
+        };
+
+        table.Columns.Add(nameColumn);
+        table.Columns.Add(commentColumn);
+        table.Columns.Add(enabledColumn);
+
+        return table;
+    }
+
+    /// <summary>
+    /// 登记表格行（功能名 / 注释 / 设置项读写映射）。
+    /// </summary>
+    private void AddFeature(string name, string comment, Func<PluginSettings, bool> get, Action<PluginSettings, bool> set)
+    {
+        _featureItems.Add(new FeatureItem
+        {
+            Name = name,
+            Comment = comment,
+            Get = get,
+            Set = set,
+            IsEnabled = _settings != null && get(_settings)
+        });
+    }
+
+    /// <summary>
+    /// 填充功能表格数据源。
+    /// </summary>
+    private void InitializeFeatureItems()
+    {
+        AddFeature("农历", "",
+            s => s.EnableLunarCalendar, (s, v) => s.EnableLunarCalendar = v);
+
+        AddFeature("地方时", "",
+            s => s.EnableLocalSolarTime, (s, v) => s.EnableLocalSolarTime = v);
+
+        AddFeature("区时", "",
+            s => s.EnableTimeZoneTime, (s, v) => s.EnableTimeZoneTime = v);
+
+        AddFeature("星座", "",
+            s => s.EnableXingZuo, (s, v) => s.EnableXingZuo = v);
+
+        AddFeature("节气", "",
+            s => s.EnableJieQi, (s, v) => s.EnableJieQi = v);
+
+        AddFeature("宜忌", "",
+            s => s.EnableDayYiJi, (s, v) => s.EnableDayYiJi = v);
+
+        AddFeature("生肖", "",
+            s => s.EnableShengXiao, (s, v) => s.EnableShengXiao = v);
+
+        AddFeature("节日", "",
+            s => s.EnableFestival, (s, v) => s.EnableFestival = v);
+
+        // 帧率折线图及其分析页面是否注册，默认关闭；采集依赖「实验性功能」
+        AddFeature("帧率折线", "控制帧率折线图及其分析页面是否注册。需先开启“实验性功能”。",
+            s => s.EnableFpsChart, (s, v) => s.EnableFpsChart = v);
+
+        // 170+ 汉服页面与「汉服指南」标签页、汉服 Markdown 下载，默认开启
+        AddFeature("汉服指南", "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。",
+            s => s.EnableHanfuGuide, (s, v) => s.EnableHanfuGuide = v);
+
+        // 主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认开启
+        AddFeature("小工具", "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。此项无需重启，提交后立即生效。",
+            s => s.EnableUtilities, (s, v) => s.EnableUtilities = v);
+    }
+
+    /// <summary>
+    /// 构建「管理启用的功能」抽屉内容：标题栏 + 重启提示条 + 功能表格 + 底部按钮。
+    /// 布局与 SystemTools 插件的功能管理抽屉对齐（右侧滑入、内容宽 500）。
+    /// 背景不单独设置，沿用 ClassIsland 抽屉模板的 SolidBackgroundFillColorBaseBrush，随深浅主题自适应。
+    /// </summary>
+    private Control CreateFeatureDrawerContent()
+    {
+        var root = new Grid
+        {
+            Width = 500,
+            RowDefinitions = new RowDefinitions("Auto,Auto,*,Auto")
+        };
+
+        // ---------- 标题栏 ----------
+        var header = new Grid
+        {
+            Height = 44,
+            Margin = new Thickness(16, 0, 12, 0),
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
+        };
+        header.Children.Add(new TextBlock
+        {
+            Text = "启用功能选项…",
+            FontSize = 16,
+            FontWeight = FontWeight.SemiBold,
             Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
-        };
-        // 可选的补充说明（放在标题下方，浅色小字）
-        if (!string.IsNullOrEmpty(description))
+        });
+
+        // 关闭按钮不设 Foreground，图标颜色由主题随内容继承
+        var closeButton = new Button
         {
-            var labelPanel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Spacing = 2,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            labelPanel.Children.Add(labelControl);
-            labelPanel.Children.Add(new TextBlock
-            {
-                Text = description,
-                FontSize = 11,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = TextWrapping.Wrap
-            });
-            labelControl = labelPanel;
+            Content = new FluentIcon("\uE0F6") { FontSize = 19 },
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            Padding = new Thickness(8),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        closeButton.Click += (_, _) => CloseFeatureDrawer();
+        Grid.SetColumn(closeButton, 1);
+        header.Children.Add(closeButton);
+
+        Grid.SetRow(header, 0);
+        root.Children.Add(header);
+
+        // ---------- 重启提示条 ----------
+        var cautionBrush = GetThemeBrush("SystemFillColorCautionBrush",
+            ThemeHelper.IsDarkTheme() ? new SolidColorBrush(Color.Parse("#FCE100")) : new SolidColorBrush(Color.Parse("#9D5D00")));
+        var cautionBackground = GetThemeBrush("SystemFillColorCautionBackgroundBrush",
+            ThemeHelper.IsDarkTheme() ? new SolidColorBrush(Color.Parse("#433519")) : new SolidColorBrush(Color.Parse("#FFF4CE")));
+
+        var cautionPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        cautionPanel.Children.Add(new FluentIcon("\uF430")
+        {
+            FontSize = 17,
+            Foreground = cautionBrush,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        cautionPanel.Children.Add(new TextBlock
+        {
+            Text = "改变配置后请记得点击“应用并重启”以应用您的设置",
+            FontSize = 13,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center,
+            TextTrimming = TextTrimming.CharacterEllipsis
+        });
+
+        var cautionBanner = new Border
+        {
+            Margin = new Thickness(16, 8, 16, 12),
+            Padding = new Thickness(12, 0),
+            Height = 40,
+            CornerRadius = new CornerRadius(4),
+            BorderThickness = new Thickness(1),
+            Background = cautionBackground,
+            BorderBrush = cautionBrush,
+            Child = cautionPanel
+        };
+        Grid.SetRow(cautionBanner, 1);
+        root.Children.Add(cautionBanner);
+
+        // ---------- 功能表格 ----------
+        var table = CreateFeatureTable();
+        table.Margin = new Thickness(16, 0, 16, 0);
+        Grid.SetRow(table, 2);
+        root.Children.Add(table);
+
+        // ---------- 底部按钮 ----------
+        var footerButtons = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center,
+            Spacing = 8
+        };
+
+        var cancelButton = new Button { Content = "取消" };
+        cancelButton.Click += (_, _) => CloseFeatureDrawer();
+        footerButtons.Children.Add(cancelButton);
+
+        // 确定，稍后重启：提交后只弹出设置窗口右上角的「需要重启」按钮
+        var applyLaterButton = new Button { Content = "确定，稍后重启" };
+        applyLaterButton.Click += OnFeatureDrawerApplyLaterClick;
+        footerButtons.Children.Add(applyLaterButton);
+
+        var applyContent = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        applyContent.Children.Add(new FluentIcon("\uE06D")
+        {
+            FontSize = 16,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        // 文字不设 Foreground，由 accent 按钮的前景色继承，保证深浅主题下都可读
+        applyContent.Children.Add(new TextBlock { Text = "应用并重启", VerticalAlignment = VerticalAlignment.Center });
+
+        var applyButton = new Button { Content = applyContent };
+        applyButton.Classes.Add("accent");
+        applyButton.Click += OnFeatureDrawerApplyAndRestartClick;
+        footerButtons.Children.Add(applyButton);
+
+        // 抽屉宽度 500，三个按钮 + 间距约 330px，必要时允许换行避免溢出
+        var footer = new Grid { MinHeight = 68, Margin = new Thickness(16, 0, 16, 0) };
+        footer.Children.Add(footerButtons);
+        Grid.SetRow(footer, 3);
+        root.Children.Add(footer);
+
+        return root;
+    }
+
+    /// <summary>
+    /// 读取 ClassIsland / FluentAvalonia 主题资源画刷，取不到时回退到给定画刷。
+    /// </summary>
+    private static IBrush GetThemeBrush(string resourceKey, IBrush fallback)
+    {
+        if (Application.Current?.TryFindResource(resourceKey, out var value) == true && value is IBrush brush)
+        {
+            return brush;
         }
-        toggle.VerticalAlignment = VerticalAlignment.Center;
-        toggle.HorizontalAlignment = HorizontalAlignment.Right;
-        itemPanel.Children.Add(labelControl);
-        itemPanel.Children.Add(toggle);
-        return itemPanel;
+
+        return fallback;
     }
 
     private void OnExperimentalToggled(bool isEnabled)
