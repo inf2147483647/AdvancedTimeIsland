@@ -588,6 +588,20 @@ public class Plugin : PluginBase
             }
         );
 
+        // 注册规则：在指定时间范围内（周期 + 范围表达式，例如 "1,3-5,7~11"）
+        services.AddRule<SpecifiedTimeRangeRuleSettings, SpecifiedTimeRangeRuleSettingsControl>(
+            "advancedtimeisland.specified_time_range",
+            "在指定时间范围内",
+            "\uecc3",
+            settings =>
+            {
+                if (settings is not SpecifiedTimeRangeRuleSettings s)
+                    return false;
+
+                return SpecifiedTimeRangeHelper.Matches(s.Expression, s.Period, GetCurrentTime());
+            }
+        );
+
         // ========== 地方时条件（6个，带经度设置）==========
 
         if (Settings.EnableLocalSolarTime)

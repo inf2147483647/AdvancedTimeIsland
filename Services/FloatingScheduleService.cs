@@ -1808,6 +1808,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_window == null) return;
         // 点击穿透模式下，完全禁止任何本地交互（也包含拖拽），保证用户点击一定会穿透到下方窗口。
         if (_settings.FloatingScheduleClickThrough) return;
+        // 隐藏/显示过渡动画期间禁止拖拽：动画正在移动窗口，此时接管位置会造成位置异常。
+        if (_hideAnimActiveAv) return;
 
         var point = e.GetCurrentPoint(_containerBorder);
         // 仅响应：鼠标左键按下 / 触摸 / 笔（数位板）。右键、中键不拖拽。
@@ -2590,11 +2592,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
             return;
         }
 #endif
-        // 非 Windows：跨平台兜底
+        // 非 Windows：跨平台兜底（过渡动画期间保持不可交互，不覆盖动画的抑制状态）
         try
         {
             if (_containerBorder != null)
-                _containerBorder.IsHitTestVisible = !through;
+                _containerBorder.IsHitTestVisible = !through && !_hideAnimActiveAv;
         }
         catch { /* ignore */ }
     }
@@ -3281,6 +3283,26 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
+    /// 过渡动画期间禁止窗口交互（拖动/点击）：动画中窗口会滑到屏幕顶端之外，
+    /// 此时若允许拖拽会与动画争夺位置，并可能把屏幕外的坐标当成用户位置写进存档（位置异常）。
+    /// </summary>
+    private void SuppressInteractionAv()
+    {
+        try { if (_containerBorder != null) _containerBorder.IsHitTestVisible = false; } catch { }
+    }
+
+    /// <summary>过渡动画结束后按"点击穿透"设置恢复交互（穿透开启时仍不可交互）。</summary>
+    private void RestoreInteractionAv()
+    {
+        try
+        {
+            if (_containerBorder != null)
+                _containerBorder.IsHitTestVisible = !_settings.FloatingScheduleClickThrough;
+        }
+        catch { }
+    }
+
+    /// <summary>
     /// 开始 / 改向"隐藏或显示"过渡动画（250ms + ClassIsland 的两条贝塞尔缓动，透明度同时 0↔1）。
     /// hidden=true → 退场：窗口整体向上滑到屏幕顶端之外，动画结束后 Hide()；
     /// hidden=false → 入场：窗口先以"完全滑出 + 透明"状态显示，再滑回用户放置位并淡入（避免闪出一帧完整内容）。
@@ -3311,8 +3333,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     _edgeSlideOutPendingAv = false;
                 }
                 _hideAnimBasePosAv = _window.Position;
-                if (!TryResolveHideShowDeltaAv(out var delta)) return false;
+                if (!TryResolveHideShowDeltaAv(out var delta)) { RestoreInteractionAv(); return false; }
                 _hideAnimDeltaAv = delta;
+                SuppressInteractionAv();   // 动画期间禁止交互，避免与动画争夺位置
 
                 if (!hidden)
                 {
@@ -3354,6 +3377,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             _logger.LogDebug(ex, "隐藏/显示过渡动画启动异常，回退即时切换。");
             _hideAnimActiveAv = false;
+            RestoreInteractionAv();
             return false;
         }
     }
@@ -3419,6 +3443,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         else
         {
             _hiddenByAnimAv = false;
+            RestoreInteractionAv();   // 动画结束：按点击穿透设置恢复交互
         }
         _hideAnimActiveAv = false;
     }
@@ -3439,6 +3464,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         catch { }
         try { if (_containerBorder != null) _containerBorder.Opacity = 1; } catch { }
         _hideAnimActiveAv = false;
+        RestoreInteractionAv();
     }
 
     private void StopHideShowTimerAv()

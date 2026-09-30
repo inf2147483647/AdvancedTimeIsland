@@ -108,6 +108,7 @@ internal static class SaiBlockRegistrar
         Add("advancedtimeisland.minutely_time_range", "每分钟时间范围", "\uecc7", typeof(MinutelyTimeRangeRuleSettings));
         Add("advancedtimeisland.weekly_time_range", "每周时间范围", "\uecd0", typeof(WeeklyTimeRangeRuleSettings));
         Add("advancedtimeisland.unix_timestamp_range", "绝对时间范围", "\ueceb", typeof(UnixTimestampRangeRuleSettings));
+        Add("advancedtimeisland.specified_time_range", "在指定时间范围内", "\uecc3", typeof(SpecifiedTimeRangeRuleSettings));
 
         // ========== 地方时（与主程序一致，仅在启用"地方时"时注册）==========
         if (settings.EnableLocalSolarTime)
@@ -262,6 +263,9 @@ internal static class SaiBlockRegistrar
         ["TargetShengXiao"] = "目标生肖",
         ["TargetFestival"] = "目标节日",
         ["TargetTime"] = "目标时间",
+        ["Period"] = "周期(0=每年 1=每月 2=每周 3=每天 4=每小时 5=每分钟)",
+        ["Unit"] = "单位序号",
+        ["Expression"] = "范围表达式(如 1,3-5,7~11)",
         ["StartTimestamp"] = "开始时间戳",
         ["EndTimestamp"] = "结束时间戳",
         ["LunarYear"] = "农历年",

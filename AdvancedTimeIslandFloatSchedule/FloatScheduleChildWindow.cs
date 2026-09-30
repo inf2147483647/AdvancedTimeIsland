@@ -464,6 +464,21 @@ internal sealed class FloatScheduleChildWindow : Window
     }
 
     /// <summary>
+    /// 过渡动画期间禁止窗口交互（拖动/点击）：动画中窗口会滑到屏幕顶端之外，
+    /// 此时若允许拖拽会与动画争夺位置，并可能把屏幕外的坐标当成用户位置上报给插件（位置异常）。
+    /// </summary>
+    void SuppressInteraction()
+    {
+        try { _card.IsHitTestVisible = false; } catch { }
+    }
+
+    /// <summary>过渡动画结束后按"点击穿透"设置恢复交互（穿透开启时仍不可交互）。</summary>
+    void RestoreInteraction()
+    {
+        try { _card.IsHitTestVisible = !_snap.ClickThrough; } catch { }
+    }
+
+    /// <summary>
     /// 开始 / 改向"隐藏或显示"过渡动画（250ms + ClassIsland 的两条贝塞尔缓动，透明度同时 0↔1）。
     /// hidden=true → 退场：窗口整体向上滑到屏幕顶端之外，动画结束后 Hide()；
     /// hidden=false → 入场：窗口先以"完全滑出 + 透明"状态显示，再滑回用户放置位并淡入（避免闪出一帧完整内容）。
@@ -493,8 +508,9 @@ internal sealed class FloatScheduleChildWindow : Window
                     _edgeSlideOutPending = false;
                 }
                 _hideAnimBasePos = Position;
-                if (!TryResolveHideShowDelta(out var delta)) return false;
+                if (!TryResolveHideShowDelta(out var delta)) { RestoreInteraction(); return false; }
                 _hideAnimDelta = delta;
+                SuppressInteraction();   // 动画期间禁止交互，避免与动画争夺位置
 
                 if (!hidden)
                 {
@@ -530,6 +546,7 @@ internal sealed class FloatScheduleChildWindow : Window
         catch
         {
             _hideAnimActive = false;
+            RestoreInteraction();
             return false;
         }
     }
@@ -592,6 +609,7 @@ internal sealed class FloatScheduleChildWindow : Window
         else
         {
             _hiddenByAnim = false;
+            RestoreInteraction();   // 动画结束：按点击穿透设置恢复交互
         }
         _hideAnimActive = false;
     }
@@ -609,6 +627,7 @@ internal sealed class FloatScheduleChildWindow : Window
         catch { }
         try { _card.Opacity = 1; } catch { }
         _hideAnimActive = false;
+        RestoreInteraction();
     }
 
     void StopHideShowTimer()
@@ -733,7 +752,7 @@ internal sealed class FloatScheduleChildWindow : Window
             }
         }
         catch { }
-        try { _card.IsHitTestVisible = !through; } catch { }
+        try { _card.IsHitTestVisible = !through && !_hideAnimActive; } catch { }   // 过渡动画期间保持不可交互
     }
 
     void ApplyPreventCapture()
@@ -806,6 +825,8 @@ internal sealed class FloatScheduleChildWindow : Window
     void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_snap.ClickThrough) return;
+        // 隐藏/显示过渡动画期间禁止拖拽：动画正在移动窗口，此时接管位置会造成位置异常。
+        if (_hideAnimActive) return;
         var point = e.GetCurrentPoint(_card);
         bool isMouseLeft = e.Pointer.Type == PointerType.Mouse && point.Properties.IsLeftButtonPressed;
         bool isTouchOrPen = e.Pointer.Type == PointerType.Touch || e.Pointer.Type == PointerType.Pen;
