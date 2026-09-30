@@ -289,6 +289,9 @@ public static class CrossPluginHelper
     private static MethodInfo? _getFullPinyinListMethod;
     private static bool _pinyinServiceLookupDone;
 
+    /// <summary>走 LibPinyin 整段接口的最大文本长度：该接口返回多音字笛卡尔积，长文本会组合爆炸。</summary>
+    private const int MaxLibPinyinTextLength = 24;
+
     /// <summary>
     /// 取文本的全拼候选（如“男娘”→<c>NanNiang</c>、“南梁”→<c>NanLiang</c>/<c>NaLiang</c>）。
     /// 优先使用 LibPinyin4CI（https://github.com/lrsgzs/LibPinyin4CI）——它在本插件清单中登记为
@@ -306,10 +309,16 @@ public static class CrossPluginHelper
             return Array.Empty<string>();
         }
 
-        var fromLibPinyin = TryGetFullPinyinFromLibPinyin(text);
-        if (fromLibPinyin.Count > 0)
+        // LibPinyin 的 GetFullPinyinList(string) 返回逐字读音的笛卡尔积，文本越长组合数增长越快
+        // （插件简介可达数十字），故只对短文本（名称 / 标识符）走该接口；超长文本直接用逐字替换的
+        // 简易匹配器，避免无谓的指数级展开。此处长度约束对调用方透明。
+        if (text.Length <= MaxLibPinyinTextLength)
         {
-            return fromLibPinyin;
+            var fromLibPinyin = TryGetFullPinyinFromLibPinyin(text);
+            if (fromLibPinyin.Count > 0)
+            {
+                return fromLibPinyin;
+            }
         }
 
         return SimplePinyinMatcher.GetFullPinyinCandidates(text);

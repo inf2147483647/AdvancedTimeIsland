@@ -14,6 +14,7 @@ using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
+using ClassIsland.Core.Enums;
 using ClassIsland.Core.Enums.SettingsWindow;
 using ClassIsland.Core.Models.Plugin;
 
@@ -23,7 +24,8 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 调试入口“女装”对应的独立隐藏设置页面（不继承 HanfuPageTemplate）。
 /// 布局：顶部返回链接 + “女装”标题 + “汉服 / JK制服”标签页。
 /// - 汉服：直接内嵌 <see cref="EasterEggPage"/>，图片与女装彩蛋页完全一致；
-/// - JK制服：内容为官方样式的“啥都没有”（<see cref="Empty"/>）；每进入一次就直接显示宿主的
+/// - JK制服：内容为官方“页面导航出错”标识（内嵌宿主 <c>ErrorSettingsPage</c>，显示“欧呦，出错啦！”，
+///   反射失败时降级为官方样式的“啥都没有”）；每进入一次就直接显示宿主的
 ///   崩溃窗口，等价于宿主开发者菜单的“显示崩溃窗口”（<c>new CrashWindow().Show()</c>）。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandWomenswear", "女装", true, SettingsPageCategory.Debug)]
@@ -88,8 +90,9 @@ public class WomenswearPage : SettingsPageBase
         // 汉服标签页：内嵌女装彩蛋页，图片与 EasterEgg 内容完全一致
         _hanfuContent = new EasterEggPage(Plugin.Instance?.Settings);
 
-        // JK制服标签页：官方样式的“啥都没有”
-        _jkContent = new Empty
+        // JK制服标签页：官方“页面导航出错”标识（宿主 ErrorSettingsPage，显示“欧呦，出错啦！”）；
+        // 反射失败时降级为官方样式的“啥都没有”。
+        _jkContent = CreateHostNavigationErrorContent() ?? new Empty
         {
             MinHeight = 200,
             Margin = new Thickness(24),
@@ -126,6 +129,43 @@ public class WomenswearPage : SettingsPageBase
         Content = rootGrid;
     }
 
+    /// <summary>
+    /// 创建官方“页面导航出错”标识：内嵌宿主设置页
+    /// <c>ClassIsland.Views.SettingPages.ErrorSettingsPage</c>（帕姆哭哭贴纸 + “欧呦，出错啦！”）。
+    /// 该类型位于宿主主程序集，插件没有编译期引用，故运行时反射创建；宿主改名/结构变化导致失败时
+    /// 返回 null，由调用方降级为官方样式的 <see cref="Empty"/>。
+    /// </summary>
+    private static Control? CreateHostNavigationErrorContent()
+    {
+        try
+        {
+            var errorPageType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(assembly => assembly.GetType("ClassIsland.Views.SettingPages.ErrorSettingsPage"))
+                .FirstOrDefault(type => type != null);
+
+            if (errorPageType == null || Activator.CreateInstance(errorPageType) is not Control errorPage)
+            {
+                return null;
+            }
+
+            // 该页面在 Loaded 时按 NavigationUri 的 query 决定显示哪种形态：
+            // IsError = ParseQueryString(NavigationUri?.Query)["error"] == "true"——
+            // 为 true 显示“欧呦，出错啦！”，否则显示“404 找不到请求的页面”。
+            // NavigationUri 的 setter 是 internal（仅宿主导航时写入），故反射取非公开访问器赋值。
+            errorPageType
+                .GetProperty("NavigationUri", BindingFlags.Public | BindingFlags.Instance)
+                ?.SetMethod?
+                .Invoke(errorPage, new object?[] { new Uri("classisland://app/settings/_error?error=true") });
+
+            return errorPage;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"CreateHostNavigationErrorContent failed: {ex}");
+            return null;
+        }
+    }
+
     private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_tabStrip == null || _contentControl == null)
@@ -135,7 +175,7 @@ public class WomenswearPage : SettingsPageBase
 
         if (_tabStrip.SelectedIndex == 1)
         {
-            // 先展示官方样式的“啥都没有”，再直接显示宿主的崩溃窗口。
+            // 先展示官方“页面导航出错”标识，再直接显示宿主的崩溃窗口。
             _contentControl.Content = _jkContent;
 
             // 直接映射宿主开发者菜单的“显示崩溃窗口”（MainWindow 的
@@ -185,20 +225,24 @@ public class WomenswearPage : SettingsPageBase
             // 因此这里不设置它们——与开发者菜单“显示崩溃窗口”的默认表现保持一致。
             crashWindowType.GetProperty("CrashInfo")?.SetValue(crashInstance, BuildCrashInfo(blamedPlugins, blamedDisabled));
 
-            // 【FA3】ViewBase 形态：与宿主一致走 ShowModal()（无参重载 ShowModal(ViewBase? owner = null)）
+            // 【FA3】ViewBase 形态：优先用 ShowModal(Window owner)——宿主会转成原生 ShowDialog(owner)，
+            // 由模态窗口独占焦点；若只传 ViewBase/null，宿主实际退化为非模态 Show()，
+            // 窗口靠紧随其后的 Activate() 抢前台，时序上不保证抢到焦点（表现为被压在设置窗口下面）。
             if (crashInstance is not Window)
             {
-                var showModal = crashWindowType
-                    .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                    .FirstOrDefault(method => method.Name == "ShowModal"
-                                              && !method.IsGenericMethod
-                                              && method.ReturnType == typeof(Task)
-                                              && method.GetParameters() is { Length: 1 } parameters
-                                              && parameters[0].ParameterType != typeof(Window));
-                if (showModal?.Invoke(crashInstance, new object?[] { null }) is Task modalTask)
+                var viewOwner = FluentAvaloniaCompatibilityHelper.ResolveOwnerWindow(this);
+                var showModalWithWindow = viewOwner == null
+                    ? null
+                    : FindSingleParameterMethod(crashWindowType, "ShowModal", typeof(Window).FullName!);
+                if (showModalWithWindow?.Invoke(crashInstance, new object?[] { viewOwner }) is Task modalTask)
                 {
                     _ = ObserveTaskAsync(modalTask);
+                    return;
                 }
+
+                // 取不到设置窗口（或宿主没有该重载）时退化为 ShowModal(null)：仍能显示，只是不保证抢占焦点
+                FindSingleParameterMethod(crashWindowType, "ShowModal", HostViewBaseTypeName)?
+                    .Invoke(crashInstance, new object?[] { null });
                 return;
             }
 
@@ -230,9 +274,23 @@ public class WomenswearPage : SettingsPageBase
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"AwaitCrashViewAsync failed: {ex}");
+            System.Diagnostics.Debug.WriteLine($"ObserveTaskAsync failed: {ex}");
         }
     }
+
+    /// <summary>宿主 <c>ViewBase</c> 的全名（插件 net8 侧编译期不存在此类型，故仅以字符串引用）。</summary>
+    private const string HostViewBaseTypeName = "ClassIsland.Core.Abstractions.Controls.ViewBase";
+
+    /// <summary>
+    /// 反射查找公开实例方法：名称匹配、非泛型、且只有一个参数、该参数类型全名匹配。
+    /// 用于区分 <c>ViewBase.ShowModal(ViewBase?)</c>（非模态语义）与
+    /// <c>ViewBase.ShowModal(Window)</c>（原生模态，抢占焦点）这类同名重载。
+    /// </summary>
+    private static MethodInfo? FindSingleParameterMethod(Type type, string methodName, string parameterTypeFullName) =>
+        type.GetMethods(BindingFlags.Public | BindingFlags.Instance)
+            .Where(method => !method.IsGenericMethod && method.Name == methodName)
+            .FirstOrDefault(method => method.GetParameters() is [{ ParameterType: var parameterType }]
+                && parameterType.FullName == parameterTypeFullName);
 
     /// <summary>
     /// 显示崩溃窗口并等待其关闭。单独抽成方法是为了让 ShowDialog 返回的 Task 始终被 await
@@ -294,6 +352,7 @@ public class WomenswearPage : SettingsPageBase
         try
         {
             return IPluginService.LoadedPlugins
+                .Where(IsEnabledAndLoaded)
                 .Where(IsFemboyLikePlugin)
                 .ToList();
         }
@@ -304,12 +363,23 @@ public class WomenswearPage : SettingsPageBase
         }
     }
 
-    /// <summary>名称或标识符任意一项命中“女装/男娘”语义，即视为同类插件。</summary>
+    /// <summary>
+    /// 仅归因“真正加载成功且已启用”的插件。IPluginService.LoadedPlugins 在预处理阶段就会把
+    /// 已禁用的插件一并加入列表（LoadStatus=Disabled），若不过滤，已禁用插件会被重复列入归因、
+    /// 在崩溃报告里当作“问题插件”显示，并再次写入 .disabled（误报）；
+    /// 加载失败（Error）与未加载（NotLoaded / 非本地）的插件同理不参与归因。
+    /// </summary>
+    private static bool IsEnabledAndLoaded(PluginInfo plugin) =>
+        plugin.IsEnabled && plugin.LoadStatus == PluginLoadStatus.Loaded;
+
+    /// <summary>名称、标识符或简介任意一项命中“女装/男娘”语义，即视为同类插件。</summary>
     private static bool IsFemboyLikePlugin(PluginInfo plugin)
     {
         try
         {
-            return IsFemboyLikeText(plugin.Manifest.Name) || IsFemboyLikeText(plugin.Manifest.Id);
+            return IsFemboyLikeText(plugin.Manifest.Name)
+                   || IsFemboyLikeText(plugin.Manifest.Id)
+                   || IsFemboyLikeText(plugin.Manifest.Description);
         }
         catch
         {
