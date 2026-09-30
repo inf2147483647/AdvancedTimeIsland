@@ -53,6 +53,12 @@ public class AboutPage : SettingsPageBase
     private bool _easterEggActive;
     private readonly PluginSettings? _pluginSettings;
 
+    /// <summary>
+    /// 「管理启用的功能」- 小工具：关闭后主设置导航栏不显示「时间格式转换 / 时间计算器 / 专业名词解释」。
+    /// 该选项无需重启，变更后立即重建导航栏标签页。
+    /// </summary>
+    private bool UtilitiesEnabled => _pluginSettings?.EnableUtilities ?? true;
+
     private TextBlock? _nameTextBlock;
     private TextBlock? _authorTextBlock;
     private List<TextBlock>? _aboutContentTextBlocks;
@@ -296,7 +302,7 @@ public class AboutPage : SettingsPageBase
             _pluginSettings.EnableEasterEgg = true;
         }
 
-        UpdateTabOrder(true);
+        SyncNavigationTabs();
         ShowEasterEggDialog();
     }
 
@@ -313,7 +319,7 @@ public class AboutPage : SettingsPageBase
         if (_easterEggActive)
         {
             _easterEggActive = false;
-            UpdateTabOrder(false);
+            SyncNavigationTabs();
         }
     }
 
@@ -331,8 +337,16 @@ public class AboutPage : SettingsPageBase
         if (!isEnabled && _easterEggActive)
         {
             _easterEggActive = false;
-            UpdateTabOrder(false);
+            SyncNavigationTabs();
         }
+    }
+
+    /// <summary>
+    /// 「小工具」开关状态变化处理：立即增删工具栏标签页，无需重启。
+    /// </summary>
+    private void OnUtilitiesToggled(object? sender, bool isEnabled)
+    {
+        SyncNavigationTabs();
     }
 
     /// <summary>
@@ -369,31 +383,57 @@ public class AboutPage : SettingsPageBase
         }
     }
 
+    /// <summary>「女装」标签页的 Tag（内容懒加载，与其它标签页一致）。</summary>
+    private const string EasterEggTabTag = "EasterEgg";
+
+    /// <summary>受「小工具」开关控制的三个标签页的 Tag。</summary>
+    private static readonly string[] UtilityTabTags = { "TimeConverter", "TimeCalculator", "Glossary" };
+
     /// <summary>
-    /// 更新标签顺序
+    /// 按当前开关同步导航栏标签页：只增删受开关控制的标签页（「小工具」三个 + 「女装」一个）。
+    /// 【FA3 修复】原实现把整条导航栏 <c>Items.Clear()</c> 后重新添加：触发彩蛋是在点击事件里调用它的，
+    ///   此时清空并重建 TabControl 的 Items 会让内容演示器停留在失效状态，表现为
+    ///   "首次切到女装标签页一片空白，再切一次才正常"。改为按需增删即不会破坏演示器状态；
+    ///   同时新增的标签页一律懒加载（Content = null，选中时才由 LoadTabContent 创建内容），
+    ///   与「时间格式转换」等既有标签页走完全相同的加载路径。
     /// </summary>
-    private void UpdateTabOrder(bool easterEggActive)
+    private void SyncNavigationTabs()
     {
         if (_tabControl == null) return;
 
-        _tabControl.Items.Clear();
+        var tabs = _tabControl.Items.OfType<TabItem>().ToList();
 
-        if (easterEggActive)
+        // ① 「小工具」：控制三个工具标签页（插在「关于」之后，保持 插件设置 / 关于 / 工具… / 女装 的顺序）
+        var hasUtilityTabs = tabs.Any(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag));
+        if (UtilitiesEnabled && !hasUtilityTabs)
         {
-            _tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
-            _tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
-            _tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
-            _tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
-            _tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
-            _tabControl.Items.Add(new TabItem { Header = "女装", Content = new EasterEggPage(_pluginSettings) });
+            var aboutIndex = tabs.FindIndex(tab => (tab.Tag as string) == "About");
+            var insertIndex = aboutIndex >= 0 ? aboutIndex + 1 : _tabControl.Items.Count;
+            foreach (var (header, tag) in new[] { ("时间格式转换", "TimeConverter"), ("时间计算器", "TimeCalculator"), ("专业名词解释", "Glossary") })
+            {
+                _tabControl.Items.Insert(insertIndex++, new TabItem { Header = header, Content = null, Tag = tag });
+            }
         }
-        else
+        else if (!UtilitiesEnabled && hasUtilityTabs)
         {
-            _tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
-            _tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
-            _tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
-            _tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
-            _tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
+            foreach (var tab in tabs.Where(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag)).ToList())
+            {
+                _tabControl.Items.Remove(tab);
+            }
+        }
+
+        // ② 「女装」：始终排在最后
+        var hasEasterEggTab = tabs.Any(tab => (tab.Tag as string) == EasterEggTabTag);
+        if (_easterEggActive && !hasEasterEggTab)
+        {
+            _tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
+        }
+        else if (!_easterEggActive && hasEasterEggTab)
+        {
+            foreach (var tab in tabs.Where(tab => (tab.Tag as string) == EasterEggTabTag).ToList())
+            {
+                _tabControl.Items.Remove(tab);
+            }
         }
     }
 
@@ -606,6 +646,16 @@ public class AboutPage : SettingsPageBase
             Margin = new Thickness(0)
         };
 
+        // 【FA3 / Avalonia 12】禁用标签页切换的过场动画。
+        //   Avalonia 12 给 TabControl 新增了 PageTransition 属性（Avalonia 11 没有此属性，故 FA2 不受影响，
+        //   这也是本问题只在 FA3 出现的原因），主题会把它设上，于是切换标签页时会对内容播放位移/淡入过渡。
+        //   实测该动画会"卡住"：切到任一标签页后内容停在动画中间状态 —— 表现为整页空白，再切一次才恢复。
+        //   本插件各标签页内容都很重（女装页含 20+ 张图片），该动画只会带来不稳定，故直接置空禁用。
+        //   注：属性在 Avalonia 11 上不存在，故用反射设置，两个目标框架共用同一份代码。
+        tabControl.GetType()
+            .GetProperty("PageTransition", BindingFlags.Public | BindingFlags.Instance)
+            ?.SetValue(tabControl, null);
+
         tabControl.SelectionChanged += (s, e) =>
         {
             if (e.AddedItems.Count > 0 && e.AddedItems[0] is TabItem tabItem && tabItem.Content == null)
@@ -615,14 +665,19 @@ public class AboutPage : SettingsPageBase
         };
 
         tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
-        tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent() });
-        tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
-        tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
-        tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
+        tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent(), Tag = "About" });
+
+        // 【管理启用的功能】关闭「小工具」后不显示工具类标签页
+        if (UtilitiesEnabled)
+        {
+            tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
+            tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
+            tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
+        }
 
         if (_easterEggActive)
         {
-            tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = "EasterEgg" });
+            tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
         }
 
         return tabControl;
@@ -651,6 +706,8 @@ public class AboutPage : SettingsPageBase
                         pluginSettings.ShowEasterEggSetting();
                     }
                     pluginSettings.EasterEggToggled += OnEasterEggToggled;
+                    // 【管理启用的功能】「小工具」变更后立即重建导航栏标签页（无需重启）
+                    pluginSettings.UtilitiesToggled += OnUtilitiesToggled;
                     tabItem.Content = pluginSettings;
                     break;
                 case "Glossary":

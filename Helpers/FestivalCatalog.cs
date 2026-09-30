@@ -195,51 +195,127 @@ public static class FestivalCatalog
         return FestivalNameAliases.TryGetValue(name, out var canonical) ? canonical : name;
     }
 
+    // ==================== 纯函数结果记忆化 ====================
+    // 【性能】下面四个方法的返回值只由参数决定，但"枚举全年节日"（调试页节日列表、下个节日倒计时、
+    //   节日组件）会逐日调用它们上千次，参数组合却只有寥寥几种：实测枚举一年约 0.9~1.2 秒，
+    //   其中约 98% 都是这种重复的农历换算（lunar 库单次换算约 60 微秒，一年要算 5000 多次）。
+    //   这里按参数缓存结果，纯函数语义不变，输出与原来完全一致。
+    private const int CalcCacheLimit = 8192;
+    private static readonly object CalcCacheLock = new();
+    private static readonly Dictionary<(int Year, int Month, int Day), DateTime> LunarToSolarCache = new();
+    private static readonly Dictionary<int, DateTime> QingMingCache = new();
+    private static readonly Dictionary<int, DateTime> DongZhiCache = new();
+    private static readonly Dictionary<int, DateTime> ChuXiCache = new();
+
+    /// <summary>按参数查缓存（线程安全）。</summary>
+    private static bool TryGetCalcCache<TKey>(Dictionary<TKey, DateTime> cache, TKey key, out DateTime value)
+        where TKey : notnull
+    {
+        lock (CalcCacheLock)
+        {
+            return cache.TryGetValue(key, out value);
+        }
+    }
+
+    /// <summary>写入缓存（线程安全）；超出上限时整体清空，避免长时间浏览跨年时无界增长。</summary>
+    private static void SetCalcCache<TKey>(Dictionary<TKey, DateTime> cache, TKey key, DateTime value)
+        where TKey : notnull
+    {
+        lock (CalcCacheLock)
+        {
+            if (cache.Count >= CalcCacheLimit)
+            {
+                cache.Clear();
+            }
+            cache[key] = value;
+        }
+    }
+
     public static DateTime LunarToSolar(int lunarYear, int lunarMonth, int lunarDay)
     {
+        var key = (lunarYear, lunarMonth, lunarDay);
+        if (TryGetCalcCache(LunarToSolarCache, key, out var cached))
+        {
+            return cached;
+        }
+
+        DateTime result;
         try
         {
             var lunar = Lunar.Lunar.FromYmdHms(lunarYear, lunarMonth, lunarDay);
             var solar = lunar.Solar;
-            return new DateTime(solar.Year, solar.Month, solar.Day);
+            result = new DateTime(solar.Year, solar.Month, solar.Day);
         }
         catch
         {
-            return DateTime.MaxValue;
+            result = DateTime.MaxValue;
         }
+
+        SetCalcCache(LunarToSolarCache, key, result);
+        return result;
     }
 
     public static DateTime GetQingMingDate(int year)
     {
+        if (TryGetCalcCache(QingMingCache, year, out var cached))
+        {
+            return cached;
+        }
+
         var solar = Solar.FromYmdHms(year, 4, 4);
         var jieQi = solar.Lunar.JieQi;
-        if (jieQi == "清明") return new DateTime(year, 4, 4);
-        return new DateTime(year, 4, 5);
+        var result = jieQi == "清明" ? new DateTime(year, 4, 4) : new DateTime(year, 4, 5);
+
+        SetCalcCache(QingMingCache, year, result);
+        return result;
     }
 
     public static DateTime GetDongZhiDate(int year)
     {
+        if (TryGetCalcCache(DongZhiCache, year, out var cached))
+        {
+            return cached;
+        }
+
         var solar = Solar.FromYmdHms(year, 12, 21);
         var jieQi = solar.Lunar.JieQi;
-        if (jieQi == "冬至") return new DateTime(year, 12, 21);
-        solar = Solar.FromYmdHms(year, 12, 22);
-        jieQi = solar.Lunar.JieQi;
-        if (jieQi == "冬至") return new DateTime(year, 12, 22);
-        return new DateTime(year, 12, 23);
+        DateTime result;
+        if (jieQi == "冬至")
+        {
+            result = new DateTime(year, 12, 21);
+        }
+        else
+        {
+            solar = Solar.FromYmdHms(year, 12, 22);
+            jieQi = solar.Lunar.JieQi;
+            result = jieQi == "冬至" ? new DateTime(year, 12, 22) : new DateTime(year, 12, 23);
+        }
+
+        SetCalcCache(DongZhiCache, year, result);
+        return result;
     }
 
     public static DateTime GetChuXiDate(int lunarYear)
     {
+        if (TryGetCalcCache(ChuXiCache, lunarYear, out var cached))
+        {
+            return cached;
+        }
+
+        DateTime result;
         try
         {
             var nextYearLunar = Lunar.Lunar.FromYmdHms(lunarYear + 1, 1, 1);
             var nextYearSolar = nextYearLunar.Solar;
             var nextYearDate = new DateTime(nextYearSolar.Year, nextYearSolar.Month, nextYearSolar.Day);
-            return nextYearDate.AddDays(-1);
+            result = nextYearDate.AddDays(-1);
         }
         catch
         {
-            return DateTime.MaxValue;
+            result = DateTime.MaxValue;
         }
+
+        SetCalcCache(ChuXiCache, lunarYear, result);
+        return result;
     }
 }

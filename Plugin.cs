@@ -262,7 +262,11 @@ public class Plugin : PluginBase
 
         // 汉服 Markdown 内容热更新：后台从 GitHub 最新 release 检查并下载，
         // 解压到插件目录的 Markdown 文件夹，不阻塞插件启动与 UI。
-        Helpers.HanfuMarkdownUpdater.Start();
+        // 【管理启用的功能】关闭「汉服指南」后不再下载（连页面都不注册，无需再拉取文档）。
+        if (Settings.EnableHanfuGuide)
+        {
+            Helpers.HanfuMarkdownUpdater.Start();
+        }
 
         services.AddSingleton(Settings);
 
@@ -1588,10 +1592,19 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.WomenswearPage>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
-        if (Settings.EnableExperimentalFeatures)
+        // 【管理启用的功能】帧率折线图及其分析页面：需先开启「实验性功能」（帧率采集依赖实验性功能下的
+        //   FpsMonitorControl / FpsBackgroundCollectorService），再由「帧率折线」开关控制是否注册（默认关闭）。
+        if (Settings.EnableExperimentalFeatures && Settings.EnableFpsChart)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
             services.AddSettingsPage<Views.Settings.FpsChartAnalysisPage>();
+        }
+
+        // 【管理启用的功能】汉服页面与「汉服指南」标签页：需先开启「实验性功能」，并由「汉服指南」开关控制
+        //   （默认开启）。关闭后这些页面不再注册（HanfuPageTemplate 模板不在此块内，始终注册），
+        //   同时不再下载汉服 Markdown（见上方 HanfuMarkdownUpdater.Start 的调用条件）。
+        if (Settings.EnableExperimentalFeatures && Settings.EnableHanfuGuide)
+        {
             services.AddSettingsPage<Views.Settings.HanfuPage>();
             services.AddSettingsPage<Views.Settings.MamianQunCeZhePage>();
             services.AddSettingsPage<Views.Settings.MamianQunBaiZhePage>();

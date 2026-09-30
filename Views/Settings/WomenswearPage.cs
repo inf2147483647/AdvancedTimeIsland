@@ -156,6 +156,10 @@ public class WomenswearPage : SettingsPageBase
     /// 显示宿主的崩溃窗口（<c>ClassIsland.Views.CrashWindow</c>）并填充报告正文；除正文外
     /// 行为与开发者菜单的“显示崩溃窗口”一致。该类型位于宿主主程序集（非 ClassIsland.Core），
     /// 插件没有编译期引用，故运行时从已加载程序集反射获取；不假定程序集名，避免宿主改名后失效。
+    /// 【FA2 / FA3 差异】ClassIsland 2.0.x（FA2）的 CrashWindow 是 <see cref="Window"/>，
+    /// 用 ShowDialog(owner) 显示；2.1.x（FA3）改成了 <c>ViewBase</c>（不再是窗口），
+    /// 宿主自己用 <c>await CrashWindow.ShowModal()</c> 显示，故这里按实际类型分派——
+    /// 否则旧实现里 `is not Window` 会直接 return，表现为"崩溃窗口无法召唤"。
     /// </summary>
     private void ShowHostCrashWindow()
     {
@@ -165,7 +169,7 @@ public class WomenswearPage : SettingsPageBase
                 .Select(assembly => assembly.GetType("ClassIsland.Views.CrashWindow"))
                 .FirstOrDefault(type => type != null);
 
-            if (crashWindowType == null || Activator.CreateInstance(crashWindowType) is not Window crashWindow)
+            if (crashWindowType == null || Activator.CreateInstance(crashWindowType) is not { } crashInstance)
             {
                 return;
             }
@@ -175,11 +179,28 @@ public class WomenswearPage : SettingsPageBase
             var (blamedPlugins, blamedDisabled) = FindAndDisableFemboyPlugins();
 
             // 填充正文：CrashWindow.CrashInfo 是公开的可写 StyledProperty，
-            // XAML 中正文 TextBox 以 OneWay 绑定它，故构造后赋值即可刷新。
+            // XAML 中正文 TextBox 绑定它，故显示前赋值即可刷新（FA2/FA3 同为该属性名）。
             // 注意 IsCritical / AllowIgnore 在 XAML 里是 OneTime 绑定，构造时（DataContext = this）
             // 已求值完毕，构造后再赋值不会改变红条与“忽略/调试”按钮的可见性，
             // 因此这里不设置它们——与开发者菜单“显示崩溃窗口”的默认表现保持一致。
-            crashWindowType.GetProperty("CrashInfo")?.SetValue(crashWindow, BuildCrashInfo(blamedPlugins, blamedDisabled));
+            crashWindowType.GetProperty("CrashInfo")?.SetValue(crashInstance, BuildCrashInfo(blamedPlugins, blamedDisabled));
+
+            // 【FA3】ViewBase 形态：与宿主一致走 ShowModal()（无参重载 ShowModal(ViewBase? owner = null)）
+            if (crashInstance is not Window)
+            {
+                var showModal = crashWindowType
+                    .GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                    .FirstOrDefault(method => method.Name == "ShowModal"
+                                              && !method.IsGenericMethod
+                                              && method.ReturnType == typeof(Task)
+                                              && method.GetParameters() is { Length: 1 } parameters
+                                              && parameters[0].ParameterType != typeof(Window));
+                if (showModal?.Invoke(crashInstance, new object?[] { null }) is Task modalTask)
+                {
+                    _ = ObserveTaskAsync(modalTask);
+                }
+                return;
+            }
 
             // 让崩溃窗口占据设置窗口的焦点：走模态 ShowDialog（与宿主真实崩溃时
             // await CrashWindow.ShowDialog(GetRootWindow()) 的做法一致）。
@@ -188,11 +209,28 @@ public class WomenswearPage : SettingsPageBase
             // 注：Avalonia 的 WindowBase.Owner setter 为 internal，不能直接赋值，
             // 由 ShowDialog(owner) 在内部完成 owner 绑定。
             var owner = FluentAvaloniaCompatibilityHelper.ResolveOwnerWindow(this);
-            _ = ShowCrashWindowAsync(crashWindow, owner);
+            _ = ShowCrashWindowAsync((Window)crashInstance, owner);
         }
         catch (Exception ex)
         {
             System.Diagnostics.Debug.WriteLine($"ShowHostCrashWindow failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 等待崩溃视图关闭并就地观察其异常。单独抽成方法是为了让返回的 Task 始终被 await
+    /// 并就地捕获异常——若放任其成为未观察异常，会经 TaskScheduler.UnobservedTaskException
+    /// 触发宿主的崩溃处理流程（本机安全模式下会直接退出应用）。
+    /// </summary>
+    private static async Task ObserveTaskAsync(Task task)
+    {
+        try
+        {
+            await task;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"AwaitCrashViewAsync failed: {ex}");
         }
     }
 

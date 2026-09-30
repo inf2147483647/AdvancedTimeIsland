@@ -131,6 +131,10 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableDayYiJi = true;
     private bool _enableShengXiao = true;
     private bool _enableFestival = true;
+    // ===== 「管理启用的功能」新增开关 =====
+    private bool _enableFpsChart = false;      // 帧率折线图及其分析页面（默认关闭）
+    private bool _enableHanfuGuide = true;     // 汉服指南（170+ 汉服页面 + Markdown 下载，默认开启）
+    private bool _enableUtilities = true;      // 小工具（时间格式转换 / 时间计算器 / 专业名词解释，默认开启）
     private string? _cachedVersion;
     private bool _enableFloatingSchedule = true;
     private FloatingScheduleWindowLayer _floatingScheduleWindowLayer = FloatingScheduleWindowLayer.Bottom;
@@ -297,6 +301,57 @@ public class PluginSettings : INotifyPropertyChanged
             if (_enableFestival != value)
             {
                 _enableFestival = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否注册帧率折线图及其分析页面（「管理启用的功能」，默认关闭）
+    /// </summary>
+    public bool EnableFpsChart
+    {
+        get => _enableFpsChart;
+        set
+        {
+            if (_enableFpsChart != value)
+            {
+                _enableFpsChart = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否启用汉服指南（「管理启用的功能」，默认开启）。
+    /// 关闭后不再注册 170+ 汉服页面与「汉服指南」标签页，也不再从 AdvancedTimeIslandHanfu 下载 Markdown；
+    /// 汉服页面模板（HanfuPageTemplate）始终注册。
+    /// </summary>
+    public bool EnableHanfuGuide
+    {
+        get => _enableHanfuGuide;
+        set
+        {
+            if (_enableHanfuGuide != value)
+            {
+                _enableHanfuGuide = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否显示小工具（「管理启用的功能」，默认开启）。
+    /// 关闭后主设置导航栏不再显示「时间格式转换」「时间计算器」「专业名词解释」三个标签页。
+    /// </summary>
+    public bool EnableUtilities
+    {
+        get => _enableUtilities;
+        set
+        {
+            if (_enableUtilities != value)
+            {
+                _enableUtilities = value;
                 OnPropertyChanged();
             }
         }
