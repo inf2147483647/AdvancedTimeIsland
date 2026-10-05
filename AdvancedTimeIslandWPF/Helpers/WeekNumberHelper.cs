@@ -26,6 +26,17 @@ public static class WeekNumberHelper
     }
 
     /// <summary>
+    /// 计算指定日期在一周中的序号（周一=0，周二=1，……，周日=6）。
+    /// </summary>
+    /// <remarks>
+    /// <see cref="DateTime.DayOfWeek"/> 以周日=0……周六=6，与各“每周”设置下拉框的排列顺序
+    /// （周一……周日，下标 0-6）不一致，判断星期时需用本方法统一转换。
+    /// </remarks>
+    /// <param name="date">目标日期。</param>
+    /// <returns>星期序号（周一=0……周日=6）。</returns>
+    public static int GetMondayBasedDayIndex(DateTime date) => ((int)date.DayOfWeek + 6) % 7;
+
+    /// <summary>
     /// 计算指定日期从学期开始日起的周数。
     /// </summary>
     /// <remarks>

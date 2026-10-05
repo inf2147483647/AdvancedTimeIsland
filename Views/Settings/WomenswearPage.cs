@@ -9,7 +9,10 @@ using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using AdvancedTimeIsland.Helpers;
+// 别名指向插件内复制的占位符：避免与宿主 ClassIsland.Core.Controls 中的同名类型冲突（net10 侧两者都存在）
+using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
@@ -36,6 +39,14 @@ public class WomenswearPage : SettingsPageBase
     private EasterEggPage? _hanfuContent;
     private Control? _jkContent;
     private TextBlock? _backTextBlock;
+
+    /// <summary>JK制服标签页的加载占位符容器（三形状弹簧形变循环）。</summary>
+    private Control? _jkLoadingContent;
+    private ExpressiveLoadingIndicator? _jkLoadingIndicator;
+    private DispatcherTimer? _jkLoadingTimer;
+
+    /// <summary>JK制服标签页先展示加载占位符的时长；走完后再切换到页面导航失败占位符。</summary>
+    private static readonly TimeSpan JkLoadingDuration = TimeSpan.FromSeconds(30);
 
     public WomenswearPage()
     {
@@ -99,6 +110,20 @@ public class WomenswearPage : SettingsPageBase
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center
         };
+
+        // JK制服标签页的加载占位符容器：进入该标签页时先展示占位符 30 秒（模拟图片仍在缓冲），
+        // 到时后再切换到上面的“页面导航失败”内容。
+        _jkLoadingIndicator = new ExpressiveLoadingIndicator
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = GetAccentBrush(),
+            IsActive = false,
+            IsVisible = false
+        };
+        var jkLoadingPanel = new Grid();
+        jkLoadingPanel.Children.Add(_jkLoadingIndicator);
+        _jkLoadingContent = jkLoadingPanel;
 
         _contentControl = new ContentControl
         {
@@ -175,21 +200,83 @@ public class WomenswearPage : SettingsPageBase
 
         if (_tabStrip.SelectedIndex == 1)
         {
-            // 先展示官方“页面导航出错”标识，再直接显示宿主的崩溃窗口。
-            _contentControl.Content = _jkContent;
-
-            // 直接映射宿主开发者菜单的“显示崩溃窗口”（MainWindow 的
-            // NativeMenuItemDebugCrashTest_OnClick：new CrashWindow().Show()）。
-            // 刻意不走“抛未处理异常”的路径：本机开启了教学安全模式
-            // （IsCriticalSafeMode=true 且 CriticalSafeModeMethod=0）时，
-            // ProcessUnhandledException 会在 safe 分支直接 Stop() 静默退出，
-            // 反而看不到崩溃窗口。每进入一次该标签页就显示一次。
-            ShowHostCrashWindow();
+            StartJkLoading();
         }
         else
         {
+            CancelJkLoading();
             _contentControl.Content = _hanfuContent;
         }
+    }
+
+    /// <summary>
+    /// 进入 JK制服标签页：先展示加载占位符 30 秒（模拟图片仍在缓冲），
+    /// 到时后再切换为官方“页面导航出错”标识，并显示宿主的崩溃窗口。
+    /// </summary>
+    private void StartJkLoading()
+    {
+        if (_contentControl == null || _jkLoadingContent == null || _jkLoadingIndicator == null)
+        {
+            return;
+        }
+
+        _contentControl.Content = _jkLoadingContent;
+        _jkLoadingIndicator.IsActive = true;
+        _jkLoadingIndicator.IsVisible = true;
+
+        CancelJkLoadingTimer();
+        _jkLoadingTimer = new DispatcherTimer { Interval = JkLoadingDuration };
+        _jkLoadingTimer.Tick += OnJkLoadingTimerTick;
+        _jkLoadingTimer.Start();
+    }
+
+    private void OnJkLoadingTimerTick(object? sender, EventArgs e)
+    {
+        CancelJkLoadingTimer();
+
+        if (_jkLoadingIndicator != null)
+        {
+            _jkLoadingIndicator.IsActive = false;
+            _jkLoadingIndicator.IsVisible = false;
+        }
+
+        if (_contentControl != null)
+        {
+            _contentControl.Content = _jkContent;
+        }
+
+        // 占位符结束后再弹出宿主崩溃窗口：与原先“进入即弹”的 Easter Egg 行为一致，只是延后到加载占位结束。
+        // 直接映射宿主开发者菜单的“显示崩溃窗口”（MainWindow 的
+        // NativeMenuItemDebugCrashTest_OnClick：new CrashWindow().Show()）。
+        // 刻意不走“抛未处理异常”的路径：本机开启了教学安全模式
+        // （IsCriticalSafeMode=true 且 CriticalSafeModeMethod=0）时，
+        // ProcessUnhandledException 会在 safe 分支直接 Stop() 静默退出，
+        // 反而看不到崩溃窗口。每进入一次该标签页就显示一次。
+        ShowHostCrashWindow();
+    }
+
+    /// <summary>取消 JK制服 标签页的加载占位符（含未到点的定时器）：切换标签页或离开页面时调用。</summary>
+    private void CancelJkLoading()
+    {
+        CancelJkLoadingTimer();
+
+        if (_jkLoadingIndicator != null)
+        {
+            _jkLoadingIndicator.IsActive = false;
+            _jkLoadingIndicator.IsVisible = false;
+        }
+    }
+
+    private void CancelJkLoadingTimer()
+    {
+        if (_jkLoadingTimer == null)
+        {
+            return;
+        }
+
+        _jkLoadingTimer.Stop();
+        _jkLoadingTimer.Tick -= OnJkLoadingTimerTick;
+        _jkLoadingTimer = null;
     }
 
     /// <summary>
@@ -514,9 +601,8 @@ public class WomenswearPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 构造崩溃报告正文，结构对齐宿主 ProcessUnhandledException：先输出 TraceID 提示块，
-    /// 再输出被归因的插件告警（如有），最后是异常信息与堆栈（e.ToString() 形式），
-    /// 中间额外附带本插件的版本与发生时间，便于用户直接点“复制/反馈问题”。
+    /// 构造崩溃报告正文，结构严格对齐宿主 ProcessUnhandledException：
+    /// TraceID 提示块 → 被归因的插件告警（如有）→ 异常信息与堆栈（e.ToString() 形式）。
     /// </summary>
     private static string BuildCrashInfo(IReadOnlyList<PluginInfo> blamedPlugins, bool blamedDisabled)
     {
@@ -531,11 +617,7 @@ public class WomenswearPage : SettingsPageBase
         builder.AppendLine("================================");
         builder.AppendLine();
 
-        builder.AppendLine($"插件版本：AdvancedTimeIsland {GetPluginVersion()}");
-        builder.AppendLine($"发生时间：{Plugin.GetCurrentTime():yyyy-MM-dd HH:mm:ss}");
-        builder.AppendLine($"出错的页面：应用设置->AdvancedTimeIsland调试->女装->JK 制服");
-
-        // 归因段落：措辞对齐宿主 ProcessUnhandledException 中的插件告警文案，
+        // 归因段落：措辞与宿主 ProcessUnhandledException 中的插件告警文案完全一致，
         // 命中多个同类插件时逐条列出（宿主同样如此）。
         if (blamedPlugins.Count > 0)
         {
@@ -551,9 +633,93 @@ public class WomenswearPage : SettingsPageBase
             builder.AppendLine("================================");
         }
 
-        builder.AppendLine("System.Exception: There is no pictures of JK uniform!");
-        builder.Append(new System.Diagnostics.StackTrace(true));
+        // 异常正文：按实际归因到的插件动态生成，形态与真实崩溃的 e.ToString() 一致。
+        // 不能在此处 new StackTrace()：那会把本插件（BuildCrashInfo / ShowHostCrashWindow /
+        // OnJkLoadingTimerTick 等）的方法名写进堆栈，一眼就能看出这份报告是彩蛋伪造的。
+        builder.Append(BuildCrashExceptionText(blamedPlugins));
         return builder.ToString();
+    }
+
+    /// <summary>
+    /// 生成异常正文（<c>e.ToString()</c> 形态）。
+    /// 堆栈里的插件帧按**实际归因到的插件列表**逐条生成（命名空间取自插件标识符），
+    /// 与上方插件告警一一对应——而不是固定成某一个插件，否则会出现“告警列了 10 个插件、
+    /// 堆栈却只提到其中 1 个”的破绽。同时刻意不包含本插件（AdvancedTimeIsland）的任何方法。
+    /// </summary>
+    private static string BuildCrashExceptionText(IReadOnlyList<PluginInfo> blamedPlugins)
+    {
+        var lines = new List<string> { "System.Exception: There is no pictures of JK uniform!" };
+
+        if (blamedPlugins.Count > 0)
+        {
+            for (var i = 0; i < blamedPlugins.Count; i++)
+            {
+                var pluginNamespace = ToPluginNamespace(blamedPlugins[i].Manifest.Id);
+                lines.Add(i == 0
+                    ? $"   at {pluginNamespace}.Services.UniformPictureService.GetJkUniformPictures(String album)"
+                    : $"   at {pluginNamespace}.Views.WomenswearPage.<LoadPicturesAsync>d__19.MoveNext()");
+            }
+
+            lines.Add("   --- End of stack trace from previous location ---");
+        }
+        else
+        {
+            // 未归因到任何插件时退化为宿主自身的调用帧，不做插件归因
+            lines.Add("   at ClassIsland.Views.SettingPages.ErrorSettingsPage.OnLoaded(RoutedEventArgs e)");
+        }
+
+        lines.AddRange(FrameworkStackFrames);
+        return string.Join(Environment.NewLine, lines);
+    }
+
+    /// <summary>
+    /// 异常堆栈尾部的框架帧（Avalonia / BCL / 桌面启动），与宿主真实崩溃报告一致。
+    /// </summary>
+    private static readonly string[] FrameworkStackFrames =
+    [
+        "   at System.Runtime.ExceptionServices.ExceptionDispatchInfo.Throw()",
+        "   at System.Runtime.CompilerServices.TaskAwaiter.ThrowForNonSuccess(Task task)",
+        "   at System.Runtime.CompilerServices.TaskAwaiter.HandleNonSuccessAndDebuggerNotification(Task task)",
+        "   at Avalonia.Threading.DispatcherOperation.InvokeCore()",
+        "   at Avalonia.Threading.CulturePreservingExecutionContext.CallbackWrapper(Object obj)",
+        "   at System.Threading.ExecutionContext.RunInternal(ExecutionContext executionContext, ContextCallback callback, Object state)",
+        "   at Avalonia.Threading.DispatcherOperation.Execute()",
+        "   at Avalonia.Threading.Dispatcher.ExecuteJob(DispatcherOperation job)",
+        "   at Avalonia.Threading.Dispatcher.ExecuteJobsCore(Boolean fromExplicitBackgroundProcessingCallback)",
+        "   at Avalonia.Win32.Win32Platform.WndProc(IntPtr hWnd, UInt32 msg, IntPtr wParam, IntPtr lParam)",
+        "   at Avalonia.Win32.Interop.UnmanagedMethods.DispatchMessage(MSG& lpmsg)",
+        "   at Avalonia.Win32.Win32DispatcherImpl.RunLoop(CancellationToken cancellationToken)",
+        "   at Avalonia.Threading.DispatcherFrame.Run(IControlledDispatcherImpl impl)",
+        "   at Avalonia.Threading.Dispatcher.PushFrame(DispatcherFrame frame)",
+        "   at Avalonia.Threading.Dispatcher.MainLoop(CancellationToken cancellationToken)",
+        "   at Avalonia.Controls.ApplicationLifetimes.ClassicDesktopStyleApplicationLifetime.StartCore(String[] args)",
+        "   at Avalonia.Controls.ApplicationLifetimes.ClassicDesktopStyleApplicationLifetime.Start(String[] args)",
+        "   at Avalonia.ClassicDesktopStyleApplicationLifetimeExtensions.StartWithClassicDesktopLifetime(AppBuilder builder, string[] args, Action`1 lifetimeBuilder)",
+        "   at ClassIsland.Desktop.Program.Main(String[] args) in /_/ClassIsland.Desktop/Program.cs:line 118",
+    ];
+
+    /// <summary>
+    /// 由插件标识符推导报告堆栈中出现的“插件根命名空间”：逐段保留，仅把不能作为标识符
+    /// 首字符的段前缀下划线（如 inf2147483647.MatchTest.01 → inf2147483647.MatchTest._01）。
+    /// </summary>
+    private static string ToPluginNamespace(string? pluginId)
+    {
+        if (string.IsNullOrWhiteSpace(pluginId))
+        {
+            return "Plugin";
+        }
+
+        var segments = pluginId.Split('.', StringSplitOptions.RemoveEmptyEntries);
+        for (var i = 0; i < segments.Length; i++)
+        {
+            var first = segments[i][0];
+            if (!char.IsLetter(first) && first != '_')
+            {
+                segments[i] = "_" + segments[i];
+            }
+        }
+
+        return segments.Length == 0 ? "Plugin" : string.Join('.', segments);
     }
 
     /// <summary>插件主程序集 MD5 的进程内缓存：同一进程内恒定，只需计算一次。</summary>
@@ -596,44 +762,6 @@ public class WomenswearPage : SettingsPageBase
         return "unknown";
     }
 
-    /// <summary>
-    /// 读取插件版本：解析插件目录下 manifest.yml 的 version 字段，与“关于”页同源。
-    /// </summary>
-    private static string GetPluginVersion()
-    {
-        try
-        {
-            var manifestPath = System.IO.Path.Combine(AppContext.BaseDirectory, "manifest.yml");
-            if (!System.IO.File.Exists(manifestPath))
-            {
-                var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                var pluginDir = System.IO.Path.GetDirectoryName(assemblyLocation);
-                if (!string.IsNullOrEmpty(pluginDir))
-                {
-                    manifestPath = System.IO.Path.Combine(pluginDir, "manifest.yml");
-                }
-            }
-
-            if (System.IO.File.Exists(manifestPath))
-            {
-                var content = System.IO.File.ReadAllText(manifestPath);
-                var match = System.Text.RegularExpressions.Regex.Match(
-                    content, @"^\s*version\s*:\s*(.+?)\s*$",
-                    System.Text.RegularExpressions.RegexOptions.Multiline);
-                if (match.Success)
-                {
-                    return match.Groups[1].Value.Trim().Trim('"', '\'');
-                }
-            }
-        }
-        catch
-        {
-            // 读取失败时回退到未知版本
-        }
-
-        return "未知版本";
-    }
-
     protected override void OnInitialized()
     {
         base.OnInitialized();
@@ -646,6 +774,7 @@ public class WomenswearPage : SettingsPageBase
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        CancelJkLoading();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;

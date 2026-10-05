@@ -16,6 +16,8 @@ using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+// 别名指向插件内复制的占位符：避免与宿主 ClassIsland.Core.Controls 中的同名类型冲突（net10 侧两者都存在）
+using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -45,7 +47,7 @@ public class EasterEggPage : UserControl
     private List<TextBlock>? _boldTextBlocks;
     private List<Border>? _separatorBorders;
     private Border? _markdownSectionBorder;
-    private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>? _imageLoadInfos;
+    private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>? _imageLoadInfos;
     private ScrollViewer? _scrollViewer;
     private Button? _backToTopButton;
     private OverlayLayer? _overlayLayer;
@@ -192,6 +194,8 @@ public class EasterEggPage : UserControl
 
 ";
 
+        // 图片缓冲占位符：每张图片在 CreateMarkdownImage 中各自创建一个，
+        // 悬浮在该图之上居中显示，单张缓冲结束后即隐藏——避免一张慢图拖慢/遮挡整体进度。
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
         // 在最后一个链接下面添加30px的空白
@@ -215,7 +219,7 @@ public class EasterEggPage : UserControl
         _normalTextBlocks = new List<TextBlock>();
         _boldTextBlocks = new List<TextBlock>();
         _separatorBorders = new List<Border>();
-        _imageLoadInfos = new List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>();
+        _imageLoadInfos = new List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>();
 
         var section = new Border
         {
@@ -561,8 +565,17 @@ public class EasterEggPage : UserControl
         };
         errorPanel.Children.Add(retryButton);
 
+        // 每张图片独立的加载占位符：该图缓冲完成前悬浮其上居中显示
+        var loadingIndicator = new ExpressiveLoadingIndicator
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = GetAccentBrush()
+        };
+
         var grid = new Grid();
         grid.Children.Add(image);
+        grid.Children.Add(loadingIndicator);
         grid.Children.Add(errorPanel);
 
         var container = new Border
@@ -583,14 +596,14 @@ public class EasterEggPage : UserControl
             retryButton.Content = "加载中...";
             errorPanel.IsVisible = false;
             errorDetailText.Text = "";
-            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator);
         }
 
         retryButton.Click += RetryHandler;
 
-        _imageLoadInfos?.Add((url, image, errorPanel, errorDetailText, retryButton));
+        _imageLoadInfos?.Add((url, image, errorPanel, errorDetailText, retryButton, loadingIndicator));
 
-        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator);
 
         return container;
     }
@@ -598,8 +611,12 @@ public class EasterEggPage : UserControl
     /// <summary>共享 HttpClient：避免每张图各建一个（原实现 20+ 张图会创建 20+ 个 HttpClient/连接池）。</summary>
     private static readonly HttpClient SharedHttpClient = new() { Timeout = TimeSpan.FromSeconds(30) };
 
-    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)
+    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)
     {
+        // 该图缓冲期间显示占位符；缓冲结束（成功/失败）后隐藏
+        loadingIndicator.IsActive = true;
+        loadingIndicator.IsVisible = true;
+
         try
         {
             var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
@@ -652,6 +669,11 @@ public class EasterEggPage : UserControl
             retryButton.IsEnabled = true;
             retryButton.Content = "重新刷新";
         }
+        finally
+        {
+            loadingIndicator.IsActive = false;
+            loadingIndicator.IsVisible = false;
+        }
     }
 
     private async void RefreshButton_Click(object? sender, RoutedEventArgs e)
@@ -691,7 +713,7 @@ public class EasterEggPage : UserControl
                 info.retryButton.IsEnabled = false;
                 info.retryButton.Content = "加载中...";
 
-                tasks.Add(LoadRemoteImageWithRetry(info.url, info.image, info.errorPanel, info.errorDetailText, info.retryButton));
+                tasks.Add(LoadRemoteImageWithRetry(info.url, info.image, info.errorPanel, info.errorDetailText, info.retryButton, info.loadingIndicator));
             }
 
             await Task.WhenAll(tasks);

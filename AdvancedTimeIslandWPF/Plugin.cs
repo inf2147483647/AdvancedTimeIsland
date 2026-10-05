@@ -829,7 +829,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
@@ -1095,7 +1095,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZone);
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
@@ -1157,7 +1157,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
