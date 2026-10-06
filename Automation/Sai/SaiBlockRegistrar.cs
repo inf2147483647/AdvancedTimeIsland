@@ -175,14 +175,14 @@ internal static class SaiBlockRegistrar
         Id = id,
         Name = name,
         Icon = (name, glyph),
-        Args = BuildArgs(settingsType),
+        Args = BuildArgs(id, settingsType),
     };
 
     /// <summary>
     /// 依据设置类的公开属性生成积木参数元数据。
     /// 键即设置类属性名，也是 ClassIsland 设置 JSON 的字段名，SuperAutoIsland 会原样回传给行动/规则。
     /// </summary>
-    private static Dictionary<string, MetaArgsBase> BuildArgs(Type? settingsType)
+    private static Dictionary<string, MetaArgsBase> BuildArgs(string blockId, Type? settingsType)
     {
         var args = new Dictionary<string, MetaArgsBase>();
         if (settingsType == null)
@@ -197,6 +197,21 @@ internal static class SaiBlockRegistrar
                 continue;
             }
 
+            var name = ResolveFieldLabel(blockId, property.Name);
+
+            // 枚举类字段：改成下拉选择，用户无需手打完整字符串。
+            if (DropdownOptions.TryGetValue(property.Name, out var options))
+            {
+                args[property.Name] = new DropDownMetaArgs
+                {
+                    Name = name,
+                    Type = MetaType.dropdown,
+                    // 选项的显示文本与取值相同，因此与 SuperAutoIsland 的 (标签, 取值) 顺序无关。
+                    Options = options.Select(value => (value, value)).ToList(),
+                };
+                continue;
+            }
+
             var metaType = GetMetaType(property.PropertyType);
             if (metaType == null)
             {
@@ -205,12 +220,28 @@ internal static class SaiBlockRegistrar
 
             args[property.Name] = new CommonMetaArgs
             {
-                Name = FieldLabels.TryGetValue(property.Name, out var label) ? label : property.Name,
+                Name = name,
                 Type = metaType.Value,
             };
         }
 
         return args;
+    }
+
+    /// <summary>
+    /// 解析字段在积木上显示的名称：优先使用该积木专属的格式模板，其次使用通用中文名，最后回退到属性名。
+    /// </summary>
+    private static string ResolveFieldLabel(string blockId, string propertyName)
+    {
+        // 时间类字段的字符串格式因积木而异（精确到年/月/日/时…），把完整格式与示例写进字段名。
+        if (propertyName is "StartTime" or "EndTime" or "StartTargetTime" or "EndTargetTime" &&
+            BlockTimeFormat.TryGetValue(blockId, out var format))
+        {
+            var prefix = propertyName.Contains("End") ? "结束时间" : "开始时间";
+            return $"{prefix}({format})";
+        }
+
+        return FieldLabels.TryGetValue(propertyName, out var label) ? label : propertyName;
     }
 
     private static MetaType? GetMetaType(Type type)
@@ -242,6 +273,70 @@ internal static class SaiBlockRegistrar
         "StartLunarYearRangeEnd",
         "EndLunarYearRangeEnd",
         "LunarYearRangeEnd",
+        // 每周期目前仅一个单位（恒为 0），对用户无意义，不暴露为积木参数。
+        "Unit",
+    };
+
+    /// <summary>
+    /// 枚举类字段的下拉选项（键为设置类属性名）。显示文本与取值相同，故与 (标签, 取值) 顺序无关。
+    /// 取值与桌面端各设置控件中 ComboBox 的选项保持一致：星座 / 节气 / 生肖 / 节日。
+    /// </summary>
+    private static readonly Dictionary<string, string[]> DropdownOptions = new()
+    {
+        ["TargetXingZuo"] = new[]
+        {
+            "白羊座", "金牛座", "双子座", "巨蟹座", "狮子座", "处女座",
+            "天秤座", "天蝎座", "射手座", "摩羯座", "水瓶座", "双鱼座",
+        },
+        ["TargetJieQi"] = new[]
+        {
+            "立春", "雨水", "惊蛰", "春分", "清明", "谷雨",
+            "立夏", "小满", "芒种", "夏至", "小暑", "大暑",
+            "立秋", "处暑", "白露", "秋分", "寒露", "霜降",
+            "立冬", "小雪", "大雪", "冬至", "小寒", "大寒",
+        },
+        ["TargetShengXiao"] = new[] { "鼠", "牛", "虎", "兔", "龙", "蛇", "马", "羊", "猴", "鸡", "狗", "猪" },
+        ["TargetFestival"] = new[]
+        {
+            "元旦 (1月1日)", "妇女节 (3月8日)", "植树节 (3月12日)", "劳动节 (5月1日)", "儿童节 (6月1日)",
+            "教师节 (9月10日)", "清明节 (公历4月4-6日)", "冬至 (公历12月21-23日)",
+            "春节 (农历正月初一)", "元宵节 (农历正月十五)", "寒食节 (清明前一日)", "端午节 (农历五月初五)",
+            "七夕节 (农历七月初七)", "中元节 (农历七月十五)", "中秋节 (农历八月十五)", "重阳节 (农历九月初九)",
+            "腊八节 (农历十二月初八)", "小年 (农历十二月二十三)", "除夕 (农历十二月三十)",
+            "二七纪念日 (2月7日)", "学雷锋纪念日 (3月5日)", "五四青年节 (5月4日)", "七一建党节 (7月1日)",
+            "八一建军节 (8月1日)", "中国人民抗日战争胜利纪念日 (9月3日)", "九一八事变纪念日 (9月18日)",
+            "烈士纪念日 (9月30日)", "十一国庆节 (10月1日)", "中国工农红军长征胜利纪念日 (10月22日)",
+            "南京大屠杀死难者国家公祭日 (12月13日)",
+        },
+    };
+
+    /// <summary>
+    /// 各“时间范围”积木的时间字段格式模板（键为积木 Id）。
+    /// 不同积木的 StartTime/EndTime 精度不同（精确到年 / 月 / 日 / 时…），需按积木给出对应格式与示例。
+    /// </summary>
+    private static readonly Dictionary<string, string> BlockTimeFormat = new()
+    {
+        ["advancedtimeisland.exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
+        ["advancedtimeisland.local_solar_exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
+        ["advancedtimeisland.time_zone_exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
+        ["advancedtimeisland.yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
+        ["advancedtimeisland.local_solar_yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
+        ["advancedtimeisland.time_zone_yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
+        ["advancedtimeisland.monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
+        ["advancedtimeisland.local_solar_monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
+        ["advancedtimeisland.time_zone_monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
+        ["advancedtimeisland.daily_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.local_solar_daily_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.time_zone_daily_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.hourly_time_range"] = "分-秒，例 30-00",
+        ["advancedtimeisland.local_solar_hourly_time_range"] = "分-秒，例 30-00",
+        ["advancedtimeisland.time_zone_hourly_time_range"] = "分-秒，例 30-00",
+        ["advancedtimeisland.weekly_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.local_solar_weekly_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.time_zone_weekly_time_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.lunar_exact_time_in_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.lunar_yearly_time_in_range"] = "时-分-秒，例 08-00-00",
+        ["advancedtimeisland.lunar_monthly_time_in_range"] = "时-分-秒，例 08-00-00",
     };
 
     /// <summary>
@@ -251,8 +346,8 @@ internal static class SaiBlockRegistrar
     {
         ["StartTime"] = "开始时间",
         ["EndTime"] = "结束时间",
-        ["StartSecond"] = "开始秒",
-        ["EndSecond"] = "结束秒",
+        ["StartSecond"] = "开始秒(0-59)",
+        ["EndSecond"] = "结束秒(0-59)",
         ["StartDayOfWeek"] = "开始星期(0-6，0=周一)",
         ["EndDayOfWeek"] = "结束星期(0-6，0=周一)",
         ["TimeZoneId"] = "时区 Id",

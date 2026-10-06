@@ -1,7 +1,7 @@
 # AdvancedTimeIsland
 
 在ClassIsland自动化添加支持高级触发时间的插件
-
+![Advanced Time Island](IMG_13387.png)
 ![demo](demo.png)
 
 图片仅供参考  
