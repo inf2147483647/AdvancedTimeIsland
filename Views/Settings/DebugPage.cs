@@ -18,6 +18,7 @@ using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
 using ClassIsland.Core.Enums.SettingsWindow;
 using ClassIsland.Shared;
+using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -122,7 +123,14 @@ public class DebugPage : SettingsPageBase
             ButtonEmpty_OnClick);
         mainPanel.Children.Add(emptyPanel);
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        
+
+        var loadingPanel = CreateSimpleTestPanel(
+            "加载中",
+            "打开",
+            ButtonLoading_OnClick);
+        mainPanel.Children.Add(loadingPanel);
+        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
+
         mainPanel.Children.Add(CreateMemoryLeakTestPanel());
         mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
         mainPanel.Children.Add(CreateNestedExpanderPanel());
@@ -217,6 +225,28 @@ public class DebugPage : SettingsPageBase
         catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonEmpty_OnClick 异常：{ex}"); }
     }
 
+    private async void ButtonLoading_OnClick(object? sender, RoutedEventArgs e)
+    {
+        try { await ShowLoadingDialogAsync(); }
+        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonLoading_OnClick 异常：{ex}"); }
+    }
+
+    /// <summary>
+    /// 获取当前主题的强调色画刷（加载占位符颜色与应用强调色保持一致）。
+    /// </summary>
+    private static SolidColorBrush GetAccentBrush()
+    {
+        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        {
+            return new SolidColorBrush(accentColor);
+        }
+        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        {
+            return new SolidColorBrush(accentColor2);
+        }
+        return new SolidColorBrush(Colors.DodgerBlue);
+    }
+
     /// <summary>
     /// 展示 ClassIsland 官方样式的“啥都没有”空白占位符（ClassIsland.Core.Controls.Empty）。
     /// </summary>
@@ -254,6 +284,52 @@ public class DebugPage : SettingsPageBase
             Margin = new Thickness(16)
         };
         stack.Children.Add(empty);
+        stack.Children.Add(closeButton);
+
+        dialog.Content = stack;
+
+        await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
+    }
+
+    /// <summary>
+    /// 展示插件内置的“加载中”占位符（<see cref="ExpressiveLoadingIndicator"/>，
+    /// Material 3 Expressive 风格：正方形 → 三角形 → 五边形循环弹簧形变）。
+    /// 该控件复制自 ClassIsland.Core 2.1.x，使 net8（Avalonia 11）与 net10（Avalonia 12）宿主下均可显示。
+    /// </summary>
+    private async Task ShowLoadingDialogAsync()
+    {
+        var dialog = new Window
+        {
+            Title = "加载中",
+            Width = 420,
+            SizeToContent = SizeToContent.Height,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            CanResize = false
+        };
+
+        var loadingIndicator = new ExpressiveLoadingIndicator
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Foreground = GetAccentBrush(),
+            Margin = new Thickness(24, 40, 24, 0)
+        };
+
+        var closeButton = new Button
+        {
+            Content = "关闭",
+            Padding = new Thickness(16, 8, 16, 8),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+        closeButton.Click += (s, e) => dialog.Close();
+
+        var stack = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(16)
+        };
+        stack.Children.Add(loadingIndicator);
         stack.Children.Add(closeButton);
 
         dialog.Content = stack;
