@@ -190,6 +190,8 @@ internal static class SaiBlockRegistrar
             return args;
         }
 
+        var timeComponents = BlockTimeComponents.TryGetValue(blockId, out var components) ? components : null;
+
         foreach (var property in settingsType.GetProperties(BindingFlags.Public | BindingFlags.Instance))
         {
             if (!property.CanRead || !property.CanWrite || ExcludedFields.Contains(property.Name))
@@ -197,7 +199,24 @@ internal static class SaiBlockRegistrar
                 continue;
             }
 
-            var name = ResolveFieldLabel(blockId, property.Name);
+            // 时间范围积木：把合成的“开始/结束时间”字符串拆成可下拉选择的分量，用户无需用键盘输入时间串。
+            if (timeComponents != null && IsCompositeTimeProp(property.Name))
+            {
+                foreach (var component in timeComponents)
+                {
+                    args[property.Name + component] = BuildComponentArg(property.Name, component);
+                }
+
+                continue;
+            }
+
+            // 分量属性已由上面的合成字段统一生成，跳过以避免重复。
+            if (timeComponents != null && IsTimeComponentProp(property.Name, timeComponents))
+            {
+                continue;
+            }
+
+            var name = ResolveFieldLabel(property.Name);
 
             // 枚举类字段：改成下拉选择，用户无需手打完整字符串。
             if (DropdownOptions.TryGetValue(property.Name, out var options))
@@ -228,21 +247,45 @@ internal static class SaiBlockRegistrar
         return args;
     }
 
-    /// <summary>
-    /// 解析字段在积木上显示的名称：优先使用该积木专属的格式模板，其次使用通用中文名，最后回退到属性名。
-    /// </summary>
-    private static string ResolveFieldLabel(string blockId, string propertyName)
+    /// <summary>判断属性是否为“合成时间字符串”（会被拆成分量）。</summary>
+    private static bool IsCompositeTimeProp(string propertyName) => CompositeTimeProps.Contains(propertyName);
+
+    /// <summary>判断属性是否为某个合成时间字符串的分量（如 StartTimeHour）。</summary>
+    private static bool IsTimeComponentProp(string propertyName, string[] components)
     {
-        // 时间类字段的字符串格式因积木而异（精确到年/月/日/时…），把完整格式与示例写进字段名。
-        if (propertyName is "StartTime" or "EndTime" or "StartTargetTime" or "EndTargetTime" &&
-            BlockTimeFormat.TryGetValue(blockId, out var format))
+        foreach (var composite in CompositeTimeProps)
         {
-            var prefix = propertyName.Contains("End") ? "结束时间" : "开始时间";
-            return $"{prefix}({format})";
+            if (!propertyName.StartsWith(composite, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            if (components.Contains(propertyName.Substring(composite.Length)))
+            {
+                return true;
+            }
         }
 
-        return FieldLabels.TryGetValue(propertyName, out var label) ? label : propertyName;
+        return false;
     }
+
+    /// <summary>为一个时间分量生成“下拉选择”参数（如 开始时间-时）。</summary>
+    private static MetaArgsBase BuildComponentArg(string compositeProperty, string component)
+    {
+        var prefix = compositeProperty.StartsWith("End", StringComparison.Ordinal) ? "结束" : "开始";
+        return new DropDownMetaArgs
+        {
+            Name = $"{prefix}{ComponentLabels[component]}",
+            Type = MetaType.dropdown,
+            Options = ComponentOptions[component].Select(value => (value, value)).ToList(),
+        };
+    }
+
+    /// <summary>
+    /// 解析字段在积木上显示的名称：优先使用通用中文名，缺失时回退到属性名。
+    /// </summary>
+    private static string ResolveFieldLabel(string propertyName) =>
+        FieldLabels.TryGetValue(propertyName, out var label) ? label : propertyName;
 
     private static MetaType? GetMetaType(Type type)
     {
@@ -308,36 +351,99 @@ internal static class SaiBlockRegistrar
             "烈士纪念日 (9月30日)", "十一国庆节 (10月1日)", "中国工农红军长征胜利纪念日 (10月22日)",
             "南京大屠杀死难者国家公祭日 (12月13日)",
         },
+        // “每分钟时间范围”只有一个秒分量，直接作为 0-59 的下拉。
+        ["StartSecond"] = BuildRange(0, 59, 2),
+        ["EndSecond"] = BuildRange(0, 59, 2),
+        // 区时类积木的时区：直接用系统时区下拉，用户无需手打时区 Id。
+        ["TimeZoneId"] = BuildTimeZoneOptions(),
+        ["TimeZone"] = BuildTimeZoneOptions(),
     };
 
     /// <summary>
-    /// 各“时间范围”积木的时间字段格式模板（键为积木 Id）。
-    /// 不同积木的 StartTime/EndTime 精度不同（精确到年 / 月 / 日 / 时…），需按积木给出对应格式与示例。
+    /// 系统时区列表（取值即 <see cref="TimeZoneInfo.Id"/>，与
+    /// <c>Plugin.GetTimeZoneTime</c> / 桌面端设置控件一致，按 UTC 偏移排序便于查找）。
     /// </summary>
-    private static readonly Dictionary<string, string> BlockTimeFormat = new()
+    private static string[] BuildTimeZoneOptions()
     {
-        ["advancedtimeisland.exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
-        ["advancedtimeisland.local_solar_exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
-        ["advancedtimeisland.time_zone_exact_time_range"] = "年-月-日-时-分-秒，例 2026-10-05-08-00-00",
-        ["advancedtimeisland.yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
-        ["advancedtimeisland.local_solar_yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
-        ["advancedtimeisland.time_zone_yearly_time_range"] = "月-日-时-分-秒，例 10-05-08-00-00",
-        ["advancedtimeisland.monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
-        ["advancedtimeisland.local_solar_monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
-        ["advancedtimeisland.time_zone_monthly_time_range"] = "日-时-分-秒，例 05-08-00-00",
-        ["advancedtimeisland.daily_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.local_solar_daily_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.time_zone_daily_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.hourly_time_range"] = "分-秒，例 30-00",
-        ["advancedtimeisland.local_solar_hourly_time_range"] = "分-秒，例 30-00",
-        ["advancedtimeisland.time_zone_hourly_time_range"] = "分-秒，例 30-00",
-        ["advancedtimeisland.weekly_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.local_solar_weekly_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.time_zone_weekly_time_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.lunar_exact_time_in_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.lunar_yearly_time_in_range"] = "时-分-秒，例 08-00-00",
-        ["advancedtimeisland.lunar_monthly_time_in_range"] = "时-分-秒，例 08-00-00",
+        try
+        {
+            return TimeZoneInfo.GetSystemTimeZones()
+                .OrderBy(zone => zone.BaseUtcOffset)
+                .ThenBy(zone => zone.Id, StringComparer.Ordinal)
+                .Select(zone => zone.Id)
+                .ToArray();
+        }
+        catch
+        {
+            return Array.Empty<string>();
+        }
+    }
+
+    /// <summary>
+    /// 各“时间范围”积木需要拆成的分量（键为积木 Id）。
+    /// 时间字符串（如 hh-mm-ss）会被拆成这些分量并以“下拉”形式呈现，用户无需用键盘输入完整时间串。
+    /// 不在表中的积木不做拆分（例如“每分钟时间范围”只有一个秒分量，按其属性名单独处理）。
+    /// </summary>
+    private static readonly Dictionary<string, string[]> BlockTimeComponents = new()
+    {
+        ["advancedtimeisland.exact_time_range"] = new[] { "Year", "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.local_solar_exact_time_range"] = new[] { "Year", "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.time_zone_exact_time_range"] = new[] { "Year", "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.yearly_time_range"] = new[] { "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.local_solar_yearly_time_range"] = new[] { "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.time_zone_yearly_time_range"] = new[] { "Month", "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.monthly_time_range"] = new[] { "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.local_solar_monthly_time_range"] = new[] { "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.time_zone_monthly_time_range"] = new[] { "Day", "Hour", "Minute", "Second" },
+        ["advancedtimeisland.daily_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.local_solar_daily_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.time_zone_daily_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.hourly_time_range"] = new[] { "Minute", "Second" },
+        ["advancedtimeisland.local_solar_hourly_time_range"] = new[] { "Minute", "Second" },
+        ["advancedtimeisland.time_zone_hourly_time_range"] = new[] { "Minute", "Second" },
+        ["advancedtimeisland.weekly_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.local_solar_weekly_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.time_zone_weekly_time_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.lunar_exact_time_in_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.lunar_yearly_time_in_range"] = new[] { "Hour", "Minute", "Second" },
+        ["advancedtimeisland.lunar_monthly_time_in_range"] = new[] { "Hour", "Minute", "Second" },
     };
+
+    /// <summary>设置类中作为“合成时间字符串”的属性名（会被拆成分量，不在积木上直接显示）。</summary>
+    private static readonly string[] CompositeTimeProps = { "StartTime", "EndTime", "StartTargetTime", "EndTargetTime" };
+
+    /// <summary>各时间分量在积木上显示的中文名。</summary>
+    private static readonly Dictionary<string, string> ComponentLabels = new()
+    {
+        ["Year"] = "年",
+        ["Month"] = "月(1-12)",
+        ["Day"] = "日(1-31)",
+        ["Hour"] = "时(0-23)",
+        ["Minute"] = "分(0-59)",
+        ["Second"] = "秒(0-59)",
+    };
+
+    /// <summary>各时间分量的下拉取值（补零，便于与时间字符串对齐）。</summary>
+    private static readonly Dictionary<string, string[]> ComponentOptions = new()
+    {
+        ["Year"] = BuildRange(2000, 2100, 4),
+        ["Month"] = BuildRange(1, 12, 2),
+        ["Day"] = BuildRange(1, 31, 2),
+        ["Hour"] = BuildRange(0, 23, 2),
+        ["Minute"] = BuildRange(0, 59, 2),
+        ["Second"] = BuildRange(0, 59, 2),
+    };
+
+    private static string[] BuildRange(int from, int to, int pad)
+    {
+        var list = new List<string>(to - from + 1);
+        for (int value = from; value <= to; value++)
+        {
+            list.Add(value.ToString().PadLeft(pad, '0'));
+        }
+
+        return list.ToArray();
+    }
 
     /// <summary>
     /// 积木参数字段的中文名（键为设置类属性名，缺失时回退为属性名本身）。
