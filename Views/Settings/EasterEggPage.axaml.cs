@@ -58,6 +58,16 @@ public partial class EasterEggPage : UserControl
     private Button? _backToTopButton;
     private OverlayLayer? _overlayLayer;
     private ScrollViewer? _outerScrollViewer;
+
+    /// <summary>返回顶部平滑滚动计时器（60fps 插值）。</summary>
+    private DispatcherTimer? _scrollToTopTimer;
+    private Vector _scrollToTopStartOffset;
+    private double _scrollToTopElapsedMs;
+    private bool _isScrollToTopAnimating;
+
+    /// <summary>回顶动画总时长 0.7s；只做缓出（起步即快速移动，结尾平稳减速）。</summary>
+    private static readonly TimeSpan ScrollToTopDuration = TimeSpan.FromSeconds(0.7);
+    private const double ScrollToTopFrameMs = 16.0;
     private Control? _femboyTestWarningBar;
     private DispatcherTimer? _femboyTestWatchTimer;
 
@@ -73,27 +83,11 @@ public partial class EasterEggPage : UserControl
     }
 
     /// <summary>
-    /// axaml 只承载静态外壳（滚动容器 / 主面板 / 标题 / 三个警告栏宿主 / Markdown 宿主 / 底部留白）；
+    /// axaml 只承载静态外壳（滚动容器 / 主面板 / 标题 / 两个警告栏宿主 / Markdown 宿主 / 底部留白）；
     /// 条件警告栏（FA2/FA3 的 InfoBar 类型名不同，须经兼容 Helper 创建）与 Markdown 图片区在此动态装配。
     /// </summary>
     private void WireUI()
     {
-        if (_pluginSettings?.EasterEggDisclaimerAccepted != true)
-        {
-            var disclaimerBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Title", "免责声明");
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Message", "仅供娱乐，无不良引导。");
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsOpen", true);
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "IsClosable", true);
-            FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(disclaimerBar, "Margin", new Thickness(0, 0, 0, 8));
-            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(disclaimerBar, (s, e) =>
-            {
-                _pluginSettings!.EasterEggDisclaimerAccepted = true;
-            });
-            DisclaimerHost.Content = disclaimerBar;
-        }
-
         if (_pluginSettings?.EasterEggInfoAccepted != true)
         {
             var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
@@ -892,9 +886,13 @@ public partial class EasterEggPage : UserControl
             _overlayLayer.LayoutUpdated -= OnLayoutUpdated;
         }
 
+        StopScrollToTopAnimation();
+
         if (_outerScrollViewer != null)
         {
             _outerScrollViewer.ScrollChanged -= OnScrollChanged;
+            _outerScrollViewer.PointerWheelChanged -= OnScrollViewerPointerWheelChanged;
+            _outerScrollViewer.PointerPressed -= OnScrollViewerPointerPressed;
             _outerScrollViewer = null;
         }
 
@@ -1040,6 +1038,9 @@ public partial class EasterEggPage : UserControl
         if (_outerScrollViewer != null)
         {
             _outerScrollViewer.ScrollChanged += OnScrollChanged;
+            // 回顶动画进行中用户一旦手动滚动/按下即打断动画，交回滚动控制权
+            _outerScrollViewer.PointerWheelChanged += OnScrollViewerPointerWheelChanged;
+            _outerScrollViewer.PointerPressed += OnScrollViewerPointerPressed;
             // 初始检查滚动位置（可能已经滚动过了）
             UpdateBackToTopButtonVisibility();
         }
@@ -1102,12 +1103,96 @@ public partial class EasterEggPage : UserControl
         }
     }
 
-    private void BackToTopButton_Click(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 平滑滚动回顶部：0.7s、三次缓出（ease-out，起步即快速移动、结尾平稳减速，不做缓入）。
+    /// 用 60fps DispatcherTimer 手动插值 ScrollViewer.Offset——对 Offset(Vector) 直接跑 Animation
+    /// 在 Avalonia 11/12 间行为不一致，手动插值两版本完全可控。重复触发时以当前位置为起点重启，不跳变。
+    /// </summary>
+    private void ScrollToTopAnimated()
     {
-        if (_outerScrollViewer != null)
+        if (_outerScrollViewer == null)
+        {
+            return;
+        }
+
+        // 已在顶部无需动画；重复点击先停掉旧计时（保留当前偏移作为新起点，下面重新读取）
+        StopScrollToTopAnimation();
+
+        var startOffset = _outerScrollViewer.Offset;
+        if (startOffset.Y <= 0.01)
         {
             _outerScrollViewer.Offset = new Vector(0, 0);
+            return;
         }
+
+        _scrollToTopStartOffset = startOffset;
+        _scrollToTopElapsedMs = 0;
+        _isScrollToTopAnimating = true;
+
+        _scrollToTopTimer = new DispatcherTimer(DispatcherPriority.Normal)
+        {
+            Interval = TimeSpan.FromMilliseconds(ScrollToTopFrameMs)
+        };
+        _scrollToTopTimer.Tick += OnScrollToTopTick;
+        _scrollToTopTimer.Start();
+    }
+
+    private void OnScrollToTopTick(object? sender, EventArgs e)
+    {
+        if (!_isScrollToTopAnimating || _outerScrollViewer == null)
+        {
+            StopScrollToTopAnimation();
+            return;
+        }
+
+        _scrollToTopElapsedMs += ScrollToTopFrameMs;
+        var progress = Math.Clamp(_scrollToTopElapsedMs / ScrollToTopDuration.TotalMilliseconds, 0.0, 1.0);
+
+        // 三次缓出 f(t)=1-(1-t)^3：无缓入，末段速度趋零，平稳结束
+        var eased = 1.0 - Math.Pow(1.0 - progress, 3);
+        var y = _scrollToTopStartOffset.Y * (1.0 - eased);
+        _outerScrollViewer.Offset = new Vector(0, y);
+
+        if (progress >= 1.0)
+        {
+            _outerScrollViewer.Offset = new Vector(0, 0);
+            StopScrollToTopAnimation();
+        }
+    }
+
+    /// <summary>停止回顶动画（保留当前滚动位置，不跳回起点/顶部）。</summary>
+    private void StopScrollToTopAnimation()
+    {
+        if (_scrollToTopTimer != null)
+        {
+            _scrollToTopTimer.Stop();
+            _scrollToTopTimer.Tick -= OnScrollToTopTick;
+            _scrollToTopTimer = null;
+        }
+        _isScrollToTopAnimating = false;
+    }
+
+    /// <summary>回顶动画期间用户滚动滚轮：立即交回滚动控制权，停止自动动画。</summary>
+    private void OnScrollViewerPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        if (_isScrollToTopAnimating)
+        {
+            StopScrollToTopAnimation();
+        }
+    }
+
+    /// <summary>回顶动画期间用户按下（拖动滚动条 / 触摸滑动 / 点内容）：立即停止自动动画。</summary>
+    private void OnScrollViewerPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (_isScrollToTopAnimating)
+        {
+            StopScrollToTopAnimation();
+        }
+    }
+
+    private void BackToTopButton_Click(object? sender, RoutedEventArgs e)
+    {
+        ScrollToTopAnimated();
     }
 
     private void OnKeyDown(object? sender, KeyEventArgs e)
@@ -1119,9 +1204,17 @@ public partial class EasterEggPage : UserControl
             _outerScrollViewer ??= this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
             if (_outerScrollViewer != null)
             {
-                _outerScrollViewer.Offset = new Vector(0, 0);
+                ScrollToTopAnimated();
                 e.Handled = true;
             }
+            return;
+        }
+
+        // 回顶动画进行中，用户按其它滚动导航键（方向键 / PageUp / PageDown / End / 空格）即视为手动干预，打断动画
+        if (_isScrollToTopAnimating && e.Key is
+            (Key.Up or Key.Down or Key.Left or Key.Right or Key.PageUp or Key.PageDown or Key.End or Key.Space))
+        {
+            StopScrollToTopAnimation();
         }
     }
 }
