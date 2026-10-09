@@ -1,0 +1,229 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.DebugPage"
+                     xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+                     Loaded="OnLoaded"
+                     Unloaded="OnUnloaded">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  BringIntoViewOnFocusChange="False">
+        <!-- settings-container / animated-intro：官方宿主样式，动画等级为“华丽”时子项依次淡入上滑 -->
+        <StackPanel Classes="settings-container animated-intro">
+            <!-- FA2/FA3 的 InfoBar 类型名不同（InfoBar / FAInfoBar），由 code-behind 创建真实控件后注入 -->
+            <ContentControl x:Name="WarningBarHost" />
+
+            <TextBlock x:Name="TitleText"
+                       Text="AdvancedTimeIsland 调试"
+                       FontSize="24"
+                       FontWeight="Bold" />
+
+            <!-- 抛出异常测试 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="抛出异常测试"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="CrashButton"
+                        Grid.Column="1"
+                        Content="开始"
+                        Padding="16,8"
+                        Click="ButtonCrash_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 强制崩溃测试 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="强制崩溃测试"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="ForceCrashButton"
+                        Grid.Column="1"
+                        Content="开始"
+                        Padding="16,8"
+                        Click="ButtonForceCrash_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 自毁测试 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="自毁测试"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="SelfDestructButton"
+                        Grid.Column="1"
+                        Content="开始"
+                        Padding="16,8"
+                        Click="ButtonSelfDestruct_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 汉服页面模板 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="汉服页面模板"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="HanfuTemplateButton"
+                        Grid.Column="1"
+                        Content="进入"
+                        Padding="16,8"
+                        Click="ButtonHanfuTemplate_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- “女装”为隐藏入口：启用实验性功能后才在调试页可见（连同分隔线一起显隐） -->
+            <StackPanel x:Name="WomenswearSection"
+                        IsVisible="False">
+                <Grid ColumnDefinitions="*,Auto">
+                    <TextBlock Grid.Column="0"
+                               Text="女装"
+                               FontSize="16"
+                               FontWeight="SemiBold"
+                               VerticalAlignment="Center" />
+                    <Button x:Name="WomenswearButton"
+                            Grid.Column="1"
+                            Content="进入"
+                            Padding="16,8"
+                            Click="ButtonWomenswear_OnClick" />
+                </Grid>
+                <Separator Margin="0,8" />
+            </StackPanel>
+
+            <!-- 显示节日列表 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="显示节日列表"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="FestivalListButton"
+                        Grid.Column="1"
+                        Content="查看"
+                        Padding="16,8"
+                        Click="ButtonShowFestivalList_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 啥都没有 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="啥都没有"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="EmptyButton"
+                        Grid.Column="1"
+                        Content="打开"
+                        Padding="16,8"
+                        Click="ButtonEmpty_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 加载中 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="加载中"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="LoadingButton"
+                        Grid.Column="1"
+                        Content="打开"
+                        Padding="16,8"
+                        Click="ButtonLoading_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
+            <!-- 内存泄漏测试 -->
+            <Border x:Name="MemoryLeakCard"
+                    CornerRadius="8"
+                    Padding="12"
+                    ClipToBounds="True">
+                <StackPanel Spacing="8">
+                    <TextBlock x:Name="MemoryLeakTitleText"
+                               Text="内存泄漏测试"
+                               FontSize="16"
+                               FontWeight="SemiBold" />
+
+                    <Grid ColumnDefinitions="*,Auto,Auto"
+                          ColumnSpacing="8">
+                        <Button x:Name="MemoryLeakStartButton"
+                                Grid.Column="1"
+                                Content="开始"
+                                Padding="16,8"
+                                Click="MemoryLeakStartButton_OnClick" />
+                        <Button x:Name="MemoryLeakClearButton"
+                                Grid.Column="2"
+                                Content="清除"
+                                Padding="16,8"
+                                Click="MemoryLeakClearButton_OnClick" />
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,100,80"
+                          ColumnSpacing="8">
+                        <TextBlock Grid.Column="0"
+                                   Text="每秒泄漏量"
+                                   FontSize="14"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="MemoryLeakRateTextBox"
+                                 Grid.Column="1"
+                                 FontSize="14"
+                                 Padding="8,4" />
+                        <ComboBox x:Name="MemoryLeakUnitComboBox"
+                                  Grid.Column="2"
+                                  FontSize="14">
+                            <ComboBoxItem>Byte</ComboBoxItem>
+                            <ComboBoxItem>KiB</ComboBoxItem>
+                            <ComboBoxItem>MiB</ComboBoxItem>
+                        </ComboBox>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock Grid.Column="0"
+                                   Text="已泄漏内存："
+                                   FontSize="14"
+                                   VerticalAlignment="Center" />
+                        <TextBlock x:Name="MemoryLeakAmountTextBlock"
+                                   Grid.Column="1"
+                                   FontSize="14"
+                                   VerticalAlignment="Center" />
+                    </Grid>
+                </StackPanel>
+            </Border>
+            <Separator Margin="0,8" />
+
+            <!-- 嵌套折叠栏示例（两层，Expander 展开动画走 FluentAvalonia 官方样式） -->
+            <Expander HorizontalAlignment="Stretch"
+                     IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="嵌套折叠栏"
+                               FontSize="16"
+                               FontWeight="SemiBold" />
+                </Expander.Header>
+                <StackPanel Spacing="8">
+                    <TextBlock Text="第一层折叠栏的内容。"
+                               FontSize="14"
+                               TextWrapping="Wrap" />
+                    <Expander Margin="16,0,0,0"
+                              HorizontalAlignment="Stretch"
+                              IsExpanded="False">
+                        <Expander.Header>
+                            <TextBlock Text="第二层折叠栏"
+                                       FontSize="14"
+                                       FontWeight="SemiBold" />
+                        </Expander.Header>
+                        <TextBlock Text="第二层折叠栏的内容。"
+                                   FontSize="14"
+                                   TextWrapping="Wrap" />
+                    </Expander>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>

@@ -25,20 +25,18 @@ namespace AdvancedTimeIsland.Views.Settings;
 
 /// <summary>
 /// 调试入口“女装”对应的独立隐藏设置页面（不继承 HanfuPageTemplate）。
-/// 布局：顶部返回链接 + “女装”标题 + “汉服 / JK制服”标签页。
+/// 布局：顶部返回链接 + “女装”标题 + “汉服 / JK制服”标签页（外壳已 axaml 化，写法对齐官方设置页，
+/// 头部三要素使用 settings-container animated-intro，宿主动画等级为“华丽”时依次淡入上滑）。
 /// - 汉服：直接内嵌 <see cref="EasterEggPage"/>，图片与女装彩蛋页完全一致；
 /// - JK制服：内容为官方“页面导航出错”标识（内嵌宿主 <c>ErrorSettingsPage</c>，显示“欧呦，出错啦！”，
-///   反射失败时降级为官方样式的“啥都没有”）；每进入一次就直接显示宿主的
+///   反射失败时降级为官方样式的“啥都没有”）；先展示 30 秒加载占位符，到时后切换内容并直接显示宿主的
 ///   崩溃窗口，等价于宿主开发者菜单的“显示崩溃窗口”（<c>new CrashWindow().Show()</c>）。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandWomenswear", "女装", true, SettingsPageCategory.Debug)]
-public class WomenswearPage : SettingsPageBase
+public partial class WomenswearPage : SettingsPageBase
 {
-    private TabStrip? _tabStrip;
-    private ContentControl? _contentControl;
     private EasterEggPage? _hanfuContent;
     private Control? _jkContent;
-    private TextBlock? _backTextBlock;
 
     /// <summary>JK制服标签页的加载占位符容器（三形状弹簧形变循环）。</summary>
     private Control? _jkLoadingContent;
@@ -51,6 +49,7 @@ public class WomenswearPage : SettingsPageBase
     public WomenswearPage()
     {
         InitializeComponent();
+        WireUI();
     }
 
     private static IBrush GetAccentBrush()
@@ -66,37 +65,10 @@ public class WomenswearPage : SettingsPageBase
         return Brushes.DodgerBlue;
     }
 
-    private void InitializeComponent()
+    private void WireUI()
     {
-        // 返回链接固定在页面顶部
-        _backTextBlock = new TextBlock
-        {
-            Text = "‹ 返回上一级",
-            FontSize = 14,
-            Foreground = GetAccentBrush(),
-            TextDecorations = TextDecorations.Underline,
-            Margin = new Thickness(16, 12, 16, 0),
-            Cursor = new Cursor(StandardCursorType.Hand)
-        };
-        _backTextBlock.PointerPressed += (s, e) => FluentAvaloniaCompatibilityHelper.NavigateBack(this);
-
-        var titleTextBlock = new TextBlock
-        {
-            Text = "女装",
-            FontSize = 24,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.HotPink,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(16, 8, 16, 0)
-        };
-
-        _tabStrip = new TabStrip
-        {
-            Margin = new Thickness(16, 8, 16, 0),
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        _tabStrip.Items.Add(new TabStripItem { Content = "汉服" });
-        _tabStrip.Items.Add(new TabStripItem { Content = "JK制服" });
+        // 返回链接颜色跟随应用强调色（axaml 中已声明下划线/手型/位置，这里只赋颜色并随主题刷新）
+        BackTextBlock.Foreground = GetAccentBrush();
 
         // 汉服标签页：内嵌女装彩蛋页，图片与 EasterEgg 内容完全一致
         _hanfuContent = new EasterEggPage(Plugin.Instance?.Settings);
@@ -125,33 +97,15 @@ public class WomenswearPage : SettingsPageBase
         jkLoadingPanel.Children.Add(_jkLoadingIndicator);
         _jkLoadingContent = jkLoadingPanel;
 
-        _contentControl = new ContentControl
-        {
-            Content = _hanfuContent,
-            VerticalAlignment = VerticalAlignment.Stretch,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        HostContentControl.Content = _hanfuContent;
 
-        // 先设置默认选中项再订阅切换事件，避免初始化时误触发
-        _tabStrip.SelectedIndex = 0;
-        _tabStrip.SelectionChanged += OnTabSelectionChanged;
+        // axaml 中 TabStrip.SelectedIndex 已声明为 0（此时尚未订阅切换事件，不会误触发）
+        TabStrip.SelectionChanged += OnTabSelectionChanged;
+    }
 
-        var rootGrid = new Grid();
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-
-        Grid.SetRow(_backTextBlock, 0);
-        Grid.SetRow(titleTextBlock, 1);
-        Grid.SetRow(_tabStrip, 2);
-        Grid.SetRow(_contentControl, 3);
-        rootGrid.Children.Add(_backTextBlock);
-        rootGrid.Children.Add(titleTextBlock);
-        rootGrid.Children.Add(_tabStrip);
-        rootGrid.Children.Add(_contentControl);
-
-        Content = rootGrid;
+    private void BackTextBlock_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        FluentAvaloniaCompatibilityHelper.NavigateBack(this);
     }
 
     /// <summary>
@@ -193,19 +147,19 @@ public class WomenswearPage : SettingsPageBase
 
     private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_tabStrip == null || _contentControl == null)
+        if (TabStrip == null || HostContentControl == null)
         {
             return;
         }
 
-        if (_tabStrip.SelectedIndex == 1)
+        if (TabStrip.SelectedIndex == 1)
         {
             StartJkLoading();
         }
         else
         {
             CancelJkLoading();
-            _contentControl.Content = _hanfuContent;
+            HostContentControl.Content = _hanfuContent;
         }
     }
 
@@ -215,12 +169,12 @@ public class WomenswearPage : SettingsPageBase
     /// </summary>
     private void StartJkLoading()
     {
-        if (_contentControl == null || _jkLoadingContent == null || _jkLoadingIndicator == null)
+        if (HostContentControl == null || _jkLoadingContent == null || _jkLoadingIndicator == null)
         {
             return;
         }
 
-        _contentControl.Content = _jkLoadingContent;
+        HostContentControl.Content = _jkLoadingContent;
         _jkLoadingIndicator.IsActive = true;
         _jkLoadingIndicator.IsVisible = true;
 
@@ -240,9 +194,9 @@ public class WomenswearPage : SettingsPageBase
             _jkLoadingIndicator.IsVisible = false;
         }
 
-        if (_contentControl != null)
+        if (HostContentControl != null)
         {
-            _contentControl.Content = _jkContent;
+            HostContentControl.Content = _jkContent;
         }
 
         // 占位符结束后再弹出宿主崩溃窗口：与原先“进入即弹”的 Easter Egg 行为一致，只是延后到加载占位结束。
@@ -783,9 +737,6 @@ public class WomenswearPage : SettingsPageBase
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        if (_backTextBlock != null)
-        {
-            _backTextBlock.Foreground = GetAccentBrush();
-        }
+        BackTextBlock.Foreground = GetAccentBrush();
     }
 }

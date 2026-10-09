@@ -1,189 +1,61 @@
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Threading.Tasks;
+using AdvancedTimeIsland.Helpers;
+using AdvancedTimeIsland.Services;
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Interactivity;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
-using Avalonia.Styling;
-using AdvancedTimeIsland.Helpers;
-using AdvancedTimeIsland.Services;
 using ClassIsland.Core.Abstractions.Controls;
-using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
 using ClassIsland.Core.Enums.SettingsWindow;
-using ClassIsland.Shared;
 using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
+/// <summary>
+/// AdvancedTimeIsland 调试页（axaml 版，写法对齐 ClassIsland 官方 DebugPage）。
+/// 主面板使用官方 <c>settings-container animated-intro</c> 样式类：宿主“动画效果”设为“华丽”时，
+/// 警告条 / 标题 / 各测试入口 / 卡片 / 折叠栏依次淡入上滑；嵌套 Expander 展开动画走 FluentAvalonia 官方样式。
+/// 顶部警告条使用真实 FA InfoBar（FA2 为 InfoBar、FA3 为 FAInfoBar），经兼容 Helper 按运行时版本创建。
+/// </summary>
 [SettingsPageInfo("AdvancedTimeIslandDebug", "AdvancedTimeIsland 调试", SettingsPageCategory.Debug)]
-public class DebugPage : SettingsPageBase
+public partial class DebugPage : SettingsPageBase
 {
-    private TextBlock? _titleTextBlock;
-    private List<TextBlock>? _testPanelTitleTextBlocks;
-
-    private TextBlock? _memoryLeakTitleTextBlock;
-    private Button? _memoryLeakStartButton;
-    private Button? _memoryLeakClearButton;
-    private TextBox? _memoryLeakRateTextBox;
-    private ComboBox? _memoryLeakUnitComboBox;
-    private TextBlock? _memoryLeakAmountTextBlock;
-
     public DebugPage()
     {
         InitializeComponent();
+        WireUI();
     }
 
-    private void InitializeComponent()
+    private void WireUI()
     {
-        _testPanelTitleTextBlocks = new List<TextBlock>();
-
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 16
-        };
-
+        // 顶部错误警告条：FA2/FA3 类型名不同，用 Helper 创建真实官方控件后注入宿主
         var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "仅供调试，除非你能知道您在做什么，请不要使用以下按钮。");
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 8));
-        mainPanel.Children.Add(warningBar);
+        WarningBarHost.Content = warningBar;
 
-        _titleTextBlock = new TextBlock
-        {
-            Text = "AdvancedTimeIsland 调试",
-            FontSize = 24,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        mainPanel.Children.Add(_titleTextBlock);
+        // “女装”为隐藏入口：启用实验性功能后才在调试页可见
+        WomenswearSection.IsVisible = Plugin.Instance?.Settings.EnableExperimentalFeatures ?? false;
 
-        var tab1Panel = CreateSimpleTestPanel(
-            "抛出异常测试",
-            "开始",
-            ButtonCrash_OnClick);
-
-        var tab2Panel = CreateSimpleTestPanel(
-            "强制崩溃测试",
-            "开始",
-            ButtonForceCrash_OnClick);
-
-        var tab3Panel = CreateSimpleTestPanel(
-            "自毁测试",
-            "开始",
-            ButtonSelfDestruct_OnClick);
-
-        mainPanel.Children.Add(tab1Panel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        mainPanel.Children.Add(tab2Panel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        mainPanel.Children.Add(tab3Panel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        
-        var hanfuTemplatePanel = CreateSimpleTestPanel(
-            "汉服页面模板",
-            "进入",
-            ButtonHanfuTemplate_OnClick);
-        mainPanel.Children.Add(hanfuTemplatePanel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-
-        // “女装”为隐藏入口：启用实验性功能后才在调试页可见（连同分隔线一起显隐）
-        var womenswearSection = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            IsVisible = Plugin.Instance?.Settings.EnableExperimentalFeatures ?? false
-        };
-        womenswearSection.Children.Add(CreateSimpleTestPanel(
-            "女装",
-            "进入",
-            ButtonWomenswear_OnClick));
-        womenswearSection.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        mainPanel.Children.Add(womenswearSection);
-
-        var festivalListPanel = CreateSimpleTestPanel(
-            "显示节日列表",
-            "查看",
-            ButtonShowFestivalList_OnClick);
-        mainPanel.Children.Add(festivalListPanel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-
-        var emptyPanel = CreateSimpleTestPanel(
-            "啥都没有",
-            "打开",
-            ButtonEmpty_OnClick);
-        mainPanel.Children.Add(emptyPanel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-
-        var loadingPanel = CreateSimpleTestPanel(
-            "加载中",
-            "打开",
-            ButtonLoading_OnClick);
-        mainPanel.Children.Add(loadingPanel);
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-
-        mainPanel.Children.Add(CreateMemoryLeakTestPanel());
-        mainPanel.Children.Add(new Separator { Margin = new Thickness(0, 8, 0, 8) });
-        mainPanel.Children.Add(CreateNestedExpanderPanel());
-
-        var scrollViewer = new ScrollViewer
-        {
-            Content = mainPanel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
-        };
-
-        Content = scrollViewer;
+        // 内存泄漏测试初始化
+        MemoryLeakRateTextBox.Text = MemoryLeakTestService.Instance.LeakRate.ToString();
+        var unitIndex = Array.IndexOf(new[] { "Byte", "KiB", "MiB" }, MemoryLeakTestService.Instance.LeakUnit);
+        MemoryLeakUnitComboBox.SelectedIndex = unitIndex >= 0 ? unitIndex : 1;
+        UpdateMemoryLeakUI();
     }
 
-    private Grid CreateSimpleTestPanel(
-        string titleText,
-        string buttonText,
-        EventHandler<RoutedEventArgs> clickHandler)
-    {
-        var grid = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-                new ColumnDefinition { Width = GridLength.Auto }
-            }
-        };
-
-        var titleBlock = new TextBlock
-        {
-            Text = titleText,
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _testPanelTitleTextBlocks?.Add(titleBlock);
-        Grid.SetColumn(titleBlock, 0);
-        grid.Children.Add(titleBlock);
-
-        var button = new Button
-        {
-            Content = buttonText,
-            Padding = new Thickness(16, 8, 16, 8)
-        };
-        button.Click += clickHandler;
-        Grid.SetColumn(button, 1);
-        grid.Children.Add(button);
-
-        return grid;
-    }
-
+    // ==================== 危险操作入口 ====================
     private void ButtonCrash_OnClick(object? sender, RoutedEventArgs e)
     {
         throw new Exception("Crash test.");
@@ -247,6 +119,7 @@ public class DebugPage : SettingsPageBase
         return new SolidColorBrush(Colors.DodgerBlue);
     }
 
+    // ==================== 展示类对话框（官方空状态 / 加载动画 / 节日列表） ====================
     /// <summary>
     /// 展示 ClassIsland 官方样式的“啥都没有”空白占位符（ClassIsland.Core.Controls.Empty）。
     /// </summary>
@@ -606,7 +479,7 @@ public class DebugPage : SettingsPageBase
 
         yearJumpTextBox.KeyDown += async (s, e) =>
         {
-            if (e.Key == Avalonia.Input.Key.Enter)
+            if (e.Key == Key.Enter)
             {
                 e.Handled = true;
                 if (int.TryParse(yearJumpTextBox.Text?.Trim(), out var targetYear))
@@ -637,6 +510,7 @@ public class DebugPage : SettingsPageBase
         await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
     }
 
+    // ==================== 崩溃 / 自毁确认对话框 ====================
     private async Task ShowForceCrashDialog()
     {
         var dialog = new Window
@@ -687,7 +561,7 @@ public class DebugPage : SettingsPageBase
 
         dialog.Content = stack;
 
-        int remaining = 5;
+        var remaining = 5;
         var timer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
         timer.Tick += (s, e) =>
         {
@@ -705,7 +579,7 @@ public class DebugPage : SettingsPageBase
         };
         timer.Start();
 
-        bool confirmed = false;
+        var confirmed = false;
         okButton.Click += (s, e) => { confirmed = true; dialog.Close(); };
         cancelButton.Click += (s, e) => { confirmed = false; dialog.Close(); };
 
@@ -776,7 +650,7 @@ public class DebugPage : SettingsPageBase
 
         dialog.Content = stack;
 
-        bool confirmed = false;
+        var confirmed = false;
         okButton.Click += (s, e) => { confirmed = true; dialog.Close(); };
         cancelButton.Click += (s, e) => { confirmed = false; dialog.Close(); };
 
@@ -847,257 +721,7 @@ public class DebugPage : SettingsPageBase
         await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
     }
 
-    protected override void OnInitialized()
-    {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
-        MemoryLeakTestService.Instance.LeakUpdated += OnLeakUpdated;
-        UpdateMemoryLeakUI();
-    }
-
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
-        MemoryLeakTestService.Instance.LeakUpdated -= OnLeakUpdated;
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void UpdateThemeColors()
-    {
-        if (_titleTextBlock != null)
-            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-
-        if (_testPanelTitleTextBlocks != null)
-        {
-            foreach (var tb in _testPanelTitleTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetTextBrush();
-            }
-        }
-
-        if (_memoryLeakTitleTextBlock != null)
-            _memoryLeakTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-
-        if (_memoryLeakAmountTextBlock != null)
-            _memoryLeakAmountTextBlock.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private Border CreateMemoryLeakTestPanel()
-    {
-        var panel = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(8),
-            ClipToBounds = true
-        };
-
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
-        };
-
-        _memoryLeakTitleTextBlock = new TextBlock
-        {
-            Text = "内存泄漏测试",
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        content.Children.Add(_memoryLeakTitleTextBlock);
-
-        var buttonPanel = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-                new ColumnDefinition { Width = GridLength.Auto },
-                new ColumnDefinition { Width = GridLength.Auto }
-            },
-            ColumnSpacing = 8
-        };
-
-        _memoryLeakStartButton = new Button
-        {
-            Content = "开始",
-            Padding = new Thickness(16, 8, 16, 8)
-        };
-        _memoryLeakStartButton.Click += MemoryLeakStartButton_OnClick;
-        Grid.SetColumn(_memoryLeakStartButton, 1);
-        buttonPanel.Children.Add(_memoryLeakStartButton);
-
-        _memoryLeakClearButton = new Button
-        {
-            Content = "清除",
-            Padding = new Thickness(16, 8, 16, 8)
-        };
-        _memoryLeakClearButton.Click += MemoryLeakClearButton_OnClick;
-        Grid.SetColumn(_memoryLeakClearButton, 2);
-        buttonPanel.Children.Add(_memoryLeakClearButton);
-
-        content.Children.Add(buttonPanel);
-
-        var ratePanel = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-                new ColumnDefinition { Width = new GridLength(100) },
-                new ColumnDefinition { Width = new GridLength(80) }
-            },
-            ColumnSpacing = 8
-        };
-
-        var rateLabel = new TextBlock
-        {
-            Text = "每秒泄漏量",
-            FontSize = 14,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(rateLabel, 0);
-        ratePanel.Children.Add(rateLabel);
-
-        _memoryLeakRateTextBox = new TextBox
-        {
-            Text = MemoryLeakTestService.Instance.LeakRate.ToString(),
-            FontSize = 14,
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        Grid.SetColumn(_memoryLeakRateTextBox, 1);
-        ratePanel.Children.Add(_memoryLeakRateTextBox);
-
-        _memoryLeakUnitComboBox = new ComboBox
-        {
-            FontSize = 14,
-            Padding = new Thickness(8, 4, 8, 4)
-        };
-        _memoryLeakUnitComboBox.Items.Add("Byte");
-        _memoryLeakUnitComboBox.Items.Add("KiB");
-        _memoryLeakUnitComboBox.Items.Add("MiB");
-        var unitIndex = Array.IndexOf(new[] { "Byte", "KiB", "MiB" }, MemoryLeakTestService.Instance.LeakUnit);
-        _memoryLeakUnitComboBox.SelectedIndex = unitIndex >= 0 ? unitIndex : 1;
-        Grid.SetColumn(_memoryLeakUnitComboBox, 2);
-        ratePanel.Children.Add(_memoryLeakUnitComboBox);
-
-        content.Children.Add(ratePanel);
-
-        var amountPanel = new Grid
-        {
-            ColumnDefinitions =
-            {
-                new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) },
-                new ColumnDefinition { Width = GridLength.Auto }
-            }
-        };
-
-        var amountLabel = new TextBlock
-        {
-            Text = "已泄漏内存：",
-            FontSize = 14,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(amountLabel, 0);
-        amountPanel.Children.Add(amountLabel);
-
-        _memoryLeakAmountTextBlock = new TextBlock
-        {
-            Text = MemoryLeakTestService.Instance.FormatMemorySize(MemoryLeakTestService.Instance.LeakedBytes),
-            FontSize = 14,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_memoryLeakAmountTextBlock, 1);
-        amountPanel.Children.Add(_memoryLeakAmountTextBlock);
-
-        content.Children.Add(amountPanel);
-
-        panel.Child = content;
-
-        return panel;
-    }
-
-    /// <summary>
-    /// 嵌套折叠栏示例：外层折叠栏中再放一层折叠栏，共两层。
-    /// </summary>
-    private Expander CreateNestedExpanderPanel()
-    {
-        var outerHeader = new TextBlock
-        {
-            Text = "嵌套折叠栏",
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        _testPanelTitleTextBlocks?.Add(outerHeader);
-
-        var outerContent = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
-        };
-        outerContent.Children.Add(new TextBlock
-        {
-            Text = "第一层折叠栏的内容。",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = ThemeHelper.GetTextBrush()
-        });
-
-        var innerHeader = new TextBlock
-        {
-            Text = "第二层折叠栏",
-            FontSize = 14,
-            FontWeight = FontWeight.SemiBold,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        _testPanelTitleTextBlocks?.Add(innerHeader);
-
-        var innerContent = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
-        };
-        innerContent.Children.Add(new TextBlock
-        {
-            Text = "第二层折叠栏的内容。",
-            FontSize = 14,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = ThemeHelper.GetTextBrush()
-        });
-
-        var innerExpander = new Expander
-        {
-            Header = innerHeader,
-            Content = innerContent,
-            IsExpanded = false,
-            Margin = new Thickness(16, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        outerContent.Children.Add(innerExpander);
-
-        return new Expander
-        {
-            Header = outerHeader,
-            Content = outerContent,
-            IsExpanded = true,
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-    }
-
+    // ==================== 内存泄漏测试 ====================
     private void MemoryLeakStartButton_OnClick(object? sender, RoutedEventArgs e)
     {
         var service = MemoryLeakTestService.Instance;
@@ -1109,18 +733,18 @@ public class DebugPage : SettingsPageBase
             if (service.IsPaused)
             {
                 service.Start();
-                _memoryLeakStartButton!.Content = "暂停";
+                MemoryLeakStartButton.Content = "暂停";
             }
             else
             {
                 service.Pause();
-                _memoryLeakStartButton!.Content = "继续";
+                MemoryLeakStartButton.Content = "继续";
             }
         }
         else
         {
             service.Start();
-            _memoryLeakStartButton!.Content = "暂停";
+            MemoryLeakStartButton.Content = "暂停";
         }
     }
 
@@ -1155,32 +779,57 @@ public class DebugPage : SettingsPageBase
     {
         var service = MemoryLeakTestService.Instance;
 
-        if (_memoryLeakStartButton != null)
+        if (service.IsRunning)
         {
-            if (service.IsRunning)
-            {
-                _memoryLeakStartButton.Content = service.IsPaused ? "继续" : "暂停";
-            }
-            else
-            {
-                _memoryLeakStartButton.Content = "开始";
-            }
+            MemoryLeakStartButton.Content = service.IsPaused ? "继续" : "暂停";
+        }
+        else
+        {
+            MemoryLeakStartButton.Content = "开始";
         }
 
-        if (_memoryLeakAmountTextBlock != null)
-        {
-            _memoryLeakAmountTextBlock.Text = service.FormatMemorySize(service.LeakedBytes);
-        }
+        MemoryLeakAmountTextBlock.Text = service.FormatMemorySize(service.LeakedBytes);
     }
 
     private void UpdateLeakRateFromUI()
     {
-        if (!double.TryParse(_memoryLeakRateTextBox?.Text ?? "0", out var rate))
+        if (!double.TryParse(MemoryLeakRateTextBox.Text ?? "0", out var rate))
         {
             rate = 0;
         }
 
-        var unit = _memoryLeakUnitComboBox?.SelectedItem?.ToString() ?? "KiB";
+        // axaml 中下拉项是 ComboBoxItem，真实单位字符串取其 Content（旧纯代码版直接存的字符串）
+        var unit = (MemoryLeakUnitComboBox.SelectedItem as ComboBoxItem)?.Content?.ToString() ?? "KiB";
         MemoryLeakTestService.Instance.SetLeakRate(rate, unit);
+    }
+
+    // ==================== 主题自适应 / 生命周期 ====================
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (Application.Current != null)
+            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+        MemoryLeakTestService.Instance.LeakUpdated += OnLeakUpdated;
+        UpdateMemoryLeakUI();
+        ApplyThemeColors();
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (Application.Current != null)
+            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+        MemoryLeakTestService.Instance.LeakUpdated -= OnLeakUpdated;
+    }
+
+    private void OnThemeVariantChanged(object? sender, EventArgs e) => ApplyThemeColors();
+
+    /// <summary>
+    /// 标题 / 内存泄漏卡片底色随深浅主题刷新（行标题与正文继承宿主前景，已自动适配）。
+    /// </summary>
+    private void ApplyThemeColors()
+    {
+        TitleText.Foreground = ThemeHelper.GetTextBrush();
+        MemoryLeakTitleText.Foreground = ThemeHelper.GetTextBrush();
+        MemoryLeakAmountTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        MemoryLeakCard.Background = ThemeHelper.GetCardBackgroundBrush();
     }
 }

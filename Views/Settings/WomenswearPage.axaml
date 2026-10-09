@@ -1,0 +1,38 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.WomenswearPage"
+                     xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core">
+    <Grid RowDefinitions="Auto,*">
+        <!-- 头部三要素（返回 / 标题 / 标签页）：官方 settings-container animated-intro，
+             宿主动画等级为“华丽”时依次淡入上滑；下方动态内容区不参与逐项动画 -->
+        <StackPanel Grid.Row="0"
+                    Classes="settings-container animated-intro">
+            <TextBlock x:Name="BackTextBlock"
+                       Text="‹ 返回上一级"
+                       FontSize="14"
+                       TextDecorations="Underline"
+                       Cursor="Hand"
+                       Margin="16,12,16,0"
+                       PointerPressed="BackTextBlock_PointerPressed" />
+            <TextBlock Text="女装"
+                       FontSize="24"
+                       FontWeight="Bold"
+                       Foreground="HotPink"
+                       HorizontalAlignment="Center"
+                       Margin="16,8,16,0" />
+            <!-- 选中项与切换事件在 code-behind 中按“先赋初值再订阅”的顺序接线，避免初始化误触发 -->
+            <TabStrip x:Name="TabStrip"
+                      Margin="16,8,16,0"
+                      HorizontalAlignment="Center">
+                <TabStripItem>汉服</TabStripItem>
+                <TabStripItem>JK制服</TabStripItem>
+            </TabStrip>
+        </StackPanel>
+
+        <!-- 动态内容区：汉服=内嵌 EasterEggPage；JK制服=加载占位符 30 秒后切换为宿主错误页（均由 code-behind 装配） -->
+        <ContentControl x:Name="HostContentControl"
+                        Grid.Row="1"
+                        VerticalAlignment="Stretch"
+                        HorizontalAlignment="Stretch" />
+    </Grid>
+</ci:SettingsPageBase>

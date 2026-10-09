@@ -11,11 +11,16 @@ using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Media.Transformation;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Shared;
 // 别名指向插件内复制的占位符：避免与宿主 ClassIsland.Core.Controls 中的同名类型冲突（net10 侧两者都存在）
 using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 
@@ -26,7 +31,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 女装彩蛋页面
 /// 使用Markdown格式展示内容
 /// </summary>
-public class EasterEggPage : UserControl
+public partial class EasterEggPage : UserControl
 {
     private static IBrush GetAccentBrush()
     {
@@ -48,7 +53,8 @@ public class EasterEggPage : UserControl
     private List<Border>? _separatorBorders;
     private Border? _markdownSectionBorder;
     private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>? _imageLoadInfos;
-    private ScrollViewer? _scrollViewer;
+    private List<Border>? _imageCardBorders;
+    private Border? _headerSeparatorBorder;
     private Button? _backToTopButton;
     private OverlayLayer? _overlayLayer;
     private ScrollViewer? _outerScrollViewer;
@@ -63,33 +69,15 @@ public class EasterEggPage : UserControl
     {
         _pluginSettings = pluginSettings;
         InitializeComponent();
+        WireUI();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// axaml 只承载静态外壳（滚动容器 / 主面板 / 标题 / 三个警告栏宿主 / Markdown 宿主 / 底部留白）；
+    /// 条件警告栏（FA2/FA3 的 InfoBar 类型名不同，须经兼容 Helper 创建）与 Markdown 图片区在此动态装配。
+    /// </summary>
+    private void WireUI()
     {
-        _scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
-        };
-
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 16
-        };
-
-        // 标题
-        mainPanel.Children.Add(new TextBlock
-        {
-            Text = "女装",
-            FontSize = 24,
-            FontWeight = FontWeight.Bold,
-            Foreground = Brushes.HotPink,
-            HorizontalAlignment = HorizontalAlignment.Center
-        });
-
         if (_pluginSettings?.EasterEggDisclaimerAccepted != true)
         {
             var disclaimerBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
@@ -103,7 +91,7 @@ public class EasterEggPage : UserControl
             {
                 _pluginSettings!.EasterEggDisclaimerAccepted = true;
             });
-            mainPanel.Children.Add(disclaimerBar);
+            DisclaimerHost.Content = disclaimerBar;
         }
 
         if (_pluginSettings?.EasterEggInfoAccepted != true)
@@ -118,7 +106,7 @@ public class EasterEggPage : UserControl
             {
                 _pluginSettings!.EasterEggInfoAccepted = true;
             });
-            mainPanel.Children.Add(infoBar);
+            InfoHost.Content = infoBar;
         }
 
         // FemboyTest 启用时显示错误类型警告（不可关闭）；FemboyTest 关闭时取消显示。
@@ -140,8 +128,11 @@ public class EasterEggPage : UserControl
         _femboyTestWatchTimer.Start();
         UpdateFemboyTestWarningBar();
 
-        // Markdown 内容
-        var markdownContent = @"## 图片展示
+        // Markdown 图片区（逐图独立缓冲占位符 / 错误重试），注入 axaml 中的命名宿主
+        MarkdownSectionHost.Content = CreateMarkdownSection(MarkdownContent);
+    }
+
+    private const string MarkdownContent = @"## 图片展示
 
 ![图片1](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/womenswear_IMG_6868.jpg)
 
@@ -194,40 +185,30 @@ public class EasterEggPage : UserControl
 
 ";
 
-        // 图片缓冲占位符：每张图片在 CreateMarkdownImage 中各自创建一个，
-        // 悬浮在该图之上居中显示，单张缓冲结束后即隐藏——避免一张慢图拖慢/遮挡整体进度。
-        mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
-
-        // 在最后一个链接下面添加30px的空白
-        mainPanel.Children.Add(new Border { Height = 30 });
-
-        _scrollViewer.Content = mainPanel;
-        Content = _scrollViewer;
-
-        // Content 设置完成后立即同步一次 FemboyTest 警告栏状态
-        UpdateFemboyTestWarningBar();
-
-        // 在Loaded事件中初始化返回顶部按钮
-        Loaded += OnLoaded;
-    }
-
     /// <summary>
     /// 创建Markdown格式的文本区域
+    /// </summary>
+    /// <summary>
+    /// 创建图片展示卡片：头部为“图片展示”标题与“刷新”按钮同一行，下方分隔线后是图片列表；
+    /// 图片容器卡片化（圆角 / 衬底 / ClipToBounds），每张图加载成功后各自播放一次华丽入场动画。
     /// </summary>
     private Border CreateMarkdownSection(string markdownText)
     {
         _normalTextBlocks = new List<TextBlock>();
         _boldTextBlocks = new List<TextBlock>();
         _separatorBorders = new List<Border>();
+        _imageCardBorders = new List<Border>();
+        _headerSeparatorBorder = null;
         _imageLoadInfos = new List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>();
 
+        // 外层卡片：去掉原先的 2px 粗边框，统一为圆角卡片（与插件其他卡片风格一致，深浅主题自适应）
         var section = new Border
         {
             Background = ThemeHelper.GetCardBackgroundBrush(),
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
             Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 16),
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
+            Margin = new Thickness(0, 0, 0, 16)
         };
         _markdownSectionBorder = section;
 
@@ -237,44 +218,80 @@ public class EasterEggPage : UserControl
             Spacing = 8
         };
 
+        // 图片列表独立成面板：图片之间统一 16px 间距，不与 Markdown 空行的 8px 占位混在一起
+        StackPanel? imageListPanel = null;
+
         // 解析Markdown并创建文本块
         var lines = markdownText.Split('\n');
         foreach (var line in lines)
         {
             if (string.IsNullOrWhiteSpace(line))
             {
-                // 空行添加间距
-                content.Children.Add(new Border { Height = 8 });
+                // 图片区已由独立面板的 Spacing 控制间距，末尾空行不再插入占位条
+                if (imageListPanel == null)
+                {
+                    content.Children.Add(new Border { Height = 8 });
+                }
                 continue;
             }
 
             if (line.StartsWith("## "))
             {
-                // 二级标题
+                // 二级标题：与“刷新”按钮排成同一行（标题左对齐、按钮右对齐）
                 var title = line.Substring(3).Trim();
-                content.Children.Add(new TextBlock
+
+                var headerGrid = new Grid
+                {
+                    ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+                    Margin = new Thickness(0, 8, 0, 4)
+                };
+
+                var titleTextBlock = new TextBlock
                 {
                     Text = title,
                     FontSize = 18,
                     FontWeight = FontWeight.Bold,
                     Foreground = Brushes.HotPink,
                     TextWrapping = TextWrapping.Wrap,
-                    Margin = new Thickness(0, 8, 0, 4)
-                });
+                    VerticalAlignment = VerticalAlignment.Center
+                };
+                Grid.SetColumn(titleTextBlock, 0);
+                headerGrid.Children.Add(titleTextBlock);
 
                 if (title == "图片展示")
                 {
                     var refreshButton = new Button
                     {
                         Content = "刷新",
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        Padding = new Thickness(16, 8),
+                        Padding = new Thickness(14, 6, 14, 6),
                         FontSize = 12,
-                        Margin = new Thickness(0, 4, 0, 8)
+                        VerticalAlignment = VerticalAlignment.Center,
+                        Margin = new Thickness(0)
                     };
                     refreshButton.Click += RefreshButton_Click;
-                    content.Children.Add(refreshButton);
+                    Grid.SetColumn(refreshButton, 1);
+                    headerGrid.Children.Add(refreshButton);
                 }
+
+                content.Children.Add(headerGrid);
+
+                // 标题下分隔线
+                _headerSeparatorBorder = new Border
+                {
+                    Height = 1,
+                    Background = ThemeHelper.GetSeparatorBrush(),
+                    Margin = new Thickness(0, 4, 0, 0)
+                };
+                content.Children.Add(_headerSeparatorBorder);
+
+                // 图片列表面板（标题之后的所有 ![]( ) 都进这里）
+                imageListPanel = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Spacing = 16,
+                    Margin = new Thickness(0, 8, 0, 0)
+                };
+                content.Children.Add(imageListPanel);
             }
             else if (line.StartsWith("---"))
             {
@@ -290,11 +307,11 @@ public class EasterEggPage : UserControl
             }
             else if (line.StartsWith("!["))
             {
-                // Markdown 图片 ![alt](url)
+                // Markdown 图片 ![alt](url)：标题出现后进入图片列表面板
                 var imageControl = CreateMarkdownImage(line);
                 if (imageControl != null)
                 {
-                    content.Children.Add(imageControl);
+                    (imageListPanel ?? content).Children.Add(imageControl);
                 }
             }
             else if (line.StartsWith("- ["))
@@ -506,6 +523,11 @@ public class EasterEggPage : UserControl
     /// <summary>
     /// 创建 Markdown 图片控件
     /// </summary>
+    /// <summary>
+    /// 创建 Markdown 图片卡片：圆角衬底容器（ClipToBounds 裁切），三层叠加——
+    /// 图片 / 加载占位符 / 失败重试面板。容器挂 Opacity 与 RenderTransform(TransformOperations) 两条 Transition，
+    /// 供华丽入场动画插值（不能对 Transform 对象跑 Animation，运行时会强转 Visual 崩溃）。
+    /// </summary>
     private Control CreateMarkdownImage(string line)
     {
         var startBracket = line.IndexOf('[');
@@ -523,7 +545,7 @@ public class EasterEggPage : UserControl
         var image = new Image
         {
             Stretch = Stretch.Uniform,
-            Margin = new Thickness(0, 4, 0, 4)
+            Margin = new Thickness(0)
         };
 
         var errorPanel = new StackPanel
@@ -578,12 +600,34 @@ public class EasterEggPage : UserControl
         grid.Children.Add(loadingIndicator);
         grid.Children.Add(errorPanel);
 
+        // 容器：挂 Opacity / RenderTransform 两条 Transition，供加载成功后的入场动画插值。
+        // RenderTransform 用 TransformOperations（配合 TransformOperationsTransition），
+        // 不能在 TranslateTransform 对象上跑 Animation（Avalonia 11 运行时强转 Visual 会崩）。
         var container = new Border
         {
             Child = grid,
-            HorizontalAlignment = HorizontalAlignment.Center
-            // 不设固定 Width：宽度由 MakeWidthFollowAncestor 的 MaxWidth 控制（内容自适应）
+            HorizontalAlignment = HorizontalAlignment.Center,
+            CornerRadius = new CornerRadius(8),
+            ClipToBounds = true,
+            Background = ThemeHelper.GetProgressRingBackgroundBrush(),
+            RenderTransform = TransformOperations.Parse("translateY(0px)"),
+            Transitions = new Transitions
+            {
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = TimeSpan.FromSeconds(0.45),
+                    Easing = new CubicEaseOut()
+                },
+                new TransformOperationsTransition
+                {
+                    Property = Visual.RenderTransformProperty,
+                    Duration = TimeSpan.FromSeconds(0.5),
+                    Easing = new CubicEaseOut()
+                }
+            }
         };
+        _imageCardBorders?.Add(container);
 
         // 图片宽度跟随父级（内容区）宽度动态缩放，窗口缩放时自动调整；
         // 使用 MaxWidth 而非强制 Width：图片最多占内容区 80%，不会超出展示框，
@@ -635,6 +679,7 @@ public class EasterEggPage : UserControl
             if (cachedBitmap != null)
             {
                 imageControl.Source = cachedBitmap;
+                PlayImageEntranceAnimation(imageControl);
                 return;
             }
 
@@ -650,6 +695,7 @@ public class EasterEggPage : UserControl
                 return new Avalonia.Media.Imaging.Bitmap(ms);
             });
             imageControl.Source = bitmap2;
+            PlayImageEntranceAnimation(imageControl);
 
             await Task.Run(() =>
             {
@@ -664,6 +710,7 @@ public class EasterEggPage : UserControl
         catch (Exception ex)
         {
             imageControl.Source = null;
+            ResetImageEntranceState(imageControl);
             errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
             errorPanel.IsVisible = true;
             retryButton.IsEnabled = true;
@@ -674,6 +721,70 @@ public class EasterEggPage : UserControl
             loadingIndicator.IsActive = false;
             loadingIndicator.IsVisible = false;
         }
+    }
+
+    /// <summary>宿主动画等级是否为“华丽”（IThemeService.AnimationLevel &gt;= 2；0=关闭，1=标准）。</summary>
+    private static bool IsGorgeousAnimationEnabled()
+    {
+        // IThemeService.AnimationLevel 在两个宿主版本中均为静态属性（0=关闭，1=标准，>=2=华丽）
+        try
+        {
+            return IThemeService.AnimationLevel >= 2;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 图片加载成功后播放一次入场动画：整体卡片淡入 + 轻微上滑（约 0.5s，CubicEaseOut）。
+    /// 实现走容器的 <see cref="Transitions"/>（DoubleTransition + TransformOperationsTransition）：
+    /// 先写初始值（透明 / translateY(12px)），下一布局帧再写终值，由 Transition 插值。
+    /// 不能用 <c>Animation.RunAsync(TranslateTransform)</c>——Avalonia 11 内部会把动画目标强转为
+    /// Visual，对 Transform 对象运行时直接抛 InvalidCastException（编译期无法发现）。
+    /// 非华丽档、或回调时页面已离开视觉树时直接落终值。
+    /// </summary>
+    private static void PlayImageEntranceAnimation(Image imageControl)
+    {
+        if (imageControl.Parent is not Grid grid || grid.Parent is not Border container)
+        {
+            return;
+        }
+
+        if (!IsGorgeousAnimationEnabled() || !container.IsAttachedToVisualTree())
+        {
+            SetImageCardFinalState(container);
+            return;
+        }
+
+        // 初始帧：透明 + 下移 12px；下一布局帧（Background 优先级，渲染前）写终值，Transition 接管插值
+        container.Opacity = 0;
+        container.RenderTransform = TransformOperations.Parse("translateY(12px)");
+        Dispatcher.UIThread.Post(() =>
+        {
+            if (container.IsAttachedToVisualTree())
+            {
+                container.Opacity = 1;
+                container.RenderTransform = TransformOperations.Parse("translateY(0px)");
+            }
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>把图片卡片落到可见终值（加载失败 / 非华丽档 / 页面重新进入时使用，不播放动画）。</summary>
+    private static void ResetImageEntranceState(Image imageControl)
+    {
+        if (imageControl.Parent is not Grid grid || grid.Parent is not Border container)
+        {
+            return;
+        }
+        SetImageCardFinalState(container);
+    }
+
+    private static void SetImageCardFinalState(Border container)
+    {
+        container.Opacity = 1;
+        container.RenderTransform = TransformOperations.Parse("translateY(0px)");
     }
 
     private async void RefreshButton_Click(object? sender, RoutedEventArgs e)
@@ -762,34 +873,15 @@ public class EasterEggPage : UserControl
     /// </summary>
     private void UpdateFemboyTestWarningBar()
     {
-        if (_femboyTestWarningBar == null || _scrollViewer == null)
-            return;
-
-        var panel = _scrollViewer.Content as StackPanel;
-        if (panel == null)
+        if (_femboyTestWarningBar == null)
             return;
 
         // 与彩蛋锁共用同一条互斥判定：本判定含"已安装且已启用"这一路，
         // 两处必须完全一致，否则会出现"锁已被绕过但警告栏仍显示"（或反之）的漏洞。
+        // 外壳 axaml 中专设 FemboyWarningHost 宿主：启用时放入警告栏（位于 Markdown 内容之前），
+        // 禁用时清空（ContentControl 内容为 null 时不占位）。
         var enabled = CrossPluginHelper.IsFemboyTestEnabled();
-        var contains = panel.Children.Contains(_femboyTestWarningBar);
-        if (enabled && !contains)
-        {
-            // 插在两个原有 FAInfobar 之后（即 Markdown 内容之前）
-            var markdownIndex = panel.Children.IndexOf(_markdownSectionBorder);
-            if (markdownIndex >= 0)
-            {
-                panel.Children.Insert(markdownIndex, _femboyTestWarningBar);
-            }
-            else
-            {
-                panel.Children.Add(_femboyTestWarningBar);
-            }
-        }
-        else if (!enabled && contains)
-        {
-            panel.Children.Remove(_femboyTestWarningBar);
-        }
+        FemboyWarningHost.Content = enabled ? _femboyTestWarningBar : null;
     }
 
     private void CleanupBackToTopButton()
@@ -853,12 +945,38 @@ public class EasterEggPage : UserControl
                 border.Background = ThemeHelper.GetGrayBrush();
             }
         }
+        if (_headerSeparatorBorder != null)
+        {
+            _headerSeparatorBorder.Background = ThemeHelper.GetSeparatorBrush();
+        }
+        if (_imageCardBorders != null)
+        {
+            // 图片卡片衬底随深浅主题刷新（与外层卡片背景保持层级差异）
+            var imageCardBrush = ThemeHelper.GetProgressRingBackgroundBrush();
+            foreach (var card in _imageCardBorders)
+            {
+                card.Background = imageCardBrush;
+            }
+        }
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();
+
+        // 页面重新进入时，把已加载完成的图片卡片落回可见终值：
+        // 防止图片成功回调刚把卡片置为透明起播、页面就被切走导致动画取消而停在透明态
+        if (_imageLoadInfos != null)
+        {
+            foreach (var info in _imageLoadInfos)
+            {
+                if (info.image.Source != null && info.image.Parent is Grid g && g.Parent is Border card)
+                {
+                    SetImageCardFinalState(card);
+                }
+            }
+        }
 
         // 重启 FemboyTest 状态监视（切换 Tab 后 timer 已在 Detached 中停止）
         if (_femboyTestWatchTimer == null)
