@@ -279,8 +279,6 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private void OnIconClicked(object? sender, PointerPressedEventArgs e)
     {
-        // 跨插件联动：FemboyTest 与女装彩蛋互斥，FemboyTest 启用时不能触发彩蛋
-        if (CrossPluginHelper.IsFemboyTestEnabled()) return;
         _easterEggDetector.RecordClick();
     }
 
@@ -309,8 +307,6 @@ public class AboutPage : SettingsPageBase
     /// </summary>
     private void OnEasterEggActivated(object? sender, EventArgs e)
     {
-        // 跨插件联动：FemboyTest 与女装彩蛋互斥，FemboyTest 启用时不能触发彩蛋
-        if (CrossPluginHelper.IsFemboyTestEnabled()) return;
         if (_easterEggActive) return;
         _easterEggActive = true;
         if (_pluginSettings != null)

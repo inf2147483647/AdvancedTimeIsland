@@ -6,7 +6,10 @@ using System.Reflection;
 using System.Runtime.Loader;
 using AdvancedTimeIsland.Models;
 using Avalonia.Threading;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Enums;
+using ClassIsland.Core.Models.Plugin;
 using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Helpers;
@@ -283,6 +286,239 @@ public static class CrossPluginHelper
             ResetEasterEggIfFemboyTestEnabled(settings);
         };
         timer.Start();
+    }
+
+    /// <summary>
+    /// 扫描宿主中“入口程序集实际已加载到本进程”的“女装/男娘”类插件：名称 / 标识符 / 简介任意一项
+    /// 命中语义规则（见 <see cref="IsFemboyLikeText"/>），<b>且</b>其入口 DLL 真的被宿主加载进了某个
+    /// <see cref="AssemblyLoadContext"/>（见 <see cref="IsPluginAssemblyLoaded"/>）才计入结果。
+    /// 女装图片加载拦截（EasterEggPage）与 JK 制服页崩溃归因（WomenswearPage）共用本入口，
+    /// 两处判定必须保持一致，不得各自再实现一份匹配规则。
+    /// 判定只认“DLL 是否在本进程内运行”，不再依赖 <see cref="PluginInfo.IsEnabled"/> /
+    /// <see cref="PluginLoadStatus"/>：宿主禁用插件只是写入 .disabled 标记并置 RestartRequired，
+    /// 程序集在本次运行期内仍驻留内存，故禁用后、重启前依然构成冲突；重启宿主后该 DLL 不再加载、
+    /// 扫描结果自然为空——与错误面板“请禁用以下插件并重启”的提示一致。
+    /// 实时扫描、不做缓存：用户重启后重新进入页面即恢复，无需任何手动刷新状态。
+    /// 单次调用只枚举一次全部已加载程序集构建路径集合，再对插件集合做集合命中判定，
+    /// 避免“插件数 × 程序集数”的嵌套枚举。
+    /// </summary>
+    public static IReadOnlyList<PluginInfo> GetRunningFemboyLikePlugins()
+    {
+        try
+        {
+            var loadedAssemblyLocations = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var loadedAssemblyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            CollectLoadedAssemblies(loadedAssemblyLocations, loadedAssemblyNames);
+
+            return IPluginService.LoadedPlugins
+                .Where(IsFemboyLikePlugin)
+                .Where(plugin => IsPluginAssemblyLoaded(plugin, loadedAssemblyLocations, loadedAssemblyNames))
+                .ToList();
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"GetRunningFemboyLikePlugins failed: {ex}");
+            return Array.Empty<PluginInfo>();
+        }
+    }
+
+    /// <summary>
+    /// 枚举当前进程全部 <see cref="AssemblyLoadContext"/> 中已加载的非动态程序集，
+    /// 收集其磁盘完整路径（宿主用 <c>PluginLoadContext.LoadFromAssemblyPath</c> 加载插件，
+    /// 正常情况下 <see cref="Assembly.Location"/> 即插件目录下的 DLL 完整路径）；
+    /// Location 为空（极个别内存加载场景）时退而收集程序集名，供 <see cref="IsPluginAssemblyLoaded"/> 兜底。
+    /// </summary>
+    private static void CollectLoadedAssemblies(HashSet<string> locations, HashSet<string> assemblyNames)
+    {
+        foreach (var context in AssemblyLoadContext.All)
+        {
+            foreach (var assembly in context.Assemblies)
+            {
+                if (assembly.IsDynamic)
+                {
+                    continue;
+                }
+
+                try
+                {
+                    var location = assembly.Location;
+                    if (!string.IsNullOrWhiteSpace(location))
+                    {
+                        locations.Add(Path.GetFullPath(location));
+                    }
+                    else
+                    {
+                        var name = assembly.GetName().Name;
+                        if (!string.IsNullOrWhiteSpace(name))
+                        {
+                            assemblyNames.Add(name);
+                        }
+                    }
+                }
+                catch
+                {
+                    // 单个程序集信息读取失败不影响其余判定
+                }
+            }
+        }
+    }
+
+    /// <summary>
+    /// 判断插件入口 DLL 是否实际加载在本进程中：
+    /// 优先用 <c>插件目录\Manifest.EntranceAssembly</c> 的完整路径与已加载程序集的 Location 比对
+    ///（大小写不敏感）；路径比对不到（入口程序集为无 Location 的内存加载）时，
+    /// 退化为程序集名（不含扩展名）精确比对。仅市场元数据、未落本地的插件
+    ///（<see cref="PluginInfo.PluginFolderPath"/> 为空）直接返回 false。
+    /// </summary>
+    private static bool IsPluginAssemblyLoaded(
+        PluginInfo plugin,
+        HashSet<string> loadedAssemblyLocations,
+        HashSet<string> loadedAssemblyNames)
+    {
+        try
+        {
+            var entranceAssembly = plugin.Manifest?.EntranceAssembly;
+            if (string.IsNullOrWhiteSpace(entranceAssembly)
+                || string.IsNullOrWhiteSpace(plugin.PluginFolderPath))
+            {
+                return false;
+            }
+
+            var targetPath = Path.GetFullPath(Path.Combine(plugin.PluginFolderPath, entranceAssembly));
+            if (loadedAssemblyLocations.Contains(targetPath))
+            {
+                return true;
+            }
+
+            // 兜底：内存加载、Location 为空时按程序集名命中（宿主插件均为磁盘加载，正常走不到这里）
+            var targetName = Path.GetFileNameWithoutExtension(targetPath);
+            return !string.IsNullOrWhiteSpace(targetName) && loadedAssemblyNames.Contains(targetName);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>名称、标识符或简介任意一项命中“女装/男娘”语义，即视为同类插件。</summary>
+    private static bool IsFemboyLikePlugin(PluginInfo plugin)
+    {
+        try
+        {
+            return IsFemboyLikeText(plugin.Manifest.Name)
+                   || IsFemboyLikeText(plugin.Manifest.Id)
+                   || IsFemboyLikeText(plugin.Manifest.Description);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>拉丁写法关键词：femboy 不是汉字，拼音转写不适用，故直接按关键词命中。</summary>
+    private const string FemboyLatinKeyword = "femboy";
+
+    /// <summary>“男娘”的标准全拼，作为中文写法的匹配基准。</summary>
+    private const string NanniangPinyin = "nanniang";
+
+    /// <summary>允许的拼音编辑距离：0 为精确匹配，1 为允许一次增删改（如 南梁 → nanliang）。</summary>
+    private const int NanniangMaxDistance = 1;
+
+    /// <summary>
+    /// 判断文本是否属于“女装/男娘”语义：
+    /// 1) 拉丁写法（femboy 及其大小写/分隔符/全角变体）直接按关键词命中——拼音转写不适用于非汉字；
+    /// 2) 中文写法转全拼后与 <see cref="NanniangPinyin"/> 做“精确 / 编辑距离 1”匹配，
+    ///    覆盖 男娘（nanniang）、楠酿（nanniang）、南梁（nanliang）等同音/近音写法。
+    /// 全拼由 <see cref="GetFullPinyinCandidates"/> 提供：已安装可选的 LibPinyin4CI 时
+    /// 走其 IPinyinService，未安装时自动回退到内置的简易拼音匹配，故此处无需再做字面兜底。
+    /// </summary>
+    public static bool IsFemboyLikeText(string? text)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            return false;
+        }
+
+        // 先归一化：全角转半角、剔除分隔符与助词、转小写
+        // （男の娘 → 男娘；Ｆｅｍｂｏｙ → femboy；F e m b o y → femboy）
+        var normalized = NormalizeForMatch(text);
+
+        if (normalized.Contains(FemboyLatinKeyword))
+        {
+            return true;
+        }
+
+        // 候选可能来自 LibPinyin（TitleCase，如 NanNiang）或内置匹配器（小写），比较前统一转小写
+        return GetFullPinyinCandidates(normalized).Any(candidate =>
+            LevenshteinDistance(candidate.ToLowerInvariant(), NanniangPinyin, NanniangMaxDistance)
+                <= NanniangMaxDistance);
+    }
+
+    /// <summary>
+    /// 计算两字符串的编辑距离（Levenshtein，插入/删除/替换代价均为 1）。
+    /// 若长度差已超过 <paramref name="maxDistance"/>，直接返回一个大于上限的值，省去完整的 DP。
+    /// </summary>
+    private static int LevenshteinDistance(string source, string target, int maxDistance)
+    {
+        if (Math.Abs(source.Length - target.Length) > maxDistance)
+        {
+            return maxDistance + 1;
+        }
+
+        var previous = new int[target.Length + 1];
+        var current = new int[target.Length + 1];
+        for (var j = 0; j <= target.Length; j++)
+        {
+            previous[j] = j;
+        }
+
+        for (var i = 1; i <= source.Length; i++)
+        {
+            current[0] = i;
+            for (var j = 1; j <= target.Length; j++)
+            {
+                var substitutionCost = source[i - 1] == target[j - 1] ? 0 : 1;
+                current[j] = Math.Min(
+                    Math.Min(current[j - 1] + 1, previous[j] + 1),
+                    previous[j - 1] + substitutionCost);
+            }
+
+            (previous, current) = (current, previous);
+        }
+
+        return previous[target.Length];
+    }
+
+    /// <summary>归一化时需要剔除的“装饰性”分隔符与助词。</summary>
+    private static readonly HashSet<char> _ignoredMatchChars = new()
+    {
+        ' ', '\t', '\r', '\n',
+        '·', '・', '•', '‧',              // 各类中点/间隔号
+        '-', '_', '.', '~', '|', '/', '\\',
+        'の',                              // 日文所属格助词（男の娘 → 男娘）
+    };
+
+    /// <summary>
+    /// 把文本归一化到便于语义比对的形式：
+    /// 1) NFKC 兼容规范化——全角字母/数字转半角（Ｆｅｍｂｏｙ → Femboy）；
+    /// 2) 剔除分隔符与助词（见 <see cref="_ignoredMatchChars"/>），使 Fem·boy / F e m b o y /
+    ///    男·娘 / 男の娘 与紧凑写法等价；
+    /// 3) 转小写——消除大小写差异（FEMBOY → femboy）。
+    /// </summary>
+    private static string NormalizeForMatch(string text)
+    {
+        var builder = new System.Text.StringBuilder(text.Length);
+        foreach (var ch in text.Normalize(System.Text.NormalizationForm.FormKC))
+        {
+            if (_ignoredMatchChars.Contains(ch))
+            {
+                continue;
+            }
+
+            builder.Append(char.ToLowerInvariant(ch));
+        }
+
+        return builder.ToString();
     }
 
     private static object? _pinyinService;

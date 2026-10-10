@@ -22,7 +22,6 @@
                            Foreground="HotPink"
                            HorizontalAlignment="Center" />
                 <ContentControl x:Name="InfoHost" />
-                <ContentControl x:Name="FemboyWarningHost" />
                 <!-- Markdown 图片展示区（卡片由 code-behind 生成并注入，含逐图加载/重试/入场动画） -->
                 <ContentControl x:Name="MarkdownSectionHost" />
             </StackPanel>

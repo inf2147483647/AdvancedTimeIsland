@@ -14,10 +14,8 @@ using AdvancedTimeIsland.Helpers;
 // 别名指向插件内复制的占位符：避免与宿主 ClassIsland.Core.Controls 中的同名类型冲突（net10 侧两者都存在）
 using ExpressiveLoadingIndicator = AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator;
 using ClassIsland.Core.Abstractions.Controls;
-using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
-using ClassIsland.Core.Enums;
 using ClassIsland.Core.Enums.SettingsWindow;
 using ClassIsland.Core.Models.Plugin;
 
@@ -359,7 +357,7 @@ public partial class WomenswearPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 归因“女装/男娘”类插件：扫描全部已安装插件，把所有名称或标识符命中该语义的条目一并
+    /// 归因“女装/男娘”类插件：扫描入口程序集实际加载在本进程中的匹配插件，把这些条目一并
     /// 交由宿主禁用，并返回归因列表与宿主的“是否禁用成功”结果（用于决定报告措辞）。
     /// 无命中时返回 (空列表, false)，不影响崩溃窗口正常弹出。
     /// </summary>
@@ -367,7 +365,7 @@ public partial class WomenswearPage : SettingsPageBase
     {
         try
         {
-            var matched = FindFemboyPlugins();
+            var matched = CrossPluginHelper.GetRunningFemboyLikePlugins();
             if (matched.Count == 0)
             {
                 return (Array.Empty<PluginInfo>(), false);
@@ -380,158 +378,6 @@ public partial class WomenswearPage : SettingsPageBase
             System.Diagnostics.Debug.WriteLine($"FindAndDisableFemboyPlugins failed: {ex}");
             return (Array.Empty<PluginInfo>(), false);
         }
-    }
-
-    /// <summary>
-    /// 从已安装插件中筛出“女装/男娘”类插件。
-    /// 与宿主 DiagnosticService.GetPluginsByStacktrace 不同，这里不看运行时堆栈，而是对插件的
-    /// 名称与标识符做归一化后的语义匹配——因此刻意改名伪装的同类插件（各种大小写、分隔符、
-    /// 全角、插入空格、中日文同义/谐音的变体）同样会被识别出来。
-    /// </summary>
-    private static IReadOnlyList<PluginInfo> FindFemboyPlugins()
-    {
-        try
-        {
-            return IPluginService.LoadedPlugins
-                .Where(IsEnabledAndLoaded)
-                .Where(IsFemboyLikePlugin)
-                .ToList();
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"FindFemboyPlugins failed: {ex}");
-            return Array.Empty<PluginInfo>();
-        }
-    }
-
-    /// <summary>
-    /// 仅归因“真正加载成功且已启用”的插件。IPluginService.LoadedPlugins 在预处理阶段就会把
-    /// 已禁用的插件一并加入列表（LoadStatus=Disabled），若不过滤，已禁用插件会被重复列入归因、
-    /// 在崩溃报告里当作“问题插件”显示，并再次写入 .disabled（误报）；
-    /// 加载失败（Error）与未加载（NotLoaded / 非本地）的插件同理不参与归因。
-    /// </summary>
-    private static bool IsEnabledAndLoaded(PluginInfo plugin) =>
-        plugin.IsEnabled && plugin.LoadStatus == PluginLoadStatus.Loaded;
-
-    /// <summary>名称、标识符或简介任意一项命中“女装/男娘”语义，即视为同类插件。</summary>
-    private static bool IsFemboyLikePlugin(PluginInfo plugin)
-    {
-        try
-        {
-            return IsFemboyLikeText(plugin.Manifest.Name)
-                   || IsFemboyLikeText(plugin.Manifest.Id)
-                   || IsFemboyLikeText(plugin.Manifest.Description);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>拉丁写法关键词：femboy 不是汉字，拼音转写不适用，故直接按关键词命中。</summary>
-    private const string FemboyLatinKeyword = "femboy";
-
-    /// <summary>“男娘”的标准全拼，作为中文写法的匹配基准。</summary>
-    private const string NanniangPinyin = "nanniang";
-
-    /// <summary>允许的拼音编辑距离：0 为精确匹配，1 为允许一次增删改（如 南梁 → nanliang）。</summary>
-    private const int NanniangMaxDistance = 1;
-
-    /// <summary>
-    /// 判断文本是否属于“女装/男娘”语义：
-    /// 1) 拉丁写法（femboy 及其大小写/分隔符/全角变体）直接按关键词命中——拼音转写不适用于非汉字；
-    /// 2) 中文写法转全拼后与 <see cref="NanniangPinyin"/> 做“精确 / 编辑距离 1”匹配，
-    ///    覆盖 男娘（nanniang）、楠酿（nanniang）、南梁（nanliang）等同音/近音写法。
-    /// 全拼由 <see cref="CrossPluginHelper.GetFullPinyinCandidates"/> 提供：已安装可选的 LibPinyin4CI 时
-    /// 走其 IPinyinService，未安装时自动回退到内置的简易拼音匹配，故此处无需再做字面兜底。
-    /// </summary>
-    private static bool IsFemboyLikeText(string? text)
-    {
-        if (string.IsNullOrWhiteSpace(text))
-        {
-            return false;
-        }
-
-        // 先归一化：全角转半角、剔除分隔符与助词、转小写
-        // （男の娘 → 男娘；Ｆｅｍｂｏｙ → femboy；F e m b o y → femboy）
-        var normalized = NormalizeForMatch(text);
-
-        if (normalized.Contains(FemboyLatinKeyword))
-        {
-            return true;
-        }
-
-        // 候选可能来自 LibPinyin（TitleCase，如 NanNiang）或内置匹配器（小写），比较前统一转小写
-        return CrossPluginHelper.GetFullPinyinCandidates(normalized).Any(candidate =>
-            LevenshteinDistance(candidate.ToLowerInvariant(), NanniangPinyin, NanniangMaxDistance)
-                <= NanniangMaxDistance);
-    }
-
-    /// <summary>
-    /// 计算两字符串的编辑距离（Levenshtein，插入/删除/替换代价均为 1）。
-    /// 若长度差已超过 <paramref name="maxDistance"/>，直接返回一个大于上限的值，省去完整的 DP。
-    /// </summary>
-    private static int LevenshteinDistance(string source, string target, int maxDistance)
-    {
-        if (Math.Abs(source.Length - target.Length) > maxDistance)
-        {
-            return maxDistance + 1;
-        }
-
-        var previous = new int[target.Length + 1];
-        var current = new int[target.Length + 1];
-        for (var j = 0; j <= target.Length; j++)
-        {
-            previous[j] = j;
-        }
-
-        for (var i = 1; i <= source.Length; i++)
-        {
-            current[0] = i;
-            for (var j = 1; j <= target.Length; j++)
-            {
-                var substitutionCost = source[i - 1] == target[j - 1] ? 0 : 1;
-                current[j] = Math.Min(
-                    Math.Min(current[j - 1] + 1, previous[j] + 1),
-                    previous[j - 1] + substitutionCost);
-            }
-
-            (previous, current) = (current, previous);
-        }
-
-        return previous[target.Length];
-    }
-
-    /// <summary>归一化时需要剔除的“装饰性”分隔符与助词。</summary>
-    private static readonly HashSet<char> _ignoredMatchChars = new()
-    {
-        ' ', '\t', '\r', '\n',
-        '·', '・', '•', '‧',              // 各类中点/间隔号
-        '-', '_', '.', '~', '|', '/', '\\',
-        'の',                              // 日文所属格助词（男の娘 → 男娘）
-    };
-
-    /// <summary>
-    /// 把文本归一化到便于语义比对的形式：
-    /// 1) NFKC 兼容规范化——全角字母/数字转半角（Ｆｅｍｂｏｙ → Femboy）；
-    /// 2) 剔除分隔符与助词（见 <see cref="_ignoredMatchChars"/>），使 Fem·boy / F e m b o y /
-    ///    男·娘 / 男の娘 与紧凑写法等价；
-    /// 3) 转小写——消除大小写差异（FEMBOY → femboy）。
-    /// </summary>
-    private static string NormalizeForMatch(string text)
-    {
-        var builder = new System.Text.StringBuilder(text.Length);
-        foreach (var ch in text.Normalize(System.Text.NormalizationForm.FormKC))
-        {
-            if (_ignoredMatchChars.Contains(ch))
-            {
-                continue;
-            }
-
-            builder.Append(char.ToLowerInvariant(ch));
-        }
-
-        return builder.ToString();
     }
 
     /// <summary>

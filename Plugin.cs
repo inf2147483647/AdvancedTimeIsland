@@ -241,6 +241,10 @@ public class Plugin : PluginBase
         // 加载已保存的设置
         LoadSettings();
 
+        // 女装页图片顺序：在宿主初始化阶段随机排列一次，本次 ClassIsland 运行期内保持固定（重启才重新随机），
+        // 而非每次打开女装页时重排
+        Views.Settings.EasterEggPage.PrimeWomenswearImageOrder();
+
         // 订阅设置变更事件，自动保存（LoadSettings 中已订阅，此处为双重保险）
         if (Settings != null)
         {
