@@ -1,11 +1,14 @@
 using System;
+using AdvancedTimeIsland.Shared;
 using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Services;
+using Microsoft.Extensions.Logging;
 
 namespace AdvancedTimeIsland.Views.Controls;
 
@@ -36,7 +39,7 @@ public class SmoothExpandHost : Border
 
     private bool _initialized;
     private bool _isExpanded;
-    // 展开前的折叠高度：收起时直接复用它，避免折叠后测量时点不可靠导致丢失收起过渡
+    // 折叠态高度（仅标题行）：收起时直接复用，避免折叠后测量时点 / 测量缓存导致的错误高度
     private double? _collapsedHeight;
     private double _lastMeasuredWidth = double.NaN;
 
@@ -51,6 +54,7 @@ public class SmoothExpandHost : Border
         IsVisible = inner.IsVisible;
 
         _animationEnabled = IThemeService.AnimationLevel >= 1;
+        Log($"构造：animationEnabled={_animationEnabled}（动画级别={IThemeService.AnimationLevel}）");
         if (!_animationEnabled)
         {
             return;
@@ -60,17 +64,18 @@ public class SmoothExpandHost : Border
         ClipToBounds = true;
         _inner.PropertyChanged += OnInnerPropertyChanged;
         PropertyChanged += OnHostPropertyChanged;
-        AttachedToVisualTree += OnAttachedToVisualTree;
+        // 用 Loaded（布局完成后触发）而不是 dispatcher 优先级，保证初始高度一定能被锁定
+        Loaded += OnLoaded;
     }
 
     /// <summary>反射读取内部控件的 <c>IsExpanded</c> 初始值（FA2/FA3 均为公开属性）。</summary>
     private bool ReadInnerExpanded()
         => _inner.GetType().GetProperty("IsExpanded")?.GetValue(_inner) is true;
 
-    private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        // 布局完成后再锁定初始高度，保证测到的是真实尺寸
-        Dispatcher.UIThread.Post(EnsureInitialized, DispatcherPriority.Loaded);
+        Log($"Loaded：initialized={_initialized}, isExpanded={_isExpanded}, bounds={Bounds}");
+        EnsureInitialized();
     }
 
     /// <summary>
@@ -85,6 +90,7 @@ public class SmoothExpandHost : Border
         }
 
         _initialized = true;
+
         var natural = MeasureInnerHeight();
         Height = natural;
         if (!_isExpanded && !double.IsNaN(natural))
@@ -101,6 +107,8 @@ public class SmoothExpandHost : Border
                 Easing = new CubicEaseOut()
             }
         };
+
+        Log($"初始化：natural={natural}, isExpanded={_isExpanded}, collapsedHeight={_collapsedHeight}");
     }
 
     private void OnInnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -123,7 +131,7 @@ public class SmoothExpandHost : Border
                     _collapsedHeight = Height;
                 }
                 _isExpanded = expanded;
-                // 推迟到下一帧：此时 FluentAvalonia 内部模板的展开态 / 内容可见性已刷新
+                Log($"IsExpanded 变化：{e.OldValue} -> {e.NewValue}，当前 Height={Height}，collapsedHeight={_collapsedHeight}");
                 Dispatcher.UIThread.Post(ApplyTargetHeight, DispatcherPriority.Loaded);
                 break;
         }
@@ -155,19 +163,23 @@ public class SmoothExpandHost : Border
 
         // 展开：测量展开后的自然高度（此时内容已可见，测量可靠）
         // 收起：直接回到记录下来的折叠高度 —— 折叠后 FluentAvalonia 内容区的隐藏时点不可靠，
-        //       现场测量可能仍得到展开高度，会让“收起”因为目标高度不变而丢失过渡。
+        //       且 Avalonia 会缓存相同 availableSize 的测量结果，现场测量很可能仍得到展开高度，
+        //       会让“收起”因为目标高度不变而丢失过渡。
         var target = _isExpanded ? MeasureInnerHeight() : _collapsedHeight ?? MeasureInnerHeight();
         if (double.IsNaN(target))
         {
+            Log($"ApplyTargetHeight：target 为 NaN，跳过（isExpanded={_isExpanded}）");
             return;
         }
 
         // 高度（属性值）在过渡期间即等于目标值，故此处不会重复触发、打断进行中的过渡
         if (Math.Abs(target - Height) < 0.5)
         {
+            Log($"ApplyTargetHeight：target={target} 与当前 Height={Height} 相同，跳过（isExpanded={_isExpanded}）");
             return;
         }
 
+        Log($"ApplyTargetHeight：Height {Height} -> {target}（isExpanded={_isExpanded}）");
         Height = target;
     }
 
@@ -188,8 +200,18 @@ public class SmoothExpandHost : Border
             width = double.PositiveInfinity;
         }
 
+        // Avalonia 会缓存相同 availableSize 的测量结果：若直接重复测量，收起时会命中展开时的缓存。
+        // 因此先用一个略有差异的宽度测一次使缓存失效，再用真实宽度取得最新高度。
+        if (width > 0 && !double.IsInfinity(width))
+        {
+            _inner.Measure(new Size(width + 0.5, double.PositiveInfinity));
+        }
         _inner.Measure(new Size(width, double.PositiveInfinity));
+
         var height = _inner.DesiredSize.Height;
         return double.IsNaN(height) || height < 0 ? double.NaN : height;
     }
+
+    private static void Log(string message)
+        => GlobalConstants.HostInterfaces.PluginLogger?.LogInformation("[SmoothExpandHost] {Message}", message);
 }
