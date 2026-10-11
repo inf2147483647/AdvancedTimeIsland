@@ -55,8 +55,6 @@ public class EasterEggPage : UserControl
     private Button? _backToTopButton;
     private Canvas? _overlayCanvas;
     private ScrollViewer? _outerScrollViewer;
-    private FrameworkElement? _femboyTestWarningBar;
-    private DispatcherTimer? _femboyTestWatchTimer;
 
     public EasterEggPage() : this(null)
     {
@@ -122,25 +120,6 @@ public class EasterEggPage : UserControl
             });
             mainPanel.Children.Add(infoBar);
         }
-
-        // FemboyTest 启用时显示错误类型警告（不可关闭）；FemboyTest 关闭时取消显示。
-        // 该警告与页面是否可见无关，必须始终跟随 FemboyTest 实际运行状态动态增删，
-        // 否则可能留下绕过互斥检测的漏洞。
-        _femboyTestWarningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Message", "《祖上传下来的护身符炸了》《爷爷送的玉佩炸了》《奶奶给我的黄符纸自燃了》《保我的菩萨断臂求生了》《护我道上的狐仙被别的狐狸配了》《我拜的关公倒地了》《家里的金银器全发黑了》《僵尸在我旁边撒糯米》");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "IsOpen", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "IsClosable", false);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_femboyTestWarningBar, "Margin", new Thickness(0, 0, 0, 8));
-
-        // 定时监视 FemboyTest 运行状态，动态增删该警告栏
-        _femboyTestWatchTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(1)
-        };
-        _femboyTestWatchTimer.Tick += (s, e) => UpdateFemboyTestWarningBar();
-        _femboyTestWatchTimer.Start();
-        UpdateFemboyTestWarningBar();
 
         // Markdown 内容
         var markdownContent = @"## 图片展示
@@ -209,9 +188,6 @@ public class EasterEggPage : UserControl
         _overlayCanvas = new Canvas { IsHitTestVisible = false };
         rootGrid.Children.Add(_overlayCanvas);
         Content = rootGrid;
-
-        // Content 设置完成后立即同步一次 FemboyTest 警告栏状态
-        UpdateFemboyTestWarningBar();
 
         // 在Loaded事件中初始化返回顶部按钮
         Loaded += OnLoaded;
@@ -714,50 +690,6 @@ public class EasterEggPage : UserControl
         // 注意：不移除KeyDown和Loaded订阅，以便切换Tab回来时仍能正常工作
         // 清理返回顶部按钮（移除Canvas上的按钮和事件订阅）
         CleanupBackToTopButton();
-        // 停止 FemboyTest 状态监视
-        if (_femboyTestWatchTimer != null)
-        {
-            _femboyTestWatchTimer.Stop();
-            _femboyTestWatchTimer = null;
-        }
-    }
-
-    /// <summary>
-    /// 动态显示/取消 FemboyTest 错误警告栏。
-    /// 与彩蛋锁共用同一条互斥判定 <see cref="CrossPluginHelper.IsFemboyTestEnabled"/>——
-    /// 该判定已包含"标识符文件（已安装且已启用）"这一路，因此这里不得再单独收窄成"仅运行中"：
-    /// 两处判定一旦不一致，就会出现"锁已被绕过但警告栏仍显示"（或反之）的漏洞。
-    /// </summary>
-    private void UpdateFemboyTestWarningBar()
-    {
-        if (_femboyTestWarningBar == null || _scrollViewer == null)
-            return;
-
-        var panel = _scrollViewer.Content as StackPanel;
-        if (panel == null)
-            return;
-
-        // 与彩蛋锁共用同一条互斥判定：本判定含"已安装且已启用"这一路，
-        // 两处必须完全一致，否则会出现"锁已被绕过但警告栏仍显示"（或反之）的漏洞。
-        var enabled = CrossPluginHelper.IsFemboyTestEnabled();
-        var contains = panel.Children.Contains(_femboyTestWarningBar);
-        if (enabled && !contains)
-        {
-            // 插在两个原有 FAInfobar 之后（即 Markdown 内容之前）
-            var markdownIndex = panel.Children.IndexOf(_markdownSectionBorder);
-            if (markdownIndex >= 0)
-            {
-                panel.Children.Insert(markdownIndex, _femboyTestWarningBar);
-            }
-            else
-            {
-                panel.Children.Add(_femboyTestWarningBar);
-            }
-        }
-        else if (!enabled && contains)
-        {
-            panel.Children.Remove(_femboyTestWarningBar);
-        }
     }
 
     private void CleanupBackToTopButton()
@@ -827,18 +759,6 @@ public class EasterEggPage : UserControl
     {
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();
-
-        // 重启 FemboyTest 状态监视（切换 Tab 后 timer 已在 Unloaded 中停止）
-        if (_femboyTestWatchTimer == null)
-        {
-            _femboyTestWatchTimer = new DispatcherTimer
-            {
-                Interval = TimeSpan.FromSeconds(1)
-            };
-            _femboyTestWatchTimer.Tick += (s, e2) => UpdateFemboyTestWarningBar();
-        }
-        _femboyTestWatchTimer.Start();
-        UpdateFemboyTestWarningBar();
 
         // 延迟到布局完成后再初始化，确保覆盖层Canvas的尺寸已正确计算
         UIThread.Post(() =>

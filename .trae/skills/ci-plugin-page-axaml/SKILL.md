@@ -41,7 +41,7 @@ description: Migrate AdvancedTimeIsland Avalonia pages to axaml plus code-behind
 主项目双目标框架：net8 = Avalonia 11 + FluentAvalonia 2.4（`SettingsExpander`/`InfoBar`），net10 = Avalonia 12 + FluentAvalonia 3.0（改名 `FASettingsExpander`/`FAInfoBar`）。一份 axaml 不能按两个类型名声明同一控件。
 
 1. **InfoBar**：axaml 中放 `<ContentControl x:Name="XxxHost" />`；code-behind 用 `FluentAvaloniaCompatibilityHelper.CreateInfoBar()` 创建真实控件，再用 `SetInfoBarProperty(...)` 设 Severity/Message/IsOpen/IsClosable/Margin，需要关闭回调时用 `AddInfoBarClosedHandler`，最后 `XxxHost.Content = bar`（不显示就赋 null，ContentControl 不占位）。
-2. **设置分组 SettingsExpander**：优先复用现成包装 `Views/Controls/CompatSettingsExpander.cs`，axaml 中直接声明 `<compat:CompatSettingsExpander>` / `<compat:CompatSettingsExpanderItem>`（命名空间 `clr-namespace:AdvancedTimeIsland.Views.Controls`），它在运行时创建真实官方控件并转发 Header/Description/Footer/Items/IsEnabled，官方展开折叠动画完整保留。注意包装条目类型必须继承 `Control`（只有 Control 派生类型才会生成 x:Name 字段）。
+2. **设置分组 SettingsExpander**：优先复用现成包装 `Views/Controls/CompatSettingsExpander.cs`，axaml 中直接声明 `<compat:CompatSettingsExpander>` / `<compat:CompatSettingsExpanderItem>`（命名空间 `clr-namespace:AdvancedTimeIsland.Views.Controls`），它在运行时创建真实官方控件并转发 Header/Description/Footer/Items/IsEnabled；折叠 / 展开由 `Views/Controls/SmoothExpandHost.cs` 提供 260ms 高度过渡（后续元素被平滑推开 / 收拢）。注意包装条目类型必须继承 `Control`（只有 Control 派生类型才会生成 x:Name 字段）。
 3. 其他 FA 差异控件同样走“宿主容器 + Helper 运行时创建”模式；新差异先在 `FluentAvaloniaCompatibilityHelper` 中补创建/属性转发方法。
 
 ## 4. code-behind 写法

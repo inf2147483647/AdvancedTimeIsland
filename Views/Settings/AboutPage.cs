@@ -77,20 +77,6 @@ public class AboutPage : SettingsPageBase
         _pluginSettings = pluginSettings;
         _easterEggActive = pluginSettings?.EnableEasterEgg ?? false;
 
-        // 跨插件联动：FemboyTest 与女装彩蛋互斥。
-        // 若 FemboyTest 插件已启用，则原有彩蛋已触发状态变为未触发。
-        if (_easterEggActive && CrossPluginHelper.IsFemboyTestEnabled())
-        {
-            _easterEggActive = false;
-            if (pluginSettings != null)
-            {
-                pluginSettings.EnableEasterEgg = false;
-            }
-        }
-
-        // 订阅互斥强制重置事件，保证与 FemboyTest 完全互斥
-        CrossPluginHelper.EasterEggForceReset += OnEasterEggForceReset;
-
         _easterEggDetector = new EasterEggDetector(11, 5);
         _easterEggDetector.OnActivated += OnEasterEggActivated;
 
@@ -316,23 +302,6 @@ public class AboutPage : SettingsPageBase
 
         SyncNavigationTabs();
         ShowEasterEggDialog();
-    }
-
-    /// <summary>
-    /// FemboyTest 与女装彩蛋互斥强制重置处理（由互斥监视器触发）
-    /// </summary>
-    private void OnEasterEggForceReset()
-    {
-        // 同步重置彩蛋检测器：清空 IsActivated 与点击缓冲，
-        // 避免 FemboyTest 关闭后彩蛋因 IsActivated 永不复位而无法再次触发（漏洞 10），
-        // 也避免已累计的点击在 FemboyTest 启停切换后残留、跨状态续点（漏洞 4）。
-        _easterEggDetector?.Reset();
-
-        if (_easterEggActive)
-        {
-            _easterEggActive = false;
-            SyncNavigationTabs();
-        }
     }
 
     /// <summary>
@@ -763,7 +732,6 @@ public class AboutPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
-        CrossPluginHelper.EasterEggForceReset -= OnEasterEggForceReset;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

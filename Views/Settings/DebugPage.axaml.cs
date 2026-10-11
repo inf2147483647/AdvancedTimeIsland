@@ -21,13 +21,16 @@ namespace AdvancedTimeIsland.Views.Settings;
 
 /// <summary>
 /// AdvancedTimeIsland 调试页（axaml 版，写法对齐 ClassIsland 官方 DebugPage）。
-/// 主面板使用官方 <c>settings-container animated-intro</c> 样式类：宿主“动画效果”设为“华丽”时，
-/// 警告条 / 标题 / 各测试入口 / 卡片 / 折叠栏依次淡入上滑；嵌套 Expander 展开动画走 FluentAvalonia 官方样式。
+/// 入场动画由插件 <see cref="IntroAnimationHelper"/> 播放（动画等级为“华丽”时
+/// 警告条 / 标题 / 各测试入口 / 卡片 / 折叠栏依次淡入上滑），不依赖宿主 <c>animated-intro</c> 样式类；
+/// 嵌套折叠栏（CompatSettingsExpander）的展开 / 折叠由 SmoothExpandHost 提供平滑高度过渡。
 /// 顶部警告条使用真实 FA InfoBar（FA2 为 InfoBar、FA3 为 FAInfoBar），经兼容 Helper 按运行时版本创建。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandDebug", "AdvancedTimeIsland 调试", SettingsPageCategory.Debug)]
 public partial class DebugPage : SettingsPageBase
 {
+    private bool _introPlayed;
+
     public DebugPage()
     {
         InitializeComponent();
@@ -806,6 +809,13 @@ public partial class DebugPage : SettingsPageBase
     // ==================== 主题自适应 / 生命周期 ====================
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
+        // 入场动画放在最前：避免后续初始化逻辑（主题同步、内存泄漏 UI 刷新）异常时中断动画播放
+        if (!_introPlayed)
+        {
+            _introPlayed = true;
+            IntroAnimationHelper.PlayIntro(RootPanel);
+        }
+
         if (Application.Current != null)
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         MemoryLeakTestService.Instance.LeakUpdated += OnLeakUpdated;

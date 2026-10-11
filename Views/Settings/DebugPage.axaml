@@ -7,8 +7,10 @@
     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
                   BringIntoViewOnFocusChange="False">
-        <!-- settings-container / animated-intro：官方宿主样式，动画等级为“华丽”时子项依次淡入上滑 -->
-        <StackPanel Classes="settings-container animated-intro">
+        <!-- settings-container：官方布局样式；逐项入场动画改由插件 IntroAnimationHelper 播放
+             （动画等级为“华丽”时子项依次淡入上滑，不依赖宿主 animated-intro 样式类） -->
+        <StackPanel x:Name="RootPanel"
+                    Classes="settings-container">
             <!-- FA2/FA3 的 InfoBar 类型名不同（InfoBar / FAInfoBar），由 code-behind 创建真实控件后注入 -->
             <ContentControl x:Name="WarningBarHost" />
 

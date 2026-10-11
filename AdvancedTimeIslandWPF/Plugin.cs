@@ -230,12 +230,6 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
 
-        // 跨插件联动：FemboyTest 与女装彩蛋互斥。
-        // 延迟到初始化 3 秒后再检测，确保此时所有插件均已加载完成，
-        // 若 FemboyTest 已启用，则将原有彩蛋已触发状态重置为未触发。
-        Helpers.CrossPluginHelper.ScheduleEasterEggMutexCheck(
-            Settings, TimeSpan.FromSeconds(3));
-
         // 汉服 Markdown 内容热更新：后台从 GitHub 最新 release 检查并下载，
         // 解压到插件目录的 Markdown 文件夹，不阻塞插件启动与 UI。
         Helpers.HanfuMarkdownUpdater.Start();
