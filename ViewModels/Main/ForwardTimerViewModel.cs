@@ -237,7 +237,14 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnClockTick(DateTime now)
     {
-        _ = UpdateTimerAsync(now);
+        // 时钟回调已在 UI 线程，直接同步处理，避免二次 InvokeAsync 入队。
+        try
+        {
+            ProcessTimer(now);
+        }
+        catch
+        {
+        }
     }
 
     private void UpdateTimer()

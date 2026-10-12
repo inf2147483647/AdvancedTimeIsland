@@ -1,0 +1,335 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.AttendanceCalendarPage"
+                     xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core">
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto"
+                  BringIntoViewOnFocusChange="False">
+        <!-- settings-container：官方布局样式；逐项入场动画由插件 IntroAnimationHelper 播放
+             （宿主动画等级为“华丽”时标题与各分组依次淡入上滑）；
+             各分组 Expander 在 code-behind 中统一包进 CreateExpandHost，折叠/展开带平滑高度过渡 -->
+        <StackPanel x:Name="RootPanel"
+                    Classes="settings-container"
+                    Spacing="16">
+            <TextBlock Text="在校时间统计（ATI）"
+                       FontSize="24"
+                       FontWeight="Bold" />
+
+            <!-- 1. 统计概览 -->
+            <Expander x:Name="SummaryExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="统计概览" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <TextBlock x:Name="SummaryTextBlock"
+                               Text="正在统计…"
+                               FontSize="18"
+                               FontWeight="Bold"
+                               TextWrapping="Wrap" />
+                    <ProgressBar x:Name="SummaryProgressBar"
+                                 Minimum="0"
+                                 Maximum="100"
+                                 Value="0"
+                                 Height="6"
+                                 HorizontalAlignment="Stretch" />
+                    <TextBlock x:Name="SummaryDetailTextBlock"
+                               TextWrapping="Wrap"
+                               Tag="sub" />
+                    <TextBlock x:Name="SemesterRangeTextBlock"
+                               TextWrapping="Wrap"
+                               Tag="sub" />
+                    <Button Content="刷新统计"
+                            Margin="0,4,0,0"
+                            Click="OnRefreshClick" />
+                </StackPanel>
+            </Expander>
+
+            <!-- 2. 学期区间 -->
+            <Expander x:Name="SemesterExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="学期区间" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="学期开始日"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  x:Name="StartSourceComboBox"
+                                  Width="300"
+                                  HorizontalAlignment="Left"
+                                  SelectionChanged="OnSemesterOptionChanged">
+                            <ComboBoxItem>自动读取 ClassIsland 学期开始时间</ComboBoxItem>
+                            <ComboBoxItem>手动指定</ComboBoxItem>
+                        </ComboBox>
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="手动开始日"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <DatePicker Grid.Column="1"
+                                    x:Name="ManualStartDatePicker"
+                                    Width="300"
+                                    HorizontalAlignment="Left"
+                                    SelectedDateChanged="OnSemesterDateChanged" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="学期结束日"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  x:Name="EndSourceComboBox"
+                                  Width="300"
+                                  HorizontalAlignment="Left"
+                                  SelectionChanged="OnSemesterOptionChanged">
+                            <ComboBoxItem>按学期周数推算</ComboBoxItem>
+                            <ComboBoxItem>手动指定</ComboBoxItem>
+                        </ComboBox>
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="学期总周数"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <NumericUpDown Grid.Column="1"
+                                       x:Name="TotalWeeksNumericUpDown"
+                                       Width="200"
+                                       Minimum="1"
+                                       Maximum="60"
+                                       Increment="1"
+                                       FormatString="0"
+                                       HorizontalAlignment="Left"
+                                       ValueChanged="OnSemesterNumberChanged" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="手动结束日"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <DatePicker Grid.Column="1"
+                                    x:Name="ManualEndDatePicker"
+                                    Width="300"
+                                    HorizontalAlignment="Left"
+                                    SelectedDateChanged="OnSemesterDateChanged" />
+                    </Grid>
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="每日在校时长"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  x:Name="DailyHoursSourceComboBox"
+                                  Width="300"
+                                  HorizontalAlignment="Left"
+                                  SelectionChanged="OnDailyHoursSourceChanged">
+                            <ComboBoxItem>自动获取</ComboBoxItem>
+                            <ComboBoxItem>手动指定</ComboBoxItem>
+                        </ComboBox>
+                    </Grid>
+                    <TextBlock x:Name="DailyHoursHintTextBlock"
+                               TextWrapping="Wrap"
+                               Tag="sub"
+                               Margin="0,-2,0,2" />
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="每日在校时长（小时）"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <NumericUpDown Grid.Column="1"
+                                       x:Name="DailyHoursNumericUpDown"
+                                       Width="200"
+                                       Minimum="0"
+                                       Maximum="24"
+                                       Increment="0.5"
+                                       FormatString="0.#"
+                                       HorizontalAlignment="Left"
+                                       ValueChanged="OnSemesterNumberChanged" />
+                    </Grid>
+                </StackPanel>
+            </Expander>
+
+            <!-- 3. 排除规则 -->
+            <Expander x:Name="RuleExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="排除规则" />
+                </Expander.Header>
+                <StackPanel Spacing="4">
+                    <CheckBox x:Name="ExcludeSaturdayCheckBox"
+                              Content="排除周六"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                    <CheckBox x:Name="ExcludeSundayCheckBox"
+                              Content="排除周日"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                    <CheckBox x:Name="ExcludeHolidaysCheckBox"
+                              Content="排除法定节假日（放假日）"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                    <CheckBox x:Name="CountMakeupDaysCheckBox"
+                              Content="调休补班日计为在校日（优先于周末排除）"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                    <CheckBox x:Name="ExcludeVacationsCheckBox"
+                              Content="排除寒暑假区间"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                    <CheckBox x:Name="RespectCustomDatesCheckBox"
+                              Content="应用自定义日期（强制计入 / 强制排除）"
+                              VerticalAlignment="Center"
+                              IsCheckedChanged="OnRuleChanged" />
+                </StackPanel>
+            </Expander>
+
+            <!-- 4. 寒暑假区间 -->
+            <Expander x:Name="VacationExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="寒暑假区间" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="名称"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="NewVacationNameTextBox"
+                                 Width="150"
+                                 Watermark="如 2026 寒假" />
+                        <TextBlock Text="开始"
+                                   VerticalAlignment="Center" />
+                        <DatePicker x:Name="NewVacationStartDatePicker"
+                                    Width="300" />
+                        <TextBlock Text="结束"
+                                   VerticalAlignment="Center" />
+                        <DatePicker x:Name="NewVacationEndDatePicker"
+                                    Width="300" />
+                        <Button Content="添加假期"
+                                Click="OnAddVacationClick" />
+                    </StackPanel>
+                    <ScrollViewer MaxHeight="300"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="VacationListHost"
+                                    Spacing="4" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+
+            <!-- 5. 自定义日期 -->
+            <Expander x:Name="CustomExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="自定义日期" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="日期"
+                                   VerticalAlignment="Center" />
+                        <DatePicker x:Name="NewCustomDatePicker"
+                                    Width="300" />
+                        <TextBlock Text="名称"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="NewCustomNameTextBox"
+                                 Width="150"
+                                 Watermark="如 校运会" />
+                        <ComboBox x:Name="NewCustomTypeComboBox"
+                                  Width="150"
+                                  SelectedIndex="1">
+                            <ComboBoxItem>强制计入在校日</ComboBoxItem>
+                            <ComboBoxItem>强制排除</ComboBoxItem>
+                        </ComboBox>
+                        <Button Content="添加日期"
+                                Click="OnAddCustomDateClick" />
+                    </StackPanel>
+                    <ScrollViewer MaxHeight="300"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="CustomListHost"
+                                    Spacing="4" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+
+            <!-- 6. 法定节假日与调休 -->
+            <Expander x:Name="HolidayExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="法定节假日与调休" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center">
+                        <TextBlock Text="日期"
+                                   VerticalAlignment="Center" />
+                        <DatePicker x:Name="NewHolidayDatePicker"
+                                    Width="300" />
+                        <TextBlock Text="名称"
+                                   VerticalAlignment="Center" />
+                        <TextBox x:Name="NewHolidayNameTextBox"
+                                 Width="150"
+                                 Watermark="如 春节" />
+                        <ComboBox x:Name="NewHolidayTypeComboBox"
+                                  Width="130"
+                                  SelectedIndex="0">
+                            <ComboBoxItem>放假日</ComboBoxItem>
+                            <ComboBoxItem>调休补班日</ComboBoxItem>
+                        </ComboBox>
+                        <Button Content="添加条目"
+                                Click="OnAddHolidayClick" />
+                    </StackPanel>
+                    <StackPanel Orientation="Horizontal"
+                                Spacing="6"
+                                VerticalAlignment="Center">
+                        <Button Content="从网络更新"
+                                Click="OnUpdateFromNetworkClick" />
+                        <Button Content="恢复内置数据"
+                                Click="OnRestoreBuiltinClick" />
+                        <TextBlock x:Name="StatusTextBlock"
+                                   TextWrapping="Wrap"
+                                   Tag="sub"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                    <ScrollViewer MaxHeight="360"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="HolidayListHost"
+                                    Spacing="4" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+
+            <!-- 7. 分段统计 -->
+            <Expander x:Name="PeriodExpander" IsExpanded="True">
+                <Expander.Header>
+                    <TextBlock Text="分段统计" />
+                </Expander.Header>
+                <StackPanel Spacing="6">
+                    <Grid ColumnDefinitions="Auto,*">
+                        <TextBlock Grid.Column="0"
+                                   Text="分段方式"
+                                   VerticalAlignment="Center"
+                                   Margin="0,0,8,0" />
+                        <ComboBox Grid.Column="1"
+                                  x:Name="PeriodModeComboBox"
+                                  Width="300"
+                                  HorizontalAlignment="Left"
+                                  SelectionChanged="OnPeriodModeChanged">
+                            <ComboBoxItem>按周</ComboBoxItem>
+                            <ComboBoxItem>按月</ComboBoxItem>
+                        </ComboBox>
+                    </Grid>
+                    <ScrollViewer MaxHeight="400"
+                                  HorizontalScrollBarVisibility="Auto"
+                                  VerticalScrollBarVisibility="Auto">
+                        <StackPanel x:Name="PeriodTableHost"
+                                    Spacing="4" />
+                    </ScrollViewer>
+                </StackPanel>
+            </Expander>
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>

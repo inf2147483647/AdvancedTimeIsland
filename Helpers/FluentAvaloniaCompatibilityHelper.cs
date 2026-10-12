@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Reflection;
 using System.Linq;
 using System.Threading.Tasks;
@@ -17,6 +18,13 @@ public static class FluentAvaloniaCompatibilityHelper
 {
     private static bool? _isV3;
 
+    // FluentAvalonia 控件类型在进程内恒定，Type.GetType 每次都做程序集枚举式解析，
+    // 而单个汉服页面就会触发约 8 次、各设置页反复触发，这里全局记忆化。
+    private static readonly ConcurrentDictionary<string, Type?> FaTypeCache = new();
+
+    private static Type? ResolveFaType(string assemblyQualifiedName)
+        => FaTypeCache.GetOrAdd(assemblyQualifiedName, static name => System.Type.GetType(name));
+
     public static bool IsV3
     {
         get
@@ -33,11 +41,11 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         try
         {
-            var infoBarType = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
+            var infoBarType = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
             if (infoBarType != null)
                 return true;
 
-            var contentDialogType = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
+            var contentDialogType = ResolveFaType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
             if (contentDialogType != null)
                 return true;
         }
@@ -126,7 +134,7 @@ public static class FluentAvaloniaCompatibilityHelper
 
     private static Control CreateV3InfoBar()
     {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
+        var type = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
         if (type != null)
         {
             return (Control)Activator.CreateInstance(type)!;
@@ -136,7 +144,7 @@ public static class FluentAvaloniaCompatibilityHelper
 
     private static Control CreateV2InfoBar()
     {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBar, FluentAvalonia");
+        var type = ResolveFaType("FluentAvalonia.UI.Controls.InfoBar, FluentAvalonia");
         if (type != null)
         {
             return (Control)Activator.CreateInstance(type)!;
@@ -200,7 +208,7 @@ public static class FluentAvaloniaCompatibilityHelper
 
     private static object CreateV3ContentDialog()
     {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
+        var type = ResolveFaType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
         if (type != null)
         {
             return Activator.CreateInstance(type)!;
@@ -210,7 +218,7 @@ public static class FluentAvaloniaCompatibilityHelper
 
     private static object CreateV2ContentDialog()
     {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialog, FluentAvalonia");
+        var type = ResolveFaType("FluentAvalonia.UI.Controls.ContentDialog, FluentAvalonia");
         if (type != null)
         {
             return Activator.CreateInstance(type)!;
@@ -510,7 +518,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialogResult, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAContentDialogResult, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
@@ -520,7 +528,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialogResult, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.ContentDialogResult, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
@@ -536,7 +544,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialogButton, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAContentDialogButton, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
@@ -546,7 +554,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialogButton, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.ContentDialogButton, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
@@ -562,7 +570,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Warning", BindingFlags.Public | BindingFlags.Static);
@@ -572,7 +580,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Warning", BindingFlags.Public | BindingFlags.Static);
@@ -588,7 +596,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Informational", BindingFlags.Public | BindingFlags.Static);
@@ -598,7 +606,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Informational", BindingFlags.Public | BindingFlags.Static);
@@ -614,7 +622,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Error", BindingFlags.Public | BindingFlags.Static);
@@ -624,7 +632,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Error", BindingFlags.Public | BindingFlags.Static);
@@ -640,7 +648,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Success", BindingFlags.Public | BindingFlags.Static);
@@ -650,7 +658,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
             if (type != null)
             {
                 var field = type.GetField("Success", BindingFlags.Public | BindingFlags.Static);
@@ -666,7 +674,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpander, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FASettingsExpander, FluentAvalonia");
             if (type != null)
             {
                 return (Control)Activator.CreateInstance(type)!;
@@ -674,7 +682,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpander, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.SettingsExpander, FluentAvalonia");
             if (type != null)
             {
                 return (Control)Activator.CreateInstance(type)!;
@@ -688,7 +696,7 @@ public static class FluentAvaloniaCompatibilityHelper
     {
         if (IsV3)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpanderItem, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.FASettingsExpanderItem, FluentAvalonia");
             if (type != null)
             {
                 return (Control)Activator.CreateInstance(type)!;
@@ -696,7 +704,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
         else
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpanderItem, FluentAvalonia");
+            var type = ResolveFaType("FluentAvalonia.UI.Controls.SettingsExpanderItem, FluentAvalonia");
             if (type != null)
             {
                 return (Control)Activator.CreateInstance(type)!;
@@ -750,7 +758,7 @@ public static class FluentAvaloniaCompatibilityHelper
     public static object CreateSymbolIconSource(string symbolName)
     {
         // 尝试创建 SymbolIconSource (FA 2.x)
-        var iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.SymbolIconSource, FluentAvalonia");
+        var iconSourceType = ResolveFaType("FluentAvalonia.UI.Controls.SymbolIconSource, FluentAvalonia");
         if (iconSourceType != null)
         {
             var instance = Activator.CreateInstance(iconSourceType);
@@ -782,7 +790,7 @@ public static class FluentAvaloniaCompatibilityHelper
         }
 
         // 尝试创建 FASymbolIconSource (FA 3.0)
-        iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.FASymbolIconSource, FluentAvalonia");
+        iconSourceType = ResolveFaType("FluentAvalonia.UI.Controls.FASymbolIconSource, FluentAvalonia");
         if (iconSourceType != null)
         {
             var instance = Activator.CreateInstance(iconSourceType);
@@ -826,14 +834,14 @@ public static class FluentAvaloniaCompatibilityHelper
             // 尝试查找 FA 2.x 和 FA 3.0 的 Frame/NavigationView 类型
             var frameTypes = new[]
             {
-                Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
-                Type.GetType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
+                ResolveFaType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
+                ResolveFaType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
             };
 
             var navigationViewTypes = new[]
             {
-                Type.GetType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
-                Type.GetType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
+                ResolveFaType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
+                ResolveFaType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
             };
 
             foreach (var ancestor in control.GetVisualAncestors())

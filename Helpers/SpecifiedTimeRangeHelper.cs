@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Globalization;
 
@@ -49,6 +50,9 @@ public static class SpecifiedTimeRangeHelper
 
     /// <summary>区间起止之间的分隔符。</summary>
     private static readonly char[] RangeSeparators = { '-', '~', '～', '－', '–', '—' };
+
+    // 表达式解析会产生约 15–25 次分配，而规则求值在自动化循环里高频触发、表达式本身基本不变，缓存解析结果。
+    private static readonly ConcurrentDictionary<(string Expression, int Period), List<(int Start, int End)>> ParseCache = new();
 
     /// <summary>把越界的周期值收敛到合法范围。</summary>
     public static int ClampPeriod(int period) =>
@@ -156,9 +160,21 @@ public static class SpecifiedTimeRangeHelper
     }
 
     /// <summary>判断 <paramref name="now"/> 是否落在表达式描述的范围内（表达式非法时视为不满足）。</summary>
-    public static bool Matches(string? expression, int period, DateTime now) =>
-        TryParse(expression, period, out var ranges, out _) &&
-        Contains(ranges, GetCurrentValue(period, now));
+    public static bool Matches(string? expression, int period, DateTime now)
+    {
+        var key = expression ?? string.Empty;
+        if (!ParseCache.TryGetValue((key, period), out var ranges))
+        {
+            // 仅缓存解析成功的结果；非法表达式每次返回 false（数量可忽略）。
+            if (!TryParse(expression, period, out ranges, out _))
+            {
+                return false;
+            }
+            ParseCache[(key, period)] = ranges;
+        }
+
+        return Contains(ranges, GetCurrentValue(period, now));
+    }
 
     /// <summary>判断数值是否落在任一段闭区间内。</summary>
     public static bool Contains(List<(int Start, int End)> ranges, int value)

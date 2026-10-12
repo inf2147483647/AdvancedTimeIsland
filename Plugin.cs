@@ -38,9 +38,23 @@ public class Plugin : PluginBase
 
     private static readonly object _saveLock = new();
 
+    // 文本框每敲一键就触发 PropertyChanged，若每次都同步 FlushFileBuffers 会产生 1–20ms 的磁盘抖动。
+    // 用一次性定时器做防抖：连续修改只在停顿 SaveDebounceMs 后落盘一次。
+    private const int SaveDebounceMs = 500;
+    private readonly Timer _saveDebounceTimer;
+
+    // GetCurrentFestival 按日记忆化
+    private DateTime _festivalCacheDate = DateTime.MinValue;
+    private string _festivalCacheName = string.Empty;
+    private static readonly JsonSerializerOptions SaveJsonOptions = new()
+    {
+        WriteIndented = true
+    };
+
     public Plugin()
     {
         Instance = this;
+        _saveDebounceTimer = new Timer(_ => SaveSettings());
     }
 
     private string GetSettingsFilePath()
@@ -56,10 +70,7 @@ public class Plugin : PluginBase
             if (File.Exists(filePath))
             {
                 var json = File.ReadAllText(filePath);
-                var loadedContainer = JsonSerializer.Deserialize<SettingsContainer>(json, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
+                var loadedContainer = JsonSerializer.Deserialize<SettingsContainer>(json, SaveJsonOptions);
                 if (loadedContainer != null)
                 {
                     if (loadedContainer.Settings != null)
@@ -114,10 +125,7 @@ public class Plugin : PluginBase
                     DebugSettings = DebugSettings
                 };
 
-                var json = JsonSerializer.Serialize(container, new JsonSerializerOptions
-                {
-                    WriteIndented = true
-                });
+                var json = JsonSerializer.Serialize(container, SaveJsonOptions);
 
                 using (var fs = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None))
                 using (var writer = new StreamWriter(fs))
@@ -145,12 +153,21 @@ public class Plugin : PluginBase
 
     private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        SaveSettings();
+        ScheduleSave();
     }
 
     private void OnDebugSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        SaveSettings();
+        ScheduleSave();
+    }
+
+    /// <summary>
+    /// 防抖落盘：把连续的属性变更（如文本框逐字输入）合并为停顿后的一次磁盘写入，
+    /// 避免每次按键都触发 FlushFileBuffers。回调在线程池上执行，不阻塞 UI 线程。
+    /// </summary>
+    private void ScheduleSave()
+    {
+        _saveDebounceTimer.Change(SaveDebounceMs, Timeout.Infinite);
     }
 
     /// <summary>
@@ -1878,6 +1895,13 @@ public class Plugin : PluginBase
 
     private string GetCurrentFestival(DateTime date)
     {
+        // 节日只取决于日期（自动化规则高频求值），同一天内结果不变，记忆化避免反复农历转换与建表。
+        var day = date.Date;
+        if (_festivalCacheDate == day)
+        {
+            return _festivalCacheName;
+        }
+
         var festivals = new List<(string Name, DateTime Date)>();
 
         // 国际节日
@@ -1920,7 +1944,9 @@ public class Plugin : PluginBase
 
         var currentDate = date.Date;
         var matchedFestival = festivals.FirstOrDefault(f => f.Date.Date == currentDate);
-        return matchedFestival.Name;
+        _festivalCacheDate = day;
+        _festivalCacheName = matchedFestival.Name;
+        return _festivalCacheName;
     }
 
     private DateTime GetQingMingDate(int year)

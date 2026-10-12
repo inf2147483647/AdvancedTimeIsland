@@ -883,10 +883,31 @@ public static class IntroAnimationHelper
 
         if (IsEnabled)
         {
-            new ExpandHostState(host, inner).Attach();
+            var state = new ExpandHostState(host, inner);
+            if (!HostStates.TryGetValue(inner, out _))
+            {
+                HostStates.Add(inner, state);
+            }
+            state.Attach();
         }
 
         return host;
+    }
+
+    /// <summary>被包裹控件 → 展开宿主状态（供 <see cref="RefreshExpandHost"/> 在内容变化时重算高度）。</summary>
+    private static readonly ConditionalWeakTable<Control, ExpandHostState> HostStates = new();
+
+    /// <summary>
+    /// 通知展开宿主“内部内容尺寸可能已变化”（如折叠分组内的动态表格重建后）：
+    /// 宿主高度是锁定值，不会自动跟随内容增长，不刷新会裁剪新内容。
+    /// 未接入宿主（动画等级“禁用”）时为空操作。
+    /// </summary>
+    public static void RefreshExpandHost(Control inner)
+    {
+        if (HostStates.TryGetValue(inner, out var state))
+        {
+            state.RecomputeTarget();
+        }
     }
 
     /// <summary>单个“平滑展开宿主”的状态与逻辑（宿主 Border 通过事件订阅持有本对象，随宿主一同存活）。</summary>
@@ -912,8 +933,11 @@ public static class IntroAnimationHelper
         private double _lastMeasuredWidth = double.NaN;
 
         private Expander? _innerExpander;
-        private Border? _innerContent;
+        // 内部内容站点：FA 主题为 Border#ExpanderContent，Avalonia 原生主题为 ContentPresenter#PART_ExpandSite
+        private Control? _innerContent;
         private TranslateTransform? _contentTranslate;
+        // 是否已挂上“内容为空时取消展开”的 Expanding 钩子（只挂一次）
+        private bool _emptyExpandHooked;
         private DispatcherTimer? _collapseCommitTimer;
         private DoubleTransition? _sizeTransition;
         // 展开后的自然高度（标题 + 内容）：内容滑动以此为基准
@@ -961,15 +985,18 @@ public static class IntroAnimationHelper
         {
             EnsureInitialized();
 
-            // 内容为空（无子条目）时不做高度动画，但仍要接管内部动画：否则 FA 自带的展开动画
-            // 会残留一条约 1px 的横线（ClassIsland 既有问题）；展开本身由
-            // OnInnerPropertyChanged 把 IsExpanded 夹回 false 来禁止。
+            // 内容为空（无子条目）时不做高度动画，但仍要接管内部动画：
+            // PrepareInnerExpander 会挂 Expanding 取消钩子，让空折叠栏根本无法展开（含 FA 那条 1px 横线）。
             PrepareInnerExpander();
             if (_innerExpander == null)
             {
                 // 模板可能尚未应用，下一帧再试一次
                 Dispatcher.UIThread.Post(PrepareInnerExpander, DispatcherPriority.Background);
             }
+
+            // 初始即展开的折叠栏（axaml IsExpanded="True"）从没进入过折叠态，
+            // 等布局完成后补测一次折叠高度，避免首次收起时 host 不收缩、留下整块空白。
+            Dispatcher.UIThread.Post(EnsureCollapsedHeightKnown, DispatcherPriority.Loaded);
         }
 
         private void OnUnloaded(object? sender, RoutedEventArgs e)
@@ -1027,7 +1054,10 @@ public static class IntroAnimationHelper
         /// </summary>
         private void PrepareInnerExpander()
         {
-            _innerExpander ??= _inner.GetVisualDescendants().OfType<Expander>().FirstOrDefault();
+            // 被包裹控件本身可能就是 Expander（页面 axaml 直接声明的 Avalonia 内置 Expander），
+            // GetVisualDescendants 不含自身，需先自检
+            _innerExpander ??= _inner as Expander
+                ?? _inner.GetVisualDescendants().OfType<Expander>().FirstOrDefault();
             if (_innerExpander == null)
             {
                 return;
@@ -1043,23 +1073,45 @@ public static class IntroAnimationHelper
                 Log($"禁用内容过渡失败：{ex.Message}");
             }
 
-            // FA3：去掉 WinUI 风格的滑动动画（交由本宿主的裁剪动画统一接管）
-            try
+            // 去掉 FluentAvalonia 自带的 WinUI 风格滑动动画（交由本宿主的裁剪动画统一接管）。
+            // 注意 FA2 / FA3 的承载类型不同，必须分别尝试：
+            //   · FA3：FluentAvalonia.UI.Controls.FAExpanderExt
+            //   · FA2：FluentAvalonia.UI.Controls.ExpanderExt（ExpanderAnimationType = "FluentV2" 时启用，
+            //          直接动画同一个 ExpanderContent 的 TranslateTransform；只关 FA3 会导致 net8 上
+            //          两套动画抢同一属性 —— 折叠栏抽动 / 错位 / 卡住）
+            foreach (var typeName in new[]
+                     {
+                         "FluentAvalonia.UI.Controls.FAExpanderExt, FluentAvalonia",
+                         "FluentAvalonia.UI.Controls.ExpanderExt, FluentAvalonia"
+                     })
             {
-                var extType = Type.GetType("FluentAvalonia.UI.Controls.FAExpanderExt, FluentAvalonia");
-                extType?.GetMethod("SetExpanderAnimationType", BindingFlags.Public | BindingFlags.Static)
-                    ?.Invoke(null, new object?[] { _innerExpander, null });
-            }
-            catch (Exception ex)
-            {
-                Log($"禁用 FA 展开动画失败：{ex.Message}");
+                try
+                {
+                    var extType = Type.GetType(typeName);
+                    extType?.GetMethod("SetExpanderAnimationType", BindingFlags.Public | BindingFlags.Static)
+                        ?.Invoke(null, new object?[] { _innerExpander, null });
+                }
+                catch (Exception ex)
+                {
+                    Log($"禁用 FA 展开动画失败（{typeName}）：{ex.Message}");
+                }
             }
 
-            // 内容块（FA 的 Expander 模板中名为 ExpanderContent）随高度过渡一起平移
+            // 内容为空时根本不允许进入展开态：在 IsExpanded 变化“之前”取消 Expanding。
+            // 不能事后把 IsExpanded 同步夹回 false —— 那会让内部 Expander 的 :expanded
+            // 伪类卡住（FA3 源码注释也提到必须 Post 才能正确清除），残留内容区顶部 1px 分隔线。
+            if (!_emptyExpandHooked)
+            {
+                _innerExpander.Expanding += OnInnerExpanderExpanding;
+                _emptyExpandHooked = true;
+            }
+
+            // 内容块随高度过渡一起平移：
+            // FA 主题为 Border#ExpanderContent；Avalonia 原生 Expander 主题为 ContentPresenter#PART_ExpandSite
             if (_contentTranslate == null)
             {
-                _innerContent = _innerExpander.GetVisualDescendants().OfType<Border>()
-                    .FirstOrDefault(border => border.Name == "ExpanderContent");
+                _innerContent = _innerExpander.GetVisualDescendants().OfType<Control>()
+                    .FirstOrDefault(c => c.Name is "ExpanderContent" or "PART_ExpandSite");
                 if (_innerContent != null)
                 {
                     _contentTranslate = new TranslateTransform();
@@ -1067,7 +1119,52 @@ public static class IntroAnimationHelper
                 }
             }
 
+            // FA2 的 ExpanderExt 原本通过 :noAnimation 伪类控制 ExpanderContent 的可见性；
+            // 关掉它后伪类不再切换，折叠态内容站点会回到“默认可见”（内部测量仍含内容，
+            // 折叠后标题下方留出空白）。改由宿主按 IsExpanded 显式接管其可见性：
+            // 展开 / 收起过程中保持可见（由 host 高度裁剪），真实折叠后置 false。
+            if (_innerContent != null)
+            {
+                _innerContent.IsVisible = ReadInnerExpanded();
+
+                // FA2 由 ExpanderExt 负责给内容裁剪容器（ExpanderContentClip）设 ClipToBounds，
+                // 关掉它后这份裁剪缺失，收起时内容上滑会盖到标题上。这里补上，让内容严格裁在内容区内。
+                var clip = _innerExpander.GetVisualDescendants().OfType<Border>()
+                    .FirstOrDefault(border => border.Name == "ExpanderContentClip");
+                if (clip != null)
+                {
+                    clip.ClipToBounds = true;
+                }
+                else
+                {
+                    _innerContent.ClipToBounds = true;
+                }
+            }
+
             Log("已接管内部折叠栏动画");
+        }
+
+        /// <summary>
+        /// 内部 Expander 即将展开（coerce 阶段，即便新旧值相同也会触发）：
+        /// 1) 内容为空（无子条目）时直接取消，IsExpanded 不会变为 true —— 标题不翻转、无 1px 分隔线；
+        /// 2) 收起过渡途中内部被引脚为展开，用户再点“展开”不会产生 IsExpanded 变化事件，
+        ///    借这里把目标状态补翻转为展开。
+        /// </summary>
+        private void OnInnerExpanderExpanding(object? sender, CancelRoutedEventArgs e)
+        {
+            if (IsContentEmpty())
+            {
+                e.Cancel = true;
+                e.Handled = true;
+                return;
+            }
+
+            if (!_suppressInnerChange && !_desiredExpanded)
+            {
+                _desiredExpanded = true;
+                Log("Expanding 补翻转：目标=展开");
+                Dispatcher.UIThread.Post(ApplyDesiredState, DispatcherPriority.Loaded);
+            }
         }
 
         private void OnInnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
@@ -1083,13 +1180,21 @@ public static class IntroAnimationHelper
                 return;
             }
 
-            // 内容为空时不允许展开：FA / ClassIsland 在这种情况仍会展开约 1px 的横线，
-            // 这里在变化发生的同一帧内把 IsExpanded 夹回 false，点击不产生任何展开。
+            // 内容为空时不允许展开。正常情况下 Expanding 钩子已在属性变化前取消，根本走不到这里；
+            // 这里仅作为钩子未生效时的兜底（如内部模板结构不同）：仿 FA3 的做法 Post 到 Send
+            // 优先级再夹回 false —— 不能同步夹回，否则内部 Expander 的 :expanded 伪类会卡住，
+            // 残留内容区顶部约 1px 的分隔线。
             if (e.Property.Name == "IsExpanded" && !_suppressInnerChange && IsContentEmpty())
             {
                 if (ReadInnerExpanded())
                 {
-                    PinInnerExpanded(false);
+                    Dispatcher.UIThread.Post(() =>
+                    {
+                        if (IsContentEmpty() && ReadInnerExpanded())
+                        {
+                            PinInnerExpanded(false);
+                        }
+                    }, DispatcherPriority.Send);
                 }
                 return;
             }
@@ -1099,9 +1204,17 @@ public static class IntroAnimationHelper
                 return;
             }
 
-            // 稳定态下内部 IsExpanded 恒等于目标状态；过渡期间被引脚为展开，故每次观察到的变化
-            // 都对应一次用户点击 —— 直接翻转目标状态即可，高频点击时自然形成来回切换。
-            _desiredExpanded = !_desiredExpanded;
+            // 以内部 IsExpanded 的实际值同步目标状态：
+            // · 稳定态点击（false↔true 真正变化）：内部值即用户目标；
+            // · 收起途中点“展开”（内部一直被引脚为 true）：值未变、没有事件，由 Expanding 钩子处理；
+            //   若钩子已先行翻转，这里读到的值与目标一致，直接跳过，避免重复翻转。
+            var nowExpanded = ReadInnerExpanded();
+            if (nowExpanded == _desiredExpanded)
+            {
+                return;
+            }
+
+            _desiredExpanded = nowExpanded;
             Log($"IsExpanded 变化：{e.OldValue} -> {e.NewValue}，目标={_desiredExpanded}，当前 Height={_host.Height}");
             Dispatcher.UIThread.Post(ApplyDesiredState, DispatcherPriority.Loaded);
         }
@@ -1118,6 +1231,12 @@ public static class IntroAnimationHelper
             {
                 _lastMeasuredWidth = width;
                 Dispatcher.UIThread.Post(RecomputeTarget, DispatcherPriority.Loaded);
+
+                // 宽度首次有效时也补测折叠高度（首帧 Loaded 时可能还没布局出宽度）
+                if (_desiredExpanded)
+                {
+                    Dispatcher.UIThread.Post(EnsureCollapsedHeightKnown, DispatcherPriority.Loaded);
+                }
             }
         }
 
@@ -1143,6 +1262,12 @@ public static class IntroAnimationHelper
                 _collapseCommitTimer?.Stop();
                 PinInnerExpanded(true);
 
+                // 展开过程中内容必须挂载可见（由 host 高度逐段露出）
+                if (_innerContent != null)
+                {
+                    _innerContent.IsVisible = true;
+                }
+
                 ApplySizeTransition(true);
                 SetHeight(ResolveTargetHeight());
 
@@ -1162,6 +1287,10 @@ public static class IntroAnimationHelper
                 _collapsePending = true;
                 // 保持内容挂载：把内部重新引脚为展开，收起过程中内容仍可被滑动 / 裁剪
                 PinInnerExpanded(true);
+                if (_innerContent != null)
+                {
+                    _innerContent.IsVisible = true;
+                }
 
                 // 与展开互为镜像：内容上滑与容器高度收起同时进行，下方组件同步上抬
                 ApplySizeTransition(false);
@@ -1177,7 +1306,7 @@ public static class IntroAnimationHelper
         }
 
         /// <summary>维持当前状态的高度（尺寸 / 可见性变化时调用，不改变展开状态）。</summary>
-        private void RecomputeTarget()
+        internal void RecomputeTarget()
         {
             if (!_animationEnabled)
             {
@@ -1194,6 +1323,36 @@ public static class IntroAnimationHelper
 
             ApplySizeTransition(_desiredExpanded);
             SetHeight(ResolveTargetHeight());
+        }
+
+        /// <summary>
+        /// 确保已缓存“折叠态自然高度”。折叠高度只有在内容真正折叠时测得准；初始即展开
+        /// （axaml <c>IsExpanded="True"</c>）的折叠栏从未进入过折叠态，首次收起时内部被引脚展开，
+        /// 直接测量会得到展开全高 —— host 高度目标不变、收起后留下整块空白。
+        /// 这里临时隐藏内容站点做一次离屏测量并立即恢复（同一同步流程内，无布局 / 渲染帧，
+        /// 用户看不到任何变化），把标题行高度缓存下来。
+        /// </summary>
+        private void EnsureCollapsedHeightKnown()
+        {
+            if (!_animationEnabled || !double.IsNaN(_collapsedHeight) || _innerContent == null)
+            {
+                return;
+            }
+
+            var previousVisible = _innerContent.IsVisible;
+            try
+            {
+                _innerContent.IsVisible = false;
+                var measured = MeasureInnerHeight();
+                if (!double.IsNaN(measured) && measured > 0)
+                {
+                    _collapsedHeight = measured;
+                }
+            }
+            finally
+            {
+                _innerContent.IsVisible = previousVisible;
+            }
         }
 
         /// <summary>按展开状态计算目标高度；静止折叠态测量可靠，可顺带刷新折叠高度缓存。</summary>
@@ -1347,12 +1506,50 @@ public static class IntroAnimationHelper
 
             PinInnerExpanded(false);
 
-            // 内部此刻处于真实折叠态，测量可靠，刷新折叠高度缓存
-            var measured = MeasureInnerHeight();
-            if (!double.IsNaN(measured))
+            // 不能在这里立即测量并“带动画”校正：
+            // 置 IsExpanded=false 后，内部 Expander / 模板绑定与布局要到之后的布局周期才生效，
+            // 立即 Measure 会拿到“半折叠”的中间高度（接近展开全高），再经高度过渡反向播放，
+            // 表现为“收起后又打开一点”、标题下方留下一块空白。
+            // 改为等本轮布局完成后，隐藏内容站点、用真实折叠高度“无过渡吸附”落位。
+            Dispatcher.UIThread.Post(() =>
             {
-                _collapsedHeight = measured;
+                // 期间用户又展开了：放弃校正
+                if (_desiredExpanded || ReadInnerExpanded())
+                {
+                    return;
+                }
+
+                // 真实折叠：内容站点隐藏（展开时再置回 true），此后内部测量才是纯标题高度
+                if (_innerContent != null)
+                {
+                    _innerContent.IsVisible = false;
+                }
+
+                var measured = MeasureInnerHeight();
+                if (!double.IsNaN(measured) && measured > 0)
+                {
+                    _collapsedHeight = measured;
+                    SnapHeight(measured);
+                }
+            }, DispatcherPriority.Background);
+        }
+
+        /// <summary>
+        /// 直接把宿主高度吸附到指定值（不带过渡），用于收起提交后的精确落位；
+        /// 校正差通常只有几像素，瞬时吸附不突兀；若带动画反而会“又展开一点”露出空白。
+        /// </summary>
+        private void SnapHeight(double target)
+        {
+            if (double.IsNaN(target))
+            {
+                return;
             }
+
+            var transitions = _host.Transitions;
+            _host.Transitions = null;
+            _heightTarget = target;
+            _host.Height = target;
+            _host.Transitions = transitions;
         }
 
         /// <summary>把内部控件的 IsExpanded 引脚到指定值（不视为用户点击）。</summary>

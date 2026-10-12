@@ -108,6 +108,10 @@ public class AttendanceCalendarService
     private readonly object _saveLock = new();
     private AttendanceCalendarData _data = new();
 
+    // 统计口径配置（数值框等）一改就全量序列化写盘会造成磁盘抖动，做与设置页一致的防抖。
+    private const int ConfigSaveDebounceMs = 500;
+    private readonly Timer _configSaveDebounceTimer;
+
     /// <summary>当前服务实例（组件与设置页共享同一份数据）。</summary>
     public static AttendanceCalendarService? Instance { get; private set; }
 
@@ -119,6 +123,7 @@ public class AttendanceCalendarService
         // 仅首个实例接管静态 Instance，避免意外构造第二个实例时
         // 覆盖 DI 单例、导致组件与设置页读写不同的数据副本。
         Instance ??= this;
+        _configSaveDebounceTimer = new Timer(_ => Save());
         Load();
     }
 
@@ -493,9 +498,7 @@ public class AttendanceCalendarService
 
         try
         {
-            return target.GetType()
-                .GetProperty(propertyName, BindingFlags.Instance | BindingFlags.Public)
-                ?.GetValue(target);
+            return ReflectionCache.GetProperty(target.GetType(), propertyName)?.GetValue(target);
         }
         catch
         {
@@ -530,10 +533,8 @@ public class AttendanceCalendarService
         List<MethodInfo> candidates;
         try
         {
-            candidates = target.GetType()
-                .GetMethods(BindingFlags.Instance | BindingFlags.Public)
-                .Where(m => m.Name == methodName
-                            && m.GetParameters().Length >= 1
+            candidates = ReflectionCache.GetMethods(target.GetType(), methodName)
+                .Where(m => m.GetParameters().Length >= 1
                             && m.GetParameters()[0].ParameterType == typeof(DateTime))
                 .OrderBy(m => m.GetParameters().Length)
                 .ToList();
@@ -665,7 +666,8 @@ public class AttendanceCalendarService
 
     private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        Save();
+        // 防抖：连续修改（如数值框、文本框逐字输入）只在停顿后全量写盘一次；Save 内部仍会广播 DataChanged。
+        _configSaveDebounceTimer.Change(ConfigSaveDebounceMs, Timeout.Infinite);
     }
 
     /// <summary>合并某年份的联网数据，替换内置/联网来源条目，保留手动条目。</summary>

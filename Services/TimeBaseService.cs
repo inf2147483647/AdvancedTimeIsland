@@ -129,6 +129,7 @@ public class TimeBaseService
     private void OnTimeJumpCheck(object? sender, System.Timers.ElapsedEventArgs e)
     {
         var currentSystemTime = DateTime.Now;
+        var jumpDetected = false;
 
         lock (_lockObj)
         {
@@ -141,13 +142,19 @@ public class TimeBaseService
                 // 检测时间跳跃：如果实际时间差与预期差值超过阈值
                 if (Math.Abs(actualDiff - expectedDiff) > TimeJumpThresholdSeconds)
                 {
-                    // 检测到系统时间被修改，立即尝试同步
-                    System.Diagnostics.Debug.WriteLine($"[TimeBaseService] 检测到系统时间跳跃: {actualDiff}秒，触发立即同步");
-                    _ = SyncTimeAsync(isTimeJumpRecovery: true);
+                    // 仅记录，真正的同步（含网络 IO 与事件触发）放到锁外执行，
+                    // 避免与高频 GetCurrentTime 争用同一把锁、也避免在锁内触发事件。
+                    jumpDetected = true;
                 }
             }
 
             _lastSystemTimeForCheck = currentSystemTime;
+        }
+
+        if (jumpDetected)
+        {
+            System.Diagnostics.Debug.WriteLine("[TimeBaseService] 检测到系统时间跳跃，触发立即同步");
+            _ = SyncTimeAsync(isTimeJumpRecovery: true);
         }
     }
 
@@ -448,27 +455,28 @@ public class TimeBaseService
     /// 异步获取当前时间
     /// </summary>
     /// <returns>当前时间</returns>
-    public async Task<DateTime> GetCurrentTimeAsync()
+    /// <remarks>取值为纯内存运算，无需线程池跳转，直接返回已完成任务，避免被 200ms/16ms tick 频繁 await 时占用线程池。</remarks>
+    public Task<DateTime> GetCurrentTimeAsync()
     {
-        return await Task.Run(() => GetCurrentTime()).ConfigureAwait(false);
+        return Task.FromResult(GetCurrentTime());
     }
 
     /// <summary>
     /// 异步获取原始服务器时间
     /// </summary>
     /// <returns>原始服务器时间</returns>
-    public async Task<DateTime> GetRawServerTimeAsync()
+    public Task<DateTime> GetRawServerTimeAsync()
     {
-        return await Task.Run(() => GetRawServerTime()).ConfigureAwait(false);
+        return Task.FromResult(GetRawServerTime());
     }
 
     /// <summary>
     /// 异步获取ClassIsland时间
     /// </summary>
     /// <returns>ClassIsland时间</returns>
-    public async Task<DateTime> GetClassIslandTimeAsync()
+    public Task<DateTime> GetClassIslandTimeAsync()
     {
-        return await Task.Run(() => GetClassIslandTime()).ConfigureAwait(false);
+        return Task.FromResult(GetClassIslandTime());
     }
 
     /// <summary>

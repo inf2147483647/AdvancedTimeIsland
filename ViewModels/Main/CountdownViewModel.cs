@@ -314,7 +314,23 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private void OnClockTick(DateTime now)
     {
-        _ = UpdateCountdownAsync(now);
+        // 时钟回调本身已在 UI 线程（DispatcherTimer），无需再 InvokeAsync 重新入队，直接同步更新。
+        try
+        {
+            var displayData = ProcessCountdownInternal(now);
+            Text1Display = displayData.Text1;
+            Text2Display = displayData.Text2;
+            Text3Display = displayData.Text3;
+            TimeDisplay = displayData.Time;
+            Text4Display = displayData.Text4;
+            IsAllCompleted = displayData.IsAllCompleted;
+            IsEmpty = displayData.IsEmpty;
+            CurrentItem = displayData.CurrentItem;
+            Percent = displayData.Percent;
+        }
+        catch
+        {
+        }
     }
 
     private void UpdateCountdown()

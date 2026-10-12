@@ -1967,6 +1967,8 @@ public class PluginSettingsPage : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        _ntpTimeDisplayTimer?.Dispose();
+        _ntpTimeDisplayTimer = null;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;

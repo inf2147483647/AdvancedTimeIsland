@@ -320,6 +320,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  用它判定可让悬浮窗与主界面同刻起播（否则最多滞后 250ms + 轮询间隔）。
     private Type? _hostContentVisibleGetterOwnerAv;        // 已解析该读取器的窗口类型（窗口类型变化时重新解析）
     private MethodInfo? _hostContentVisibleGetterAv;
+    // FollowHost 默认档每 50ms 检测一次，宿主内容根（GridRoot）在窗口生命周期内不变，
+    // 缓存可避免每秒约 20 次整棵宿主视觉树遍历；缓存项脱离该窗口视觉树时自动重解析。
+    private Avalonia.Controls.Window? _hostContentRootWndAv;
+    private Avalonia.Controls.Control? _hostContentRootAv;
 
     // ========== 隐藏/显示过渡动画（对齐 ClassIsland 主界面 MainWindow.VisibilityAnimation）==========
     //  对齐 ClassIsland 的部分：时长 250ms（进出场一致）；入场缓动 cubic-bezier(0.25, 1, 0.5, 1)（减速，先快后慢）、
@@ -438,13 +442,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (item == null) return TimeSpan.Zero;
         var t = item.GetType();
-        var pi = t.GetProperty("StartTime", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(t, "StartTime");
         if (pi != null && pi.PropertyType == typeof(TimeSpan))
         {
             var v = pi.GetValue(item);
             if (v != null) return (TimeSpan)v;
         }
-        var pi2 = t.GetProperty("StartSecond", BindingFlags.Instance | BindingFlags.Public);
+        var pi2 = ReflectionCache.GetProperty(t, "StartSecond");
         if (pi2 != null && int.TryParse(pi2.GetValue(item)?.ToString(), out var sec))
             return TimeSpan.FromSeconds(sec);
         return TimeSpan.Zero;
@@ -454,13 +458,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (item == null) return TimeSpan.Zero;
         var t = item.GetType();
-        var pi = t.GetProperty("EndTime", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(t, "EndTime");
         if (pi != null && pi.PropertyType == typeof(TimeSpan))
         {
             var v = pi.GetValue(item);
             if (v != null) return (TimeSpan)v;
         }
-        var pi2 = t.GetProperty("EndSecond", BindingFlags.Instance | BindingFlags.Public);
+        var pi2 = ReflectionCache.GetProperty(t, "EndSecond");
         if (pi2 != null && int.TryParse(pi2.GetValue(item)?.ToString(), out var sec))
             return TimeSpan.FromSeconds(sec);
         return TimeSpan.Zero;
@@ -545,7 +549,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static int ReflectGetTimeType(object item)
     {
         if (item == null) return -1;
-        var pi = item.GetType().GetProperty("TimeType", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(item.GetType(), "TimeType");
         if (pi != null && pi.PropertyType == typeof(int))
             return (int)(pi.GetValue(item) ?? 0);
         return 0;
@@ -556,13 +560,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (item == null) return "课间休息";
         try
         {
-            var pi = item.GetType().GetProperty("BreakNameText", BindingFlags.Instance | BindingFlags.Public);
+            var pi = ReflectionCache.GetProperty(item.GetType(), "BreakNameText");
             if (pi != null && pi.GetValue(item) is string s && !string.IsNullOrEmpty(s)) return s;
         }
         catch { /* ignore */ }
         try
         {
-            var pi = item.GetType().GetProperty("BreakName", BindingFlags.Instance | BindingFlags.Public);
+            var pi = ReflectionCache.GetProperty(item.GetType(), "BreakName");
             if (pi != null && pi.GetValue(item) is string s && !string.IsNullOrEmpty(s)) return s;
         }
         catch { /* ignore */ }
@@ -578,8 +582,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             if (kv == null) continue;
             var kvt = kv.GetType();
-            var keyP = kvt.GetProperty("Key", BindingFlags.Instance | BindingFlags.Public);
-            var valP = kvt.GetProperty("Value", BindingFlags.Instance | BindingFlags.Public);
+            var keyP = ReflectionCache.GetProperty(kvt, "Key");
+            var valP = ReflectionCache.GetProperty(kvt, "Value");
             if (keyP == null || valP == null) continue;
             var rawKey = keyP.GetValue(kv);
             var val = valP.GetValue(kv) as Subject;
@@ -594,7 +598,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         var list = new ArrayList();
         if (classPlan == null) return list;
-        var pi = classPlan.GetType().GetProperty("ValidTimeLayoutItems", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(classPlan.GetType(), "ValidTimeLayoutItems");
         if (pi == null) return list;
         if (pi.GetValue(classPlan) is IEnumerable en)
         {
@@ -606,7 +610,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static IList ReflectGetClasses(object? classPlan)
     {
         if (classPlan == null) return Array.Empty<object>();
-        var pi = classPlan.GetType().GetProperty("Classes", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(classPlan.GetType(), "Classes");
         if (pi == null) return Array.Empty<object>();
         var v = pi.GetValue(classPlan);
         if (v is IList list) return list;
@@ -622,7 +626,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static Guid ReflectGetSubjectId(object? classInfo)
     {
         if (classInfo == null) return Guid.Empty;
-        var pi = classInfo.GetType().GetProperty("SubjectId", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(classInfo.GetType(), "SubjectId");
         if (pi == null) return Guid.Empty;
         var v = pi.GetValue(classInfo);
         if (v is Guid g) return g;
@@ -633,7 +637,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static bool ReflectGetIsEnabled(object? classInfo)
     {
         if (classInfo == null) return false;
-        var pi = classInfo.GetType().GetProperty("IsEnabled", BindingFlags.Instance | BindingFlags.Public);
+        var pi = ReflectionCache.GetProperty(classInfo.GetType(), "IsEnabled");
         if (pi != null && pi.PropertyType == typeof(bool))
             return (bool)(pi.GetValue(classInfo) ?? true);
         return true;
@@ -642,14 +646,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static object? ReflectGetCurLayoutItemOfClass(object? classInfo)
     {
         if (classInfo == null) return null;
-        var pi = classInfo.GetType().GetProperty("CurrentTimeLayoutItem", BindingFlags.Instance | BindingFlags.Public);
-        return pi?.GetValue(classInfo);
+        return ReflectionCache.GetProperty(classInfo.GetType(), "CurrentTimeLayoutItem")?.GetValue(classInfo);
     }
 
     private static object? ReflectProp(object? target, string propName)
     {
         if (target == null) return null;
-        return target.GetType().GetProperty(propName, BindingFlags.Instance | BindingFlags.Public)?.GetValue(target);
+        return ReflectionCache.GetProperty(target.GetType(), propName)?.GetValue(target);
     }
 
     private static string FormatHhMm(TimeSpan ts) => $"{ts.Hours:D2}:{ts.Minutes:D2}";
@@ -3185,6 +3188,25 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
+    /// 带缓存的宿主内容根解析：窗口不变且缓存控件仍挂在该窗口视觉树上时直接复用，
+    /// 避免 FollowHost 默认档每次可见性检测都遍历整棵宿主视觉树。
+    /// </summary>
+    private Avalonia.Controls.Control? GetHostMainContentRootCachedAv(Avalonia.Controls.Window w)
+    {
+        // 内容根 GridRoot 与宿主主窗口同生命周期；按窗口身份缓存即可（主窗口重建时身份变化会自动重解析）。
+        // 不使用 GetVisualRoot() 扩展：其在不同 Avalonia 大版本上的可用性不一致。
+        if (_hostContentRootAv != null && _hostContentRootWndAv == w)
+        {
+            return _hostContentRootAv;
+        }
+
+        var root = ResolveHostMainContentRootAv(w);
+        _hostContentRootWndAv = w;
+        _hostContentRootAv = root;
+        return root;
+    }
+
+    /// <summary>
     /// 读取宿主主界面内容根的"目标可见性"（ClassIsland.MainWindow.GetIsContentVisibleRequested 附加属性）。
     /// 该值由宿主样式绑定驱动，在隐藏/显示动画**起播瞬间**就翻转；而 GridRoot.IsVisible 要等动画结束才翻转。
     /// 返回 null = 该宿主版本无此信号（退回看实际可见性，行为与旧版一致）。
@@ -3226,7 +3248,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
             if (!w.IsVisible) return false;
             // 【FA3】窗口可见 ≠ 主界面可见：2.1.x 隐藏主界面只把内容根 GridRoot.IsVisible 置 false，窗口本身不隐藏
-            var contentRoot = ResolveHostMainContentRootAv(w);
+            var contentRoot = GetHostMainContentRootCachedAv(w);
             if (contentRoot != null)
             {
                 // 【与主界面同步起播】先看"目标可见性"（动画起播即翻转），避免等主界面动画播完（滞后 250ms+）才跟隐藏

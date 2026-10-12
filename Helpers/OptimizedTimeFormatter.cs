@@ -478,12 +478,44 @@ public static class OptimizedTimeFormatter
 
     private static void ReplaceAll(StringBuilder sb, string oldValue, string newValue)
     {
-        int index = sb.ToString().IndexOf(oldValue, StringComparison.Ordinal);
+        // 直接在 StringBuilder 上做逐字符匹配，避免每轮都 sb.ToString() 生成整串副本
+        // （一次格式化约触发 20 次替换）。
+        var index = IndexOf(sb, oldValue, 0);
         while (index >= 0)
         {
             sb.Remove(index, oldValue.Length);
             sb.Insert(index, newValue);
-            index = sb.ToString().IndexOf(oldValue, index + newValue.Length, StringComparison.Ordinal);
+            index = IndexOf(sb, oldValue, index + newValue.Length);
         }
+    }
+
+    /// <summary>在 StringBuilder 中从 startIndex 起查找 value 的首个索引（Ordinal 语义），找不到返回 -1。</summary>
+    private static int IndexOf(StringBuilder sb, string value, int startIndex)
+    {
+        if (value.Length == 0)
+        {
+            return startIndex;
+        }
+
+        var lastPossible = sb.Length - value.Length;
+        for (var i = Math.Max(startIndex, 0); i <= lastPossible; i++)
+        {
+            var matched = true;
+            for (var j = 0; j < value.Length; j++)
+            {
+                if (sb[i + j] != value[j])
+                {
+                    matched = false;
+                    break;
+                }
+            }
+
+            if (matched)
+            {
+                return i;
+            }
+        }
+
+        return -1;
     }
 }

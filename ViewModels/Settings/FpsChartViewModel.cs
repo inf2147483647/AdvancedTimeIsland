@@ -14,8 +14,10 @@ namespace AdvancedTimeIsland.ViewModels.Settings;
 public static class FpsSampler
 {
     private const int InitialCapacity = 10000;
-    private const int MaxCapacity = 10000000;
-    private static readonly RingBuffer<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> s_records = new(InitialCapacity);
+    // 原先上限 1000 万：单条记录约 64 字节，常驻采集最坏可占 ~640MB 且翻倍扩容后不收缩。
+    // 50 万条（60fps 下约 2.3 小时）仍足以覆盖长时间采样，内存上限约 32MB。
+    private const int MaxCapacity = 500000;
+    private static readonly RingBuffer<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1, double OneSecondFrameCount)> s_records = new(InitialCapacity, MaxCapacity);
     private static bool s_isRunning;
     private static bool s_isPaused;
 
@@ -102,11 +104,13 @@ public class RingBuffer<T> : IReadOnlyList<T>
     private int _head;
     private int _tail;
     private int _count;
+    private readonly int _initialCapacity;
     private readonly int _maxCapacity;
     private readonly object _lock = new();
 
     public RingBuffer(int initialCapacity, int maxCapacity = int.MaxValue)
     {
+        _initialCapacity = initialCapacity;
         _buffer = new T[initialCapacity];
         _head = 0;
         _tail = 0;
@@ -143,7 +147,17 @@ public class RingBuffer<T> : IReadOnlyList<T>
             if (_count == _buffer.Length)
             {
                 int newCapacity = Math.Min(_buffer.Length * 2, _maxCapacity);
-                Resize(newCapacity);
+                if (newCapacity > _buffer.Length)
+                {
+                    Resize(newCapacity);
+                }
+                else
+                {
+                    // 已达容量上限无法扩容：丢弃最旧一条腾出位置，避免在稳态下每条都重新分配并整段拷贝。
+                    _buffer[_head] = default!;
+                    _head = (_head + 1) % _buffer.Length;
+                    _count--;
+                }
             }
 
             _buffer[_tail] = item;
@@ -172,7 +186,8 @@ public class RingBuffer<T> : IReadOnlyList<T>
     {
         lock (_lock)
         {
-            Array.Clear(_buffer, 0, _buffer.Length);
+            // 清空时把扩容后的大数组缩回初始容量，避免采样结束后仍长期占用大块内存。
+            _buffer = new T[_initialCapacity];
             _head = 0;
             _tail = 0;
             _count = 0;

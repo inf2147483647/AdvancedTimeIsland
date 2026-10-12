@@ -41,6 +41,10 @@ public class SharedRenderClockService : IHostedService, IDisposable
     private bool _isDisposed;
     private int _highFrequencySubscriberCount;
 
+    // 即使时钟因存在高频订阅者而运行在 16ms，普通订阅者也只按 NormalIntervalMs 节奏被回调，
+    // 避免“单个毫秒组件把全部组件都拖到 60fps”。
+    private long _lastNormalTickMs;
+
     public event Action<DateTime>? Tick;
 
     public SharedRenderClockService(ILogger<SharedRenderClockService>? logger)
@@ -139,6 +143,7 @@ public class SharedRenderClockService : IHostedService, IDisposable
     {
         if (_timer != null && _isRunning)
         {
+            _lastNormalTickMs = 0;
             StartTimer(NormalIntervalMs);
         }
     }
@@ -150,6 +155,14 @@ public class SharedRenderClockService : IHostedService, IDisposable
             var now = DateTime.Now;
             Tick?.Invoke(now);
 
+            // 高频档（16ms）下，普通订阅者仍按 200ms 节奏回调。
+            var nowMs = Environment.TickCount64;
+            var runNormalSubscribers = nowMs - _lastNormalTickMs >= NormalIntervalMs;
+            if (runNormalSubscribers)
+            {
+                _lastNormalTickMs = nowMs;
+            }
+
             List<(Action<DateTime> Callback, bool HighFrequency)> subscribersCopy;
             lock (_lockObj)
             {
@@ -158,6 +171,11 @@ public class SharedRenderClockService : IHostedService, IDisposable
 
             foreach (var subscriber in subscribersCopy)
             {
+                if (!subscriber.HighFrequency && !runNormalSubscribers)
+                {
+                    continue;
+                }
+
                 try
                 {
                     subscriber.Callback(now);

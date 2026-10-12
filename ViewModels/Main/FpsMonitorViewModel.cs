@@ -36,11 +36,16 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private string _low1Text = "0.0";
     private string _oneSecondFrameCountText = "0";
     private double _currentFps = 0;
-    private readonly List<double> _fpsSamples = new();
+    private readonly Queue<double> _fpsSamples = new();
     private double _currentMaxFps;
     private double _currentMinFps = double.MaxValue;
     private double _currentSumFps;
     private SortedList<double, int> _sortedFpsCounts = new();
+
+    // FPS 三档颜色固定，缓存静态画刷避免每帧 new 6 个 SolidColorBrush。
+    private static readonly IBrush BrushGood = new SolidColorBrush(Color.FromRgb(0, 255, 0));
+    private static readonly IBrush BrushWarn = new SolidColorBrush(Color.FromRgb(255, 255, 0));
+    private static readonly IBrush BrushBad = new SolidColorBrush(Color.FromRgb(255, 0, 0));
 
     public FpsMonitorViewModel(FpsMonitorSettings settings,
         Action<string>? updateLabelFontColor = null,
@@ -74,7 +79,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             _currentFps = fps;
-            _fpsSamples.Add(fps);
+            _fpsSamples.Enqueue(fps);
             _currentSumFps += fps;
             _currentMaxFps = Math.Max(_currentMaxFps, fps);
             _currentMinFps = Math.Min(_currentMinFps, fps);
@@ -84,10 +89,10 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
             else
                 _sortedFpsCounts[fps] = 1;
 
+            // 队列满时从队首淘汰最老样本：O(1)，不再像 List.RemoveAt(0) 那样每帧搬移约 19KB。
             while (_fpsSamples.Count > MaxWindowSamples)
             {
-                var removed = _fpsSamples[0];
-                _fpsSamples.RemoveAt(0);
+                var removed = _fpsSamples.Dequeue();
                 _currentSumFps -= removed;
 
                 _sortedFpsCounts[removed]--;
@@ -168,10 +173,10 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     public static IBrush GetFpsBrush(double fps)
     {
         if (fps >= 30)
-            return new SolidColorBrush(Color.FromRgb(0, 255, 0));
+            return BrushGood;
         if (fps >= 20)
-            return new SolidColorBrush(Color.FromRgb(255, 255, 0));
-        return new SolidColorBrush(Color.FromRgb(255, 0, 0));
+            return BrushWarn;
+        return BrushBad;
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)

@@ -61,7 +61,8 @@ public class HanfuPage : HanfuPageTemplate
         _xingZhiButtons = new List<Button>();
         _dynastyTitleTextBlocks = new List<TextBlock>();
 
-        _maleContent = CreateMaleContent();
+        // 默认进入女装标签：只构建女装内容；男装内容延迟到首次切到该标签时再构建，
+        // 避免一打开目录页就把两套内容（约 190 个按钮及其磁盘探测）都当场构建。
         _femaleContent = CreateFemaleContent();
 
         _tabStrip = new TabStrip
@@ -111,6 +112,8 @@ public class HanfuPage : HanfuPageTemplate
         {
             if (_tabStrip.SelectedIndex == 0)
             {
+                // 懒构建男装内容（仅首次切换时）。
+                _maleContent ??= CreateMaleContent();
                 _contentControl.Content = _maleContent;
             }
             else

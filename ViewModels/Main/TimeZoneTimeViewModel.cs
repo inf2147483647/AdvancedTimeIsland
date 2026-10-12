@@ -12,11 +12,16 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly TimeZoneTimeSettings _settings;
-    private readonly System.Timers.Timer _updateTimer;
+    private IDisposable? _clockSubscription;
     private readonly Action<string> _updateFontColor;
     private readonly Action<double> _updateFontSize;
     private string _fullDisplay = string.Empty;
     private bool _isDisposed;
+
+    // 时区与显示名只在 TimeZoneId 改变时才变化，缓存后刷新路径不再每 200ms 调两次 FindSystemTimeZoneById。
+    private string? _cachedTimeZoneId;
+    private TimeZoneInfo? _cachedTimeZone;
+    private string _cachedTimeZoneDisplayName = "未知时区";
 
     public TimeZoneTimeViewModel(TimeBaseService timeBaseService, TimeZoneTimeSettings settings, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
     {
@@ -24,15 +29,19 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
         _settings = settings;
         _updateFontColor = updateFontColor;
         _updateFontSize = updateFontSize;
-        
+
         _settings.PropertyChanged += OnSettingsChanged;
-        
+
         UpdateTime();
-        
-        _updateTimer = new System.Timers.Timer(200);
-        _updateTimer.Elapsed += OnTimerElapsed;
-        _updateTimer.AutoReset = true;
-        _updateTimer.Enabled = true;
+
+        _clockSubscription = SharedRenderClockService.Instance.Subscribe(OnClockTick);
+        SharedRenderClockService.Instance.EnsureStarted();
+    }
+
+    private void OnClockTick(DateTime now)
+    {
+        // 共享时钟回调已在 UI 线程，直接同步刷新。
+        UpdateTime();
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -72,18 +81,13 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
-        _ = UpdateTimeAsync();
-    }
-
     private void UpdateTime()
     {
         try
         {
             var now = _timeBaseService.GetCurrentTime();
             var timeZoneTime = ConvertToTimeZone(now);
-            
+
             FullDisplay = FormatFullDisplay(timeZoneTime);
         }
         catch (Exception)
@@ -91,68 +95,59 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async System.Threading.Tasks.Task UpdateTimeAsync()
+    private TimeZoneInfo ResolveTimeZone()
     {
+        if (_cachedTimeZoneId == _settings.TimeZoneId && _cachedTimeZone != null)
+        {
+            return _cachedTimeZone;
+        }
+
+        _cachedTimeZoneId = _settings.TimeZoneId;
         try
         {
-            var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            var timeZoneTime = ConvertToTimeZone(now);
-            var display = FormatFullDisplay(timeZoneTime);
-            
-            await Dispatcher.UIThread.InvokeAsync(() => { FullDisplay = display; });
+            _cachedTimeZone = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZoneId);
+            _cachedTimeZoneDisplayName = BuildTimeZoneDisplayName(_cachedTimeZone);
         }
-        catch (Exception)
+        catch
         {
+            _cachedTimeZone = null;
+            _cachedTimeZoneDisplayName = "未知时区";
         }
+
+        return _cachedTimeZone!;
     }
 
     private DateTime ConvertToTimeZone(DateTime utcTime)
     {
-        try
-        {
-            var targetTimeZone = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZoneId);
-            return TimeZoneInfo.ConvertTime(utcTime, targetTimeZone);
-        }
-        catch
+        var targetTimeZone = ResolveTimeZone();
+        if (targetTimeZone == null)
         {
             return utcTime.ToLocalTime();
         }
+        return TimeZoneInfo.ConvertTime(utcTime, targetTimeZone);
     }
 
     private string FormatFullDisplay(DateTime dateTime)
     {
-        string timeZoneName = GetTimeZoneDisplayName();
-        return $"区时 {dateTime:yyyy-MM-dd} {dateTime:HH:mm:ss} {timeZoneName}";
+        return $"区时 {dateTime:yyyy-MM-dd} {dateTime:HH:mm:ss} {_cachedTimeZoneDisplayName}";
     }
 
-    private string GetTimeZoneDisplayName()
+    private static string BuildTimeZoneDisplayName(TimeZoneInfo tz)
     {
-        try
-        {
-            var tz = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZoneId);
-            if (tz != null)
-            {
-                double offset = tz.BaseUtcOffset.TotalHours;
-                string sign = offset >= 0 ? "东" : "西";
-                int hours = Math.Abs((int)offset);
-                int minutes = Math.Abs(tz.BaseUtcOffset.Minutes);
-                
-                string decimalPart = "";
-                if (minutes == 15)
-                    decimalPart = ".25";
-                else if (minutes == 30)
-                    decimalPart = ".5";
-                else if (minutes == 45)
-                    decimalPart = ".75";
-                
-                return $"{sign}{hours}{decimalPart}区";
-            }
-            return "未知时区";
-        }
-        catch
-        {
-            return "未知时区";
-        }
+        double offset = tz.BaseUtcOffset.TotalHours;
+        string sign = offset >= 0 ? "东" : "西";
+        int hours = Math.Abs((int)offset);
+        int minutes = Math.Abs(tz.BaseUtcOffset.Minutes);
+
+        string decimalPart = "";
+        if (minutes == 15)
+            decimalPart = ".25";
+        else if (minutes == 30)
+            decimalPart = ".5";
+        else if (minutes == 45)
+            decimalPart = ".75";
+
+        return $"{sign}{hours}{decimalPart}区";
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -165,11 +160,10 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
     public void Dispose()
     {
         if (_isDisposed) return;
-        
+
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
-        _updateTimer?.Stop();
-        _updateTimer?.Dispose();
+        _clockSubscription?.Dispose();
     }
 }
 

@@ -454,6 +454,12 @@ InfoBar 语法格式：
         }
     }
 
+    // Markdig pipeline 构建涉及反射装配（1–5ms/次），而所需扩展固定不变，全局复用一个实例。
+    private static readonly Markdig.MarkdownPipeline MarkdownPipeline = new Markdig.MarkdownPipelineBuilder()
+        .UseEmphasisExtras()
+        .UsePipeTables()
+        .Build();
+
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
         _hyperlinkSpanMap = new Dictionary<Span, string>();
@@ -465,12 +471,8 @@ InfoBar 语法格式：
         markdown = PreprocessUnderlineTags(markdown);
         markdown = PreprocessHideTags(markdown);
         markdown = PreprocessLoadingTags(markdown);
-        
-        var pipeline = new Markdig.MarkdownPipelineBuilder()
-            .UseEmphasisExtras()
-            .UsePipeTables()
-            .Build();
-        var document = Markdig.Markdown.Parse(markdown, pipeline);
+
+        var document = Markdig.Markdown.Parse(markdown, MarkdownPipeline);
         foreach (var block in document)
         {
             var element = ConvertMarkdownBlock(block);
@@ -1676,27 +1678,11 @@ InfoBar 语法格式：
         {
             string localPath = ResolveLocalPath(url);
             System.Diagnostics.Debug.WriteLine($"CreateImageControl: url={url}, resolvedPath={localPath ?? "null"}");
-            
-            bool loaded = false;
 
-            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            // avares 资源依赖 UI 线程的 AssetLoader，保持在 UI 线程；失败则展示错误占位。
+            void TryAvaresOrShowError()
             {
-                try
-                {
-                    using var stream = File.OpenRead(localPath);
-                    var bitmap = new Avalonia.Media.Imaging.Bitmap(stream);
-                    image.Source = bitmap;
-                    loaded = true;
-                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from file {localPath}");
-                }
-                catch (Exception ex)
-                {
-                    System.Diagnostics.Debug.WriteLine($"CreateImageControl file load failed: {ex.Message}");
-                }
-            }
-
-            if (!loaded)
-            {
+                var loaded = false;
                 try
                 {
                     var avaresUri = BuildAvaresUri(url);
@@ -1711,13 +1697,23 @@ InfoBar 语法格式：
                 {
                     System.Diagnostics.Debug.WriteLine($"CreateImageControl avares load failed: {ex.Message}");
                 }
+
+                if (!loaded)
+                {
+                    retryButton.IsVisible = false;
+                    errorDetailText.Text = $"加载失败，轻触屏幕: {url}";
+                    errorPanel.IsVisible = true;
+                }
             }
 
-            if (!loaded)
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
             {
-                retryButton.IsVisible = false;
-                errorDetailText.Text = $"加载失败，轻触屏幕: {url}";
-                errorPanel.IsVisible = true;
+                // 本地大图在后台线程解码，避免阻塞 UI；解码失败再回退 avares。
+                _ = LoadLocalImageThenFallbackAsync(localPath, url, image, TryAvaresOrShowError);
+            }
+            else
+            {
+                TryAvaresOrShowError();
             }
         }
 
@@ -1734,21 +1730,22 @@ InfoBar 语法格式：
 
             if (File.Exists(cachePath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
-                imageControl.Source = bitmap;
+                // 全尺寸解码放到后台线程，避免卡 UI。
+                var cached = await Task.Run(() => new Avalonia.Media.Imaging.Bitmap(cachePath)).ConfigureAwait(false);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = cached);
                 return;
             }
 
-            using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-            using var response = await client.GetAsync(url);
+            using var response = await SharedHttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
-            using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
-            imageControl.Source = bitmap2;
+            var bitmap2 = await DecodeBytesAsync(bytes).ConfigureAwait(false);
+            if (bitmap2 != null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = bitmap2);
+            }
 
             await Task.Run(() =>
             {
@@ -1762,12 +1759,64 @@ InfoBar 语法格式：
         }
         catch (Exception ex)
         {
-            imageControl.Source = null;
-            errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
-            errorPanel.IsVisible = true;
-            retryButton.IsEnabled = true;
-            retryButton.Content = "重新刷新";
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                imageControl.Source = null;
+                errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
+                errorPanel.IsVisible = true;
+                retryButton.IsEnabled = true;
+                retryButton.Content = "重新刷新";
+            });
         }
+    }
+
+    // 所有网络图片共享一个 HttpClient，避免“每图新建 HttpClient → socket 耗尽/无法复用连接”。
+    private static readonly HttpClient SharedHttpClient = new()
+    {
+        Timeout = TimeSpan.FromSeconds(30)
+    };
+
+    // 全尺寸位图解码放到线程池（文件/内存流都不依赖 UI 线程），完成后再回 UI 线程赋值。
+    private static async Task<Avalonia.Media.Imaging.Bitmap?> DecodeBytesAsync(byte[] bytes)
+    {
+        try
+        {
+            return await Task.Run(() =>
+            {
+                using var ms = new MemoryStream(bytes);
+                return new Avalonia.Media.Imaging.Bitmap(ms);
+            }).ConfigureAwait(false);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    // 本地文件全尺寸解码后台化；解码失败再回退到 avares（avares 依赖 UI 线程的 AssetLoader，保持原逻辑）。
+    private async Task LoadLocalImageThenFallbackAsync(string localPath, string url, Image image, Action fallback)
+    {
+        Avalonia.Media.Imaging.Bitmap? bitmap = null;
+        try
+        {
+            bitmap = await Task.Run(() =>
+            {
+                using var stream = File.OpenRead(localPath);
+                return new Avalonia.Media.Imaging.Bitmap(stream);
+            }).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadLocalImageThenFallbackAsync file decode failed: {ex.Message}");
+        }
+
+        if (bitmap != null)
+        {
+            Avalonia.Threading.Dispatcher.UIThread.Post(() => image.Source = bitmap);
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(fallback);
     }
 
     private IEnumerable<(string? Text, bool IsLineBreak)> SplitTextWithBr(string text)
@@ -3058,21 +3107,21 @@ InfoBar 语法格式：
 
             if (File.Exists(cachePath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
-                imageControl.Source = bitmap;
+                var bitmap = await Task.Run(() => new Avalonia.Media.Imaging.Bitmap(cachePath)).ConfigureAwait(false);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = bitmap);
                 return;
             }
 
-            using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-            using var response = await client.GetAsync(url);
+            using var response = await SharedHttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
-            using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
-            imageControl.Source = bitmap2;
+            var bitmap2 = await DecodeBytesAsync(bytes).ConfigureAwait(false);
+            if (bitmap2 != null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = bitmap2);
+            }
 
             await Task.Run(() =>
             {
@@ -3166,20 +3215,20 @@ InfoBar 语法格式：
 
             if (File.Exists(cachePath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
-                imageControl.Source = bitmap;
+                var bitmap = await Task.Run(() => new Avalonia.Media.Imaging.Bitmap(cachePath)).ConfigureAwait(false);
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = bitmap);
                 return;
             }
 
-            using var client = new HttpClient();
-            client.Timeout = TimeSpan.FromSeconds(30);
-            using var response = await client.GetAsync(url);
+            using var response = await SharedHttpClient.GetAsync(url);
             response.EnsureSuccessStatusCode();
 
             var bytes = await response.Content.ReadAsByteArrayAsync();
-            using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
-            imageControl.Source = bitmap2;
+            var bitmap2 = await DecodeBytesAsync(bytes).ConfigureAwait(false);
+            if (bitmap2 != null)
+            {
+                Avalonia.Threading.Dispatcher.UIThread.Post(() => imageControl.Source = bitmap2);
+            }
 
             await Task.Run(() =>
             {
@@ -3194,45 +3243,51 @@ InfoBar 语法格式：
         catch { }
     }
 
+    // 目录页约 190 个按钮、每个 2–4 次 File.Exists 同步磁盘探测；资源在运行期不变，缓存解析结果（含 null）。
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, string?> LocalPathCache = new();
+
     private string? ResolveLocalPath(string src)
     {
         if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
             return null;
 
-        try
+        return LocalPathCache.GetOrAdd(src, key =>
         {
-            var baseDir = AppContext.BaseDirectory;
-            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-            var pluginDir = string.IsNullOrEmpty(assemblyLocation) ? baseDir : System.IO.Path.GetDirectoryName(assemblyLocation) ?? baseDir;
-
-            var relativePath = src.Replace('/', Path.DirectorySeparatorChar);
-            if (relativePath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+            try
             {
-                relativePath = relativePath.Substring("Assets".Length).TrimStart(Path.DirectorySeparatorChar);
+                var baseDir = AppContext.BaseDirectory;
+                var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+                var pluginDir = string.IsNullOrEmpty(assemblyLocation) ? baseDir : System.IO.Path.GetDirectoryName(assemblyLocation) ?? baseDir;
+
+                var relativePath = key.Replace('/', Path.DirectorySeparatorChar);
+                if (relativePath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+                {
+                    relativePath = relativePath.Substring("Assets".Length).TrimStart(Path.DirectorySeparatorChar);
+                }
+
+                var fullPath = Path.Combine(baseDir, "Assets", relativePath);
+                if (File.Exists(fullPath))
+                    return fullPath;
+
+                var fullPathPlugin = Path.Combine(pluginDir, "Assets", relativePath);
+                if (File.Exists(fullPathPlugin))
+                    return fullPathPlugin;
+
+                var fullPath2 = Path.Combine(baseDir, key);
+                if (File.Exists(fullPath2))
+                    return fullPath2;
+
+                var fullPathPlugin2 = Path.Combine(pluginDir, key);
+                if (File.Exists(fullPathPlugin2))
+                    return fullPathPlugin2;
+
+                return null;
             }
-
-            var fullPath = Path.Combine(baseDir, "Assets", relativePath);
-            if (File.Exists(fullPath))
-                return fullPath;
-
-            var fullPathPlugin = Path.Combine(pluginDir, "Assets", relativePath);
-            if (File.Exists(fullPathPlugin))
-                return fullPathPlugin;
-
-            var fullPath2 = Path.Combine(baseDir, src);
-            if (File.Exists(fullPath2))
-                return fullPath2;
-
-            var fullPathPlugin2 = Path.Combine(pluginDir, src);
-            if (File.Exists(fullPathPlugin2))
-                return fullPathPlugin2;
-
-            return null;
-        }
-        catch
-        {
-            return null;
-        }
+            catch
+            {
+                return null;
+            }
+        });
     }
 
     private Control ConvertQuoteBlock(QuoteBlock quote)

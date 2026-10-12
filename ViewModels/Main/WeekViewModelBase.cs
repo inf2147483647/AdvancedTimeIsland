@@ -17,7 +17,7 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
 {
     private readonly TimeBaseService _timeBaseService;
     protected readonly TSettings _settings;
-    private readonly System.Timers.Timer _updateTimer;
+    private IDisposable? _clockSubscription;
     private readonly Action<string> _updateFontColor;
     private readonly Action<double> _updateFontSize;
     private bool _isDisposed;
@@ -53,10 +53,10 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
 
         Refresh();
 
-        _updateTimer = new System.Timers.Timer(200);
-        _updateTimer.Elapsed += OnTimerElapsed;
-        _updateTimer.AutoReset = true;
-        _updateTimer.Enabled = true;
+        // 复用全局共享渲染时钟（普通档 200ms），不再各自维护 System.Timers.Timer，
+        // 消除独立定时器与跨线程 Dispatcher 二次派发。
+        _clockSubscription = SharedRenderClockService.Instance.Subscribe(OnClockTick);
+        SharedRenderClockService.Instance.EnsureStarted();
     }
 
     /// <summary>计算当前周数。</summary>
@@ -69,7 +69,7 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
 
     protected void NotifyFontSize(double fontSize) => _updateFontSize?.Invoke(fontSize);
 
-    protected void TriggerAsyncUpdate() => _ = UpdateTimeAsync();
+    protected void TriggerAsyncUpdate() => Refresh();
 
     private DateTime GetCurrentTime()
     {
@@ -79,17 +79,6 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
             TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
             TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
             _ => _timeBaseService.GetCurrentTime()
-        };
-    }
-
-    private async Task<DateTime> GetCurrentTimeAsync()
-    {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
-            _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
         };
     }
 
@@ -105,21 +94,12 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
         }
     }
 
-    private void OnTimerElapsed(object? sender, ElapsedEventArgs e)
-    {
-        _ = UpdateTimeAsync();
-    }
-
-    private async Task UpdateTimeAsync()
+    // 共享时钟回调已在 UI 线程，直接同步重算；DisplayText 的 setter 会在文本未变时短路 INPC。
+    private void OnClockTick(DateTime now)
     {
         try
         {
-            var now = await GetCurrentTimeAsync().ConfigureAwait(false);
-            var text = BuildDisplayText(ComputeWeekNumber(now));
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                DisplayText = text;
-            });
+            DisplayText = BuildDisplayText(ComputeWeekNumber(GetCurrentTime()));
         }
         catch (Exception)
         {
@@ -137,7 +117,6 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
     {
         if (_isDisposed) return;
         _isDisposed = true;
-        _updateTimer?.Stop();
-        _updateTimer?.Dispose();
+        _clockSubscription?.Dispose();
     }
 }
