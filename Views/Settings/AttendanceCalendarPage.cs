@@ -91,6 +91,7 @@ public class AttendanceCalendarPage : SettingsPageBase
         try
         {
             InitializeComponent();
+            IntroAnimationHelper.EnableSmoothScroll(this);
         }
         catch (Exception ex)
         {

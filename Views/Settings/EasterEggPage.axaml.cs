@@ -88,6 +88,7 @@ public partial class EasterEggPage : UserControl
         _pluginSettings = pluginSettings;
         InitializeComponent();
         WireUI();
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     /// <summary>
@@ -1152,7 +1153,7 @@ public partial class EasterEggPage : UserControl
         if (_outerScrollViewer != null)
         {
             _outerScrollViewer.ScrollChanged -= OnScrollChanged;
-            _outerScrollViewer.PointerWheelChanged -= OnScrollViewerPointerWheelChanged;
+            _outerScrollViewer.RemoveHandler(InputElement.PointerWheelChangedEvent, OnScrollViewerPointerWheelChanged);
             _outerScrollViewer.PointerPressed -= OnScrollViewerPointerPressed;
             _outerScrollViewer = null;
         }
@@ -1295,8 +1296,10 @@ public partial class EasterEggPage : UserControl
         if (_outerScrollViewer != null)
         {
             _outerScrollViewer.ScrollChanged += OnScrollChanged;
-            // 回顶动画进行中用户一旦手动滚动/按下即打断动画，交回滚动控制权
-            _outerScrollViewer.PointerWheelChanged += OnScrollViewerPointerWheelChanged;
+            // 回顶动画进行中用户一旦手动滚动/按下即打断动画，交回滚动控制权。
+            // 用隧道 + handledEventsToo：平滑滚动（IntroAnimationHelper）会在隧道阶段把滚轮事件标记为已处理，
+            // 必须仍能收到，否则回顶动画不会被滚轮打断。
+            _outerScrollViewer.AddHandler(InputElement.PointerWheelChangedEvent, OnScrollViewerPointerWheelChanged, RoutingStrategies.Tunnel, handledEventsToo: true);
             _outerScrollViewer.PointerPressed += OnScrollViewerPointerPressed;
             // 初始检查滚动位置（可能已经滚动过了）
             UpdateBackToTopButtonVisibility();
@@ -1374,6 +1377,9 @@ public partial class EasterEggPage : UserControl
 
         // 已在顶部无需动画；重复点击先停掉旧计时（保留当前偏移作为新起点，下面重新读取）
         StopScrollToTopAnimation();
+
+        // 回顶动画直接改写 Offset，先停掉可能正在进行的滚轮平滑滚动，避免两者互相打架
+        IntroAnimationHelper.StopSmoothScroll(_outerScrollViewer);
 
         var startOffset = _outerScrollViewer.Offset;
         if (startOffset.Y <= 0.01)

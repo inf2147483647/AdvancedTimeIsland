@@ -55,6 +55,7 @@ public class TimeCalculatorPage : UserControl
     {
         _pluginSettings = pluginSettings;
         InitializeComponent();
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     private void InitializeComponent()

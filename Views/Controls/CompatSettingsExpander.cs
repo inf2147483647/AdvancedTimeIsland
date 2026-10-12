@@ -22,7 +22,7 @@ namespace AdvancedTimeIsland.Views.Controls;
 /// 同时插件可以在 axaml 中以声明式语法编写设置分组。
 /// </para>
 /// <para>
-/// 折叠 / 展开由 <see cref="SmoothExpandHost"/> 提供平滑的高度过渡（后续元素被平滑推开 / 收拢），
+/// 折叠 / 展开由 <see cref="IntroAnimationHelper.CreateExpandHost"/> 提供平滑的高度过渡（后续元素被平滑推开 / 收拢），
 /// 不再依赖 FluentAvalonia 各版本内部各异的展开动画实现。
 /// </para>
 /// </summary>
@@ -42,7 +42,7 @@ public class CompatSettingsExpander : TemplatedControl
 
     private readonly Control _inner;
     private readonly IList _innerItems;
-    private readonly SmoothExpandHost _host;
+    private readonly Control _host;
 
     public CompatSettingsExpander()
     {
@@ -51,7 +51,7 @@ public class CompatSettingsExpander : TemplatedControl
 
         // 模板只承载“平滑展开宿主”：交互、官方样式全部走真实 SettingsExpander，
         // 宿主仅额外提供折叠/展开时的高度过渡。
-        _host = new SmoothExpandHost(_inner);
+        _host = IntroAnimationHelper.CreateExpandHost(_inner);
         Template = new FuncControlTemplate<CompatSettingsExpander>((_, _) => _host);
 
         Items.CollectionChanged += OnItemsChanged;

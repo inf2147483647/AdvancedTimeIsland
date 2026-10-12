@@ -54,6 +54,7 @@ public class GlossaryPage : UserControl
     {
         _settings = settings;
         InitializeComponent();
+        IntroAnimationHelper.EnableSmoothScroll(this);
         if (_settings != null)
         {
             _settings.PropertyChanged += OnSettingsPropertyChanged;

@@ -121,6 +121,14 @@
                 </compat:CompatSettingsExpanderItem>
             </compat:CompatSettingsExpander>
 
+            <!-- 1.5 高级外观（占位折叠栏：暂无内容，点击不会展开；右侧“即将开放”按钮不可点击） -->
+            <compat:CompatSettingsExpander Header="高级外观">
+                <compat:CompatSettingsExpander.Footer>
+                    <Button Content="即将开放"
+                            IsEnabled="False" />
+                </compat:CompatSettingsExpander.Footer>
+            </compat:CompatSettingsExpander>
+
             <!-- 2. 交互行为 -->
             <compat:CompatSettingsExpander Header="交互行为"
                                            Description="鼠标点击、指针淡化与贴边自动隐藏等交互设置">

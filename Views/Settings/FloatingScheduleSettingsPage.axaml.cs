@@ -15,7 +15,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 时间表悬浮窗设置页面（axaml 版，从纯代码构建迁移，写法对齐 ClassIsland 官方设置页）。
 /// 入场动画由插件 <see cref="IntroAnimationHelper"/> 播放（动画等级为“华丽”时各分组依次淡入上滑），
 /// 不依赖宿主的 <c>animated-intro</c> 样式类；分组控件为真实的 FA2/FA3 SettingsExpander
-/// （经 CompatSettingsExpander 包装），展开 / 折叠由 SmoothExpandHost 提供平滑高度过渡。
+/// （经 CompatSettingsExpander 包装），展开 / 折叠由 IntroAnimationHelper 提供平滑高度过渡。
 /// 设置项按折叠面板分组：基础外观 / 交互行为 / 窗口与高级 / 随机窗口名 / 独立进程模式。
 /// </summary>
 [SettingsPageInfo("AdvancedTimeIslandFloatingSchedule", "时间表悬浮窗")]
@@ -40,6 +40,7 @@ public partial class FloatingScheduleSettingsPage : SettingsPageBase
             InitializeComponent();
             WireSettings();
             _initialized = true;
+            IntroAnimationHelper.EnableSmoothScroll(this);
         }
         catch (Exception ex)
         {

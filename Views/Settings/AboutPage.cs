@@ -81,6 +81,7 @@ public class AboutPage : SettingsPageBase
         _easterEggDetector.OnActivated += OnEasterEggActivated;
 
         InitializeComponent();
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     private void InitializeComponent()
@@ -627,15 +628,12 @@ public class AboutPage : SettingsPageBase
             Margin = new Thickness(0)
         };
 
-        // 【FA3 / Avalonia 12】禁用标签页切换的过场动画。
-        //   Avalonia 12 给 TabControl 新增了 PageTransition 属性（Avalonia 11 没有此属性，故 FA2 不受影响，
-        //   这也是本问题只在 FA3 出现的原因），主题会把它设上，于是切换标签页时会对内容播放位移/淡入过渡。
-        //   实测该动画会"卡住"：切到任一标签页后内容停在动画中间状态 —— 表现为整页空白，再切一次才恢复。
-        //   本插件各标签页内容都很重（女装页含 20+ 张图片），该动画只会带来不稳定，故直接置空禁用。
-        //   注：属性在 Avalonia 11 上不存在，故用反射设置，两个目标框架共用同一份代码。
-        tabControl.GetType()
-            .GetProperty("PageTransition", BindingFlags.Public | BindingFlags.Instance)
-            ?.SetValue(tabControl, null);
+        // 标签页切换的过场动画：参考 ClassIsland「档案编辑」导航栏切换所用的翻页效果
+        // （旧页滑出淡出、新页滑入淡入），由工具集内的 PageFlipTransition 实现。
+        // 之前为规避“动画播一半卡住、切过去整页空白”而直接置空禁用，该问题已由
+        // PageFlipTransition 的复位 + 代次守卫解决（见其类注释）；动画级别为“禁用”时仍会置空。
+        //   Avalonia 12 给 TabControl 新增了 PageTransition 属性，Avalonia 11 没有此属性（故 FA2 不受影响）。
+        IntroAnimationHelper.EnablePageFlip(tabControl);
 
         tabControl.SelectionChanged += (s, e) =>
         {

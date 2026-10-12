@@ -177,6 +177,7 @@ public class TimeConverterPage : UserControl
             _settings.PropertyChanged += OnSettingsPropertyChanged;
         }
         InitializeComponent();
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     private void InitializeComponent()

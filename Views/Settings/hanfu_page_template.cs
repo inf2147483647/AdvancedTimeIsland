@@ -134,6 +134,9 @@ public class HanfuPageTemplate : SettingsPageBase
         rootGrid.Children.Add(scrollViewer);
 
         Content = rootGrid;
+
+        // 鼠标滚轮平滑滚动
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     protected virtual void BuildContent(StackPanel panel)

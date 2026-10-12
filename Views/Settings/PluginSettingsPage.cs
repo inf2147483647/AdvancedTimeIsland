@@ -618,6 +618,7 @@ public class PluginSettingsPage : UserControl
     {
         _settings = settings;
         InitializeComponent();
+        IntroAnimationHelper.EnableSmoothScroll(this);
     }
 
     private void InitializeComponent()
@@ -665,7 +666,7 @@ public class PluginSettingsPage : UserControl
             featureFooterPanel.Children.Add(featureButton);
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Footer", featureFooterPanel);
 
-            mainPanel.Children.Add(new SmoothExpandHost(featureManagementExpander));
+            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(featureManagementExpander));
 
             // 许可证声明
             _licenseTextBlock = new TextBlock
@@ -734,7 +735,7 @@ public class PluginSettingsPage : UserControl
                 AddChildToSettingsExpander(generalExpander, warningBar);
             }
 
-            mainPanel.Children.Add(new SmoothExpandHost(generalExpander));
+            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(generalExpander));
 
             // 悬浮时间表设置已拆分至独立页面 FloatingScheduleSettingsPage（"时间表悬浮窗"）
 
@@ -757,7 +758,7 @@ public class PluginSettingsPage : UserControl
             experimentalFooterPanel.Children.Add(_experimentalToggle);
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Footer", experimentalFooterPanel);
 
-            mainPanel.Children.Add(new SmoothExpandHost(experimentalExpander));
+            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(experimentalExpander));
 
             // 女装彩蛋（默认不可见）
             var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
@@ -778,7 +779,7 @@ public class PluginSettingsPage : UserControl
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Footer", easterEggFooterPanel);
 
             _easterEggExpander.IsVisible = isEasterEggEnabled;
-            mainPanel.Children.Add(new SmoothExpandHost(_easterEggExpander));
+            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(_easterEggExpander));
 
             // 回声洞（实验性功能）
             _echoHoleButton = new Button
