@@ -397,6 +397,17 @@ public partial class FloatingScheduleSettingsPage : SettingsPageBase
             _settings.FloatingScheduleFollowHostLifetime = FollowToggle.IsChecked == true;
     }
 
+    private void OpenAdvancedAppearanceButton_Click(object? sender, RoutedEventArgs e)
+    {
+        // 高级外观：弹出独立编辑器窗口（单实例；引用宿主主窗为 Owner 便于置顶跟随）
+        try
+        {
+            var owner = TopLevel.GetTopLevel(this) as Window;
+            FloatingScheduleAdvancedAppearanceWindow.ShowWindow(_settings, owner);
+        }
+        catch { }
+    }
+
     private async void RestartButton_Click(object? sender, RoutedEventArgs e)
     {
         var svc = Services.FloatScheduleHostProcessService.Instance;

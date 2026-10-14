@@ -35,4 +35,33 @@ public sealed class FloatScheduleWindowSettings
     /// 空值表示宿主未下发指纹（更老的插件）→ 子进程不做校验。
     /// </summary>
     public string ExeStamp { get; set; } = "";
+
+    // ===== 高级外观：窗口材质 / 边框 / 圆角 / 果冻 / FPS（子进程据此本地应用，插件侧已解析终态）=====
+    /// <summary>材质类型：0半透明 1磨砂 2亚克力 3液态玻璃 4古卷 5自定义图片。</summary>
+    public int Material { get; set; } = 0;
+    /// <summary>效果强度（0~1；磨砂/亚克力模糊度、液态玻璃折射度）。</summary>
+    public double MaterialIntensity { get; set; } = 0.5;
+    /// <summary>卡片圆角（0~10px，默认 8）。</summary>
+    public double CornerRadius { get; set; } = 8;
+    /// <summary>卡片四边内边距（替换式，默认 12/10 与现状一致；子进程据此设 _card.Padding）。</summary>
+    public double MarginTop { get; set; } = 10;
+    public double MarginBottom { get; set; } = 10;
+    public double MarginLeft { get; set; } = 12;
+    public double MarginRight { get; set; } = 12;
+    /// <summary>自定义图片背景路径（材质=5 时子进程按路径自读；空/无效回退半透明）。</summary>
+    public string CustomBackgroundPath { get; set; } = "";
+    /// <summary>果冻效果开关（仅材质=3 液态玻璃生效）。</summary>
+    public bool JellyEnabled { get; set; } = false;
+    /// <summary>装饰边框开关（材质=3/4 时强制关）。</summary>
+    public bool BorderEnabled { get; set; } = false;
+    /// <summary>边框预设：0画框 1黑板 2Win7 3XP 4Win10 5Win11 6HarmonyOS。</summary>
+    public int BorderPreset { get; set; } = 0;
+    /// <summary>边框自定义颜色开关（关=用预设内置主色）。</summary>
+    public bool BorderColorEnabled { get; set; } = false;
+    /// <summary>边框自定义颜色（0xAARRGGBB）。</summary>
+    public uint BorderColor { get; set; } = 0xFFB8860B;
+    /// <summary>是否显示 FPS 角标（子进程本地统计渲染/无等待 FPS）。</summary>
+    public bool ShowFps { get; set; } = false;
+    /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
+    public uint TintArgb { get; set; } = 0xCC2D2D30;
 }

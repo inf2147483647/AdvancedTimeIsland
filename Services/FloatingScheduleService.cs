@@ -168,6 +168,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private Window? _window;
     private Border? _containerBorder;
+    // 高级外观：FPS 角标文本引用（每次 Build 后刷新；UpdateProgress 500ms tick 写值）
+    private Avalonia.Controls.TextBlock? _currentFpsTextAv;
+    private double _fpsRenderAv, _fpsNoWaitAv;
+    private long _fpsLastTickMsAv;
+    private int _fpsFrameCountAv;
+    private IDisposable? _fpsTickSubAv;
     private Control? _rootContent;
     // 【修复：进度条有时总是满的（对齐 WPF 同一根因）】
     //  Avalonia ProgressBar 虽然不使用 WPF 的命名部件，但其自带模板的 IsVisible/IsIndeterminate 切换 +
@@ -953,6 +959,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _avStylesHookedHwndAv = IntPtr.Zero;
         // 穿透防抖缓存随窗口失效：重建后 ApplyClickThrough 必须重新应用（含非 Windows 的 IsHitTestVisible 兜底）
         _lastAppliedClickThrough = false;
+        _fpsTickSubAv?.Dispose();
+        _fpsTickSubAv = null;
+        _currentFpsTextAv = null;
         _containerBorder = null;
         _currentProgressIndicator = null;
         _currentProgressHost = null;
@@ -1587,6 +1596,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //  非 Windows 平台下 Win 分支不执行，由此方法走 IsHitTestVisible 跨平台兜底）
             ApplyClickThrough();
             ApplyHoverFade(force: true);
+            // 高级外观：订阅渲染 tick 统计 FPS（窗口存在期间常驻，写值由 UpdateProgress 按开关门控）
+            try
+            {
+                _fpsLastTickMsAv = Environment.TickCount64;
+                _fpsTickSubAv = RenderTimerHelper.SubscribeTick(_window!, _ => _fpsFrameCountAv++);
+            }
+            catch { }
             // 【贴边隐藏】初次打开若保存的位置已贴边，防抖 250ms（等 SizeToContent 完成布局）后评估滑出
             ScheduleEdgeEvalAv();
 #if WINDOWS
@@ -1633,8 +1649,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
         _containerBorder = new Border
         {
-            CornerRadius = new CornerRadius(8),
-            Padding = new Thickness(12, 10),
+            CornerRadius = new CornerRadius(Math.Clamp(_settings.FloatingScheduleCornerRadius, 0, 10)),
+            Padding = new Thickness(_settings.FloatingScheduleMarginLeft, _settings.FloatingScheduleMarginTop, _settings.FloatingScheduleMarginRight, _settings.FloatingScheduleMarginBottom),
             Margin = new Thickness(0),
             Background = ThemeHelper.GetCardBackgroundBrush(),
             BorderBrush = ThemeHelper.GetSeparatorBrush(),
@@ -2134,6 +2150,46 @@ public class FloatingScheduleService : IHostedService, IDisposable
             case nameof(PluginSettings.FloatingScheduleTomorrowShowMode):
             case nameof(PluginSettings.FloatingScheduleTomorrowPlaceholderText):
             case nameof(PluginSettings.FloatingScheduleTodayPlaceholderText):
+            // ===== 高级外观：内容/材质/边框/主题类变化 → 重建（RefreshSchedule 内含材质应用器 + 卡片几何）=====
+            case nameof(PluginSettings.FloatingScheduleMaterial):
+            case nameof(PluginSettings.FloatingScheduleMaterialIntensity):
+            case nameof(PluginSettings.FloatingScheduleCornerRadius):
+            case nameof(PluginSettings.FloatingScheduleCustomBackgroundPath):
+            case nameof(PluginSettings.FloatingScheduleJellyEnabled):
+            case nameof(PluginSettings.FloatingScheduleBorderEnabled):
+            case nameof(PluginSettings.FloatingScheduleBorderPreset):
+            case nameof(PluginSettings.FloatingScheduleBorderColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleBorderColor):
+            case nameof(PluginSettings.FloatingScheduleFontEnabled):
+            case nameof(PluginSettings.FloatingScheduleTextFontFamily):
+            case nameof(PluginSettings.FloatingScheduleFontWeightEnabled):
+            case nameof(PluginSettings.FloatingScheduleTextFontWeight):
+            case nameof(PluginSettings.FloatingScheduleTextColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleTextColor):
+            case nameof(PluginSettings.FloatingScheduleSubjectColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleSubjectColorMap):
+            case nameof(PluginSettings.FloatingScheduleLayoutDirection):
+            case nameof(PluginSettings.FloatingScheduleZebraStriped):
+            case nameof(PluginSettings.FloatingScheduleRowSpacingFactor):
+            case nameof(PluginSettings.FloatingScheduleColumnSpacingMode):
+            case nameof(PluginSettings.FloatingScheduleColumnSpacing):
+            case nameof(PluginSettings.FloatingScheduleMarginTop):
+            case nameof(PluginSettings.FloatingScheduleMarginBottom):
+            case nameof(PluginSettings.FloatingScheduleMarginLeft):
+            case nameof(PluginSettings.FloatingScheduleMarginRight):
+            case nameof(PluginSettings.FloatingScheduleThemeMode):
+            case nameof(PluginSettings.FloatingScheduleTableColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleTableColor):
+            case nameof(PluginSettings.FloatingScheduleAccentColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleAccentColor):
+            case nameof(PluginSettings.FloatingScheduleSeparatorColorEnabled):
+            case nameof(PluginSettings.FloatingScheduleSeparatorColor):
+            case nameof(PluginSettings.FloatingScheduleSeparatorThickness):
+            case nameof(PluginSettings.FloatingScheduleShowFps):
+                Dispatcher.UIThread.Post(RefreshSchedule);
+                break;
+            case nameof(PluginSettings.EnableExperimentalFeatures):
+                // 实验性功能开关变化：若正在用实验材质且被关闭 → 回退半透明（RefreshSchedule 内 ResolveMaterialAv 已处理）
                 Dispatcher.UIThread.Post(RefreshSchedule);
                 break;
             case nameof(PluginSettings.FloatingScheduleClickThrough):
@@ -2269,7 +2325,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
             // 释放窗口引用：EnsureWindow 守卫保证独立模式期间不再重建；回退时再重建
             _window = null;
-            _containerBorder = null;
+            _fpsTickSubAv?.Dispose();
+        _fpsTickSubAv = null;
+        _currentFpsTextAv = null;
+        _containerBorder = null;
             _rootContent = null;
             _lastAppliedClickThrough = false;
             _avWindowStylesCallbackAv = null;
@@ -4080,8 +4139,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
         //   同时动画时钟 FillMode.Forward 如未正确走完，元素永久保持透明造成 bug 现象。
         bool isColdStartAv = _lastRefreshStateCode == -1;
 
-        var accentColor = GetAccentColor();
+        var accentColor = _settings.FloatingScheduleAccentColorEnabled
+            ? FloatScheduleRenderer.FromArgb(_settings.FloatingScheduleAccentColor)
+            : GetAccentColor();
         var accentBrush = new SolidColorBrush(accentColor);
+        // 主题四档：强制浅/深用固定配色组；跟随 CI/系统用宿主实时主题（跟随系统由 OnSystemThemeChanged 重解析）
+        bool forceLight = _settings.FloatingScheduleThemeMode == FloatingScheduleThemeMode.Light;
+        bool forceDark = _settings.FloatingScheduleThemeMode == FloatingScheduleThemeMode.Dark;
         // 字号：课程名=fontSize；其余按相对差值：表头-2、时间-1、老师-3
         var fontSize = (int)Math.Round(Math.Clamp(_settings.FloatingScheduleFontScale, 8, 32));
         // 背景不透明度：0~1 → SolidColorBrush Alpha (0=全透明, 255=不透明)
@@ -4101,18 +4165,34 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
         try
         {
-            IBrush bgRaw = ThemeHelper.GetCardBackgroundBrush();
-            IBrush? bg = bgRaw;
-            // 把主题色转成带用户自定义透明度 Alpha 的背景刷
-            if (bgRaw is SolidColorBrush scbBg)
+            // 主题基色（强制浅/深用固定配色组，否则取宿主实时主题）
+            Color cardBase, textBase, subBase, sepBase;
+            if (forceLight) { cardBase = Color.FromRgb(0xFF, 0xFF, 0xFF); textBase = Color.FromRgb(0x1E, 0x1E, 0x1E); subBase = Color.FromRgb(0x5A, 0x5A, 0x5A); sepBase = Color.FromRgb(0xD8, 0xD8, 0xD8); }
+            else if (forceDark) { cardBase = Color.FromRgb(0x2D, 0x2D, 0x30); textBase = Color.FromRgb(0xFF, 0xFF, 0xFF); subBase = Color.FromRgb(0xD3, 0xD3, 0xD3); sepBase = Color.FromRgb(0x55, 0x55, 0x55); }
+            else
             {
-                var c = scbBg.Color;
-                byte alpha = (byte)Math.Round(bgOpacity * 255);
-                bg = new SolidColorBrush(Color.FromArgb(alpha, c.R, c.G, c.B));
+                cardBase = (ThemeHelper.GetCardBackgroundBrush() as ISolidColorBrush)?.Color ?? Color.FromRgb(0x2D, 0x2D, 0x30);
+                textBase = (ThemeHelper.GetTextBrush() as ISolidColorBrush)?.Color ?? Colors.White;
+                subBase = (ThemeHelper.GetSubTextBrush() as ISolidColorBrush)?.Color ?? Color.FromRgb(0xD3, 0xD3, 0xD3);
+                sepBase = (ThemeHelper.GetSeparatorBrush() as ISolidColorBrush)?.Color ?? Color.FromRgb(0x55, 0x55, 0x55);
             }
-            var sep = ThemeHelper.GetSeparatorBrush();
-            var textFg = ThemeHelper.GetTextBrush();
-            var subFg = ThemeHelper.GetSubTextBrush();
+            // 表格底色覆盖
+            if (_settings.FloatingScheduleTableColorEnabled)
+                cardBase = FloatScheduleRenderer.FromArgb(_settings.FloatingScheduleTableColor);
+            IBrush bg = new SolidColorBrush(Color.FromArgb((byte)Math.Round(bgOpacity * 255), cardBase.R, cardBase.G, cardBase.B));
+            // 分隔线颜色覆盖（A 通道即不透明度，直接采用）
+            IBrush sep = _settings.FloatingScheduleSeparatorColorEnabled
+                ? new SolidColorBrush(FloatScheduleRenderer.FromArgb(_settings.FloatingScheduleSeparatorColor))
+                : new SolidColorBrush(sepBase);
+            // 字体颜色覆盖（主文字用所选色；次级 = 同色降透明度派生）
+            IBrush textFg, subFg;
+            if (_settings.FloatingScheduleTextColorEnabled)
+            {
+                var tc = FloatScheduleRenderer.FromArgb(_settings.FloatingScheduleTextColor);
+                textFg = new SolidColorBrush(tc);
+                subFg = new SolidColorBrush(Color.FromArgb((byte)Math.Round(tc.A * 0.80), tc.R, tc.G, tc.B));
+            }
+            else { textFg = new SolidColorBrush(textBase); subFg = new SolidColorBrush(subBase); }
             // ---------- 当前课高亮：强调色 × 40% 透明度（严格按需求：强调色的 40% Alpha ≈ 0x66/0xFF）----------
             // 不再使用之前硬编码的"浅蓝/浅紫"：任何主题下都是用户系统强调色 × 0.40，避免与应用强调色脱节。
             const double highlightAlphaRatio = 0.40;
@@ -4123,6 +4203,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 _containerBorder!.Background = bg;
                 _containerBorder.BorderBrush = sep;
+                // 圆角/四边距实时应用（高级外观）
+                _containerBorder.CornerRadius = new CornerRadius(Math.Clamp(_settings.FloatingScheduleCornerRadius, 0, 10));
+                _containerBorder.Padding = new Thickness(_settings.FloatingScheduleMarginLeft, _settings.FloatingScheduleMarginTop, _settings.FloatingScheduleMarginRight, _settings.FloatingScheduleMarginBottom);
             }
 
             // ---- 获取课表（今日 / 明日，按"显示明天课表"四档模式判定；参考 ClassIsland 课程表组件）----
@@ -4404,7 +4487,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             var model = new FloatScheduleRenderModel
             {
                 FontSize = fontSize,
-                FontFamilySource = ResolveFloatingFontFamilySourceAv(),
+                FontFamilySource = _settings.FloatingScheduleFontEnabled && !string.IsNullOrWhiteSpace(_settings.FloatingScheduleTextFontFamily)
+                    ? _settings.FloatingScheduleTextFontFamily
+                    : ResolveFloatingFontFamilySourceAv(),
                 AccentArgb = ArgbOfAv(accentBrush),
                 CardBackgroundArgb = ArgbOfAv(bg),
                 BorderArgb = ArgbOfAv(sep),
@@ -4412,10 +4497,23 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 SubTextArgb = ArgbOfAv(subFg),
                 HighlightArgb = ArgbOfAv(highlightBg),
                 // 课间行整行底色：8% Alpha 淡灰（深色主题白底 / 浅色主题黑底，原 L3700-3702 语义）
-                BreakRowBackgroundArgb = ThemeHelper.IsDarkTheme() ? 0x14FFFFFFu : 0x14000000u,
-                SeparatorArgb = ArgbOfAv(GetBreakSeparatorBrushAv()),
+                BreakRowBackgroundArgb = (forceLight || (!forceDark && !ThemeHelper.IsDarkTheme())) ? 0x14000000u : 0x14FFFFFFu,
+                SeparatorArgb = _settings.FloatingScheduleSeparatorColorEnabled
+                    ? _settings.FloatingScheduleSeparatorColor
+                    : ArgbOfAv(GetBreakSeparatorBrushAv()),
                 ShowTomorrow = showTomorrow,
                 CurrentClassIndex = _currentOnClassIndex,
+                // ===== 高级外观：布局 / 文本 / 间色 / 分隔线 / FPS（从设置直读终态）=====
+                LayoutDirection = (int)_settings.FloatingScheduleLayoutDirection,
+                RowSpacingFactor = _settings.FloatingScheduleRowSpacingFactor,
+                ColumnSpacingMode = (int)_settings.FloatingScheduleColumnSpacingMode,
+                ColumnSpacing = _settings.FloatingScheduleColumnSpacingMode == FloatingScheduleColumnSpacingMode.Custom
+                    ? _settings.FloatingScheduleColumnSpacing : 14,
+                ZebraStriped = _settings.FloatingScheduleZebraStriped,
+                ZebraRowArgb = ThemeHelper.IsDarkTheme() ? 0x1AFFFFFFu : 0x14000000u,
+                FontWeightCustom = _settings.FloatingScheduleFontWeightEnabled ? _settings.FloatingScheduleTextFontWeight : 0,
+                SeparatorThickness = _settings.FloatingScheduleSeparatorThickness,
+                ShowFps = _settings.FloatingScheduleShowFps,
             };
             foreach (var rowAv in _currentClassRows)
             {
@@ -4448,6 +4546,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
                 var rowStartAv = ReflectGetStartTime(layoutItem);
                 var rowEndAv = ReflectGetEndTime(layoutItem);
+                // 按学科配色：开启且映射命中该科目名 → 用自定义色；否则 0（渲染器回退全局字体色）
+                uint subjectArgb = 0;
+                if (_settings.FloatingScheduleSubjectColorEnabled && subject?.Name is { Length: > 0 } sName
+                    && _settings.FloatingScheduleSubjectColorMap.TryGetValue(sName, out var mappedArgb))
+                {
+                    subjectArgb = mappedArgb;
+                }
                 model.Rows.Add(new FloatScheduleRowModel
                 {
                     Course = subject?.Name ?? "(未安排)",
@@ -4456,6 +4561,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                     // 时间区间下传：宿主异常/卡死导致推送中断时，子进程按本地时钟自主定位"当前课"
                     StartSec = rowStartAv.TotalSeconds,
                     EndSec = rowEndAv.TotalSeconds,
+                    SubjectColorArgb = subjectArgb,
                 });
             }
             if (breakInsertAfterClassIdx >= 0 && breakLayoutItem != null)
@@ -4581,8 +4687,23 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             FloatScheduleRenderer.ApplyCardStyle(_containerBorder, model);
             var (root, refs) = FloatScheduleRenderer.Build(model);
-            _containerBorder.Child = root;
+            // 高级外观：按材质装配卡片背景层（磨砂/亚克力/液态玻璃/古卷/自定义图片；实验材质未开实验性功能时回退半透明）
+            FloatScheduleMaterialApplier.Apply(
+                _containerBorder,
+                ResolveMaterialAv(),
+                _settings.FloatingScheduleMaterialIntensity,
+                _settings.FloatingScheduleCornerRadius,
+                model.CardBackgroundArgb,
+                _settings.FloatingScheduleCustomBackgroundPath,
+                root);
+            // 装饰边框（液态玻璃/古卷下强制关）
+            FloatScheduleMaterialApplier.ApplyBorder(_containerBorder,
+                _settings.FloatingScheduleBorderEnabled && ResolveMaterialAv() != 3 && ResolveMaterialAv() != 4,
+                (int)_settings.FloatingScheduleBorderPreset,
+                _settings.FloatingScheduleBorderColorEnabled,
+                _settings.FloatingScheduleBorderColor);
             _rootContent = root;
+            _currentFpsTextAv = refs.FpsText;
             _currentProgressHost = refs.ClassProgressHost;
             _currentProgressIndicator = refs.ClassProgressIndicator;
             _currentBreakProgressHost = refs.BreakProgressHost;
@@ -4675,9 +4796,53 @@ public class FloatingScheduleService : IHostedService, IDisposable
         return null;
     }
 
+    /// <summary>有效材质：未开启实验性功能时，液态玻璃(3)/古卷(4)/自定义图片(5) 回退半透明(0)。</summary>
+    private int ResolveMaterialAv()
+    {
+        var m = (int)_settings.FloatingScheduleMaterial;
+        if (!_settings.EnableExperimentalFeatures && (m == 3 || m == 4 || m == 5)) return 0;
+        return m;
+    }
+
+    /// <summary>进程内 FPS 角标：每 500ms 由渲染 tick 计数换算帧率，写入"渲染/无等待"双值。</summary>
+    private void UpdateFpsBadgeAv()
+    {
+        if (!_settings.FloatingScheduleShowFps || _currentFpsTextAv == null) return;
+        long nowMs = Environment.TickCount64;
+        double elapsed = (nowMs - _fpsLastTickMsAv) / 1000.0;
+        if (elapsed <= 0.001) return;
+        _fpsRenderAv = _fpsFrameCountAv / elapsed;
+        _fpsFrameCountAv = 0;
+        _fpsLastTickMsAv = nowMs;
+        // 无等待 FPS：优先取渲染器上报帧率，取不到则回退实测值
+        double noWait = _fpsRenderAv;
+        try
+        {
+            if (_window != null)
+            {
+                var g = RenderTimerHelper.GetFps(_window);
+                if (g.HasValue && g.Value > 0) noWait = g.Value;
+            }
+        }
+        catch { }
+        _fpsNoWaitAv = noWait;
+        try { _currentFpsTextAv.Text = $"{_fpsRenderAv:F1}/{_fpsNoWaitAv:F1}"; } catch { }
+    }
+
     /// <summary>构建悬浮窗行为设置快照（独立进程模式经 settings 消息推送；枚举以 int 传输避免跨程序集类型依赖）。</summary>
     private FloatScheduleWindowSettings BuildWindowSettingsSnapshotAv()
     {
+        // 材质 tint 基色 = 主题卡片色 × 用户不透明度 Alpha（与进程内卡片背景同源，供子进程材质层）
+        uint tintArgb = 0xCC2D2D30;
+        if (ThemeHelper.GetCardBackgroundBrush() is SolidColorBrush scbTint)
+        {
+            var tc = scbTint.Color;
+            byte ta = (byte)Math.Round(Math.Clamp(_settings.FloatingScheduleOpacity, 0.0, 1.0) * 255);
+            tintArgb = ((uint)ta << 24) | ((uint)tc.R << 16) | ((uint)tc.G << 8) | tc.B;
+        }
+        // 边框与材质互斥：液态玻璃(3)/古卷(4) 下强制不显示边框
+        var mat = ResolveMaterialAv();
+        bool borderOn = _settings.FloatingScheduleBorderEnabled && mat != 3 && mat != 4;
         return new FloatScheduleWindowSettings
         {
             Layer = (int)_settings.FloatingScheduleWindowLayer,
@@ -4695,6 +4860,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
             FollowHostLifetime = _settings.FloatingScheduleFollowHostLifetime,
             // 下传子进程 exe 指纹：旧子进程在插件更新后据此识别自己已过期并退出
             ExeStamp = _hostProcess?.ChildExeStamp ?? "",
+            // ===== 高级外观：材质 / 边框 / 圆角 / 果冻 / FPS =====
+            Material = mat,
+            MaterialIntensity = _settings.FloatingScheduleMaterialIntensity,
+            CornerRadius = _settings.FloatingScheduleCornerRadius,
+            MarginTop = _settings.FloatingScheduleMarginTop,
+            MarginBottom = _settings.FloatingScheduleMarginBottom,
+            MarginLeft = _settings.FloatingScheduleMarginLeft,
+            MarginRight = _settings.FloatingScheduleMarginRight,
+            CustomBackgroundPath = _settings.FloatingScheduleCustomBackgroundPath,
+            JellyEnabled = _settings.FloatingScheduleJellyEnabled && mat == 3,
+            BorderEnabled = borderOn,
+            BorderPreset = (int)_settings.FloatingScheduleBorderPreset,
+            BorderColorEnabled = _settings.FloatingScheduleBorderColorEnabled,
+            BorderColor = _settings.FloatingScheduleBorderColor,
+            ShowFps = _settings.FloatingScheduleShowFps,
+            TintArgb = tintArgb,
         };
     }
 
@@ -4759,6 +4940,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
         // 【悬浮窗隐藏】每 500ms Tick 重评一次隐藏/显示（基础/高级模式复用宿主设置与规则集、跟随模式查主窗口可见性）
         ApplyShouldHideAv();
+        UpdateFpsBadgeAv();
         if (_lessonsService == null) return;
         bool breaking = false;   // 提升到 try 外，供 finally 同步 _wasBreakLastTickAv 快照
         try

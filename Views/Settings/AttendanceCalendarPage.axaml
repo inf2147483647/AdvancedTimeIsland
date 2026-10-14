@@ -1,13 +1,15 @@
 <ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.AttendanceCalendarPage"
                      xmlns="https://github.com/avaloniaui"
                      xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
-                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core">
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+                     xmlns:compat="clr-namespace:AdvancedTimeIsland.Views.Controls">
     <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                   VerticalScrollBarVisibility="Auto"
                   BringIntoViewOnFocusChange="False">
         <!-- settings-container：官方布局样式；逐项入场动画由插件 IntroAnimationHelper 播放
              （宿主动画等级为“华丽”时标题与各分组依次淡入上滑）；
-             各分组 Expander 在 code-behind 中统一包进 CreateExpandHost，折叠/展开带平滑高度过渡 -->
+             各分组用 CompatSettingsExpander（FA2/FA3 官方折叠栏），
+             折叠/展开由其内部 CreateExpandHost 提供平滑高度过渡 -->
         <StackPanel x:Name="RootPanel"
                     Classes="settings-container"
                     Spacing="16">
@@ -16,10 +18,9 @@
                        FontWeight="Bold" />
 
             <!-- 1. 统计概览 -->
-            <Expander x:Name="SummaryExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="统计概览" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="SummaryExpander"
+                                           Header="统计概览"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <TextBlock x:Name="SummaryTextBlock"
                                Text="正在统计…"
@@ -42,13 +43,12 @@
                             Margin="0,4,0,0"
                             Click="OnRefreshClick" />
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 2. 学期区间 -->
-            <Expander x:Name="SemesterExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="学期区间" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="SemesterExpander"
+                                           Header="学期区间"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <Grid ColumnDefinitions="Auto,*">
                         <TextBlock Grid.Column="0"
@@ -149,13 +149,12 @@
                                        ValueChanged="OnSemesterNumberChanged" />
                     </Grid>
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 3. 排除规则 -->
-            <Expander x:Name="RuleExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="排除规则" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="RuleExpander"
+                                           Header="排除规则"
+                                           IsExpanded="True">
                 <StackPanel Spacing="4">
                     <CheckBox x:Name="ExcludeSaturdayCheckBox"
                               Content="排除周六"
@@ -182,13 +181,12 @@
                               VerticalAlignment="Center"
                               IsCheckedChanged="OnRuleChanged" />
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 4. 寒暑假区间 -->
-            <Expander x:Name="VacationExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="寒暑假区间" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="VacationExpander"
+                                           Header="寒暑假区间"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal"
                                 Spacing="6"
@@ -216,13 +214,12 @@
                                     Spacing="4" />
                     </ScrollViewer>
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 5. 自定义日期 -->
-            <Expander x:Name="CustomExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="自定义日期" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="CustomExpander"
+                                           Header="自定义日期"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal"
                                 Spacing="6"
@@ -252,13 +249,12 @@
                                     Spacing="4" />
                     </ScrollViewer>
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 6. 法定节假日与调休 -->
-            <Expander x:Name="HolidayExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="法定节假日与调休" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="HolidayExpander"
+                                           Header="法定节假日与调休"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <StackPanel Orientation="Horizontal"
                                 Spacing="6"
@@ -300,13 +296,12 @@
                                     Spacing="4" />
                     </ScrollViewer>
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
 
             <!-- 7. 分段统计 -->
-            <Expander x:Name="PeriodExpander" IsExpanded="True">
-                <Expander.Header>
-                    <TextBlock Text="分段统计" />
-                </Expander.Header>
+            <compat:CompatSettingsExpander x:Name="PeriodExpander"
+                                           Header="分段统计"
+                                           IsExpanded="True">
                 <StackPanel Spacing="6">
                     <Grid ColumnDefinitions="Auto,*">
                         <TextBlock Grid.Column="0"
@@ -329,7 +324,7 @@
                                     Spacing="4" />
                     </ScrollViewer>
                 </StackPanel>
-            </Expander>
+            </compat:CompatSettingsExpander>
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

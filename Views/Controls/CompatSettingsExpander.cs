@@ -28,6 +28,10 @@ namespace AdvancedTimeIsland.Views.Controls;
 /// </summary>
 public class CompatSettingsExpander : TemplatedControl
 {
+    /// <summary>分组是否展开（转发给真实 FA SettingsExpander 的 IsExpanded）。</summary>
+    public static readonly StyledProperty<bool> IsExpandedProperty =
+        AvaloniaProperty.Register<CompatSettingsExpander, bool>(nameof(IsExpanded));
+
     /// <summary>分组标题。</summary>
     public static readonly StyledProperty<string?> HeaderProperty =
         AvaloniaProperty.Register<CompatSettingsExpander, string?>(nameof(Header));
@@ -42,7 +46,7 @@ public class CompatSettingsExpander : TemplatedControl
 
     private readonly Control _inner;
     private readonly IList _innerItems;
-    private readonly Control _host;
+    private Control? _host;
 
     public CompatSettingsExpander()
     {
@@ -51,15 +55,27 @@ public class CompatSettingsExpander : TemplatedControl
 
         // 模板只承载“平滑展开宿主”：交互、官方样式全部走真实 SettingsExpander，
         // 宿主仅额外提供折叠/展开时的高度过渡。
-        _host = IntroAnimationHelper.CreateExpandHost(_inner);
-        Template = new FuncControlTemplate<CompatSettingsExpander>((_, _) => _host);
+        // 宿主延迟到模板 build 时才创建：axaml 的属性（IsExpanded）与子项填充都发生在模板应用之前，
+        // 提前创建会让 ExpandHost 以“折叠 + 空 ItemCount”初始化，首帧多播放一次展开动画。
+        Template = new FuncControlTemplate<CompatSettingsExpander>((owner, _) => owner.EnsureHostCreated());
 
         Items.CollectionChanged += OnItemsChanged;
     }
 
-    /// <summary>分组内的设置条目（axaml 直接元素即写入此集合）。</summary>
+    /// <summary>
+    /// 分组内容（axaml 直接元素即写入此集合）：
+    /// 既可以是 <see cref="CompatSettingsExpanderItem"/>（转发为官方 SettingsExpanderItem），
+    /// 也可以是任意裸控件（如复合表单 StackPanel，FA 会自动包一层 SettingsExpanderItem 容器）。
+    /// </summary>
     [Content]
-    public AvaloniaList<CompatSettingsExpanderItem> Items { get; } = new();
+    public AvaloniaList<object> Items { get; } = new();
+
+    /// <summary>分组是否展开（转发给真实 FA SettingsExpander）。</summary>
+    public bool IsExpanded
+    {
+        get => GetValue(IsExpandedProperty);
+        set => SetValue(IsExpandedProperty, value);
+    }
 
     /// <summary>分组标题。</summary>
     public string? Header
@@ -85,7 +101,11 @@ public class CompatSettingsExpander : TemplatedControl
     protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
     {
         base.OnPropertyChanged(change);
-        if (change.Property == HeaderProperty)
+        if (change.Property == IsExpandedProperty)
+        {
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_inner, "IsExpanded", IsExpanded);
+        }
+        else if (change.Property == HeaderProperty)
         {
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_inner, "Header", Header ?? string.Empty);
         }
@@ -99,38 +119,76 @@ public class CompatSettingsExpander : TemplatedControl
         }
     }
 
+    /// <summary>模板应用时懒创建平滑展开宿主（此时 axaml 属性与子项均已就位）。</summary>
+    private Control EnsureHostCreated()
+    {
+        return _host ??= IntroAnimationHelper.CreateExpandHost(_inner);
+    }
+
+    /// <summary>
+    /// 通知平滑展开宿主重算高度（内部动态表格重建 / 显隐切换后调用）。
+    /// 模板尚未应用（宿主未创建）时为空操作——宿主创建时会按当前自然高度锁定。
+    /// </summary>
+    public void RefreshHost()
+    {
+        if (_host != null)
+        {
+            IntroAnimationHelper.RefreshExpandHost(_inner);
+        }
+    }
+
     private void OnItemsChanged(object? sender, NotifyCollectionChangedEventArgs e)
     {
         if (e.OldItems != null)
         {
-            foreach (CompatSettingsExpanderItem item in e.OldItems)
+            foreach (var item in e.OldItems)
             {
                 DetachItem(item);
             }
         }
         if (e.NewItems != null)
         {
-            foreach (CompatSettingsExpanderItem item in e.NewItems)
+            foreach (var item in e.NewItems)
             {
                 AttachItem(item);
             }
         }
     }
 
-    private void AttachItem(CompatSettingsExpanderItem item)
+    private void AttachItem(object item)
     {
-        var realItem = FluentAvaloniaCompatibilityHelper.CreateSettingsExpanderItem();
-        item.Attach(realItem);
-        _innerItems.Add(realItem);
+        switch (item)
+        {
+            // 声明式设置条目：创建真实 FA SettingsExpanderItem 并转发属性
+            case CompatSettingsExpanderItem wrapped:
+            {
+                var realItem = FluentAvaloniaCompatibilityHelper.CreateSettingsExpanderItem();
+                wrapped.Attach(realItem);
+                _innerItems.Add(realItem);
+                break;
+            }
+            // 裸控件：直接加入真实 Items，FA 自动包一层 SettingsExpanderItem 容器
+            case Control control:
+                _innerItems.Add(control);
+                break;
+        }
     }
 
-    private void DetachItem(CompatSettingsExpanderItem item)
+    private void DetachItem(object item)
     {
-        if (item.RealItem != null)
+        switch (item)
         {
-            _innerItems.Remove(item.RealItem);
+            case CompatSettingsExpanderItem wrapped:
+                if (wrapped.RealItem != null)
+                {
+                    _innerItems.Remove(wrapped.RealItem);
+                }
+                wrapped.Detach();
+                break;
+            case Control control:
+                _innerItems.Remove(control);
+                break;
         }
-        item.Detach();
     }
 
     /// <summary>

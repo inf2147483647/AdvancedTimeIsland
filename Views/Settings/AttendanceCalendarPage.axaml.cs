@@ -22,8 +22,8 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 并展示统计概览与按周/月的分段统计。数据由 <see cref="AttendanceCalendarService"/> 统一持久化。
 /// <para>
 /// 静态外壳（标题、分组折叠栏、输入控件）见 <c>AttendanceCalendarPage.axaml</c>；
-/// 本文件只负责数据装配与动态表格生成。各分组的 <c>Expander</c> 在 <see cref="WireUI"/> 中
-/// 统一包进 <see cref="IntroAnimationHelper.CreateExpandHost"/>（“华丽”动画等级下折叠/展开带平滑高度过渡），
+/// 本文件只负责数据装配与动态表格生成。各分组使用 <c>CompatSettingsExpander</c>
+/// （FA2/FA3 官方折叠栏，内部经 <see cref="IntroAnimationHelper.CreateExpandHost"/> 获得平滑高度过渡），
 /// 页面可见时由 <see cref="IntroAnimationHelper.PlayIntro"/> 播放标题与分组的错峰入场动画。
 /// </para>
 /// </summary>
@@ -70,21 +70,11 @@ public partial class AttendanceCalendarPage : SettingsPageBase
     // ==================== 页面装配 ====================
 
     /// <summary>
-    /// axaml 外壳加载完成后的装配：把各分组 <c>Expander</c> 包进平滑展开宿主，
-    /// 并按“先赋初值（受 <see cref="_isUpdatingControls"/> 保护）再交给刷新流程”的顺序初始化。
+    /// axaml 外壳加载完成后的装配：各分组已是 <c>CompatSettingsExpander</c>
+    /// （模板应用时自动创建平滑展开宿主），这里只做控件初值填充。
     /// </summary>
     private void WireUI()
     {
-        // 折叠/展开带高度过渡（动画等级“禁用”时 CreateExpandHost 退化为普通容器）
-        for (var i = RootPanel.Children.Count - 1; i >= 0; i--)
-        {
-            if (RootPanel.Children[i] is Expander expander)
-            {
-                RootPanel.Children.RemoveAt(i);
-                RootPanel.Children.Insert(i, IntroAnimationHelper.CreateExpandHost(expander));
-            }
-        }
-
         // 分段方式初值：先置守卫再赋值，避免初始化误触发重建表格
         _isUpdatingControls = true;
         PeriodModeComboBox.SelectedIndex = 0;
@@ -317,7 +307,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
                 rows));
         }
         ApplyTheme();
-        IntroAnimationHelper.RefreshExpandHost(PeriodExpander);
+        PeriodExpander.RefreshHost();
     }
 
     /// <summary>在「分段统计」区域显示一条提示（拿不到统计结果时）。</summary>
@@ -326,7 +316,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
         PeriodTableHost.Children.Clear();
         PeriodTableHost.Children.Add(new TextBlock { Text = text, Tag = "sub" });
         ApplyTheme();
-        IntroAnimationHelper.RefreshExpandHost(PeriodExpander);
+        PeriodExpander.RefreshHost();
     }
 
     private void UpdateSemesterControls()
@@ -395,7 +385,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
         DailyHoursHintTextBlock.Text = _calendar.TryGetScheduleDailyHours(DateTime.Now, out var hours)
             ? $"自动获取：当天档案第一节课开始到最后一节课下课共 {hours:0.#} 小时。"
             : $"自动获取失败（{_calendar.LastScheduleReadError ?? "未知原因"}），将回退到下方手动值。";
-        IntroAnimationHelper.RefreshExpandHost(SemesterExpander);
+        SemesterExpander.RefreshHost();
     }
 
     private void RebuildVacationTable()
@@ -424,7 +414,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
             new double[] { 160, 120, 120, 70, 80 },
             rows));
         ApplyTheme();
-        IntroAnimationHelper.RefreshExpandHost(VacationExpander);
+        VacationExpander.RefreshHost();
     }
 
     private void RebuildCustomDateTable()
@@ -433,7 +423,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
         CustomListHost.Children.Add(BuildCustomDateTable("强制计入在校日", _calendar.Data.CustomIncluded));
         CustomListHost.Children.Add(BuildCustomDateTable("强制排除", _calendar.Data.CustomExcluded));
         ApplyTheme();
-        IntroAnimationHelper.RefreshExpandHost(CustomExpander);
+        CustomExpander.RefreshHost();
     }
 
     private Border BuildCustomDateTable(string title, List<HolidayDay> items)
@@ -507,7 +497,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
             rows));
 
         ApplyTheme();
-        IntroAnimationHelper.RefreshExpandHost(HolidayExpander);
+        HolidayExpander.RefreshHost();
     }
 
     /// <summary>
@@ -534,7 +524,7 @@ public partial class AttendanceCalendarPage : SettingsPageBase
         SummaryTextBlock.Text = text;
         SummaryDetailTextBlock.Text = detail;
         SummaryProgressBar.Value = progress;
-        IntroAnimationHelper.RefreshExpandHost(SummaryExpander);
+        SummaryExpander.RefreshHost();
     }
 
     private void SetStatus(string text)

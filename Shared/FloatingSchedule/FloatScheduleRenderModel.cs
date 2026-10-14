@@ -72,6 +72,26 @@ public sealed class FloatScheduleRenderModel
 
     /// <summary>冻结续走锚点（子进程在管道断开时按本地时钟继续推进进度条）。</summary>
     public FloatScheduleAnchor? Anchor { get; set; }
+
+    // ===== 高级外观：布局 / 文本 / 间色 / 分隔线 / FPS（均为插件侧解析后的终态参数，子进程零业务逻辑）=====
+    /// <summary>表格布局方向：0=纵向（默认）1=横向左起 2=横向右起（每列一节课，列内竖排）。</summary>
+    public int LayoutDirection { get; set; } = 0;
+    /// <summary>行间距倍率（0.5~2.0，默认 1.0；乘现状行上下 Margin 2px）。</summary>
+    public double RowSpacingFactor { get; set; } = 1.0;
+    /// <summary>列间距模式：0=自动（ColumnSpacing=14）1=自定义。</summary>
+    public int ColumnSpacingMode { get; set; } = 0;
+    /// <summary>自定义列间距（px，仅模式=1 生效）。</summary>
+    public double ColumnSpacing { get; set; } = 14;
+    /// <summary>间色（斑马底）开关：奇数行原底色、偶数行用 ZebraRowArgb 加深底。</summary>
+    public bool ZebraStriped { get; set; } = false;
+    /// <summary>间色偶数行的加深底色（0xAARRGGBB，插件侧按主题/表格底色派生）。</summary>
+    public uint ZebraRowArgb { get; set; } = 0x14FFFFFF;
+    /// <summary>自定义字重（0=不启用自定义，渲染器沿用"当前课加粗/其余常规"规则；否则 100~900）。</summary>
+    public int FontWeightCustom { get; set; } = 0;
+    /// <summary>档案分隔线粗细（px，0=禁用；默认 3.0）。</summary>
+    public double SeparatorThickness { get; set; } = 3.0;
+    /// <summary>是否显示 FPS 角标（左=渲染 FPS，右=无等待 FPS）。</summary>
+    public bool ShowFps { get; set; } = false;
 }
 
 /// <summary>单节课程行（终态显示字符串，教师名解析已在插件侧完成）。</summary>
@@ -87,6 +107,8 @@ public sealed class FloatScheduleRowModel
     public double StartSec { get; set; }
     /// <summary>课程结束（当日秒）。</summary>
     public double EndSec { get; set; }
+    /// <summary>该科课程名颜色（0xAARRGGBB，0=未指定→回退全局字体色）。按学科配色开启时由插件侧填充。</summary>
+    public uint SubjectColorArgb { get; set; } = 0;
 }
 
 /// <summary>课间休息项（既是"当前课间插入行"的载体，也用于子进程自主判断课间时段）。</summary>

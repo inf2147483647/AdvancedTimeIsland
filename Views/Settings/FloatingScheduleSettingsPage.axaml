@@ -121,11 +121,15 @@
                 </compat:CompatSettingsExpanderItem>
             </compat:CompatSettingsExpander>
 
-            <!-- 1.5 高级外观（占位折叠栏：暂无内容，点击不会展开；右侧“即将开放”按钮不可点击） -->
-            <compat:CompatSettingsExpander Header="高级外观">
+            <!-- 1.5 高级外观（入口：打开独立编辑器窗口） -->
+            <compat:CompatSettingsExpander Header="高级外观"
+                                           Description="材质 / 边框 / 文本 / 表格 / 主题 / 调试 的深度定制，在独立窗口中实时预览编辑。">
                 <compat:CompatSettingsExpander.Footer>
-                    <Button Content="即将开放"
-                            IsEnabled="False" />
+                    <Button x:Name="OpenAdvancedAppearanceButton"
+                            Content="打开高级外观"
+                            Padding="14,5"
+                            HorizontalAlignment="Right"
+                            Click="OpenAdvancedAppearanceButton_Click" />
                 </compat:CompatSettingsExpander.Footer>
             </compat:CompatSettingsExpander>
 

@@ -6,6 +6,8 @@ using System;
 using System.Collections.Generic;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Layout;
 using Avalonia.Media;
 
@@ -24,6 +26,8 @@ public sealed class FloatScheduleProgressRefs
     public Border? BreakProgressIndicator { get; set; }
     /// <summary>本次构建产生的档案分隔线控件（进程内用于主题切换动态更新颜色）。</summary>
     public List<Border> SeparatorLines { get; } = new();
+    /// <summary>FPS 角标文本（模型 ShowFps=true 时非空；宿主每帧按"渲染/无等待"更新 Text）。</summary>
+    public TextBlock? FpsText { get; set; }
 }
 
 public static class FloatScheduleRenderer
@@ -77,6 +81,33 @@ public static class FloatScheduleRenderer
         var subFg = new SolidColorBrush(FromArgb(m.SubTextArgb));
         var sep = new SolidColorBrush(FromArgb(m.BorderArgb));
 
+        // FPS 角标收尾：ShowFps=true 时把内容包进 Grid 并在右下角叠加一个小字 TextBlock（不撑宽、不占布局）。
+        (Control, FloatScheduleProgressRefs) Finish(Control content)
+        {
+            if (!m.ShowFps) return (content, refs);
+            var wrap = new Grid();
+            wrap.Children.Add(content);
+            var fps = new TextBlock
+            {
+                Text = "0.0/0.0",
+                FontSize = Math.Max(7, fontSize - 6),
+                Foreground = subFg,
+                Opacity = 0.75,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Margin = new Thickness(0, 0, 2, 0),
+                IsHitTestVisible = false
+            };
+            SetFamily(fps);
+            wrap.Children.Add(fps);
+            refs.FpsText = fps;
+            return (wrap, refs);
+        }
+
+        // 横向布局（每列一节课，列内竖排课程/时间/教师）：占位模式仍走下方早退。
+        if (m.LayoutDirection != 0 && string.IsNullOrWhiteSpace(m.PlaceholderText))
+            return Finish(BuildHorizontal(m, refs, fontSize, familyAv));
+
         // ---- 空表占位模式（与进程内原占位分支一致：明天=标题+占位两行 Grid；今天=仅占位）----
         if (!string.IsNullOrWhiteSpace(m.PlaceholderText))
         {
@@ -103,12 +134,14 @@ public static class FloatScheduleRenderer
                 tomorrowEmptyPanel.Children.Add(emptyTitle);
                 Grid.SetRow(noClass, 1);
                 tomorrowEmptyPanel.Children.Add(noClass);
-                return (tomorrowEmptyPanel, refs);
+                return Finish(tomorrowEmptyPanel);
             }
-            return (noClass, refs);
+            return Finish(noClass);
         }
 
         var highlightBg = new SolidColorBrush(FromArgb(m.HighlightArgb));
+        var zebraBrush = new SolidColorBrush(FromArgb(m.ZebraRowArgb));
+        double rowSpacingFactor = m.RowSpacingFactor <= 0 ? 1.0 : m.RowSpacingFactor;
 
         // 【明日课表】不参与"当前课高亮 / 课间行 / 进度条"：这些语义只对当天成立（明天的课还没上，不存在当前课）。
         //  渲染器是两种模式（进程内 / 独立进程）唯一的 UI 出口，在此统一落地可保证：
@@ -123,7 +156,7 @@ public static class FloatScheduleRenderer
             ColumnDefinitions = ColumnDefinitions.Parse("Auto, *"),
             RowDefinitions = new RowDefinitions(),
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            ColumnSpacing = 14,
+            ColumnSpacing = m.ColumnSpacing,
             RowSpacing = 0
         };
 
@@ -188,7 +221,9 @@ public static class FloatScheduleRenderer
             var rIdx = grid.RowDefinitions.Count - 1;
 
             IBrush rowBg = Brushes.Transparent;
+            if (m.ZebraStriped && !isCurrent && i % 2 == 1) rowBg = zebraBrush;
             if (isCurrent) rowBg = highlightBg;
+            double rowMarginV = 2 * rowSpacingFactor;
 
             // ---- 课程列（左课程名 * / 右教师名 Auto）----
             var coursePanel = new Grid
@@ -197,7 +232,7 @@ public static class FloatScheduleRenderer
                 RowDefinitions = RowDefinitions.Parse("Auto"),
                 VerticalAlignment = VerticalAlignment.Center,
                 Background = rowBg,
-                Margin = new Thickness(0, 2, 0, 2)
+                Margin = new Thickness(0, rowMarginV, 0, rowMarginV)
             };
             Grid.SetColumn(coursePanel, 0);
             Grid.SetRow(coursePanel, rIdx);
@@ -206,8 +241,8 @@ public static class FloatScheduleRenderer
             {
                 Text = row.Course,
                 FontSize = fontSize,
-                FontWeight = isCurrent ? FontWeight.Bold : FontWeight.Normal,
-                Foreground = textFg,
+                FontWeight = m.FontWeightCustom != 0 ? MapWeight(m.FontWeightCustom) : (isCurrent ? FontWeight.Bold : FontWeight.Normal),
+                Foreground = row.SubjectColorArgb != 0 ? new SolidColorBrush(FromArgb(row.SubjectColorArgb)) : textFg,
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 Margin = new Thickness(0, 0, 8, 0)
@@ -264,7 +299,7 @@ public static class FloatScheduleRenderer
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
                 Background = rowBg,
-                Margin = new Thickness(0, 2, 0, 2)
+                Margin = new Thickness(0, rowMarginV, 0, rowMarginV)
             };
             SetFamily(timeTb);
             Grid.SetColumn(timeTb, 1);
@@ -283,7 +318,7 @@ public static class FloatScheduleRenderer
                     FontSize = Math.Max(8, fontSize - 1),
                     Foreground = subFg,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 3, 0, 3)
+                    Margin = new Thickness(0, 3 * rowSpacingFactor, 0, 3 * rowSpacingFactor)
                 };
                 SetFamily(breakTb);
                 var breakCellL = new Border { Background = breakBg, Child = breakTb };
@@ -298,7 +333,7 @@ public static class FloatScheduleRenderer
                     Foreground = subFg,
                     HorizontalAlignment = HorizontalAlignment.Right,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Thickness(0, 3, 0, 3)
+                    Margin = new Thickness(0, 3 * rowSpacingFactor, 0, 3 * rowSpacingFactor)
                 };
                 SetFamily(breakTimeTb);
                 var breakCellR = new Border { Background = breakBg, Child = breakTimeTb };
@@ -318,14 +353,14 @@ public static class FloatScheduleRenderer
                 grid.Children.Add(breakHost);
             }
 
-            // ---- 档案分隔线（第 i 行之后）----
-            if (m.SeparatorAfterClassIndex.Contains(i))
+            // ---- 档案分隔线（第 i 行之后；粗细=SeparatorThickness，0=禁用）----
+            if (m.SeparatorThickness > 0 && m.SeparatorAfterClassIndex.Contains(i))
             {
                 grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 var sepRowIdx = grid.RowDefinitions.Count - 1;
                 var sepBorder = new Border
                 {
-                    Height = 2,
+                    Height = m.SeparatorThickness,
                     Background = breakSeparatorBrush,
                     Opacity = 0.7,   // 【分隔线】70% 不透明
                     Margin = new Thickness(0, 1, 0, 1)
@@ -337,8 +372,157 @@ public static class FloatScheduleRenderer
             }
         }
 
-        return (grid, refs);
+        return Finish(grid);
     }
+
+    /// <summary>字重数值（100~900）映射到 Avalonia FontWeight 命名档（避免跨版本构造差异）。</summary>
+    private static FontWeight MapWeight(int w) => w switch
+    {
+        <= 100 => FontWeight.Thin,
+        <= 200 => FontWeight.ExtraLight,
+        <= 300 => FontWeight.Light,
+        <= 400 => FontWeight.Normal,
+        <= 500 => FontWeight.Medium,
+        <= 600 => FontWeight.SemiBold,
+        <= 700 => FontWeight.Bold,
+        <= 800 => FontWeight.ExtraBold,
+        _ => FontWeight.Black,
+    };
+
+    /// <summary>
+    /// 横向布局：每列一节课，列内自上而下竖排 课程名/时间/教师；dir=1 第1节最左，dir=2 第1节最右。
+    /// 当前课整列高亮 + 列底进度条；课间/分隔线作为独立列插入。外层横向滚动以适配 MaxWidth。
+    /// </summary>
+    private static Control BuildHorizontal(FloatScheduleRenderModel m, FloatScheduleProgressRefs refs, int fontSize, FontFamily? familyAv)
+    {
+        var accentColor = FromArgb(m.AccentArgb);
+        var accentBrush = new SolidColorBrush(accentColor);
+        var textFg = new SolidColorBrush(FromArgb(m.TextArgb));
+        var subFg = new SolidColorBrush(FromArgb(m.SubTextArgb));
+        var highlightBg = new SolidColorBrush(FromArgb(m.HighlightArgb));
+        var zebraBrush = new SolidColorBrush(FromArgb(m.ZebraRowArgb));
+        var sepBrush = new SolidColorBrush(FromArgb(m.SeparatorArgb));
+        double colSpacing = m.ColumnSpacing <= 0 ? 14 : m.ColumnSpacing;
+        bool rtl = m.LayoutDirection == 2;
+        bool isTomorrowList = m.ShowTomorrow;
+        int currentClassIndex = isTomorrowList ? -1 : m.CurrentClassIndex;
+        var currentBreak = isTomorrowList ? null : m.Break;
+
+        void SetF(TextBlock tb) { if (familyAv != null) tb.FontFamily = familyAv; }
+
+        var outer = new StackPanel { Orientation = Orientation.Vertical };
+        if (m.ShowTomorrow)
+        {
+            var title = CreateTomorrowTitle(fontSize, accentBrush);
+            SetF(title);
+            outer.Children.Add(title);
+        }
+
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions(),
+            RowDefinitions = RowDefinitions.Parse("Auto"),
+            HorizontalAlignment = HorizontalAlignment.Left,
+            ColumnSpacing = colSpacing,
+        };
+
+        // 构建"列单元"序列（课程列 / 课间列 / 分隔线列），再按 rtl 决定是否反转顺序。
+        var cells = new List<Control>();
+        for (int i = 0; i < m.Rows.Count; i++)
+        {
+            var row = m.Rows[i];
+            var isCurrent = i == currentClassIndex;
+            IBrush colBg = Brushes.Transparent;
+            if (m.ZebraStriped && i % 2 == 1) colBg = zebraBrush;
+            if (isCurrent) colBg = highlightBg;
+            var col = new Border
+            {
+                Background = colBg,
+                Padding = new Thickness(2, 2, 2, 2),
+                Child = BuildCourseColumn(row, isCurrent, m, fontSize, familyAv, textFg, subFg, accentColor, refs)
+            };
+            cells.Add(col);
+            if (currentBreak != null && i == currentBreak.AfterClassIndex)
+                cells.Add(BuildBreakColumn(currentBreak, fontSize, subFg, m, refs, familyAv));
+            if (m.SeparatorThickness > 0 && m.SeparatorAfterClassIndex.Contains(i))
+                cells.Add(new Rectangle { Width = Math.Max(1, m.SeparatorThickness), Fill = sepBrush, Opacity = 0.7, Margin = new Thickness(0, 2, 0, 2) });
+        }
+        if (rtl) cells.Reverse();
+        for (int c = 0; c < cells.Count; c++)
+        {
+            grid.ColumnDefinitions.Add(new ColumnDefinition(GridLength.Auto));
+            Grid.SetColumn(cells[c], c);
+            Grid.SetRow(cells[c], 0);
+            grid.Children.Add(cells[c]);
+        }
+        outer.Children.Add(grid);
+        return new ScrollViewer
+        {
+            Content = outer,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
+        };
+    }
+
+    private static Control BuildCourseColumn(FloatScheduleRowModel row, bool isCurrent, FloatScheduleRenderModel m, int fontSize,
+        FontFamily? familyAv, IBrush textFg, IBrush subFg, Color accentColor, FloatScheduleProgressRefs refs)
+    {
+        void SetF(TextBlock tb) { if (familyAv != null) tb.FontFamily = familyAv; }
+        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
+        var courseTb = new TextBlock
+        {
+            Text = row.Course,
+            FontSize = fontSize,
+            FontWeight = m.FontWeightCustom != 0 ? MapWeight(m.FontWeightCustom) : (isCurrent ? FontWeight.Bold : FontWeight.Normal),
+            Foreground = row.SubjectColorArgb != 0 ? new SolidColorBrush(FloatScheduleRenderer.FromArgb(row.SubjectColorArgb)) : textFg,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextAlignment = TextAlignment.Center,
+        };
+        SetF(courseTb);
+        panel.Children.Add(courseTb);
+        var timeTb = new TextBlock { Text = row.TimeText, FontSize = Math.Max(8, fontSize - 1), Foreground = textFg, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
+        SetF(timeTb);
+        panel.Children.Add(timeTb);
+        if (!string.IsNullOrEmpty(row.Teacher))
+        {
+            var teacherTb = new TextBlock { Text = row.Teacher, FontSize = Math.Max(8, fontSize - 3), Foreground = subFg, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center };
+            SetF(teacherTb);
+            panel.Children.Add(teacherTb);
+        }
+        if (isCurrent)
+        {
+            var (host, ind) = CreateSelfDrawnProgressBar(accentColor, 2.5, new Thickness(0, 3, 0, 0));
+            refs.ClassProgressHost = host; refs.ClassProgressIndicator = ind;
+            panel.Children.Add(host);
+        }
+        return panel;
+    }
+
+    private static Control BuildBreakColumn(FloatScheduleBreakModel br, int fontSize, IBrush subFg, FloatScheduleRenderModel m, FloatScheduleProgressRefs refs, FontFamily? familyAv)
+    {
+        var bg = new SolidColorBrush(FromArgb(m.BreakRowBackgroundArgb));
+        var panel = new Border
+        {
+            Background = bg,
+            Padding = new Thickness(2, 2, 2, 2),
+            Child = new StackPanel
+            {
+                Orientation = Orientation.Vertical,
+                Spacing = 2,
+                Children =
+                {
+                    SetF2(new TextBlock { Text = br.Name, FontSize = Math.Max(8, fontSize - 1), Foreground = subFg, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center }, familyAv),
+                    SetF2(new TextBlock { Text = br.TimeText, FontSize = Math.Max(8, fontSize - 1), Foreground = subFg, HorizontalAlignment = HorizontalAlignment.Center, TextAlignment = TextAlignment.Center }, familyAv),
+                }
+            }
+        };
+        var (host, ind) = CreateSelfDrawnProgressBar(FromArgb(m.AccentArgb), 2.5, new Thickness(0, 3, 0, 0));
+        refs.BreakProgressHost = host; refs.BreakProgressIndicator = ind;
+        ((StackPanel)panel.Child!).Children.Add(host);
+        return panel;
+    }
+
+    private static TextBlock SetF2(TextBlock tb, FontFamily? familyAv) { if (familyAv != null) tb.FontFamily = familyAv; return tb; }
 
     /// <summary>"明日时间表"标题标识（强调色加粗）。</summary>
     public static TextBlock CreateTomorrowTitle(int fontSize, IBrush accentBrush)

@@ -105,6 +105,27 @@ internal sealed class FloatScheduleChildWindow : Window
         _ = Task.Run(() => _pipe.RunAsync(_cts.Token));
         StartStartupGuard();
         StartLocalDrive();   // 抗宿主异常的本地推进（宿主推送停更时按本地时钟维持课表状态）
+        StartFpsTimers();    // 高级外观：FPS 角标本地统计（写值按 _snap.ShowFps 门控）
+    }
+
+    // ===== 高级外观：子进程 FPS（16ms 帧计数 + 500ms 写值；近似渲染帧率）=====
+    DispatcherTimer? _fpsFrameTimer, _fpsWriteTimer;
+    int _fpsFrames;
+    void StartFpsTimers()
+    {
+        if (_fpsFrameTimer != null) return;
+        _fpsFrameTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _fpsFrameTimer.Tick += (_, _) => { if (_snap.ShowFps) _fpsFrames++; };
+        _fpsFrameTimer.Start();
+        _fpsWriteTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(500) };
+        _fpsWriteTimer.Tick += (_, _) =>
+        {
+            if (!_snap.ShowFps || _refs?.FpsText == null) return;
+            double fps = _fpsFrames * 2.0;   // 500ms 窗口 → ×2
+            _fpsFrames = 0;
+            try { _refs.FpsText.Text = $"{fps:F1}/{fps:F1}"; } catch { }
+        };
+        _fpsWriteTimer.Start();
     }
 
     // 启动兜底：跟随启停=开 时，若 60s 内始终没能建立连接并收到数据（宿主侧异常），自动退出，
@@ -377,6 +398,15 @@ internal sealed class FloatScheduleChildWindow : Window
         StartOrStopHoverTimer();
         if (!s.EdgeHide) DisableEdgeHide();
         else if (prev.EdgeHideDelay != s.EdgeHideDelay) ScheduleEdgeEval();
+
+        // 高级外观：材质/圆角/边距/强度/图片变化 → 用最近模型重渲染卡片（即时生效，无需新数据）
+        if (isInit || prev.Material != s.Material || prev.CornerRadius != s.CornerRadius
+            || prev.MaterialIntensity != s.MaterialIntensity || prev.CustomBackgroundPath != s.CustomBackgroundPath
+            || prev.MarginTop != s.MarginTop || prev.MarginBottom != s.MarginBottom
+            || prev.MarginLeft != s.MarginLeft || prev.MarginRight != s.MarginRight)
+        {
+            if (_lastModel != null) { try { RenderModel(_lastModel); } catch { } }
+        }
     }
 
     void SetHostVisible(bool visible)
@@ -1620,7 +1650,11 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         FloatScheduleRenderer.ApplyCardStyle(_card, model);
         var (root, refs) = FloatScheduleRenderer.Build(model);
-        _card.Child = root;
+        // 高级外观：材质/圆角/边距（卡片级，与进程内同源）
+        FloatScheduleMaterialApplier.Apply(_card, _snap.Material, _snap.MaterialIntensity, _snap.CornerRadius,
+            model.CardBackgroundArgb, _snap.CustomBackgroundPath, root);
+        FloatScheduleMaterialApplier.ApplyBorder(_card, _snap.BorderEnabled, _snap.BorderPreset, _snap.BorderColorEnabled, _snap.BorderColor);
+        _card.Padding = new Thickness(_snap.MarginLeft, _snap.MarginTop, _snap.MarginRight, _snap.MarginBottom);
         _refs = refs;
         FloatScheduleRenderer.ApplyProgressRatio(refs.ClassProgressHost, refs.ClassProgressIndicator, model.ClassProgressRatio);
         FloatScheduleRenderer.ApplyProgressRatio(refs.BreakProgressHost, refs.BreakProgressIndicator, model.BreakProgressRatio);

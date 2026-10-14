@@ -938,6 +938,12 @@ public static class IntroAnimationHelper
         private TranslateTransform? _contentTranslate;
         // 是否已挂上“内容为空时取消展开”的 Expanding 钩子（只挂一次）
         private bool _emptyExpandHooked;
+        // 是否已执行“禁用内置动画”反射（重入 PrepareInnerExpander 时不再重复调用，避免对同一 Expander 重复 dispose）
+        private bool _innerAnimationsDisabled;
+        // PrepareInnerExpander 重试次数：嵌套模板（CompatSettingsExpander → host → SettingsExpander → 内部 Expander）
+        // 在 host.Loaded 时内层 Expander 对象已生成、但其自身模板部件（ExpanderContent）可能尚未 build
+        private int _prepareRetries;
+        private const int MaxPrepareRetries = 5;
         private DispatcherTimer? _collapseCommitTimer;
         private DoubleTransition? _sizeTransition;
         // 展开后的自然高度（标题 + 内容）：内容滑动以此为基准
@@ -988,11 +994,7 @@ public static class IntroAnimationHelper
             // 内容为空（无子条目）时不做高度动画，但仍要接管内部动画：
             // PrepareInnerExpander 会挂 Expanding 取消钩子，让空折叠栏根本无法展开（含 FA 那条 1px 横线）。
             PrepareInnerExpander();
-            if (_innerExpander == null)
-            {
-                // 模板可能尚未应用，下一帧再试一次
-                Dispatcher.UIThread.Post(PrepareInnerExpander, DispatcherPriority.Background);
-            }
+            RetryPrepareInnerExpanderIfNeeded();
 
             // 初始即展开的折叠栏（axaml IsExpanded="True"）从没进入过折叠态，
             // 等布局完成后补测一次折叠高度，避免首次收起时 host 不收缩、留下整块空白。
@@ -1003,6 +1005,31 @@ public static class IntroAnimationHelper
         {
             _collapseCommitTimer?.Stop();
             StopContentAnimation();
+        }
+
+        /// <summary>
+        /// host.Loaded 时若内层 Expander 或其内容站点尚未生成，在后续 Background 帧重试（有上限）。
+        /// 典型场景：CompatSettingsExpander 的模板链（包装宿主 → FA SettingsExpander → 内部 Expander）
+        /// 逐层 build，Loaded 冒泡到宿主时内部 Expander 对象已存在、但其自身模板部件还没生成。
+        /// </summary>
+        private void RetryPrepareInnerExpanderIfNeeded()
+        {
+            if (_prepareRetries >= MaxPrepareRetries)
+            {
+                return;
+            }
+
+            if (_innerExpander != null && _contentTranslate != null)
+            {
+                return;
+            }
+
+            _prepareRetries++;
+            Dispatcher.UIThread.Post(() =>
+            {
+                PrepareInnerExpander();
+                RetryPrepareInnerExpanderIfNeeded();
+            }, DispatcherPriority.Background);
         }
 
         /// <summary>
@@ -1063,38 +1090,45 @@ public static class IntroAnimationHelper
                 return;
             }
 
-            // 去掉 Expander 自带的展开 / 折叠内容交叉淡化
-            try
+            // 以下反射禁用只执行一次：本方法在“内层 Expander 模板部件延迟生成”时会被重试调用，
+            // 重复 SetExpanderAnimationType(null) 等于对同一 Expander 重复 Dispose，FA2 上可能出错。
+            if (!_innerAnimationsDisabled)
             {
-                _innerExpander.GetType().GetProperty("ContentTransition")?.SetValue(_innerExpander, null);
-            }
-            catch (Exception ex)
-            {
-                Log($"禁用内容过渡失败：{ex.Message}");
-            }
-
-            // 去掉 FluentAvalonia 自带的 WinUI 风格滑动动画（交由本宿主的裁剪动画统一接管）。
-            // 注意 FA2 / FA3 的承载类型不同，必须分别尝试：
-            //   · FA3：FluentAvalonia.UI.Controls.FAExpanderExt
-            //   · FA2：FluentAvalonia.UI.Controls.ExpanderExt（ExpanderAnimationType = "FluentV2" 时启用，
-            //          直接动画同一个 ExpanderContent 的 TranslateTransform；只关 FA3 会导致 net8 上
-            //          两套动画抢同一属性 —— 折叠栏抽动 / 错位 / 卡住）
-            foreach (var typeName in new[]
-                     {
-                         "FluentAvalonia.UI.Controls.FAExpanderExt, FluentAvalonia",
-                         "FluentAvalonia.UI.Controls.ExpanderExt, FluentAvalonia"
-                     })
-            {
+                // 去掉 Expander 自带的展开 / 折叠内容交叉淡化
                 try
                 {
-                    var extType = Type.GetType(typeName);
-                    extType?.GetMethod("SetExpanderAnimationType", BindingFlags.Public | BindingFlags.Static)
-                        ?.Invoke(null, new object?[] { _innerExpander, null });
+                    _innerExpander.GetType().GetProperty("ContentTransition")?.SetValue(_innerExpander, null);
                 }
                 catch (Exception ex)
                 {
-                    Log($"禁用 FA 展开动画失败（{typeName}）：{ex.Message}");
+                    Log($"禁用内容过渡失败：{ex.Message}");
                 }
+
+                // 去掉 FluentAvalonia 自带的 WinUI 风格滑动动画（交由本宿主的裁剪动画统一接管）。
+                // 注意 FA2 / FA3 的承载类型不同，必须分别尝试：
+                //   · FA3：FluentAvalonia.UI.Controls.FAExpanderExt
+                //   · FA2：FluentAvalonia.UI.Controls.ExpanderExt（ExpanderAnimationType = "FluentV2" 时启用，
+                //          直接动画同一个 ExpanderContent 的 TranslateTransform；只关 FA3 会导致 net8 上
+                //          两套动画抢同一属性 —— 折叠栏抽动 / 错位 / 卡住）
+                foreach (var typeName in new[]
+                         {
+                             "FluentAvalonia.UI.Controls.FAExpanderExt, FluentAvalonia",
+                             "FluentAvalonia.UI.Controls.ExpanderExt, FluentAvalonia"
+                         })
+                {
+                    try
+                    {
+                        var extType = Type.GetType(typeName);
+                        extType?.GetMethod("SetExpanderAnimationType", BindingFlags.Public | BindingFlags.Static)
+                            ?.Invoke(null, new object?[] { _innerExpander, null });
+                    }
+                    catch (Exception ex)
+                    {
+                        Log($"禁用 FA 展开动画失败（{typeName}）：{ex.Message}");
+                    }
+                }
+
+                _innerAnimationsDisabled = true;
             }
 
             // 内容为空时根本不允许进入展开态：在 IsExpanded 变化“之前”取消 Expanding。
@@ -1116,6 +1150,10 @@ public static class IntroAnimationHelper
                 {
                     _contentTranslate = new TranslateTransform();
                     _innerContent.RenderTransform = _contentTranslate;
+
+                    // 内容站点可能在 Loaded 之后的重试帧才找到（嵌套模板延迟 build）：
+                    // OnLoaded 那次折叠高度补测会因 _innerContent==null 跳过，这里立即补测一次。
+                    EnsureCollapsedHeightKnown();
                 }
             }
 

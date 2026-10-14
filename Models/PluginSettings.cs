@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -101,6 +101,68 @@ public enum FloatingScheduleTomorrowShowMode
     OnEmpty = 3
 }
 
+/// <summary>悬浮窗"高级外观"窗口材质类型。</summary>
+public enum FloatingScheduleMaterialType
+{
+    /// <summary>0 - 半透明（默认）：主题卡片色 × 不透明度纯色。</summary>
+    SemiTransparent = 0,
+    /// <summary>1 - 磨砂：ExperimentalAcrylicBorder 实时背景模糊。</summary>
+    Blur = 1,
+    /// <summary>2 - 亚克力：高透明 tint + 噪点。</summary>
+    Acrylic = 2,
+    /// <summary>3 - 液态玻璃（Beta，实验性）。</summary>
+    LiquidGlass = 3,
+    /// <summary>4 - 古卷（Alpha，实验性）：竹简样式。</summary>
+    AncientScroll = 4,
+    /// <summary>5 - 自定义图片（实验性）。</summary>
+    CustomImage = 5
+}
+
+/// <summary>悬浮窗"高级外观"装饰边框预设。</summary>
+public enum FloatingScheduleBorderPreset
+{
+    PictureFrame = 0,   // 画框
+    Blackboard = 1,     // 黑板
+    Windows7 = 2,
+    WindowsXP = 3,
+    Windows10 = 4,
+    Windows11 = 5,
+    HarmonyOS = 6
+}
+
+/// <summary>悬浮窗"高级外观"表格布局方向。</summary>
+public enum FloatingScheduleLayoutDir
+{
+    /// <summary>0 - 纵向排列（默认，现状）。</summary>
+    Vertical = 0,
+    /// <summary>1 - 横向排列（从左往右）：每列一节课，第1节最左。</summary>
+    HorizontalLeftToRight = 1,
+    /// <summary>2 - 横向排列（从右往左）：每列一节课，第1节最右（推荐古卷材质）。</summary>
+    HorizontalRightToLeft = 2
+}
+
+/// <summary>悬浮窗"高级外观"列间距模式。</summary>
+public enum FloatingScheduleColumnSpacingMode
+{
+    /// <summary>0 - 自动适配（默认，现状 ColumnSpacing=14）。</summary>
+    Auto = 0,
+    /// <summary>1 - 自定义（50~1000px）。</summary>
+    Custom = 1
+}
+
+/// <summary>悬浮窗"高级外观"主题色模式（4 档）。</summary>
+public enum FloatingScheduleThemeMode
+{
+    /// <summary>0 - 浅色（强制）。</summary>
+    Light = 0,
+    /// <summary>1 - 深色（强制）。</summary>
+    Dark = 1,
+    /// <summary>2 - 跟随 ClassIsland（默认）。</summary>
+    FollowClassIsland = 2,
+    /// <summary>3 - 跟随系统。</summary>
+    FollowSystem = 3
+}
+
 /// <summary>
 /// 插件全局设置
 /// </summary>
@@ -164,6 +226,50 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleFollowHostLifetime = true;
     // 上次"独立程序已更新"提示时记录的子进程 exe 内容哈希（内部标记：保证同一版本只提示一次）
     private string _floatingScheduleChildExeHash = "";
+    // ===== 高级外观（独立编辑器窗口；材质/边框/文本/学科配色/表格/主题/调试）=====
+    // 窗口
+    private FloatingScheduleMaterialType _floatingScheduleMaterial = FloatingScheduleMaterialType.SemiTransparent;
+    private bool _floatingScheduleJellyEnabled = false;
+    private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
+    private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（磨砂/亚克力模糊度、液态玻璃折射度）
+    private string _floatingScheduleCustomBackgroundPath = "";
+    // 边框
+    private bool _floatingScheduleBorderEnabled = false;
+    private FloatingScheduleBorderPreset _floatingScheduleBorderPreset = FloatingScheduleBorderPreset.PictureFrame;
+    private bool _floatingScheduleBorderColorEnabled = false;
+    private uint _floatingScheduleBorderColor = 0xFFB8860B;  // 画框暖金默认（AARRGGBB）
+    // 文本
+    private bool _floatingScheduleFontEnabled = false;
+    private string? _floatingScheduleTextFontFamily = null;
+    private bool _floatingScheduleFontWeightEnabled = false;
+    private int _floatingScheduleTextFontWeight = 400;        // Normal
+    private bool _floatingScheduleTextColorEnabled = false;
+    private uint _floatingScheduleTextColor = 0xFFFFFFFF;
+    // 学科配色
+    private bool _floatingScheduleSubjectColorEnabled = true;
+    private Dictionary<string, uint> _floatingScheduleSubjectColorMap = new();
+    // 表格
+    private FloatingScheduleLayoutDir _floatingScheduleLayoutDirection = FloatingScheduleLayoutDir.Vertical;
+    private bool _floatingScheduleZebraStriped = false;       // 间色
+    private double _floatingScheduleRowSpacingFactor = 1.0;   // 0.5~2.0
+    private FloatingScheduleColumnSpacingMode _floatingScheduleColumnSpacingMode = FloatingScheduleColumnSpacingMode.Auto;
+    private double _floatingScheduleColumnSpacing = 300.0;    // 50~1000
+    // 四边距=卡片内边距（替换式）；默认 12/10 与现状卡片 Padding 一致，老用户零观感变化（用户决议）
+    private double _floatingScheduleMarginTop = 10.0;
+    private double _floatingScheduleMarginBottom = 10.0;
+    private double _floatingScheduleMarginLeft = 12.0;
+    private double _floatingScheduleMarginRight = 12.0;
+    // 主题
+    private FloatingScheduleThemeMode _floatingScheduleThemeMode = FloatingScheduleThemeMode.FollowClassIsland;
+    private bool _floatingScheduleTableColorEnabled = false;
+    private uint _floatingScheduleTableColor = 0xFF000000;    // 默认黑
+    private bool _floatingScheduleAccentColorEnabled = false;
+    private uint _floatingScheduleAccentColor = 0xFF0078D4;   // Win10 蓝
+    private bool _floatingScheduleSeparatorColorEnabled = false;
+    private uint _floatingScheduleSeparatorColor = 0xCCFFFFFF; // 白色 80% 不透明
+    private double _floatingScheduleSeparatorThickness = 2.0;  // 0~10；默认 2.0=现状档案分隔线粗细（保持观感）
+    // 调试
+    private bool _floatingScheduleShowFps = false;
 
     public string? CachedVersion
     {
@@ -1062,6 +1168,517 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleTodayPlaceholderText != value)
             {
                 _floatingScheduleTodayPlaceholderText = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：窗口 ====================
+
+    /// <summary>窗口材质类型（半透明/磨砂/亚克力/液态玻璃/古卷/自定义图片）。</summary>
+    public FloatingScheduleMaterialType FloatingScheduleMaterial
+    {
+        get => _floatingScheduleMaterial;
+        set
+        {
+            if (_floatingScheduleMaterial != value)
+            {
+                _floatingScheduleMaterial = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>果冻效果（仅液态玻璃材质可用，拖动时 Q 弹形变）。默认关。</summary>
+    public bool FloatingScheduleJellyEnabled
+    {
+        get => _floatingScheduleJellyEnabled;
+        set
+        {
+            if (_floatingScheduleJellyEnabled != value)
+            {
+                _floatingScheduleJellyEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>圆角程度（0~10px，默认 8；仅半透明/磨砂/亚克力/液态玻璃生效，0=方角）。</summary>
+    public double FloatingScheduleCornerRadius
+    {
+        get => _floatingScheduleCornerRadius;
+        set
+        {
+            var v = Math.Clamp(value, 0, 10);
+            if (Math.Abs(_floatingScheduleCornerRadius - v) > 0.001)
+            {
+                _floatingScheduleCornerRadius = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>效果强度（0~1，默认 0.5；磨砂/亚克力模糊度、液态玻璃折射度）。</summary>
+    public double FloatingScheduleMaterialIntensity
+    {
+        get => _floatingScheduleMaterialIntensity;
+        set
+        {
+            var v = Math.Clamp(value, 0, 1);
+            if (Math.Abs(_floatingScheduleMaterialIntensity - v) > 0.001)
+            {
+                _floatingScheduleMaterialIntensity = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>自定义图片背景路径（材质=自定义图片时使用；无效路径回退半透明）。</summary>
+    public string FloatingScheduleCustomBackgroundPath
+    {
+        get => _floatingScheduleCustomBackgroundPath;
+        set
+        {
+            if (_floatingScheduleCustomBackgroundPath != value)
+            {
+                _floatingScheduleCustomBackgroundPath = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：边框 ====================
+
+    /// <summary>窗口装饰边框开关（液态玻璃/古卷材质下不可用）。默认关。</summary>
+    public bool FloatingScheduleBorderEnabled
+    {
+        get => _floatingScheduleBorderEnabled;
+        set
+        {
+            if (_floatingScheduleBorderEnabled != value)
+            {
+                _floatingScheduleBorderEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>边框预设样式（画框/黑板/Win7/XP/Win10/Win11/HarmonyOS）。</summary>
+    public FloatingScheduleBorderPreset FloatingScheduleBorderPreset
+    {
+        get => _floatingScheduleBorderPreset;
+        set
+        {
+            if (_floatingScheduleBorderPreset != value)
+            {
+                _floatingScheduleBorderPreset = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>边框自定义颜色开关（关=用预设内置主色）。</summary>
+    public bool FloatingScheduleBorderColorEnabled
+    {
+        get => _floatingScheduleBorderColorEnabled;
+        set
+        {
+            if (_floatingScheduleBorderColorEnabled != value)
+            {
+                _floatingScheduleBorderColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>边框自定义颜色（AARRGGBB）。</summary>
+    public uint FloatingScheduleBorderColor
+    {
+        get => _floatingScheduleBorderColor;
+        set
+        {
+            if (_floatingScheduleBorderColor != value)
+            {
+                _floatingScheduleBorderColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：文本 ====================
+
+    /// <summary>自定义字体开关（关=跟随应用主题字体）。</summary>
+    public bool FloatingScheduleFontEnabled
+    {
+        get => _floatingScheduleFontEnabled;
+        set
+        {
+            if (_floatingScheduleFontEnabled != value)
+            {
+                _floatingScheduleFontEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>自定义字体族名（null=跟随应用；经 FontFamilySource 双模式下发）。</summary>
+    public string? FloatingScheduleTextFontFamily
+    {
+        get => _floatingScheduleTextFontFamily;
+        set
+        {
+            if (_floatingScheduleTextFontFamily != value)
+            {
+                _floatingScheduleTextFontFamily = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>自定义字重开关（关=现状：当前课加粗、其余常规）。</summary>
+    public bool FloatingScheduleFontWeightEnabled
+    {
+        get => _floatingScheduleFontWeightEnabled;
+        set
+        {
+            if (_floatingScheduleFontWeightEnabled != value)
+            {
+                _floatingScheduleFontWeightEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>自定义字重数值（100~900，默认 400 Normal）。</summary>
+    public int FloatingScheduleTextFontWeight
+    {
+        get => _floatingScheduleTextFontWeight;
+        set
+        {
+            var v = Math.Clamp(value, 100, 900);
+            if (_floatingScheduleTextFontWeight != v)
+            {
+                _floatingScheduleTextFontWeight = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>全局字体颜色自定义开关（关=随主题）。</summary>
+    public bool FloatingScheduleTextColorEnabled
+    {
+        get => _floatingScheduleTextColorEnabled;
+        set
+        {
+            if (_floatingScheduleTextColorEnabled != value)
+            {
+                _floatingScheduleTextColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>全局字体颜色（AARRGGBB；次级文字由渲染器按同色降透明度派生）。</summary>
+    public uint FloatingScheduleTextColor
+    {
+        get => _floatingScheduleTextColor;
+        set
+        {
+            if (_floatingScheduleTextColor != value)
+            {
+                _floatingScheduleTextColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：学科配色 ====================
+
+    /// <summary>按学科配色开关（默认开；关=全部用全局字体颜色/主题色）。</summary>
+    public bool FloatingScheduleSubjectColorEnabled
+    {
+        get => _floatingScheduleSubjectColorEnabled;
+        set
+        {
+            if (_floatingScheduleSubjectColorEnabled != value)
+            {
+                _floatingScheduleSubjectColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>学科配色映射（科目名 → AARRGGBB）。System.Text.Json 直接序列化。</summary>
+    public Dictionary<string, uint> FloatingScheduleSubjectColorMap
+    {
+        get => _floatingScheduleSubjectColorMap;
+        set
+        {
+            _floatingScheduleSubjectColorMap = value ?? new Dictionary<string, uint>();
+            OnPropertyChanged();
+        }
+    }
+
+    // ==================== 高级外观：表格 ====================
+
+    /// <summary>表格布局方向（纵向/横向左起/横向右起）。</summary>
+    public FloatingScheduleLayoutDir FloatingScheduleLayoutDirection
+    {
+        get => _floatingScheduleLayoutDirection;
+        set
+        {
+            if (_floatingScheduleLayoutDirection != value)
+            {
+                _floatingScheduleLayoutDirection = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>间色（斑马底）开关：奇数行原底色、偶数行加深底色。默认关。</summary>
+    public bool FloatingScheduleZebraStriped
+    {
+        get => _floatingScheduleZebraStriped;
+        set
+        {
+            if (_floatingScheduleZebraStriped != value)
+            {
+                _floatingScheduleZebraStriped = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>行间距倍率（0.5~2.0，默认 1.0；乘现状行上下 Margin）。</summary>
+    public double FloatingScheduleRowSpacingFactor
+    {
+        get => _floatingScheduleRowSpacingFactor;
+        set
+        {
+            var v = Math.Clamp(value, 0.5, 2.0);
+            if (Math.Abs(_floatingScheduleRowSpacingFactor - v) > 0.001)
+            {
+                _floatingScheduleRowSpacingFactor = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>列间距模式（自动适配/自定义）。</summary>
+    public FloatingScheduleColumnSpacingMode FloatingScheduleColumnSpacingMode
+    {
+        get => _floatingScheduleColumnSpacingMode;
+        set
+        {
+            if (_floatingScheduleColumnSpacingMode != value)
+            {
+                _floatingScheduleColumnSpacingMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>自定义列间距（50~1000px，默认 300；仅模式=自定义时生效）。</summary>
+    public double FloatingScheduleColumnSpacing
+    {
+        get => _floatingScheduleColumnSpacing;
+        set
+        {
+            var v = Math.Clamp(value, 50, 1000);
+            if (Math.Abs(_floatingScheduleColumnSpacing - v) > 0.001)
+            {
+                _floatingScheduleColumnSpacing = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格内容上边距（0~50px，默认 6）。</summary>
+    public double FloatingScheduleMarginTop
+    {
+        get => _floatingScheduleMarginTop;
+        set
+        {
+            var v = Math.Clamp(value, 0, 50);
+            if (Math.Abs(_floatingScheduleMarginTop - v) > 0.001)
+            {
+                _floatingScheduleMarginTop = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格内容下边距（0~50px，默认 6）。</summary>
+    public double FloatingScheduleMarginBottom
+    {
+        get => _floatingScheduleMarginBottom;
+        set
+        {
+            var v = Math.Clamp(value, 0, 50);
+            if (Math.Abs(_floatingScheduleMarginBottom - v) > 0.001)
+            {
+                _floatingScheduleMarginBottom = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格内容左边距（0~50px，默认 6）。</summary>
+    public double FloatingScheduleMarginLeft
+    {
+        get => _floatingScheduleMarginLeft;
+        set
+        {
+            var v = Math.Clamp(value, 0, 50);
+            if (Math.Abs(_floatingScheduleMarginLeft - v) > 0.001)
+            {
+                _floatingScheduleMarginLeft = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格内容右边距（0~50px，默认 6）。</summary>
+    public double FloatingScheduleMarginRight
+    {
+        get => _floatingScheduleMarginRight;
+        set
+        {
+            var v = Math.Clamp(value, 0, 50);
+            if (Math.Abs(_floatingScheduleMarginRight - v) > 0.001)
+            {
+                _floatingScheduleMarginRight = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：主题 ====================
+
+    /// <summary>主题色模式（浅色/深色/跟随 ClassIsland/跟随系统）。</summary>
+    public FloatingScheduleThemeMode FloatingScheduleThemeMode
+    {
+        get => _floatingScheduleThemeMode;
+        set
+        {
+            if (_floatingScheduleThemeMode != value)
+            {
+                _floatingScheduleThemeMode = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格底色自定义开关（关=随材质/主题卡片色）。</summary>
+    public bool FloatingScheduleTableColorEnabled
+    {
+        get => _floatingScheduleTableColorEnabled;
+        set
+        {
+            if (_floatingScheduleTableColorEnabled != value)
+            {
+                _floatingScheduleTableColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>表格底色（AARRGGBB，默认黑）。</summary>
+    public uint FloatingScheduleTableColor
+    {
+        get => _floatingScheduleTableColor;
+        set
+        {
+            if (_floatingScheduleTableColor != value)
+            {
+                _floatingScheduleTableColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>强调色自定义开关（关=跟随 ClassIsland 强调色）。</summary>
+    public bool FloatingScheduleAccentColorEnabled
+    {
+        get => _floatingScheduleAccentColorEnabled;
+        set
+        {
+            if (_floatingScheduleAccentColorEnabled != value)
+            {
+                _floatingScheduleAccentColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>强调色（AARRGGBB，默认 Win10 蓝 #0078D4）。</summary>
+    public uint FloatingScheduleAccentColor
+    {
+        get => _floatingScheduleAccentColor;
+        set
+        {
+            if (_floatingScheduleAccentColor != value)
+            {
+                _floatingScheduleAccentColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>分隔线颜色自定义开关（关=随主题深白/浅黑）。</summary>
+    public bool FloatingScheduleSeparatorColorEnabled
+    {
+        get => _floatingScheduleSeparatorColorEnabled;
+        set
+        {
+            if (_floatingScheduleSeparatorColorEnabled != value)
+            {
+                _floatingScheduleSeparatorColorEnabled = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>分隔线颜色（AARRGGBB；A 通道即分隔线不透明度，默认白 80%）。</summary>
+    public uint FloatingScheduleSeparatorColor
+    {
+        get => _floatingScheduleSeparatorColor;
+        set
+        {
+            if (_floatingScheduleSeparatorColor != value)
+            {
+                _floatingScheduleSeparatorColor = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>分隔线粗细（0~10px，默认 3.0；0=禁用档案分隔线，古卷材质映射竹缝外缘距）。</summary>
+    public double FloatingScheduleSeparatorThickness
+    {
+        get => _floatingScheduleSeparatorThickness;
+        set
+        {
+            var v = Math.Clamp(value, 0, 10);
+            if (Math.Abs(_floatingScheduleSeparatorThickness - v) > 0.001)
+            {
+                _floatingScheduleSeparatorThickness = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    // ==================== 高级外观：调试 ====================
+
+    /// <summary>显示 FPS 角标（左=渲染 FPS，右=无等待 FPS）。默认关。</summary>
+    public bool FloatingScheduleShowFps
+    {
+        get => _floatingScheduleShowFps;
+        set
+        {
+            if (_floatingScheduleShowFps != value)
+            {
+                _floatingScheduleShowFps = value;
                 OnPropertyChanged();
             }
         }
