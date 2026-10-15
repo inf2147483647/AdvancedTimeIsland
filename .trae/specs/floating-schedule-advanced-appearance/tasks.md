@@ -52,8 +52,15 @@
   - `rule` TR-2.2: 构造 3 节模型横向右起 → 第1节位于最右列（代码审查/临时代码断言）
   - `rubric` TR-2.3: 单一出口/零宿主依赖；1-5；threshold>=4；代码走查
 
-## Task 3: 材质系统（Shared 应用器：6 材质 + 古卷竹简 + 果冻）
+## Task 3: 材质系统（路线 A：真机系统亚克力 + 预览自绘近似）
 - **Status**: `completed`
+- **Completion Evidence（路线 A 落地，2026-10-14）**:
+  - [FloatScheduleMaterialApplier.cs](../../../Shared/FloatingSchedule/FloatScheduleMaterialApplier.cs) `Apply` 增加 `osBackdrop` 参数：true（真实悬浮窗）走 `BuildOsAcrylic`（`ExperimentalAcrylicBorder` 系统合成材质 = 真实桌面模糊；液态玻璃再叠 rim/倒角/顶部高光）；false（编辑器预览）走自绘玻璃叠层
+  - 窗口侧联动：进程内 [FloatingScheduleService.cs](../../../Services/FloatingScheduleService.cs) `ApplyWindowTransparencyAv()`（材质 1/2/3 → `[AcrylicBlur,Blur,Transparent,None]`，其余纯 Transparent，带模式缓存避免重复平台调用）；子进程 [FloatScheduleChildWindow.cs](../../../AdvancedTimeIslandFloatSchedule/FloatScheduleChildWindow.cs) `ApplyTransparency()` 同规则
+  - 编辑器预览：[FloatingScheduleAdvancedAppearanceWindow.cs](../../../Views/Settings/FloatingScheduleAdvancedAppearanceWindow.cs) 背景改为彩色渐变+网格"示例桌面"（让半透明玻璃有内容可透），标题标注"玻璃为近似示意，真机使用系统亚克力"
+  - 双 TFM 主+子 `dotnet build` 0 error；`Build-Package.ps1` 三包全 SUCCESS
+  - **待真机验证**：Windows 系统亚克力为**窗口矩形级**模糊，圆角卡片四角可能显示模糊而非透明（Win11 可用 DWM 圆角缓解）；预览与真机为"近似 vs 系统材质"双轨
+- **Priority**: high
 - **Completion Evidence**:
   - 新建 [FloatScheduleMaterialApplier.cs](../../../Shared/FloatingSchedule/FloatScheduleMaterialApplier.cs)（纯 Avalonia）：半透明纯色 / 磨砂·亚克力·液态玻璃经 `ExperimentalAcrylicBorder`（API 已 WebFetch 核实 TintColor/TintOpacity/MaterialOpacity）/ 液态玻璃叠高光渐变近似 / 古卷竹简（平铺 DrawingBrush 竖竹条 + 天头地脚 + 两道编绳比例行）/ 自定义图片（Bitmap+UniformToFill，无效回退半透明）
   - 进程内 RefreshSchedule 接入 applier + `ResolveMaterialAv()` 实验门控回退；子进程 RenderModel 同源接入

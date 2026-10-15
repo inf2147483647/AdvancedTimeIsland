@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -163,6 +163,15 @@ public enum FloatingScheduleThemeMode
     FollowSystem = 3
 }
 
+/// <summary>悬浮窗"液态玻璃"背景捕获方式（2 档）。</summary>
+public enum FloatingScheduleGlassCaptureMode
+{
+    /// <summary>0 - DXGI Desktop Duplication（默认，推荐）：帧到达即取，非阻塞、亚毫秒。</summary>
+    Dxgi = 0,
+    /// <summary>1 - GDI BitBlt（回退）：单次固定 ~24ms 同步阻塞，仅在 DXGI 不可用时使用。</summary>
+    GdiBitBlt = 1
+}
+
 /// <summary>
 /// 插件全局设置
 /// </summary>
@@ -232,6 +241,9 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleJellyEnabled = false;
     private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
     private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（磨砂/亚克力模糊度、液态玻璃折射度）
+    private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
+    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃背景捕获方式
+    private bool _floatingScheduleGlassDragCompensation = true; // 液态玻璃拖动位移补偿（拖动期间背景跟手平移）
     private string _floatingScheduleCustomBackgroundPath = "";
     // 边框
     private bool _floatingScheduleBorderEnabled = false;
@@ -1228,6 +1240,54 @@ public class PluginSettings : INotifyPropertyChanged
             if (Math.Abs(_floatingScheduleMaterialIntensity - v) > 0.001)
             {
                 _floatingScheduleMaterialIntensity = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>【液态玻璃】真折射背景的采样率（Hz，1~60，默认 30）：越高越跟手，抓屏 + 折射的 CPU 开销随之线性上升。</summary>
+    public double FloatingScheduleGlassSampleRateHz
+    {
+        get => _floatingScheduleGlassSampleRateHz;
+        set
+        {
+            var v = Math.Clamp(value, 1, 60);
+            if (Math.Abs(_floatingScheduleGlassSampleRateHz - v) > 0.001)
+            {
+                _floatingScheduleGlassSampleRateHz = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>【液态玻璃】背景捕获方式：DXGI Desktop Duplication（默认，推荐，亚毫秒非阻塞）/ GDI BitBlt（回退，单次固定 ~24ms）。
+    /// 选 DXGI 时若运行期不可用（被 OBS 等独占 / 初始化失败）会自动回退 GDI 并每 10 秒重试恢复。</summary>
+    public FloatingScheduleGlassCaptureMode FloatingScheduleGlassCaptureMode
+    {
+        get => _floatingScheduleGlassCaptureMode;
+        set
+        {
+            var v = value == FloatingScheduleGlassCaptureMode.GdiBitBlt
+                ? FloatingScheduleGlassCaptureMode.GdiBitBlt
+                : FloatingScheduleGlassCaptureMode.Dxgi;   // 非法值收敛到默认（枚举以 int 反序列化，需防脏数据）
+            if (_floatingScheduleGlassCaptureMode != v)
+            {
+                _floatingScheduleGlassCaptureMode = v;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>【液态玻璃】拖动位移补偿（默认开）：拖动窗口期间不再抓帧，改用已抓到的"外扩一圈"的缓冲按窗口位移
+    /// 偏移取材并重做折射（~5ms），使拖动期间背景 60fps 跟手；拖出外扩范围或松手后由采样定时器重抓。</summary>
+    public bool FloatingScheduleGlassDragCompensation
+    {
+        get => _floatingScheduleGlassDragCompensation;
+        set
+        {
+            if (_floatingScheduleGlassDragCompensation != value)
+            {
+                _floatingScheduleGlassDragCompensation = value;
                 OnPropertyChanged();
             }
         }

@@ -168,6 +168,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private Window? _window;
     private Border? _containerBorder;
+    // 高级外观：窗口透明级别最近一次应用的模式（-1=未应用；避免重复设置触发平台调用）
+    private int _lastTransparencyModeAv = -1;
     // 高级外观：FPS 角标文本引用（每次 Build 后刷新；UpdateProgress 500ms tick 写值）
     private Avalonia.Controls.TextBlock? _currentFpsTextAv;
     private double _fpsRenderAv, _fpsNoWaitAv;
@@ -962,6 +964,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _fpsTickSubAv?.Dispose();
         _fpsTickSubAv = null;
         _currentFpsTextAv = null;
+        _lastTransparencyModeAv = -1;   // 窗口销毁 → 透明级别缓存失效，下次重建重新应用
         _containerBorder = null;
         _currentProgressIndicator = null;
         _currentProgressHost = null;
@@ -1555,6 +1558,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //   - FontScale=默认 18 → teacher=15×21.5=322.5 px；820 - 26-14-16-322.5-141 = 300.5 px 课程列（14+ 字中文，充足）
             MaxWidth = 820
         };
+        // 高级外观：按材质联动窗口透明级别（磨砂/亚克力/液态玻璃需含 AcrylicBlur 才能让系统亚克力采样到桌面）
+        ApplyWindowTransparencyAv();
         // 跨版本 Avalonia 兼容：SystemDecorations 枚举在不同 SDK 内嵌的 Avalonia 中
         // 命名空间/类型名可能变化，用反射尝试设置 None 值隐藏系统标题栏
         try
@@ -1920,6 +1925,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
             _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
             _dragStartWindowPxAv = _window.Position;
+            _glassAv.DragInProgress = true;   // 拖动开始：拖动位移补偿开启时暂停采样抓帧（背景由位移补偿维护）
+            StartGlassDragTimerAv();          // 拖动开始时启动高频取帧定时器（只取后台结果换背景）
 
             try { e.Pointer.Capture(_containerBorder); }
             catch (Exception ex) { _logger.LogDebug(ex, "统一拖拽 Capture 失败，将依赖事件冒泡继续。"); }
@@ -1966,6 +1973,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _lastDragMoveTickAv = now;
             _dragPendingValidAv = false;
             _window.Position = target;
+            CompensateGlassDragAv();   // 液态玻璃：请求后台按位移偏移取材重做折射（不抓帧、不占 UI 帧预算）
             e.Handled = true;
         }
         catch (Exception ex)
@@ -1973,6 +1981,21 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _logger.LogDebug(ex, "统一拖拽更新窗口位置失败，结束本次拖拽。");
             EndDragAv();
         }
+    }
+
+    /// <summary>
+    /// 拖动位移补偿（新路径）：逐帧只做**纯 GPU 平移**（改取样矩形，不抓帧/不折射/不写位图），
+    /// 由后台线程在累计位移达阈值时重烘焙整幅折射图；UI 线程随即取一次最新已发布结果换背景。
+    /// 仅在 材质=液态玻璃 且 拖动位移补偿=开 时生效。
+    /// </summary>
+    private void CompensateGlassDragAv()
+    {
+        try
+        {
+            UpdateGlassDragTransformAv();       // 逐帧：只改 GPU 平移（廉价、零分配）
+            _glassAv.TryCommitLatest();         // 取一次后台重烘焙的最新结果（若已发布）
+        }
+        catch { }
     }
 
     /// <summary>
@@ -2026,7 +2049,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _dragPendingValidAv = false;
             }
             if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
+            _glassAv.DragInProgress = false;           // 拖动结束：恢复采样抓帧
+            _glassAv.EndDragCompensation();            // 作废在途拖动补偿结果（避免旧帧覆盖"松手后重抓"的新内容）
+            StopGlassDragTimerAv();
             try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
+            // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
+            if (ResolveMaterialAv() == 3 && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
             _settings.FloatingSchedulePositionX = _window.Position.X;
             _settings.FloatingSchedulePositionY = _window.Position.Y;
             ScheduleEdgeEvalAv();
@@ -2328,6 +2356,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _fpsTickSubAv?.Dispose();
         _fpsTickSubAv = null;
         _currentFpsTextAv = null;
+        _lastTransparencyModeAv = -1;   // 窗口销毁 → 透明级别缓存失效，下次重建重新应用
         _containerBorder = null;
             _rootContent = null;
             _lastAppliedClickThrough = false;
@@ -2475,7 +2504,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_window == null) return;
 #if WINDOWS
-        bool want = _settings.FloatingSchedulePreventCapture;
+        // 液态玻璃抓帧期间必须保持"排除捕获"：否则这个 5 秒兜底会把抓帧侧强制打开的
+        // EXCLUDEFROMCAPTURE 冲成 WDA_NONE，接下来几帧会把悬浮窗自己拍进背景 → 自采样残影。
+        bool want = _settings.FloatingSchedulePreventCapture || ResolveMaterialAv() == 3;
         if (OperatingSystem.IsWindows())
         {
             try
@@ -4685,20 +4716,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
         if (_window != null && _containerBorder != null)
         {
+            _lastModelAv = model;   // 供液态玻璃背景采样完成后重新套材质
             FloatScheduleRenderer.ApplyCardStyle(_containerBorder, model);
             var (root, refs) = FloatScheduleRenderer.Build(model);
+            int matAv = ResolveMaterialAv();
+            if (matAv == 3) StartGlassTimerAv();   // 液态玻璃：确保背景采样定时器在跑（低频 2fps）
             // 高级外观：按材质装配卡片背景层（磨砂/亚克力/液态玻璃/古卷/自定义图片；实验材质未开实验性功能时回退半透明）
             FloatScheduleMaterialApplier.Apply(
                 _containerBorder,
-                ResolveMaterialAv(),
+                matAv,
                 _settings.FloatingScheduleMaterialIntensity,
                 _settings.FloatingScheduleCornerRadius,
                 model.CardBackgroundArgb,
                 _settings.FloatingScheduleCustomBackgroundPath,
-                root);
+                root,
+                osBackdrop: matAv == 1 || matAv == 2,   // 磨砂/亚克力走系统亚克力；液态玻璃走自绘"折射"管线（刻意不启用系统模糊）
+                // 内容内边距内移（材质层需铺满整卡，避免非半透明材质出现空心边框）
+                contentPadding: new Thickness(_settings.FloatingScheduleMarginLeft, _settings.FloatingScheduleMarginTop, _settings.FloatingScheduleMarginRight, _settings.FloatingScheduleMarginBottom),
+                backdropLayer: GlassBackdropLayerAv(), backdropIsRefracted: _glassAv.HasContent && matAv == 3);
+            // 材质切换 → 窗口透明级别联动（磨砂/亚克力需 AcrylicBlur）
+            ApplyWindowTransparencyAv();
             // 装饰边框（液态玻璃/古卷下强制关）
             FloatScheduleMaterialApplier.ApplyBorder(_containerBorder,
-                _settings.FloatingScheduleBorderEnabled && ResolveMaterialAv() != 3 && ResolveMaterialAv() != 4,
+                _settings.FloatingScheduleBorderEnabled && matAv != 3 && matAv != 4,
                 (int)_settings.FloatingScheduleBorderPreset,
                 _settings.FloatingScheduleBorderColorEnabled,
                 _settings.FloatingScheduleBorderColor);
@@ -4804,6 +4844,139 @@ public class FloatingScheduleService : IHostedService, IDisposable
         return m;
     }
 
+    // ===== 液态玻璃"真折射"（路线 B）=====
+    // 透明窗口拿不到 DWM 合成的桌面像素 → 抓"窗口所占区域"（抓帧时临时强制 WDA_EXCLUDEFROMCAPTURE，
+    // 只影响捕获输出、不影响屏幕显示，同时防自采样回环）→ 共享折射核心（SDF 折射 + 色散 + 镜面高光）
+    // → 位图作卡片背景。刷新按设置里的采样率（Hz，默认 30），且仅 材质=液态玻璃 且窗口可见时抓。
+    // 【关键】刷新路径**只换背景画笔，绝不重建内容树**——早先每次刷新都 PublishModelAv 重套材质，
+    //   等于每 tick 推倒重建整棵可视树，正是"整表看起来只有 2fps"的根因。
+    readonly FloatScheduleGlassBackdrop _glassAv = new();
+    bool _glassBusyAv;
+    DispatcherTimer? _glassTimerAv;
+    // 拖动期间的高频"取帧"定时器：只做"取后台已发布的最新折射结果并换背景"，不做任何折射计算。
+    DispatcherTimer? _glassDragTimerAv;
+    FloatScheduleRenderModel? _lastModelAv;
+
+    void StartGlassTimerAv()
+    {
+        if (_glassTimerAv != null) return;
+        _glassTimerAv = new DispatcherTimer { Interval = GlassIntervalAv() };
+        _glassTimerAv.Tick += (_, _) =>
+        {
+            _glassTimerAv.Interval = GlassIntervalAv();   // 采样率设置变更后热跟随（无需重启）
+            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
+            // 采样停（材质切走/窗口隐藏）→ 恢复成用户"防截图"设置；采样期间由抓帧侧保持"排除捕获"
+            else RestoreCaptureAffinityAv();
+        };
+        _glassTimerAv.Start();
+    }
+
+    // 采样率 → 定时器间隔（Hz 1~60）
+    TimeSpan GlassIntervalAv()
+        => TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(_settings.FloatingScheduleGlassSampleRateHz, 1, 60));
+
+    // 拖动补偿期间启动高频取帧定时器：每 ~8ms 检查后台是否发布了新折射结果，有则换背景。
+    //   折射在后台线程完成，这里只做"取最新结果 + 换 Background"（极廉价）；无新结果时不做任何 UI 操作。
+    void StartGlassDragTimerAv()
+    {
+        if (_glassDragTimerAv != null) return;
+        _glassDragTimerAv = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(8) };
+        _glassDragTimerAv.Tick += (_, _) => { try { _glassAv.TryCommitLatest(); } catch { } };
+        _glassDragTimerAv.Start();
+    }
+
+    void StopGlassDragTimerAv()
+    {
+        try { _glassDragTimerAv?.Stop(); } catch { }
+        _glassDragTimerAv = null;
+    }
+
+    // 【UI 线程】拖动一帧：读窗口真实位置 → **只改 GPU 取样矩形**（零抓帧/零位图写/零新建 Brush），
+    //   累计位移达阈值时由 _glassAv 内部请求后台重烘焙。
+    void UpdateGlassDragTransformAv()
+    {
+        if (ResolveMaterialAv() != 3 || !_settings.FloatingScheduleGlassDragCompensation) return;
+        if (_window == null) return;
+        double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
+        _glassAv.UpdateDragTransform(_settings.FloatingScheduleCornerRadius * sc);
+    }
+
+    // 采样停止 → 把捕获亲和性恢复成用户"防截图"设置（幂等：状态相同则不写 Win32）
+    void RestoreCaptureAffinityAv()
+    {
+        try
+        {
+            var hwnd = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            if (hwnd != IntPtr.Zero) FloatScheduleScreenCapture.RestoreAffinity(hwnd, _settings.FloatingSchedulePreventCapture);
+        }
+        catch { }
+    }
+
+    // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glassAv 复用），无内容时 null 走近似边缘光
+    Border? GlassBackdropLayerAv()
+        => ResolveMaterialAv() == 3 ? _glassAv.TakeLayer(_settings.FloatingScheduleCornerRadius) : null;
+
+    async Task RefreshGlassBackdropAvAsync()
+    {
+        if (_glassBusyAv || _window == null || _containerBorder == null) return;
+        if (ResolveMaterialAv() != 3 || !_window.IsVisible) return;
+        IntPtr hwnd;
+        try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return; }
+        if (hwnd == IntPtr.Zero) return;
+        var size = _containerBorder.Bounds.Size;
+        if (size.Width < 4 || size.Height < 4) return;
+        double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
+        int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
+        double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
+        // 捕获方式 / 拖动补偿设置热跟随（直接读 PluginSettings，改动即时生效）
+        _glassAv.CaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode;
+        _glassAv.DragCompensationEnabled = _settings.FloatingScheduleGlassDragCompensation;
+        int pad = _settings.FloatingScheduleGlassDragCompensation ? FloatScheduleGlassBackdrop.DefaultDragCompensationPadPx : 0;
+        long gen = _glassAv.ContentGeneration;   // 记录代次：若期间开始了拖动则丢弃本次结果
+        _glassBusyAv = true;
+        try
+        {
+            // 抓帧 + 逐像素折射放后台线程（纯计算，不碰 UI 对象）；
+            // 亲和性（"排除捕获"）由 CaptureAndRefract 内部按状态迁移维护，不在这里每帧来回切
+            await Task.Run(() => _glassAv.CaptureAndRefract(hwnd, w, h, cornerPx));
+            // 【修复：拖动起始闪一帧旧内容】本次采样若在拖动开始**之前**启动，完成时已进入拖动，
+            //   提交它会让背景瞬间回到拖动前的位置（1 帧）。代次变化即说明拖动已开始 → 丢弃。
+            if (_glassAv.ContentGeneration != gen) return;
+            // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
+            _glassAv.Commit();
+            if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
+            {
+                _glassAv.ClearNeedsApply();
+                PublishModelAv(_lastModelAv);
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景采样异常（已忽略，回退近似边缘光）"); }
+        finally { _glassBusyAv = false; }
+    }
+
+    /// <summary>
+    /// 高级外观：按当前材质联动窗口透明级别。
+    /// 磨砂(1)/亚克力(2) 走系统合成材质（ExperimentalAcrylicBorder，真实桌面背景模糊），
+    /// 需要窗口 TransparencyLevelHint 含 AcrylicBlur/Blur 才能让系统采样到桌面背景做模糊；
+    /// 液态玻璃(3) 刻意保持纯 Transparent —— Apple 取向是"透镜折射而非模糊"，背景保持清晰；
+    /// 其余材质同样纯 Transparent（保证卡片圆角外真透明、无系统模糊）。
+    /// </summary>
+    private void ApplyWindowTransparencyAv()
+    {
+        try
+        {
+            if (_window == null) return;
+            int m = ResolveMaterialAv();
+            int mode = (m == 1 || m == 2) ? 1 : 0;   // 1=需系统亚克力(AcrylicBlur) 0=纯透明
+            if (mode == _lastTransparencyModeAv) return;   // 透明级别未变则跳过（该属性会触发平台调用）
+            _lastTransparencyModeAv = mode;
+            _window.TransparencyLevelHint = mode == 1
+                ? new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None }
+                : new[] { WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None };
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "ApplyWindowTransparencyAv 异常（忽略）"); }
+    }
+
     /// <summary>进程内 FPS 角标：每 500ms 由渲染 tick 计数换算帧率，写入"渲染/无等待"双值。</summary>
     private void UpdateFpsBadgeAv()
     {
@@ -4875,6 +5048,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             BorderColorEnabled = _settings.FloatingScheduleBorderColorEnabled,
             BorderColor = _settings.FloatingScheduleBorderColor,
             ShowFps = _settings.FloatingScheduleShowFps,
+            GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
+            GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
+            GlassDragCompensation = _settings.FloatingScheduleGlassDragCompensation,
             TintArgb = tintArgb,
         };
     }

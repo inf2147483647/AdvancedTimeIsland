@@ -62,6 +62,16 @@ public sealed class FloatScheduleWindowSettings
     public uint BorderColor { get; set; } = 0xFFB8860B;
     /// <summary>是否显示 FPS 角标（子进程本地统计渲染/无等待 FPS）。</summary>
     public bool ShowFps { get; set; } = false;
+
+    // 液态玻璃：真折射背景的采样率（Hz，1~60，默认 30）——子进程按此节流"抓屏 + 折射"
+    public double GlassSampleRateHz { get; set; } = 30.0;
+    /// <summary>液态玻璃背景捕获方式（子进程 FLOATING 抓帧后端）：
+    /// 0=DXGI Desktop Duplication（优先，亚毫秒非阻塞）1=GDI BitBlt（回退，单次固定 ~24ms）。
+    /// 与设置枚举 FloatingScheduleGlassCaptureMode 取值一一对应（以 int 传输避免跨程序集类型依赖）。</summary>
+    public int GlassCaptureMode { get; set; } = 0;
+    /// <summary>拖动位移补偿（默认开）：拖动窗口期间不再抓帧，用已抓到的外扩缓冲按位移偏移取材重做折射（~5ms），
+    /// 使拖动期间背景 60fps 跟手；拖出外扩范围或松手后由采样定时器重抓。</summary>
+    public bool GlassDragCompensation { get; set; } = true;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
     public uint TintArgb { get; set; } = 0xCC2D2D30;
 }
