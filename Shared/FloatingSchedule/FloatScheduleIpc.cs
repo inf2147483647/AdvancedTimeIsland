@@ -68,8 +68,14 @@ public static class FloatScheduleIpc
     /// <summary>固定命名管道名（服务器=插件进程）。</summary>
     public const string PipeName = "AdvancedTimeIsland.FloatSchedule.v2";
 
-    /// <summary>协议版本；不匹配时双方按兼容处理（当前仅 1）。</summary>
-    public const int ProtocolVersion = 1;
+    /// <summary>
+    /// 协议版本；不匹配时双方按兼容处理。
+    /// 【为何要升版本】独立进程模式下玻璃采样跑在子进程 exe 内，而"允许截图"等新增设置字段是**随快照 JSON 下发**的：
+    /// 旧子进程不认识新字段 → 静默忽略（例如 GlassAllowCapture 失效，导致排除捕获照旧开启、用户无法截图）。
+    /// 升版本后，旧子进程在 Init 阶段发现版本不符会自行退出（ExitCodeSelfUpdate），插件随即启动与自身匹配的新实例。
+    /// 因此**凡是新增/修改快照字段或子进程行为，都必须同步升版本**。
+    /// </summary>
+    public const int ProtocolVersion = 2;
 
     /// <summary>子进程单实例 Mutex 名（"单实例保护"开启时使用）。</summary>
     public const string SingleInstanceMutexName = @"Global\AdvancedTimeIsland.FloatSchedule.v2";

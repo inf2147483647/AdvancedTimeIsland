@@ -2250,6 +2250,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 // 【防止截图】开关变化：立即应用/清除窗口捕获亲和性
                 Dispatcher.UIThread.Post(ApplyPreventCaptureAv);
                 break;
+            case nameof(PluginSettings.FloatingScheduleGlassAllowCapture):
+                // 【允许截图】开关变化：立即重评窗口捕获亲和性（采样启停由采样定时器下一 tick 生效；
+                //   若仍有在途抓帧则延迟一个采样周期再清排除，避免冻结点"拍到自己"的帧）。
+                Dispatcher.UIThread.Post(ApplyPreventCaptureAv);
+                break;
             // ===================== 独立进程模式（4 新设置项，全部即时生效、无需重启 ClassIsland） =====================
             case nameof(PluginSettings.FloatingScheduleIndependentProcess):
                 Dispatcher.UIThread.Post(() =>
@@ -2506,7 +2511,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
 #if WINDOWS
         // 液态玻璃抓帧期间必须保持"排除捕获"：否则这个 5 秒兜底会把抓帧侧强制打开的
         // EXCLUDEFROMCAPTURE 冲成 WDA_NONE，接下来几帧会把悬浮窗自己拍进背景 → 自采样残影。
-        bool want = _settings.FloatingSchedulePreventCapture || ResolveMaterialAv() == 3;
+        // 【允许截图】开启时不再强制排除 → 只按用户自己的"防截图"设置（用户防截图关 → WDA_NONE，截图里能看到悬浮窗）。
+        bool want = _settings.FloatingSchedulePreventCapture
+            || (ResolveMaterialAv() == 3 && !_settings.FloatingScheduleGlassAllowCapture);
+        // 【关→开 允许截图 的时序保证】清除"排除捕获"前必须确认没有在途抓帧，否则会把"拍到自己"的那一帧
+        //   烘焙进去并被永久冻结 → 延迟一个采样周期（见 ScheduleAllowCaptureApplyAv）。
+        if (!want && (_glassBusyAv || _dragActiveAv)) { ScheduleAllowCaptureApplyAv(); return; }
         if (OperatingSystem.IsWindows())
         {
             try
@@ -4864,8 +4874,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _glassTimerAv.Tick += (_, _) =>
         {
             _glassTimerAv.Interval = GlassIntervalAv();   // 采样率设置变更后热跟随（无需重启）
-            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
-            // 采样停（材质切走/窗口隐藏）→ 恢复成用户"防截图"设置；采样期间由抓帧侧保持"排除捕获"
+            // 【允许截图】开启时不采样（背景冻结在当前已折射帧）→ 走 else 恢复亲和性；
+            //   仅"材质=液态玻璃 且可见 且未允许截图"才抓帧；采样期间由抓帧侧保持"排除捕获"。
+            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible && !_settings.FloatingScheduleGlassAllowCapture)
+                _ = RefreshGlassBackdropAvAsync();
+            // 采样停（材质切走/窗口隐藏/允许截图）→ 恢复成用户"防截图"设置（含"关→开"时序保护）
             else RestoreCaptureAffinityAv();
         };
         _glassTimerAv.Start();
@@ -4896,6 +4909,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     void UpdateGlassDragTransformAv()
     {
         if (ResolveMaterialAv() != 3 || !_settings.FloatingScheduleGlassDragCompensation) return;
+        if (_settings.FloatingScheduleGlassAllowCapture) return;   // 允许截图：不重烘焙（否则又抓帧）
         if (_window == null) return;
         double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
         _glassAv.UpdateDragTransform(_settings.FloatingScheduleCornerRadius * sc);
@@ -4906,10 +4920,32 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
+            // 【关→开 允许截图 的时序保证】若此刻仍有在途抓帧（_glassBusyAv），立即清除"排除捕获"会让这一帧
+            //   把悬浮窗自己拍进背景并被永久冻结 → 先等抓帧结束再写亲和性（延迟一个采样周期）。
+            //   拖动期间后台重烘焙也可能抓帧 → 与 _dragActiveAv 一并等待（拖动结束会作废在途结果）。
+            if (!_settings.FloatingSchedulePreventCapture && (_glassBusyAv || _dragActiveAv)) { ScheduleAllowCaptureApplyAv(); return; }
             var hwnd = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
             if (hwnd != IntPtr.Zero) FloatScheduleScreenCapture.RestoreAffinity(hwnd, _settings.FloatingSchedulePreventCapture);
         }
         catch { }
+    }
+
+    // 延迟到在途抓帧结束后再应用捕获亲和性（见 RestoreCaptureAffinityAv / ApplyPreventCaptureAv 的时序说明）。
+    DispatcherTimer? _allowCaptureApplyTimerAv;
+    private void ScheduleAllowCaptureApplyAv()
+    {
+        if (_allowCaptureApplyTimerAv != null) return;
+        int attempts = 0;
+        _allowCaptureApplyTimerAv = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        _allowCaptureApplyTimerAv.Tick += (_, _) =>
+        {
+            // 仍有在途抓帧（采样或拖动重烘焙）→ 再等一个采样周期（上限 ~10s 兜底，避免极端情况永不应用）
+            if ((_glassBusyAv || _dragActiveAv) && ++attempts < 300) return;
+            try { _allowCaptureApplyTimerAv?.Stop(); } catch { }
+            _allowCaptureApplyTimerAv = null;
+            ApplyPreventCaptureAv();
+        };
+        _allowCaptureApplyTimerAv.Start();
     }
 
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glassAv 复用），无内容时 null 走近似边缘光
@@ -4920,6 +4956,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_glassBusyAv || _window == null || _containerBorder == null) return;
         if (ResolveMaterialAv() != 3 || !_window.IsVisible) return;
+        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧），也避免抓帧侧把亲和性又强制回"排除捕获"。
+        if (_settings.FloatingScheduleGlassAllowCapture) return;
         IntPtr hwnd;
         try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return; }
         if (hwnd == IntPtr.Zero) return;
@@ -4929,6 +4967,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
         double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
         // 捕获方式 / 拖动补偿设置热跟随（直接读 PluginSettings，改动即时生效）
+        _glassAv.RenderScaling = sc;   // ImageBrush.SourceRect 用 DIP 单位 → 由窗口渲染缩放换算（见 FloatScheduleGlassBackdrop.RenderScaling）
         _glassAv.CaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode;
         _glassAv.DragCompensationEnabled = _settings.FloatingScheduleGlassDragCompensation;
         int pad = _settings.FloatingScheduleGlassDragCompensation ? FloatScheduleGlassBackdrop.DefaultDragCompensationPadPx : 0;
@@ -5051,6 +5090,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
             GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
             GlassDragCompensation = _settings.FloatingScheduleGlassDragCompensation,
+            GlassAllowCapture = _settings.FloatingScheduleGlassAllowCapture,
             TintArgb = tintArgb,
         };
     }

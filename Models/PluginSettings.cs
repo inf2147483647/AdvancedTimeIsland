@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -244,6 +244,7 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
     private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃背景捕获方式
     private bool _floatingScheduleGlassDragCompensation = true; // 液态玻璃拖动位移补偿（拖动期间背景跟手平移）
+    private bool _floatingScheduleGlassAllowCapture = false;     // 允许截图（暂停液态玻璃背景采样；默认关）
     private string _floatingScheduleCustomBackgroundPath = "";
     // 边框
     private bool _floatingScheduleBorderEnabled = false;
@@ -1288,6 +1289,22 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleGlassDragCompensation != value)
             {
                 _floatingScheduleGlassDragCompensation = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>【液态玻璃】允许截图（默认关）：开启后暂停液态玻璃的背景采样与重烘焙（背景冻结在当前已折射的那一帧），
+    /// 并解除采样期强制的"排除捕获"（WDA_EXCLUDEFROMCAPTURE）——窗口捕获亲和性改为只按用户自己的"防截图"设置，
+    /// 用户的防截图关时窗口可出现在截图/录屏里。关闭（默认）时恢复：采样运行 + 采样期强制排除捕获（防止自采样残影）。</summary>
+    public bool FloatingScheduleGlassAllowCapture
+    {
+        get => _floatingScheduleGlassAllowCapture;
+        set
+        {
+            if (_floatingScheduleGlassAllowCapture != value)
+            {
+                _floatingScheduleGlassAllowCapture = value;
                 OnPropertyChanged();
             }
         }

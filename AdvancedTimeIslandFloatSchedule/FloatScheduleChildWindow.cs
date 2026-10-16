@@ -148,9 +148,11 @@ internal sealed class FloatScheduleChildWindow : Window
         _glassTimer.Tick += (_, _) =>
         {
             _glassTimer.Interval = GlassInterval();   // 采样率设置变更后热跟随（无需重启）
-            if (_snap.Material == 3 && _hostVisible) _ = RefreshGlassBackdropAsync();
-            // 采样停（材质切走/窗口隐藏）→ 把捕获亲和性恢复成用户"防截图"设置；采样期间则由抓帧侧保持"排除捕获"
-            else FloatScheduleScreenCapture.RestoreAffinity(Hwnd, _snap.PreventCapture);
+            // 【允许截图】开启时不采样（背景冻结在当前已折射帧）→ 走 else 恢复亲和性；
+            //   仅"材质=液态玻璃 且可见 且未允许截图"才抓帧；采样期间由抓帧侧保持"排除捕获"。
+            if (_snap.Material == 3 && _hostVisible && !_snap.GlassAllowCapture) _ = RefreshGlassBackdropAsync();
+            // 采样停（材质切走/窗口隐藏/允许截图）→ 把捕获亲和性恢复成用户"防截图"设置（含"关→开"时序保护）
+            else RestoreCaptureAffinitySafe();
         };
         _glassTimer.Start();
     }
@@ -179,7 +181,7 @@ internal sealed class FloatScheduleChildWindow : Window
     //   FloatScheduleGlassBackdrop.SetDragTransform），累计位移达阈值时由 _glass 内部请求后台重烘焙。
     void UpdateGlassDragTransform()
     {
-        if (_snap.Material != 3 || !_snap.GlassDragCompensation) return;
+        if (_snap.Material != 3 || !_snap.GlassDragCompensation || _snap.GlassAllowCapture) return;
         double sc = RenderScaling <= 0 ? 1.0 : RenderScaling;
         _glass.UpdateDragTransform(_snap.CornerRadius * sc);
     }
@@ -189,7 +191,8 @@ internal sealed class FloatScheduleChildWindow : Window
 
     async Task RefreshGlassBackdropAsync()
     {
-        if (_glassBusy || _snap.Material != 3 || !_hostVisible) return;
+        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧），也避免抓帧侧把亲和性又强制回"排除捕获"。
+        if (_glassBusy || _snap.Material != 3 || !_hostVisible || _snap.GlassAllowCapture) return;
         var hwnd = Hwnd;
         if (hwnd == IntPtr.Zero) return;
         var size = _card.Bounds.Size;
@@ -198,6 +201,7 @@ internal sealed class FloatScheduleChildWindow : Window
         int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
         double cornerPx = _snap.CornerRadius * sc;
         // 捕获方式 / 拖动补偿设置热跟随（子进程经 settings 消息热下发）
+        _glass.RenderScaling = sc;   // ImageBrush.SourceRect 用 DIP 单位 → 由窗口渲染缩放换算（见 FloatScheduleGlassBackdrop.RenderScaling）
         _glass.CaptureMode = _snap.GlassCaptureMode;
         _glass.DragCompensationEnabled = _snap.GlassDragCompensation;
         // 拖动补偿开启时抓"比卡片大一圈"的区域（供拖动期间偏移取材，免抓帧）
@@ -906,10 +910,14 @@ internal sealed class FloatScheduleChildWindow : Window
         if (hwnd == IntPtr.Zero) return;
         try
         {
-            // 液态玻璃抓帧期间必须保持"排除捕获"：否则这个 5 秒兜底会把抓帧侧强制打开的
-            // EXCLUDEFROMCAPTURE 冲成 WDA_NONE，接下来几帧就会把悬浮窗自己拍进背景 → 卡片上出现
-            // "实字 + 淡影"的自采样残影（DXGI 的重复帧还会让残影持续一段时间）。
-            if (_snap.PreventCapture || _snap.Material == 3)
+            // 期望亲和性：用户"防截图"开启，或 [液态玻璃采样期间且未开启"允许截图"] → 排除捕获。
+            // 【允许截图】开启时不再强制排除 → 只按用户自己的"防截图"设置（用户防截图关 → WDA_NONE，截图里能看到悬浮窗）。
+            bool want = _snap.PreventCapture || (_snap.Material == 3 && !_snap.GlassAllowCapture);
+            // 【关→开 允许截图 的时序保证】清除"排除捕获"前必须确认没有在途抓帧，否则会把"拍到自己"的那一帧
+            //   烘焙进去并被永久冻结 → 延迟一个采样周期（见 ScheduleDeferredAffinityRestore）。
+            //   拖动期间后台重烘焙也可能正在抓帧 → 与 _dragActive 一并等待（拖动结束会作废在途结果）。
+            if (!want && (_glassBusy || _dragActive)) { ScheduleDeferredAffinityRestore(); return; }
+            if (want)
             {
                 if (!FloatScheduleNative.SetWindowDisplayAffinity(hwnd, FloatScheduleNative.WDA_EXCLUDEFROMCAPTURE))
                     FloatScheduleNative.SetWindowDisplayAffinity(hwnd, FloatScheduleNative.WDA_MONITOR);
@@ -917,6 +925,32 @@ internal sealed class FloatScheduleChildWindow : Window
             else FloatScheduleNative.SetWindowDisplayAffinity(hwnd, FloatScheduleNative.WDA_NONE);
         }
         catch { }
+    }
+
+    // 采样停止后把捕获亲和性恢复成用户"防截图"设置。
+    // 【关→开 允许截图 的时序保证】若此刻仍有在途抓帧（_glassBusy），立即清除"排除捕获"会让这一帧
+    //   把悬浮窗自己拍进背景并被永久冻结 → 先等抓帧结束（每 ~33ms ≈ 一个采样周期复查，最多 ~1s 兜底）再写亲和性。
+    void RestoreCaptureAffinitySafe()
+    {
+        if (_glassBusy || _dragActive) { ScheduleDeferredAffinityRestore(); return; }
+        FloatScheduleScreenCapture.RestoreAffinity(Hwnd, _snap.PreventCapture);
+    }
+
+    DispatcherTimer? _restoreAffinityTimer;
+    void ScheduleDeferredAffinityRestore()
+    {
+        if (_restoreAffinityTimer != null) return;
+        int attempts = 0;
+        _restoreAffinityTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
+        _restoreAffinityTimer.Tick += (_, _) =>
+        {
+            // 仍有在途抓帧（采样或拖动重烘焙）→ 再等一个采样周期（上限 ~10s 兜底，避免极端情况永不应用）
+            if ((_glassBusy || _dragActive) && ++attempts < 300) return;
+            try { _restoreAffinityTimer?.Stop(); } catch { }
+            _restoreAffinityTimer = null;
+            ApplyPreventCapture();
+        };
+        _restoreAffinityTimer.Start();
     }
 
     // ===================== 随机标题 =====================

@@ -27,7 +27,8 @@
 //        发布后 UI 侧把平移量按新烘焙基准归零（新烘焙已对齐当前位置 → 归零不产生视觉跳变）；
 //     ④ 于是透镜最多滞后"阈值"像素，而**逐帧运动是纯 GPU 变换** → 抖动从机制上消失。
 //   为什么选"改 ImageBrush.SourceRect"而不是"Clip 容器 + TranslateTransform"：
-//     SourceRect 是绝对像素矩形，直接指向已折射大图里的卡片子区域，配合 Border 自身的 CornerRadius 圆角裁剪，
+//     SourceRect 是绝对矩形（单位是位图内容的 DIP，故物理像素要除以 RenderScaling —— 见 RenderScaling 字段说明），
+//     直接指向已折射大图里的卡片子区域，配合 Border 自身的 CornerRadius 圆角裁剪，
 //     无需额外几何 Clip；且它是**纯属性写入**（无分配、无布局、无渲染树改动），比挂 TranslateTransform 更轻。
 // =====================================================================================
 using System;
@@ -136,6 +137,24 @@ public sealed class FloatScheduleGlassBackdrop
 
     /// <summary>拖动位移补偿开关（关=拖动期间不动背景，等采样定时器重抓）。</summary>
     public bool DragCompensationEnabled { get; set; } = true;
+
+    /// <summary>
+    /// 当前窗口的渲染缩放（物理像素 / DIP，即 Avalonia 的 RenderScaling）。**必须由宿主按窗口设置**。
+    /// 【为什么需要】ImageBrush.SourceRect 的绝对单位是"位图内容的 DIP 坐标"：Avalonia 内部把位图内容尺寸
+    ///   折算成 `PixelSize / 渲染缩放`（Skia DrawingContextImpl.ConfigureTileBrush 里给 TileBrushCalculator
+    ///   传的 contentSize 即 `PixelSize.ToSizeWithDpi(渲染DPI)`），而 SourceRect（Absolute）是原样代入比较的。
+    ///   于是本例（缓冲按物理像素尺寸创建）若直接写物理像素值，SourceRect 会比内容尺寸大 RenderScaling 倍，
+    ///   Stretch.Fill 的缩放系数被算成 1/RenderScaling → 150% 缩放下背景只画出卡片的 2/3（用户报的"采样后
+    ///   显示为 100% 大小 / 原来的 2/3"）。故此处统一除以 RenderScaling 再写入。
+    /// </summary>
+    public double RenderScaling { get; set; } = 1.0;
+
+    /// <summary>物理像素 → ImageBrush.SourceRect 要求的 DIP 单位（见 <see cref="RenderScaling"/>）。</summary>
+    double ToDip(double px)
+    {
+        double s = RenderScaling <= 0 ? 1.0 : RenderScaling;
+        return px / s;
+    }
 
     /// <summary>
     /// 宿主"正在拖动窗口"标记（由宿主在拖拽开始/结束时置位）。
@@ -306,7 +325,7 @@ public sealed class FloatScheduleGlassBackdrop
             dy = Math.Clamp(dy, -_pad, _pad);
             if (dx == _dragDx && dy == _dragDy) return;   // 窗口静止时连续调用 → 完全一致的高效短路
             _dragDx = dx; _dragDy = dy;
-            _brush.SourceRect = new RelativeRect(_pad + dx, _pad + dy, _w, _h, RelativeUnit.Absolute);
+            _brush.SourceRect = new RelativeRect(ToDip(_pad + dx), ToDip(_pad + dy), ToDip(_w), ToDip(_h), RelativeUnit.Absolute);
             #region debug-point G1
             Dbg("transform",
                 "\"reqDx\":" + dxPx.ToString("F2", System.Globalization.CultureInfo.InvariantCulture) +
@@ -535,7 +554,9 @@ public sealed class FloatScheduleGlassBackdrop
         _brush = new ImageBrush(_bmp)
         {
             Stretch = Stretch.Fill,
-            SourceRect = new RelativeRect(_pad + ox, _pad + oy, _w, _h, RelativeUnit.Absolute),
+            // SourceRect 必须是 DIP 单位（= 物理像素 / RenderScaling），见 RenderScaling 的说明；
+            // 直接写物理像素会让 150% 缩放下的背景只画出卡片的 2/3。
+            SourceRect = new RelativeRect(ToDip(_pad + ox), ToDip(_pad + oy), ToDip(_w), ToDip(_h), RelativeUnit.Absolute),
         };
         if (_layer != null) _layer.Background = _brush;   // 就地换背景
         else NeedsApply = true;                            // 还没有挂载的层 → 让宿主重套一次材质
