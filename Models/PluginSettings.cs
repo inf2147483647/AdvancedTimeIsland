@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -244,6 +244,7 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
     private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃背景捕获方式
     private bool _floatingScheduleGlassDragCompensation = true; // 液态玻璃拖动位移补偿（拖动期间背景跟手平移）
+    private bool _floatingScheduleGlassVSync = true;            // 液态玻璃拖动位移与渲染帧同步（位移与背景在同一渲染帧提交）
     private bool _floatingScheduleGlassAllowCapture = false;     // 允许截图（暂停液态玻璃背景采样；默认关）
     private string _floatingScheduleCustomBackgroundPath = "";
     // 边框
@@ -1289,6 +1290,24 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleGlassDragCompensation != value)
             {
                 _floatingScheduleGlassDragCompensation = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>【液态玻璃】拖动位移与渲染帧同步（默认开）：拖动期间用 Avalonia 的渲染帧钩子
+    /// （TopLevel.RequestAnimationFrame，UI 线程、每个渲染帧渲染之前同步回调）把"窗口位置 + 背景取样矩形 + 采样换图"
+    /// 放在同一个渲染帧内提交，使拖动位移帧与渲染帧一一对应、与内容落在同一合成帧，消除背景相对卡片的 ±1 帧抖动
+    /// （代价是固定的 1 帧延迟）。不阻塞线程、不起后台线程、不跨线程 Post。
+    /// 仅对"材质=液态玻璃"生效；非玻璃材质背景不随拖动重绘，无此不同步问题。</summary>
+    public bool FloatingScheduleGlassVSync
+    {
+        get => _floatingScheduleGlassVSync;
+        set
+        {
+            if (_floatingScheduleGlassVSync != value)
+            {
+                _floatingScheduleGlassVSync = value;
                 OnPropertyChanged();
             }
         }

@@ -343,13 +343,39 @@ public sealed class FloatScheduleGlassBackdrop
     /// </summary>
     public void UpdateDragTransform(double cornerPx)
     {
-        IntPtr hwnd; int baseX, baseY, pad;
+        IntPtr hwnd;
         lock (_lock)
         {
             if (_brush == null || _pad <= 0 || _hwnd == IntPtr.Zero) return;
-            hwnd = _hwnd; baseX = _refWinX; baseY = _refWinY; pad = _pad;
+            hwnd = _hwnd;
         }
         if (!FloatScheduleScreenCapture.TryGetWindowOrigin(hwnd, out int wx, out int wy)) return;
+        ApplyDragTransformAt(cornerPx, wx, wy);
+    }
+
+    /// <summary>
+    /// 同 <see cref="UpdateDragTransform"/>，但窗口原点由调用方给出。
+    /// 【为什么需要】位移帧同步路径里"窗口位置"被排到本帧渲染提交之后才落，此时 GetWindowRect 读到的还是旧位置；
+    /// 若按旧位置算取样矩形，上屏时窗口已在新位置 → 背景内容滞后一帧。改用"本帧即将提交的位置"即与之对齐。
+    /// </summary>
+    public void UpdateDragTransformAt(double cornerPx, int windowOriginX, int windowOriginY)
+    {
+        lock (_lock)
+        {
+            if (_brush == null || _pad <= 0 || _hwnd == IntPtr.Zero) return;
+        }
+        ApplyDragTransformAt(cornerPx, windowOriginX, windowOriginY);
+    }
+
+    // 【UI 线程】按给定窗口原点算位移 → 改取样矩形 → 达阈值请求后台重烘焙（两处入口共用）。
+    void ApplyDragTransformAt(double cornerPx, int wx, int wy)
+    {
+        int baseX, baseY, pad;
+        lock (_lock)
+        {
+            if (_brush == null || _pad <= 0) return;
+            baseX = _refWinX; baseY = _refWinY; pad = _pad;
+        }
         int dx = wx - baseX, dy = wy - baseY;
         SetDragTransform(dx, dy);
         // 阈值不超过外扩余量 → 取样矩形永远不越界（保证不会显示到外扩区/错位内容）

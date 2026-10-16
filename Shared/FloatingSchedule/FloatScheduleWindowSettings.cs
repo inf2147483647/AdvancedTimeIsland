@@ -72,6 +72,7 @@ public sealed class FloatScheduleWindowSettings
     /// <summary>拖动位移补偿（默认开）：拖动窗口期间不再抓帧，用已抓到的外扩缓冲按位移偏移取材重做折射（~5ms），
     /// 使拖动期间背景 60fps 跟手；拖出外扩范围或松手后由采样定时器重抓。</summary>
     public bool GlassDragCompensation { get; set; } = true;
+    public bool GlassVSync { get; set; } = true;
     /// <summary>允许截图（默认关）：开启后子进程暂停液态玻璃背景采样/重烘焙（背景冻结在当前已折射帧），
     /// 且不再强制"排除捕获"——窗口捕获亲和性只按用户自己的"防截图"设置（用户防截图关 → WDA_NONE，截图里可见）。</summary>
     public bool GlassAllowCapture { get; set; } = false;

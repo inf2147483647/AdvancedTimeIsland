@@ -170,6 +170,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             (int)_s.FloatingScheduleGlassCaptureMode, i => _s.FloatingScheduleGlassCaptureMode = (FloatingScheduleGlassCaptureMode)i, out _));
         // 拖动位移补偿（拖动期间背景按窗口位移偏移取材、重做折射，实现 60fps 跟手）
         p.Children.Add(RowToggle("拖动位移补偿", _s.FloatingScheduleGlassDragCompensation, v => _s.FloatingScheduleGlassDragCompensation = v));
+        // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
+        p.Children.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
         // 允许截图：暂停液态玻璃背景采样/重烘焙（背景冻结），并解除采样期强制的"排除捕获"，
         // 使窗口按用户自己的"防截图"设置出现在截图/录屏中（便于截图反馈问题）。默认关。
         p.Children.Add(RowToggle("允许截图（暂停液态玻璃背景采样）", _s.FloatingScheduleGlassAllowCapture, v => _s.FloatingScheduleGlassAllowCapture = v));

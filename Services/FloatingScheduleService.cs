@@ -1927,6 +1927,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _dragStartWindowPxAv = _window.Position;
             _glassAv.DragInProgress = true;   // 拖动开始：拖动位移补偿开启时暂停采样抓帧（背景由位移补偿维护）
             StartGlassDragTimerAv();          // 拖动开始时启动高频取帧定时器（只取后台结果换背景）
+            StartGlassVSyncAv();              // 位移帧同步：拖动开始时启动渲染帧节拍（位置与背景在同一渲染帧提交）
+            _glassFrameSyncSessionAv++;       // 新一次拖动：作废上一次拖动遗留的异步"位置提交"任务
+            #region debug-point F1
+            FloatScheduleRenderFrameSync.Dbg("vstart",
+                "\"vsync\":" + (IsGlassVSyncActiveAv() ? 1 : 0) + ",\"mat\":" + ResolveMaterialAv() + ",\"session\":" + _glassFrameSyncSessionAv);
+            #endregion
 
             try { e.Pointer.Capture(_containerBorder); }
             catch (Exception ex) { _logger.LogDebug(ex, "统一拖拽 Capture 失败，将依赖事件冒泡继续。"); }
@@ -1962,6 +1968,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _dragStartWindowPxAv.Y + (curScreenPx.Y - _dragStartScreenPxAv.Y));
             target = ClampDragTargetToScreenAv(target);
 
+            // 【位移帧同步】开启时：本帧位置只记入 pending，由渲染帧钩子在下一个渲染帧（渲染之前）
+            //   把"窗口位置 + 玻璃背景"一起提交（位移帧与渲染帧一一对应 → 不抖）。节拍即渲染帧，无需 16ms 节流。
+            if (IsGlassVSyncActiveAv())
+            {
+                _dragPendingPosAv = target;
+                _dragPendingValidAv = true;
+                e.Handled = true;
+                return;
+            }
+
             long now = Environment.TickCount64;
             if (now - _lastDragMoveTickAv < 16)   // ~60fps 节流：尾帧记入 pending，Released 时补应用
             {
@@ -1972,8 +1988,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             }
             _lastDragMoveTickAv = now;
             _dragPendingValidAv = false;
-            _window.Position = target;
-            CompensateGlassDragAv();   // 液态玻璃：请求后台按位移偏移取材重做折射（不抓帧、不占 UI 帧预算）
+            FloatScheduleRenderFrameSync.Dbg("direct", "\"x\":" + target.X + ",\"y\":" + target.Y);   // 非同步路径：立即提交
+            ApplyDragFrameAv(target);
             e.Handled = true;
         }
         catch (Exception ex)
@@ -2038,6 +2054,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _suppressTopmostRefreshAv = false;   // 【修复：拖动闪烁】恢复 z-order 刷新（紧随其后的 ApplyWindowLayer 会重设一次）
         try { _dragPointerAv?.Capture(null); } catch { }
         _dragPointerAv = null;
+        StopGlassVSyncAv();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
+        FloatScheduleRenderFrameSync.Dbg("vend", "\"commitPending\":" + (_glassCommitPendingAv ? 1 : 0));
+        if (_glassCommitPendingAv) { _glassCommitPendingAv = false; _glassAv.Commit(); }   // 未提交的采样帧直接落地
 
         if (_window == null) return;
         try
@@ -4904,6 +4923,102 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _glassDragTimerAv = null;
     }
 
+    // ===== 【拖动位移帧 ↔ 渲染帧同步】把"窗口位置 + 玻璃背景"的提交挂到 Avalonia 的渲染帧上 =====
+    //   背景抖动根因：位置由 Win32 SetWindowPos 即时提交、背景由 Avalonia 渲染管线提交 —— 两者提交时刻毫无关系，
+    //   而 Avalonia 的渲染节拍（11.x 固定 60fps / 12.x 跟随刷新率的自由运行定时器）与显示器合成帧相位自由，
+    //   于是它们会落在不同的 DWM 合成帧（背景相对卡片 ±1 帧抖动）。
+    //   做法（见 FloatScheduleRenderFrameSync）：用 TopLevel.RequestAnimationFrame 的渲染帧钩子
+    //   （UI 线程、每个渲染帧的渲染之前同步回调）在**同一个渲染帧**内按固定顺序提交：
+    //     ① 内容（背景取样矩形 / 采样换图）—— 必须排在渲染之前写入，才会被本帧渲染采纳；
+    //     ② 窗口位置 —— 用 Background 优先级排到"本帧渲染提交之后"再落（见 OnGlassVSyncFrameAv 的排序说明）。
+    //   这样位置不会抢在内容之前一个 vblank 生效，两者落在同一合成帧 → 抵消那 1 帧的位移/背景错位。
+    //   代价：不阻塞任何线程、无后台线程；相对"立即提交"最多晚一帧（与内容同步）。
+    FloatScheduleRenderFrameSync? _glassVSyncPacerAv;
+    bool _glassCommitPendingAv;   // 拖动期间"已采样完成、尚未换图"的背景：并入同一渲染帧一起提交（与位移同帧）
+    long _glassFrameSyncSessionAv;   // 拖动会话号：作废上一次拖动遗留的异步"位置提交"任务
+
+    bool IsGlassVSyncActiveAv() => _glassVSyncPacerAv is { IsRunning: true };
+
+    void StartGlassVSyncAv()
+    {
+        try
+        {
+            if (!_settings.FloatingScheduleGlassVSync) return;   // 用户关闭 → 保持"立即提交"的旧路径
+            if (ResolveMaterialAv() != 3) return;                // 非液态玻璃：背景不随拖动重绘，无不同步问题
+            if (_window == null) return;
+            if (_glassVSyncPacerAv is { IsRunning: true }) return;
+            _glassVSyncPacerAv = new FloatScheduleRenderFrameSync(_window, OnGlassVSyncFrameAv);
+            _glassVSyncPacerAv.Start();
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "启动渲染帧同步失败（忽略，回退立即提交）"); }
+    }
+
+    void StopGlassVSyncAv()
+    {
+        var pacer = _glassVSyncPacerAv;
+        _glassVSyncPacerAv = null;
+        try { pacer?.Stop(); } catch { }
+    }
+
+    // 【渲染帧·UI 线程·渲染之前】本帧的**帧内排序**（消除 1 帧错位的关键）：
+    //   ① 内容（背景取样矩形 / 采样换图）：必须排在本帧渲染之前写入 → 才会被本帧渲染采纳并提交给合成器；
+    //   ② 窗口位置：用 Background 优先级（低于渲染的 Render 优先级）排到"本帧渲染提交之后"再落。
+    //   为什么这么排：位置不经渲染管线、提交即刻进合成器；若把它和内容一起排在本帧渲染之前，
+    //   它会抢在内容之前的一个 vblank 生效（位置早一帧 → 背景滞后一帧，即用户看到的 1f 延迟）。
+    //   排到渲染之后，位置与内容就落在**同一个** vblank，那 1 帧错位被抵消。
+    //   注意：指针停住时仍可能有采样换图在等提交 → 不能只看位置，否则拖动中停手会让背景不再刷新。
+    void OnGlassVSyncFrameAv()
+    {
+        if (!_dragActiveAv || _window == null) return;
+        bool hasPos = _dragPendingValidAv;
+        bool hasCommit = _glassCommitPendingAv;
+        #region debug-point F1
+        FloatScheduleRenderFrameSync.Dbg("hook", "\"pos\":" + (hasPos ? 1 : 0) + ",\"commit\":" + (hasCommit ? 1 : 0));
+        #endregion
+        if (!hasPos && !hasCommit) return;
+
+        // ① 内容：渲染前写入（含按当前真实位置计算的 GPU 取样矩形平移）
+        CompensateGlassDragAv();
+        if (hasCommit)
+        {
+            _glassCommitPendingAv = false;
+            _glassAv.Commit();
+        }
+
+        // ② 位置：排到本帧渲染提交之后（Background < Render）；用会话号作废上一次拖动的遗留任务
+        if (hasPos)
+        {
+            _dragPendingValidAv = false;
+            long session = _glassFrameSyncSessionAv;
+            var target = _dragPendingPosAv;
+            Dispatcher.UIThread.Post(() => ApplyDragWindowPosAv(session, target), DispatcherPriority.Background);
+        }
+    }
+
+    // 实际落窗口位置：Background 优先级 → 在本帧渲染提交之后执行，与①的内容同帧上屏。
+    //   拖动会话已翻篇（新一次拖动已开始）则丢弃，避免旧任务把窗口拽回旧位置。
+    void ApplyDragWindowPosAv(long session, PixelPoint target)
+    {
+        #region debug-point F1
+        FloatScheduleRenderFrameSync.Dbg("pos", "\"session\":" + (session == _glassFrameSyncSessionAv ? 1 : 0) +
+            ",\"x\":" + target.X + ",\"y\":" + target.Y);
+        #endregion
+        if (session != _glassFrameSyncSessionAv) return;
+        try { if (_window != null) _window.Position = target; } catch { }
+    }
+
+    // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → GPU 取样矩形 → 采样换图。
+    void ApplyDragFrameAv(PixelPoint target)
+    {
+        _window!.Position = target;
+        CompensateGlassDragAv();   // 液态玻璃：按位移偏移取材重做折射（不抓帧、不占 UI 帧预算）
+        if (_glassCommitPendingAv)
+        {
+            _glassCommitPendingAv = false;
+            _glassAv.Commit();      // 采样已完成的新背景：并入本渲染帧（与窗口位置同帧 → 不抖）
+        }
+    }
+
     // 【UI 线程】拖动一帧：读窗口真实位置 → **只改 GPU 取样矩形**（零抓帧/零位图写/零新建 Brush），
     //   累计位移达阈值时由 _glassAv 内部请求后台重烘焙。
     void UpdateGlassDragTransformAv()
@@ -4912,7 +5027,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_settings.FloatingScheduleGlassAllowCapture) return;   // 允许截图：不重烘焙（否则又抓帧）
         if (_window == null) return;
         double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
-        _glassAv.UpdateDragTransform(_settings.FloatingScheduleCornerRadius * sc);
+        double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
+        // 【位移帧同步】有待落位置时按"本帧即将提交的位置"算取样矩形：位置排在本帧渲染之后才落，
+        //   若按当前真实位置算，上屏时窗口已移动 → 背景内容滞后一帧（见 FloatScheduleGlassBackdrop.UpdateDragTransformAt）。
+        if (IsGlassVSyncActiveAv() && _dragPendingValidAv)
+            _glassAv.UpdateDragTransformAt(cornerPx, _dragPendingPosAv.X, _dragPendingPosAv.Y);
+        else
+            _glassAv.UpdateDragTransform(cornerPx);
     }
 
     // 采样停止 → 把捕获亲和性恢复成用户"防截图"设置（幂等：状态相同则不写 Win32）
@@ -4976,13 +5097,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try
         {
             // 抓帧 + 逐像素折射放后台线程（纯计算，不碰 UI 对象）；
-            // 亲和性（"排除捕获"）由 CaptureAndRefract 内部按状态迁移维护，不在这里每帧来回切
-            await Task.Run(() => _glassAv.CaptureAndRefract(hwnd, w, h, cornerPx));
+            // 亲和性（"排除捕获"）由 CapturePaddedAndRefract 内部按状态迁移维护，不在这里每帧来回切
+            // pad>0（拖动位移补偿开启）：额外抓"卡片四周各 pad 物理像素"，供拖动期间只做 GPU 平移取材即可跟手
+            //   —— 拖动期间不再抓帧/折射，既解决"背景跟不上位移"，也避免拖动时采样掉到 ~32Hz。
+            await Task.Run(() => _glassAv.CapturePaddedAndRefract(hwnd, w, h, cornerPx, pad));
             // 【修复：拖动起始闪一帧旧内容】本次采样若在拖动开始**之前**启动，完成时已进入拖动，
             //   提交它会让背景瞬间回到拖动前的位置（1 帧）。代次变化即说明拖动已开始 → 丢弃。
             if (_glassAv.ContentGeneration != gen) return;
             // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
-            _glassAv.Commit();
+            // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
+            //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
+            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); }
+            else { _glassAv.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); }
             if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
             {
                 _glassAv.ClearNeedsApply();
@@ -5090,6 +5216,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
             GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
             GlassDragCompensation = _settings.FloatingScheduleGlassDragCompensation,
+            GlassVSync = _settings.FloatingScheduleGlassVSync,
             GlassAllowCapture = _settings.FloatingScheduleGlassAllowCapture,
             TintArgb = tintArgb,
         };
