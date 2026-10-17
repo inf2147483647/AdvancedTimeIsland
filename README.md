@@ -133,6 +133,108 @@ git push origin main
 
 </details>
 
+# 插件间接口（对外 API）
+
+AdvancedTimeIsland 向其它 ClassIsland 插件公开**法定节假日查询接口**，供计价时段、考勤统计等场景复用。
+
+> 为什么用反射调用：ClassIsland 为每个插件创建独立的 `AssemblyLoadContext`，直接引用 `AdvancedTimeIsland.dll` 会造成类型标识不一致（同一类型在两个上下文中被视为不同类型）。因此本接口以「类型名 + 静态方法」作为稳定契约，调用方无需在编译期引用本插件。
+
+## 一、声明依赖
+
+在调用方插件的 `manifest.yml` 中声明必需依赖，宿主会保证 AdvancedTimeIsland 已安装并优先加载：
+
+```yaml
+dependencies:
+  - id: AdvancedTimeIsland
+    isRequired: true
+```
+
+## 二、接口契约
+
+类型：`AdvancedTimeIsland.Shared.HolidayApi`（命名空间 `AdvancedTimeIsland.Shared`）
+
+| 成员 | 返回值 | 说明 |
+| --- | --- | --- |
+| `const int Version` | `1` | 契约版本，用于判断能力 |
+| `IsStatutoryHoliday(DateTime date)` | `bool` | 是否为法定节假日（放假日）；调休补班日不算 |
+| `TryGetHolidayName(DateTime date, out string name)` | `bool` | 取节日名称（如"春节"）；非节假日返回 `false` |
+| `GetHolidayDates(int year)` | `DateTime[]` | 指定年份全部法定节假日，按日期升序、已去重 |
+
+## 三、调用示例
+
+### 1. 查询某天是否为法定节假日
+
+```csharp
+using System;
+using System.Linq;
+using System.Reflection;
+
+private const string HolidayApiTypeName = "AdvancedTimeIsland.Shared.HolidayApi";
+
+/// <summary>查询指定日期是否为法定节假日；接口不可用时返回 false。</summary>
+public static bool IsStatutoryHoliday(DateTime date)
+{
+    // 按完整类型名在当前进程已加载的程序集中查找，避免 ALC 类型冲突
+    var apiType = AppDomain.CurrentDomain.GetAssemblies()
+        .Select(assembly =>
+        {
+            try { return assembly.GetType(HolidayApiTypeName); }
+            catch { return null; }
+        })
+        .FirstOrDefault(type => type is not null);
+
+    var method = apiType?
+        .GetMethods(BindingFlags.Public | BindingFlags.Static)
+        .FirstOrDefault(m => m.Name == "IsStatutoryHoliday"
+                             && m.GetParameters().Length == 1
+                             && m.GetParameters()[0].ParameterType == typeof(DateTime));
+
+    try
+    {
+        return method?.Invoke(null, new object[] { date }) is true;
+    }
+    catch
+    {
+        return false;
+    }
+}
+```
+
+### 2. 按年份批量获取节假日（适合缓存）
+
+```csharp
+var method = apiType?.GetMethod("GetHolidayDates", new[] { typeof(int) });
+if (method?.Invoke(null, new object[] { 2026 }) is DateTime[] holidays)
+{
+    // holidays 已按日期升序去重，可直接构建 HashSet 做 O(1) 判断
+    var holidaySet = holidays.ToHashSet();
+}
+```
+
+### 3. 获取节日名称
+
+```csharp
+var method = apiType?.GetMethod("TryGetHolidayName");
+var args = new object?[] { new DateTime(2026, 2, 17), null };
+if (method?.Invoke(null, args) is true)
+{
+    var name = args[1] as string;   // 例如"春节"
+}
+```
+
+## 四、行为约定
+
+- **只读**：接口不会修改 AdvancedTimeIsland 的节假日数据。
+- **不抛异常**：数据尚未加载、集合正在被编辑等情况下，返回 `false` 或空数组，调用方无需包裹异常处理。
+- **数据来源**：与「在校时间统计」使用同一份节假日表，包含联网更新与手动编辑的结果。
+- **范围**：仅包含法定节假日（放假日），不包含调休补班日；周末判断请由调用方自行处理。
+- **加载时序**：若在 AdvancedTimeIsland 完成加载前调用，会得到空结果。建议首次获取失败后按需重试（例如 DeepSeek 余额插件在每次余额刷新时重试，并做了按年缓存）。
+- **数据更新**：接口读取的是实时数据；调用方可自行设置缓存有效期，以兼顾性能与数据新鲜度。
+
+## 五、版本演进
+
+`HolidayApi.Version` 表示契约版本，当前为 `1`。新增成员保持向后兼容；发生不兼容变更时递增该值，调用方可据此判断能力。
+
 # 大饼（功能规划）
 
 
