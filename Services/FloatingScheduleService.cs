@@ -1925,8 +1925,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
             _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
             _dragStartWindowPxAv = _window.Position;
-            _glassAv.DragInProgress = true;   // 拖动开始：拖动位移补偿开启时暂停采样抓帧（背景由位移补偿维护）
-            StartGlassDragTimerAv();          // 拖动开始时启动高频取帧定时器（只取后台结果换背景）
             StartGlassVSyncAv();              // 位移帧同步：拖动开始时启动渲染帧节拍（位置与背景在同一渲染帧提交）
             _glassFrameSyncSessionAv++;       // 新一次拖动：作废上一次拖动遗留的异步"位置提交"任务
             #region debug-point F1
@@ -2000,21 +1998,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 拖动位移补偿（新路径）：逐帧只做**纯 GPU 平移**（改取样矩形，不抓帧/不折射/不写位图），
-    /// 由后台线程在累计位移达阈值时重烘焙整幅折射图；UI 线程随即取一次最新已发布结果换背景。
-    /// 仅在 材质=液态玻璃 且 拖动位移补偿=开 时生效。
-    /// </summary>
-    private void CompensateGlassDragAv()
-    {
-        try
-        {
-            UpdateGlassDragTransformAv();       // 逐帧：只改 GPU 平移（廉价、零分配）
-            _glassAv.TryCommitLatest();         // 取一次后台重烘焙的最新结果（若已发布）
-        }
-        catch { }
-    }
-
-    /// <summary>
     /// 【拖动不出屏】把拖拽目标位置 clamp 到窗口所在屏幕的工作区，保证时间表完整显示在屏幕内。
     /// 贴边隐藏不受影响：clamp 后窗口贴在工作区边缘（距离=0 < 1px 阈值）→ 拖完仍正常触发贴边滑出。
     /// 取不到屏幕/尺寸信息时原样返回（功能降级但不阻塞拖动）。
@@ -2068,9 +2051,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _dragPendingValidAv = false;
             }
             if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
-            _glassAv.DragInProgress = false;           // 拖动结束：恢复采样抓帧
-            _glassAv.EndDragCompensation();            // 作废在途拖动补偿结果（避免旧帧覆盖"松手后重抓"的新内容）
-            StopGlassDragTimerAv();
             try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
             // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
             if (ResolveMaterialAv() == 3 && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
@@ -2528,18 +2508,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_window == null) return;
 #if WINDOWS
-        // 液态玻璃抓帧期间必须保持"排除捕获"：否则这个 5 秒兜底会把抓帧侧强制打开的
-        // EXCLUDEFROMCAPTURE 冲成 WDA_NONE，接下来几帧会把悬浮窗自己拍进背景 → 自采样残影。
-        // 【允许截图】开启时不再强制排除 → 只按用户自己的"防截图"设置（用户防截图关 → WDA_NONE，截图里能看到悬浮窗）。
-        bool want = _settings.FloatingSchedulePreventCapture
-            || (ResolveMaterialAv() == 3 && !_settings.FloatingScheduleGlassAllowCapture);
-        // 【关→开 允许截图 的时序保证】清除"排除捕获"前必须确认没有在途抓帧，否则会把"拍到自己"的那一帧
-        //   烘焙进去并被永久冻结 → 延迟一个采样周期（见 ScheduleAllowCaptureApplyAv）。
-        if (!want && (_glassBusyAv || _dragActiveAv)) { ScheduleAllowCaptureApplyAv(); return; }
+        // 捕获亲和性只由用户自己的"防截图"设置决定。
+        // 液态玻璃抓帧不再强制排除捕获（该逻辑已移除），窗口是否可被截图/录屏/远程捕获完全交给用户选择。
+        bool want = _settings.FloatingSchedulePreventCapture;
         if (OperatingSystem.IsWindows())
         {
             try
             {
+                // 先归还液态玻璃采样期间的临时排除，再按用户设置写亲和性。
+                _glassAv.ReleaseCaptureExclusion();
                 var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
                 if (hwnd != IntPtr.Zero)
                 {
@@ -4874,16 +4851,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     // ===== 液态玻璃"真折射"（路线 B）=====
-    // 透明窗口拿不到 DWM 合成的桌面像素 → 抓"窗口所占区域"（抓帧时临时强制 WDA_EXCLUDEFROMCAPTURE，
-    // 只影响捕获输出、不影响屏幕显示，同时防自采样回环）→ 共享折射核心（SDF 折射 + 色散 + 镜面高光）
+    // 透明窗口拿不到 DWM 合成的桌面像素 → 抓"窗口当前所占区域" → 共享折射核心（SDF 折射 + 色散 + 镜面高光）
     // → 位图作卡片背景。刷新按设置里的采样率（Hz，默认 30），且仅 材质=液态玻璃 且窗口可见时抓。
     // 【关键】刷新路径**只换背景画笔，绝不重建内容树**——早先每次刷新都 PublishModelAv 重套材质，
     //   等于每 tick 推倒重建整棵可视树，正是"整表看起来只有 2fps"的根因。
     readonly FloatScheduleGlassBackdrop _glassAv = new();
     bool _glassBusyAv;
     DispatcherTimer? _glassTimerAv;
-    // 拖动期间的高频"取帧"定时器：只做"取后台已发布的最新折射结果并换背景"，不做任何折射计算。
-    DispatcherTimer? _glassDragTimerAv;
     FloatScheduleRenderModel? _lastModelAv;
 
     void StartGlassTimerAv()
@@ -4893,12 +4867,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _glassTimerAv.Tick += (_, _) =>
         {
             _glassTimerAv.Interval = GlassIntervalAv();   // 采样率设置变更后热跟随（无需重启）
-            // 【允许截图】开启时不采样（背景冻结在当前已折射帧）→ 走 else 恢复亲和性；
-            //   仅"材质=液态玻璃 且可见 且未允许截图"才抓帧；采样期间由抓帧侧保持"排除捕获"。
+            // 仅"材质=液态玻璃 且可见 且未允许截图"才抓帧
             if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible && !_settings.FloatingScheduleGlassAllowCapture)
                 _ = RefreshGlassBackdropAvAsync();
-            // 采样停（材质切走/窗口隐藏/允许截图）→ 恢复成用户"防截图"设置（含"关→开"时序保护）
-            else RestoreCaptureAffinityAv();
         };
         _glassTimerAv.Start();
     }
@@ -4907,29 +4878,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     TimeSpan GlassIntervalAv()
         => TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(_settings.FloatingScheduleGlassSampleRateHz, 1, 60));
 
-    // 拖动补偿期间启动高频取帧定时器：每 ~8ms 检查后台是否发布了新折射结果，有则换背景。
-    //   折射在后台线程完成，这里只做"取最新结果 + 换 Background"（极廉价）；无新结果时不做任何 UI 操作。
-    void StartGlassDragTimerAv()
-    {
-        if (_glassDragTimerAv != null) return;
-        _glassDragTimerAv = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(8) };
-        _glassDragTimerAv.Tick += (_, _) => { try { _glassAv.TryCommitLatest(); } catch { } };
-        _glassDragTimerAv.Start();
-    }
-
-    void StopGlassDragTimerAv()
-    {
-        try { _glassDragTimerAv?.Stop(); } catch { }
-        _glassDragTimerAv = null;
-    }
-
     // ===== 【拖动位移帧 ↔ 渲染帧同步】把"窗口位置 + 玻璃背景"的提交挂到 Avalonia 的渲染帧上 =====
     //   背景抖动根因：位置由 Win32 SetWindowPos 即时提交、背景由 Avalonia 渲染管线提交 —— 两者提交时刻毫无关系，
     //   而 Avalonia 的渲染节拍（11.x 固定 60fps / 12.x 跟随刷新率的自由运行定时器）与显示器合成帧相位自由，
     //   于是它们会落在不同的 DWM 合成帧（背景相对卡片 ±1 帧抖动）。
     //   做法（见 FloatScheduleRenderFrameSync）：用 TopLevel.RequestAnimationFrame 的渲染帧钩子
     //   （UI 线程、每个渲染帧的渲染之前同步回调）在**同一个渲染帧**内按固定顺序提交：
-    //     ① 内容（背景取样矩形 / 采样换图）—— 必须排在渲染之前写入，才会被本帧渲染采纳；
+    //     ① 内容（采样换图）—— 必须排在渲染之前写入，才会被本帧渲染采纳；
     //     ② 窗口位置 —— 用 Background 优先级排到"本帧渲染提交之后"再落（见 OnGlassVSyncFrameAv 的排序说明）。
     //   这样位置不会抢在内容之前一个 vblank 生效，两者落在同一合成帧 → 抵消那 1 帧的位移/背景错位。
     //   代价：不阻塞任何线程、无后台线程；相对"立即提交"最多晚一帧（与内容同步）。
@@ -4961,7 +4916,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     // 【渲染帧·UI 线程·渲染之前】本帧的**帧内排序**（消除 1 帧错位的关键）：
-    //   ① 内容（背景取样矩形 / 采样换图）：必须排在本帧渲染之前写入 → 才会被本帧渲染采纳并提交给合成器；
+    //   ① 内容（采样换图）：必须排在本帧渲染之前写入 → 才会被本帧渲染采纳并提交给合成器；
     //   ② 窗口位置：用 Background 优先级（低于渲染的 Render 优先级）排到"本帧渲染提交之后"再落。
     //   为什么这么排：位置不经渲染管线、提交即刻进合成器；若把它和内容一起排在本帧渲染之前，
     //   它会抢在内容之前的一个 vblank 生效（位置早一帧 → 背景滞后一帧，即用户看到的 1f 延迟）。
@@ -4977,8 +4932,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         #endregion
         if (!hasPos && !hasCommit) return;
 
-        // ① 内容：渲染前写入（含按当前真实位置计算的 GPU 取样矩形平移）
-        CompensateGlassDragAv();
+        // ① 内容：渲染前写入（采样换图）
         if (hasCommit)
         {
             _glassCommitPendingAv = false;
@@ -5007,66 +4961,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { if (_window != null) _window.Position = target; } catch { }
     }
 
-    // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → GPU 取样矩形 → 采样换图。
+    // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrameAv(PixelPoint target)
     {
         _window!.Position = target;
-        CompensateGlassDragAv();   // 液态玻璃：按位移偏移取材重做折射（不抓帧、不占 UI 帧预算）
         if (_glassCommitPendingAv)
         {
             _glassCommitPendingAv = false;
             _glassAv.Commit();      // 采样已完成的新背景：并入本渲染帧（与窗口位置同帧 → 不抖）
         }
-    }
-
-    // 【UI 线程】拖动一帧：读窗口真实位置 → **只改 GPU 取样矩形**（零抓帧/零位图写/零新建 Brush），
-    //   累计位移达阈值时由 _glassAv 内部请求后台重烘焙。
-    void UpdateGlassDragTransformAv()
-    {
-        if (ResolveMaterialAv() != 3 || !_settings.FloatingScheduleGlassDragCompensation) return;
-        if (_settings.FloatingScheduleGlassAllowCapture) return;   // 允许截图：不重烘焙（否则又抓帧）
-        if (_window == null) return;
-        double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
-        double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
-        // 【位移帧同步】有待落位置时按"本帧即将提交的位置"算取样矩形：位置排在本帧渲染之后才落，
-        //   若按当前真实位置算，上屏时窗口已移动 → 背景内容滞后一帧（见 FloatScheduleGlassBackdrop.UpdateDragTransformAt）。
-        if (IsGlassVSyncActiveAv() && _dragPendingValidAv)
-            _glassAv.UpdateDragTransformAt(cornerPx, _dragPendingPosAv.X, _dragPendingPosAv.Y);
-        else
-            _glassAv.UpdateDragTransform(cornerPx);
-    }
-
-    // 采样停止 → 把捕获亲和性恢复成用户"防截图"设置（幂等：状态相同则不写 Win32）
-    void RestoreCaptureAffinityAv()
-    {
-        try
-        {
-            // 【关→开 允许截图 的时序保证】若此刻仍有在途抓帧（_glassBusyAv），立即清除"排除捕获"会让这一帧
-            //   把悬浮窗自己拍进背景并被永久冻结 → 先等抓帧结束再写亲和性（延迟一个采样周期）。
-            //   拖动期间后台重烘焙也可能抓帧 → 与 _dragActiveAv 一并等待（拖动结束会作废在途结果）。
-            if (!_settings.FloatingSchedulePreventCapture && (_glassBusyAv || _dragActiveAv)) { ScheduleAllowCaptureApplyAv(); return; }
-            var hwnd = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-            if (hwnd != IntPtr.Zero) FloatScheduleScreenCapture.RestoreAffinity(hwnd, _settings.FloatingSchedulePreventCapture);
-        }
-        catch { }
-    }
-
-    // 延迟到在途抓帧结束后再应用捕获亲和性（见 RestoreCaptureAffinityAv / ApplyPreventCaptureAv 的时序说明）。
-    DispatcherTimer? _allowCaptureApplyTimerAv;
-    private void ScheduleAllowCaptureApplyAv()
-    {
-        if (_allowCaptureApplyTimerAv != null) return;
-        int attempts = 0;
-        _allowCaptureApplyTimerAv = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(33) };
-        _allowCaptureApplyTimerAv.Tick += (_, _) =>
-        {
-            // 仍有在途抓帧（采样或拖动重烘焙）→ 再等一个采样周期（上限 ~10s 兜底，避免极端情况永不应用）
-            if ((_glassBusyAv || _dragActiveAv) && ++attempts < 300) return;
-            try { _allowCaptureApplyTimerAv?.Stop(); } catch { }
-            _allowCaptureApplyTimerAv = null;
-            ApplyPreventCaptureAv();
-        };
-        _allowCaptureApplyTimerAv.Start();
     }
 
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glassAv 复用），无内容时 null 走近似边缘光
@@ -5077,7 +4980,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_glassBusyAv || _window == null || _containerBorder == null) return;
         if (ResolveMaterialAv() != 3 || !_window.IsVisible) return;
-        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧），也避免抓帧侧把亲和性又强制回"排除捕获"。
+        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧）。
         if (_settings.FloatingScheduleGlassAllowCapture) return;
         IntPtr hwnd;
         try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return; }
@@ -5087,23 +4990,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
         double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
         int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
         double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
-        // 捕获方式 / 拖动补偿设置热跟随（直接读 PluginSettings，改动即时生效）
-        _glassAv.RenderScaling = sc;   // ImageBrush.SourceRect 用 DIP 单位 → 由窗口渲染缩放换算（见 FloatScheduleGlassBackdrop.RenderScaling）
+        // 捕获方式设置热跟随（直接读 PluginSettings，改动即时生效）
         _glassAv.CaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode;
-        _glassAv.DragCompensationEnabled = _settings.FloatingScheduleGlassDragCompensation;
-        int pad = _settings.FloatingScheduleGlassDragCompensation ? FloatScheduleGlassBackdrop.DefaultDragCompensationPadPx : 0;
-        long gen = _glassAv.ContentGeneration;   // 记录代次：若期间开始了拖动则丢弃本次结果
         _glassBusyAv = true;
         try
         {
-            // 抓帧 + 逐像素折射放后台线程（纯计算，不碰 UI 对象）；
-            // 亲和性（"排除捕获"）由 CapturePaddedAndRefract 内部按状态迁移维护，不在这里每帧来回切
-            // pad>0（拖动位移补偿开启）：额外抓"卡片四周各 pad 物理像素"，供拖动期间只做 GPU 平移取材即可跟手
-            //   —— 拖动期间不再抓帧/折射，既解决"背景跟不上位移"，也避免拖动时采样掉到 ~32Hz。
-            await Task.Run(() => _glassAv.CapturePaddedAndRefract(hwnd, w, h, cornerPx, pad));
-            // 【修复：拖动起始闪一帧旧内容】本次采样若在拖动开始**之前**启动，完成时已进入拖动，
-            //   提交它会让背景瞬间回到拖动前的位置（1 帧）。代次变化即说明拖动已开始 → 丢弃。
-            if (_glassAv.ContentGeneration != gen) return;
+            // 抓帧 + 逐像素折射放后台线程（纯计算，不碰 UI 对象）；抓帧不再改动窗口捕获亲和性。
+            // 每次都抓窗口**当前**所占区域 → 折射边缘与窗口位置严格对齐（不再有外扩取材/GPU 平移）。
+            await Task.Run(() => _glassAv.CaptureAndRefract(hwnd, w, h, cornerPx));
             // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
             // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
             //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
@@ -5215,7 +5109,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             ShowFps = _settings.FloatingScheduleShowFps,
             GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
             GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
-            GlassDragCompensation = _settings.FloatingScheduleGlassDragCompensation,
             GlassVSync = _settings.FloatingScheduleGlassVSync,
             GlassAllowCapture = _settings.FloatingScheduleGlassAllowCapture,
             TintArgb = tintArgb,

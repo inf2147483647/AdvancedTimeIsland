@@ -195,7 +195,12 @@ public static class FloatScheduleMaterialApplier
         double it = Math.Clamp(intensity, 0, 1);
         var grid = new Grid();
         if (backdrop != null) grid.Children.Add(backdrop);                       // ① 背景（真实折射位图 / 清晰背景）
-        grid.Children.Add(new Border { CornerRadius = cr, Background = Solid(WithAlpha(tint, refracted ? 0.08 + 0.10 * it : 0.10 + 0.14 * it)) });   // ② 极低 tint（折射优先；折射路径取 Apple CSS 配方的 ~8% 填充量级）
+        if (!refracted)
+        {
+            // 近似路径（尚未拿到折射位图）：保留低透明度的卡片 tint 作为底色。
+            grid.Children.Add(new Border { CornerRadius = cr, Background = Solid(WithAlpha(tint, 0.10 + 0.14 * it)) });
+        }
+        // 真实折射路径不再叠任何 tint/白膜：直接显示折射位图本身（仅保留镜面 rim 与顶部高光）。
         if (!refracted)
         {
             // 无真实折射时（真机悬浮窗）用描边环近似"边缘聚光"；编辑器预览已由折射核心烘焙高光，跳过

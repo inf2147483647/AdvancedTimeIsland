@@ -62,6 +62,69 @@ function Test-RestoreNeeded {
     }
 }
 
+function Test-PackageDependencies {
+    # 校验 deps.json 里登记的所有运行时资产（runtime / native）都真的在包目录里。
+    # 背景：ClassIsland 用 AssemblyDependencyResolver 按插件 deps.json 解析依赖，
+    # 缺 DLL 会让插件在 GetExportedTypes() 时抛 FileNotFoundException 并整体加载失败
+    # （参见 2.0.5.3 的 Vortice.DirectX 事故）。此处把问题挡在打包阶段。
+    param(
+        [string]$PackageDir
+    )
+
+    $depsPath = Join-Path $PackageDir "AdvancedTimeIsland.deps.json"
+    if (-not (Test-Path $depsPath)) {
+        Write-Warning "Dependency check skipped: AdvancedTimeIsland.deps.json not found."
+        return $true
+    }
+
+    try {
+        $deps = Get-Content -Raw $depsPath | ConvertFrom-Json -ErrorAction Stop
+    }
+    catch {
+        Write-Error "Dependency check failed: cannot parse AdvancedTimeIsland.deps.json - $($_.Exception.Message)"
+        return $false
+    }
+
+    $checked = 0
+    $missing = New-Object System.Collections.Generic.List[string]
+    if (-not $deps.targets) {
+        Write-Error "Dependency check failed: no 'targets' section in AdvancedTimeIsland.deps.json"
+        return $false
+    }
+
+    foreach ($target in $deps.targets.PSObject.Properties) {
+        foreach ($lib in $target.Value.PSObject.Properties) {
+            foreach ($assetSection in @("runtime", "native")) {
+                $section = $lib.Value.$assetSection
+                if (-not $section) { continue }
+                foreach ($asset in $section.PSObject.Properties) {
+                    $assetPath = $asset.Name
+                    if ($assetPath -eq "_._") { continue }
+                    $fileName = ($assetPath -split '[\\/]')[-1]
+                    if ([System.IO.Path]::GetExtension($fileName) -notin @(".dll", ".exe")) { continue }
+
+                    $checked++
+                    # 输出目录为扁平结构；若资产在 runtimes\ 等子目录则按相对路径检查
+                    $flatPath = Join-Path $PackageDir $fileName
+                    $relativePath = Join-Path $PackageDir ($assetPath -replace '/', '\')
+                    if (-not (Test-Path $flatPath) -and -not (Test-Path $relativePath)) {
+                        $missing.Add("$($lib.Name) -> $assetPath")
+                    }
+                }
+            }
+        }
+    }
+
+    if ($missing.Count -gt 0) {
+        Write-Error "Dependency check FAILED: $($missing.Count) runtime asset(s) declared in AdvancedTimeIsland.deps.json are missing from the package. ClassIsland's AssemblyDependencyResolver will not find them and the plugin will fail to load:"
+        foreach ($m in $missing) { Write-Error "  missing: $m" }
+        return $false
+    }
+
+    Write-Host "Dependency check passed: $checked runtime asset(s) declared in deps.json are packaged."
+    return $true
+}
+
 function Create-CipxPackage {
     param(
         [string]$OutputDir,
@@ -101,6 +164,11 @@ function Create-CipxPackage {
             if (Test-Path $ridPath) {
                 Remove-Item $ridPath -Recurse -Force -ErrorAction SilentlyContinue
             }
+        }
+
+        if (-not (Test-PackageDependencies -PackageDir $tempDir)) {
+            Write-Error "Error: package dependency check failed. The .cipx was NOT created."
+            return $false
         }
 
         Write-Host "Creating .cipx package..."

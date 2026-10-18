@@ -165,15 +165,13 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Children.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
         p.Children.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
-        // 液态玻璃背景捕获方式（改动即时生效；DXGI 不可用时自动回退 GDI 并定期重试恢复）
-        p.Children.Add(RowCombo("液态玻璃捕获方式", new[] { "DXGI Desktop Duplication (推荐)", "GDI BitBlt (回退)" },
+        // 液态玻璃背景采样来源（改动即时生效；完整桌面会临时排除自身，远程会话自动退回仅下方窗口）
+        p.Children.Add(RowCombo("液态玻璃采样来源", new[] { "完整桌面 (含全部窗口和壁纸)", "屏幕 (DXGI Desktop Duplication)", "屏幕 (GDI BitBlt 回退)", "仅下方窗口 (DWM / Win10 PrintWindow)" },
             (int)_s.FloatingScheduleGlassCaptureMode, i => _s.FloatingScheduleGlassCaptureMode = (FloatingScheduleGlassCaptureMode)i, out _));
-        // 拖动位移补偿（拖动期间背景按窗口位移偏移取材、重做折射，实现 60fps 跟手）
-        p.Children.Add(RowToggle("拖动位移补偿", _s.FloatingScheduleGlassDragCompensation, v => _s.FloatingScheduleGlassDragCompensation = v));
         // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
         p.Children.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
-        // 允许截图：暂停液态玻璃背景采样/重烘焙（背景冻结），并解除采样期强制的"排除捕获"，
-        // 使窗口按用户自己的"防截图"设置出现在截图/录屏中（便于截图反馈问题）。默认关。
+        // 允许截图：暂停液态玻璃背景采样/重烘焙（背景冻结）。默认关。
+        // 注：抓帧期间强制"排除捕获"的逻辑已移除，窗口是否可被截图/录屏只由"防截图"设置决定。
         p.Children.Add(RowToggle("允许截图（暂停液态玻璃背景采样）", _s.FloatingScheduleGlassAllowCapture, v => _s.FloatingScheduleGlassAllowCapture = v));
         p.Children.Add(RowButton("选择自定义背景图片…", async (_, _) =>
         {

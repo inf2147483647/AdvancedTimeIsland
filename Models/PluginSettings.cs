@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -166,10 +166,16 @@ public enum FloatingScheduleThemeMode
 /// <summary>悬浮窗"液态玻璃"背景捕获方式（2 档）。</summary>
 public enum FloatingScheduleGlassCaptureMode
 {
-    /// <summary>0 - DXGI Desktop Duplication（默认，推荐）：帧到达即取，非阻塞、亚毫秒。</summary>
-    Dxgi = 0,
-    /// <summary>1 - GDI BitBlt（回退）：单次固定 ~24ms 同步阻塞，仅在 DXGI 不可用时使用。</summary>
-    GdiBitBlt = 1
+    /// <summary>0 - 完整桌面（默认）：屏幕采集所有下方窗口 + 壁纸；采样瞬间临时排除悬浮窗自身，
+    /// 抓完立即恢复。远程会话自动退回"仅下方窗口"。</summary>
+    FullDesktop = 0,
+    /// <summary>1 - 屏幕采集：DXGI Desktop Duplication（非阻塞、亚毫秒；不排除自身）。</summary>
+    Dxgi = 1,
+    /// <summary>2 - 屏幕采集：GDI BitBlt（单次固定 ~24ms 同步阻塞，DXGI 不可用时回退；不排除自身）。</summary>
+    GdiBitBlt = 2,
+    /// <summary>3 - 仅采集悬浮窗下方的单个窗口：Win11 WGC/DWM（可关黄色捕获边框），
+    /// Win10 PrintWindow。不会拍到自己，但只包含一个窗口、不含壁纸。</summary>
+    WindowUnder = 3
 }
 
 /// <summary>
@@ -242,8 +248,7 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
     private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（磨砂/亚克力模糊度、液态玻璃折射度）
     private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
-    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃背景捕获方式
-    private bool _floatingScheduleGlassDragCompensation = true; // 液态玻璃拖动位移补偿（拖动期间背景跟手平移）
+    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.FullDesktop; // 液态玻璃背景采样来源
     private bool _floatingScheduleGlassVSync = true;            // 液态玻璃拖动位移与渲染帧同步（位移与背景在同一渲染帧提交）
     private bool _floatingScheduleGlassAllowCapture = false;     // 允许截图（暂停液态玻璃背景采样；默认关）
     private string _floatingScheduleCustomBackgroundPath = "";
@@ -1262,16 +1267,19 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】背景捕获方式：DXGI Desktop Duplication（默认，推荐，亚毫秒非阻塞）/ GDI BitBlt（回退，单次固定 ~24ms）。
-    /// 选 DXGI 时若运行期不可用（被 OBS 等独占 / 初始化失败）会自动回退 GDI 并每 10 秒重试恢复。</summary>
+    /// <summary>【液态玻璃】背景采样来源：完整桌面（默认，所有下方窗口 + 壁纸；采样瞬间临时排除悬浮窗自身，
+    /// 抓完恢复；远程会话自动退回"仅下方窗口"）、DXGI 屏幕采集、GDI 屏幕采集、仅下方窗口。</summary>
     public FloatingScheduleGlassCaptureMode FloatingScheduleGlassCaptureMode
     {
         get => _floatingScheduleGlassCaptureMode;
         set
         {
-            var v = value == FloatingScheduleGlassCaptureMode.GdiBitBlt
-                ? FloatingScheduleGlassCaptureMode.GdiBitBlt
-                : FloatingScheduleGlassCaptureMode.Dxgi;   // 非法值收敛到默认（枚举以 int 反序列化，需防脏数据）
+            var v = value is FloatingScheduleGlassCaptureMode.FullDesktop
+                or FloatingScheduleGlassCaptureMode.Dxgi
+                or FloatingScheduleGlassCaptureMode.GdiBitBlt
+                or FloatingScheduleGlassCaptureMode.WindowUnder
+                ? value
+                : FloatingScheduleGlassCaptureMode.FullDesktop;   // 非法值收敛到默认（枚举以 int 反序列化，需防脏数据）
             if (_floatingScheduleGlassCaptureMode != v)
             {
                 _floatingScheduleGlassCaptureMode = v;
@@ -1280,23 +1288,8 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】拖动位移补偿（默认开）：拖动窗口期间不再抓帧，改用已抓到的"外扩一圈"的缓冲按窗口位移
-    /// 偏移取材并重做折射（~5ms），使拖动期间背景 60fps 跟手；拖出外扩范围或松手后由采样定时器重抓。</summary>
-    public bool FloatingScheduleGlassDragCompensation
-    {
-        get => _floatingScheduleGlassDragCompensation;
-        set
-        {
-            if (_floatingScheduleGlassDragCompensation != value)
-            {
-                _floatingScheduleGlassDragCompensation = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
     /// <summary>【液态玻璃】拖动位移与渲染帧同步（默认开）：拖动期间用 Avalonia 的渲染帧钩子
-    /// （TopLevel.RequestAnimationFrame，UI 线程、每个渲染帧渲染之前同步回调）把"窗口位置 + 背景取样矩形 + 采样换图"
+    /// （TopLevel.RequestAnimationFrame，UI 线程、每个渲染帧渲染之前同步回调）把"窗口位置 + 采样换图"
     /// 放在同一个渲染帧内提交，使拖动位移帧与渲染帧一一对应、与内容落在同一合成帧，消除背景相对卡片的 ±1 帧抖动
     /// （代价是固定的 1 帧延迟）。不阻塞线程、不起后台线程、不跨线程 Post。
     /// 仅对"材质=液态玻璃"生效；非玻璃材质背景不随拖动重绘，无此不同步问题。</summary>
@@ -1313,9 +1306,8 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】允许截图（默认关）：开启后暂停液态玻璃的背景采样与重烘焙（背景冻结在当前已折射的那一帧），
-    /// 并解除采样期强制的"排除捕获"（WDA_EXCLUDEFROMCAPTURE）——窗口捕获亲和性改为只按用户自己的"防截图"设置，
-    /// 用户的防截图关时窗口可出现在截图/录屏里。关闭（默认）时恢复：采样运行 + 采样期强制排除捕获（防止自采样残影）。</summary>
+    /// <summary>【液态玻璃】允许截图（默认关）：开启后暂停液态玻璃的背景采样与重烘焙（背景冻结在当前已折射的那一帧）。
+    /// 【注意】"抓帧期间强制排除捕获"的逻辑已移除 —— 窗口能否出现在截图/录屏里完全由用户自己的"防截图"设置决定。</summary>
     public bool FloatingScheduleGlassAllowCapture
     {
         get => _floatingScheduleGlassAllowCapture;

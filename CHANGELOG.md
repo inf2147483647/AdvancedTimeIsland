@@ -1,3 +1,10 @@
+## [2.0.5.4] - 2026-10-18
+
+### 修复
+
+- 修复发行包缺少 Vortice / SharpGen 运行时依赖导致插件在宿主上加载失败的问题：2.0.5.3 的 cipx 是在引入 DXGI 抓屏（Vortice.Direct3D11）之前构建的，包内既没有 `Vortice.*` / `SharpGen.Runtime*` DLL，`AdvancedTimeIsland.deps.json` 也未登记这些依赖，ClassIsland 的 `AssemblyDependencyResolver` 因此解析不到 `Vortice.DirectX`，`GetExportedTypes()` 抛 `FileNotFoundException`，整个插件初始化失败。
+- 打包脚本 `Build-Package.ps1` 新增依赖完整性校验：生成 cipx 前解析随包发布的 `AdvancedTimeIsland.deps.json`，逐个核对其中声明的 runtime / native 资产是否真的在包内，缺失则直接判定打包失败并列出缺失项，避免再次发出缺依赖的包。
+
 ## [2.0.5.3] - 2026-10-14
 
 > 变更范围：tag `2.0.5.2` → `HEAD`（12 个提交，86 个文件，+9005 / -4130）

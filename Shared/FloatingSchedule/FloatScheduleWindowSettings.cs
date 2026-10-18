@@ -65,16 +65,14 @@ public sealed class FloatScheduleWindowSettings
 
     // 液态玻璃：真折射背景的采样率（Hz，1~60，默认 30）——子进程按此节流"抓屏 + 折射"
     public double GlassSampleRateHz { get; set; } = 30.0;
-    /// <summary>液态玻璃背景捕获方式（子进程 FLOATING 抓帧后端）：
-    /// 0=DXGI Desktop Duplication（优先，亚毫秒非阻塞）1=GDI BitBlt（回退，单次固定 ~24ms）。
+    /// <summary>液态玻璃背景采样来源（子进程 FLOATING 采样后端）：
+    /// 0=完整桌面（所有下方窗口 + 壁纸；采样瞬间临时排除自身，远程会话退回 3）
+    /// 1=DXGI 屏幕采集  2=GDI 屏幕采集  3=仅下方窗口（Win11 WGC / 更早系统 PrintWindow）。
     /// 与设置枚举 FloatingScheduleGlassCaptureMode 取值一一对应（以 int 传输避免跨程序集类型依赖）。</summary>
     public int GlassCaptureMode { get; set; } = 0;
-    /// <summary>拖动位移补偿（默认开）：拖动窗口期间不再抓帧，用已抓到的外扩缓冲按位移偏移取材重做折射（~5ms），
-    /// 使拖动期间背景 60fps 跟手；拖出外扩范围或松手后由采样定时器重抓。</summary>
-    public bool GlassDragCompensation { get; set; } = true;
     public bool GlassVSync { get; set; } = true;
-    /// <summary>允许截图（默认关）：开启后子进程暂停液态玻璃背景采样/重烘焙（背景冻结在当前已折射帧），
-    /// 且不再强制"排除捕获"——窗口捕获亲和性只按用户自己的"防截图"设置（用户防截图关 → WDA_NONE，截图里可见）。</summary>
+    /// <summary>允许截图（默认关）：开启后子进程暂停液态玻璃背景采样/重烘焙（背景冻结在当前已折射帧）。
+    /// 【注意】"抓帧期间强制排除捕获"的逻辑已移除，窗口捕获亲和性只按用户自己的"防截图"设置。</summary>
     public bool GlassAllowCapture { get; set; } = false;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
     public uint TintArgb { get; set; } = 0xCC2D2D30;
