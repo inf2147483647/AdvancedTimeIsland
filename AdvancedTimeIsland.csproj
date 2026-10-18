@@ -50,6 +50,13 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- 液态玻璃背景捕获：DXGI Desktop Duplication（Shared\FloatingSchedule\FloatScheduleDxgiCapture.cs 使用）。
+             【为何不加 ExcludeAssets】与 ClassIsland.* / Avalonia.* 不同，宿主 ClassIsland 目录里**没有** Vortice 的任何 DLL，
+             必须把运行时资产随插件包一起发布（否则运行时 FileNotFoundException）。故此处保持默认（含 runtime/native）。 -->
+        <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- SuperAutoIsland Blockly 积木接入接口（v1：RegisterData / BlockMetadata）。
              net8 与 net10 均直接引用 DLL 而非 NuGet 包：该包 0.1.3 声明依赖 ClassIsland.Core >= 2.1.0，
              与本项目 net8 侧固定的 2.0.1.1 SDK 冲突（NU1605），且会连带改写编译期 SDK。

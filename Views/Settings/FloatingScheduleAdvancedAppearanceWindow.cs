@@ -163,8 +163,18 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Children.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
         p.Children.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
         p.Children.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
-        // 液态玻璃：DWM 原生合成（窗口透明直通桌面，含其它窗口；零抓屏/零定时器 → 可截图、不抖动）。
-        // 折射由边缘光学层（SDF 透镜环 + 暖冷色散 + 镜面 rim + 顶部高光）仿真，不做逐像素位移。
+        // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
+        p.Children.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
+        // 液态玻璃背景捕获方式（改动即时生效；DXGI 不可用时自动回退 GDI 并定期重试恢复）
+        p.Children.Add(RowCombo("液态玻璃捕获方式", new[] { "DXGI Desktop Duplication (推荐)", "GDI BitBlt (回退)" },
+            (int)_s.FloatingScheduleGlassCaptureMode, i => _s.FloatingScheduleGlassCaptureMode = (FloatingScheduleGlassCaptureMode)i, out _));
+        // 拖动位移补偿（拖动期间背景按窗口位移偏移取材、重做折射，实现 60fps 跟手）
+        p.Children.Add(RowToggle("拖动位移补偿", _s.FloatingScheduleGlassDragCompensation, v => _s.FloatingScheduleGlassDragCompensation = v));
+        // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
+        p.Children.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
+        // 允许截图：暂停液态玻璃背景采样/重烘焙（背景冻结），并解除采样期强制的"排除捕获"，
+        // 使窗口按用户自己的"防截图"设置出现在截图/录屏中（便于截图反馈问题）。默认关。
+        p.Children.Add(RowToggle("允许截图（暂停液态玻璃背景采样）", _s.FloatingScheduleGlassAllowCapture, v => _s.FloatingScheduleGlassAllowCapture = v));
         p.Children.Add(RowButton("选择自定义背景图片…", async (_, _) =>
         {
             try
@@ -496,6 +506,28 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         combo = c; return Row(label, c);
     }
 
+    // 数值输入行（NumericUpDown）：范围/步长由参数给定，改动即时写回设置（主进程与子进程都热跟随）
+    Control RowNumeric(string label, double val, double min, double max, double step, Action<double> set)
+    {
+        var n = new NumericUpDown
+        {
+            Minimum = (decimal)min,
+            Maximum = (decimal)max,
+            Increment = (decimal)step,
+            Value = (decimal)Math.Clamp(val, min, max),
+            Width = 160,
+            FormatString = step < 1 ? "0.0" : "0",
+            ClipValueToMinMax = true,
+        };
+        n.PropertyChanged += (_, e) =>
+        {
+            if (e.Property != NumericUpDown.ValueProperty || _suppress) return;
+            if (n.Value is not { } v) return;
+            set((double)v);
+        };
+        return Row(label, n);
+    }
+
     Control RowSlider(string label, double val, double min, double max, double step, Action<double> set, out Slider slider)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, MinWidth = 220 };
@@ -619,11 +651,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             bd.Background = BuildPreviewBackdropBrush(left, top, z);
     }
 
-    // 液态玻璃"折射"：编辑器是一个不透明窗口、采不到真实桌面，故解析取样卡片正下方的示例背景 →
-    // 走共享折射核心（数学移植自 Kyant/backdrop 的圆角矩形 SDF 折射：边缘带圆弧剖面位移 + 梯度方向 +
-    // 7 抽样色散 + SDF 梯度镜面高光）→ 结果位图。
-    // 【注意】这只是编辑器内的理想化演示：真机悬浮窗已改为 DWM 原生合成（透明直通真实桌面），
-    // 不做逐像素位移，观感由材质层的边缘光学（透镜环 + 色散 + rim + 顶部高光）仿真。
+    // 液态玻璃"真实折射"：解析取样卡片正下方的示例背景 → 走共享折射核心（数学移植自 Kyant/backdrop 的
+    // 圆角矩形 SDF 折射：边缘带圆弧剖面位移 + 梯度方向 + 7 抽样色散 + SDF 梯度镜面高光）→ 结果位图。
     static IBrush? BuildPreviewRefractedBrush(double left, double top, double z, int w, int h, double corner)
     {
         if (w < 2 || h < 2) return null;
@@ -635,7 +664,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         double band = Math.Clamp(Math.Min(w, h) * 0.14, 8.0, 20.0);   // 折射带高度（设计经验：UI 控件玻璃厚度 ≤20）
         double amount = Math.Min(w, h) * 0.10;                        // 最大位移量（≈10% 卡片尺寸）
         FloatScheduleRefraction.Refract(src, dst, w, h, corner, band, amount,
-            // depthEffect=false：位移仅取 SDF 梯度（边缘法线），避免"放射状"星芒
+            // 与真机抓帧侧同源：depthEffect=false，位移仅取 SDF 梯度（边缘法线），避免"放射状"星芒
             depthEffect: false, chromaticAberration: 0.10, highlightStrength: 0.35, highlightAngleDeg: 45, highlightFalloff: 4.0);
         var bmp = FloatScheduleRefraction.ToBitmap(dst, w, h);
         return bmp == null ? null : new ImageBrush(bmp) { Stretch = Stretch.Fill };

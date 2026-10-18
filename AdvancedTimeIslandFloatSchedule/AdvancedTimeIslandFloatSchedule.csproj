@@ -54,6 +54,15 @@
     </ItemGroup>
 
     <ItemGroup>
+        <!-- 液态玻璃背景捕获：DXGI Desktop Duplication（Shared\FloatingSchedule\FloatScheduleDxgiCapture.cs 使用）。
+             【关键】绝不能像上面的 Avalonia.* 那样写 ExcludeAssets="runtime;native"：
+             那些 Avalonia 运行时 DLL 是"故意从 ClassIsland 宿主目录借用"的，而宿主目录里**没有** Vortice，
+             写 ExcludeAssets 会导致本子进程运行时缺 DLL（FileNotFoundException → 抓屏直接不可用）。
+             故本引用保持默认（编译期 + 运行时资产都随包发布）。 -->
+        <PackageReference Include="Vortice.Direct3D11" Version="3.8.3" />
+    </ItemGroup>
+
+    <ItemGroup>
         <!-- 与主项目共享的渲染模型/渲染器/IPC 协议/Win32 帮助类（同一份源码编入两侧，防渲染漂移） -->
         <Compile Include="..\Shared\FloatingSchedule\**\*.cs" LinkBase="Shared" />
         <!-- 窗口图标复用 ApplicationIcon 的压缩 ico（EmbeddedResource 字节流构造 WindowIcon，单文件发布下最稳） -->
