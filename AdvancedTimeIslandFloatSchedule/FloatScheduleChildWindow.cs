@@ -147,8 +147,7 @@ internal sealed class FloatScheduleChildWindow : Window
         _glassTimer.Tick += (_, _) =>
         {
             _glassTimer.Interval = GlassInterval();   // 采样率设置变更后热跟随（无需重启）
-            // 仅"材质=液态玻璃 且可见 且未允许截图"才抓帧
-            if (_snap.Material == 3 && _hostVisible && !_snap.GlassAllowCapture) _ = RefreshGlassBackdropAsync();
+            if (_snap.Material == 3 && _hostVisible) _ = RefreshGlassBackdropAsync();
         };
         _glassTimer.Start();
     }
@@ -249,8 +248,7 @@ internal sealed class FloatScheduleChildWindow : Window
 
     async Task RefreshGlassBackdropAsync()
     {
-        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧）。
-        if (_glassBusy || _snap.Material != 3 || !_hostVisible || _snap.GlassAllowCapture) return;
+        if (_glassBusy || _snap.Material != 3 || !_hostVisible) return;
         var hwnd = Hwnd;
         if (hwnd == IntPtr.Zero) return;
         var size = _card.Bounds.Size;
@@ -260,6 +258,7 @@ internal sealed class FloatScheduleChildWindow : Window
         double cornerPx = _snap.CornerRadius * sc;
         // 捕获方式设置热跟随（子进程经 settings 消息热下发）
         _glass.CaptureMode = _snap.GlassCaptureMode;
+        _glass.PreventCapture = _snap.PreventCapture;
         _glassBusy = true;
         try
         {
@@ -523,6 +522,8 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         var prev = _snap;
         _snap = s;
+        // 离开液态玻璃（方案2 采样）→ 归还采样期间的排除捕获（对齐 cf78b44 的 RestoreAffinity）。
+        if (s.Material != 3) _glass.ReleaseCaptureExclusion();
         Program.FollowHostLifetime = s.FollowHostLifetime;   // 热更新（看门狗触发时读最新值）
 
         // 【修复：重启时位置被重置（根因一）】必须在**第一次收到任意设置快照**时应用位置，
@@ -558,15 +559,15 @@ internal sealed class FloatScheduleChildWindow : Window
             || prev.MarginTop != s.MarginTop || prev.MarginBottom != s.MarginBottom
             || prev.MarginLeft != s.MarginLeft || prev.MarginRight != s.MarginRight)
         {
-            ApplyTransparency();   // 材质联动窗口透明级别（磨砂/亚克力/液态玻璃需 AcrylicBlur）
+            ApplyTransparency();   // 材质联动窗口透明级别（云母需 Mica、亚克力需 AcrylicBlur）
             if (_lastModel != null) { try { RenderModel(_lastModel); } catch { } }
         }
     }
 
     /// <summary>
     /// 高级外观：按当前材质联动窗口透明级别。
-    /// 磨砂(1)/亚克力(2) 走系统合成材质（ExperimentalAcrylicBorder），
-    /// 需窗口 TransparencyLevelHint 含 AcrylicBlur/Blur 才能采样桌面背景做模糊；
+    /// 云母(1) 走窗口级系统云母背板（WindowTransparencyLevel.Mica；Win11 有，Win10 回退 AcrylicBlur 亚克力模糊）；
+    /// 亚克力(2) 走系统合成材质（ExperimentalAcrylicBorder），需 TransparencyLevelHint 含 AcrylicBlur/Blur；
     /// 液态玻璃(3) 刻意保持纯 Transparent（Apple 取向"折射而非模糊"，背景保持清晰）；其余同样纯 Transparent。
     /// </summary>
     void ApplyTransparency()
@@ -574,9 +575,13 @@ internal sealed class FloatScheduleChildWindow : Window
         try
         {
             int m = _snap.Material;
-            TransparencyLevelHint = (m == 1 || m == 2)
-                ? new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None }
-                : new[] { WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None };
+            TransparencyLevelHint = m switch
+            {
+                // 云母：优先系统云母背板；Win11 以下无云母 → 回退亚克力模糊保底观感
+                1 => new[] { WindowTransparencyLevel.Mica, WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+                2 => new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+                _ => new[] { WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+            };
         }
         catch { }
     }
@@ -963,10 +968,12 @@ internal sealed class FloatScheduleChildWindow : Window
         if (hwnd == IntPtr.Zero) return;
         try
         {
+            // 方案2 采样期间玻璃会持续持有"排除捕获"；用户防截图关闭时不要去抢它（否则会周期性闪黑）。
+            if (!_snap.PreventCapture && _glass.IsCaptureExclusionActive) return;
             // 先归还液态玻璃采样期间的临时排除，再按用户设置写亲和性（避免把用户新开的"防截图"覆盖掉）。
             _glass.ReleaseCaptureExclusion();
-            // 捕获亲和性只由用户自己的"防截图"设置决定。
-            // 液态玻璃抓帧不再强制排除捕获（该逻辑已移除），窗口是否可被截图/录屏/远程捕获完全交给用户选择。
+            // 捕获亲和性：方案2 采样期间临时排除自身（不支持截图）；方案1 不排除（支持截图）。
+            // 用户的"防截图"设置始终优先。
             if (_snap.PreventCapture)
             {
                 if (!FloatScheduleNative.SetWindowDisplayAffinity(hwnd, FloatScheduleNative.WDA_EXCLUDEFROMCAPTURE))
@@ -1849,7 +1856,7 @@ internal sealed class FloatScheduleChildWindow : Window
         // 内容内边距内移（材质层铺满整卡，避免非半透明材质出现空心边框）
         FloatScheduleMaterialApplier.Apply(_card, _snap.Material, _snap.MaterialIntensity, _snap.CornerRadius,
             model.CardBackgroundArgb, _snap.CustomBackgroundPath, root,
-            osBackdrop: _snap.Material == 1 || _snap.Material == 2,   // 磨砂/亚克力走系统亚克力；液态玻璃走自绘"折射"
+            osBackdrop: _snap.Material == 1 || _snap.Material == 2,   // 云母走窗口级系统背板；亚克力走系统亚克力；液态玻璃走自绘"折射"
             contentPadding: new Thickness(_snap.MarginLeft, _snap.MarginTop, _snap.MarginRight, _snap.MarginBottom),
             backdropLayer: GlassBackdropLayer(), backdropIsRefracted: _glass.HasContent && _snap.Material == 3);
         FloatScheduleMaterialApplier.ApplyBorder(_card,

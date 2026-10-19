@@ -3,9 +3,9 @@
 // 以便同一份源码同时编入主项目（进程内渲染）与 AdvancedTimeIslandFloatSchedule 子进程。
 // 输入全部为插件侧解析后的终态参数（材质枚举 int / 强度 / 圆角 / tint ARGB / 图片路径 / 内容控件）。
 //
-// 【三套独立配方】依据微软 / 苹果一手规格，把磨砂、亚克力、液态玻璃拆成三条独立管线，
+// 【三条独立管线】依据微软 / 苹果一手规格，把云母、亚克力、液态玻璃拆成三条独立管线，
 // 不再是"同一图层栈只换强度系数"（那样必然表现为"同效果的不同强度"）：
-//   1 磨砂    ：重模糊 + 高不透明乳白 tint + 明显程序化颗粒 + 极弱 rim，无镜面高光（背景几乎不可辨）
+//   1 云母    ：窗口级系统云母背板（Win11 DWM/云母：以桌面壁纸为底、近不透明）+ 卡片着色膜，对齐 ClassIsland 画刷类型"云母"
 //   2 亚克力  ：Win11 官方五层配方 背景→模糊→亮度/对比层→tint 覆盖→噪点(~2%) + 1px 柔和内描边（背景模糊但可辨）
 //   3 液态玻璃：Apple 取向"透镜折射而非模糊"——背景保持清晰 + 极低 tint + 强 1px 镜面 rim
 //               + 顶部镜面高光带 + 边缘透镜内发光 + 暖冷错位色散（真实窗口刻意不做系统模糊）
@@ -22,21 +22,21 @@ namespace AdvancedTimeIsland.Shared.FloatingSchedule;
 
 /// <summary>
 /// 把卡片 Border 的背景层按所选材质装配：
-/// 0 半透明(纯色) / 1 磨砂 / 2 亚克力 / 3 液态玻璃 / 4 古卷(竹简代码纹理) / 5 自定义图片。
+/// 0 半透明(纯色) / 1 云母 / 2 亚克力 / 3 液态玻璃 / 4 古卷(竹简代码纹理) / 5 自定义图片。
 /// content 为渲染器产出的内容控件，本方法负责把它挂到卡片下。
 /// </summary>
 public static class FloatScheduleMaterialApplier
 {
     /// <summary>
-    /// 背景透卡模糊半径（px）——三材质的核心物理差异之一，供编辑器预览按其模糊自绘背景：
-    /// 磨砂最重（背景不可辨）、亚克力中等（背景可辨）、液态玻璃≈0（背景保持清晰，Apple 取向为折射而非模糊）。
+    /// 背景透卡模糊半径（px）——各材质的核心物理差异之一，供编辑器预览按其模糊自绘背景：
+    /// 云母中轻（壁纸轻模糊，取向为"壁纸着色"而非"透视模糊"）、亚克力中等（背景可辨）、液态玻璃≈0（保持清晰，Apple 取向为折射而非模糊）。
     /// </summary>
     public static double BackdropBlurFor(int material, double intensity)
     {
         double it = Math.Clamp(intensity, 0, 1);
         return material switch
         {
-            1 => 24.0 + 26.0 * it,   // 磨砂 24~50
+            1 => 8.0 + 10.0 * it,    // 云母 8~18（壁纸轻模糊）
             2 => 8.0 + 14.0 * it,    // 亚克力 8~22
             3 => 0.0 + 2.5 * it,     // 液态玻璃 0~2.5（近似"无模糊、纯折射"）
             _ => 0.0,
@@ -46,7 +46,8 @@ public static class FloatScheduleMaterialApplier
     /// <summary>
     /// 把材质应用到卡片 Border（就地修改 Background/Child）。
     /// osBackdrop=true 表示当前宿主是"透明窗口 + 可拿到 OS 合成背景"（真实悬浮窗进程内/子进程），
-    ///   磨砂 / 亚克力 走系统合成材质（ExperimentalAcrylicBorder，真实桌面背景模糊）；
+    ///   云母 走窗口级系统云母背板（窗口 TransparencyLevelHint=Mica 提供，卡片只叠着色膜）；
+    ///   亚克力 走系统合成材质（ExperimentalAcrylicBorder，真实桌面背景模糊）；
     /// osBackdrop=false 表示不透明宿主（编辑器预览）——系统材质采不到背后画面，改走自绘玻璃图层。
     /// 液态玻璃无论何种宿主都走自绘"折射"管线（真实窗口刻意不启用系统模糊，Apple 取向）。
     /// backdropLayer 为调用方（编辑器）提供的"背景透卡"控件（承载被模糊的示例背景），仅 osBackdrop=false 时使用。
@@ -65,11 +66,11 @@ public static class FloatScheduleMaterialApplier
 
         switch (material)
         {
-            case 1: // 磨砂
+            case 1: // 云母（窗口级系统云母背板 + 卡片着色膜）
                 card.Background = null;
                 card.Child = osBackdrop
-                    ? BuildOsFrosted(inner, cr, tint, intensity)
-                    : BuildFrosted(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 1, intensity));
+                    ? BuildOsMica(inner, cr, tint, intensity)
+                    : BuildMica(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 1, intensity));
                 break;
             case 2: // 亚克力（Win11 五层配方）
                 card.Background = null;
@@ -109,15 +110,17 @@ public static class FloatScheduleMaterialApplier
     // ===== 真实悬浮窗：系统合成材质路径（透明窗口 + OS 桌面背景模糊）=====
     // ExperimentalAcrylicBorder 由 Avalonia 提交给系统合成器，对窗口背后（桌面）做实时模糊；
     // 需要窗口 TransparencyLevelHint 含 AcrylicBlur/Blur（由窗口侧按材质联动，见 FloatingScheduleService / 子进程）。
-    // 注意：OS 侧模糊半径不可调（只有 AcrylicBlur/Blur 两档），因此磨砂与亚克力的差异靠
-    //   tint 不透明度 + 亮度层 + 颗粒来体现（磨砂＝高遮盖乳白 + 明显颗粒；亚克力＝可辨识背景 + ~2% 噪点）。
+    // 注意：OS 侧模糊半径不可调（只有 AcrylicBlur/Blur 两档），因此亚克力的观感靠
+    //   tint 不透明度 + 亮度层 + 颗粒来体现（可辨识背景 + ~2% 噪点）。
+    // 云母（Material=1）不走 ExperimentalAcrylicBorder：其背板由窗口 TransparencyLevelHint=Mica 提供
+    //   （见 FloatingScheduleService / 子进程的窗口透明级别联动），卡片只叠着色膜承接该背板。
     private static Control BuildOsAcrylic(Control content, CornerRadius cr, Color tint, double intensity)
     {
         double it = Math.Clamp(intensity, 0, 1);
         var mat = new ExperimentalAcrylicMaterial
         {
             TintColor = tint,
-            TintOpacity = 0.24 + 0.16 * it,      // Win11 亚克力 tint 覆盖（比磨砂明显更透，保留"模糊但可辨"）
+            TintOpacity = 0.24 + 0.16 * it,      // Win11 亚克力 tint 覆盖（着色透明，保留"模糊但可辨"）
             MaterialOpacity = 0.38 + 0.20 * it,
         };
         var acrylic = new ExperimentalAcrylicBorder { CornerRadius = cr, Material = mat };
@@ -136,38 +139,35 @@ public static class FloatScheduleMaterialApplier
         return grid;
     }
 
-    private static Control BuildOsFrosted(Control content, CornerRadius cr, Color tint, double intensity)
+    // 云母（Mica）：窗口级系统合成背板（Win11 DWM/云母，以桌面壁纸为底、近不透明）已由窗口提供；
+    //   卡片只叠一层按强度映射的着色膜 + 微弱亮度膜 + 1px 柔和内描边，承接系统背板并保证文字可读性。
+    //   与亚克力取向不同：云母不"透视模糊背后窗口"，而是"壁纸着色 + 去饱和"。
+    private static Control BuildOsMica(Control content, CornerRadius cr, Color tint, double intensity)
     {
         double it = Math.Clamp(intensity, 0, 1);
-        var mat = new ExperimentalAcrylicMaterial
-        {
-            TintColor = tint,
-            TintOpacity = 0.72 + 0.20 * it,      // 磨砂：高遮盖乳白，"背景不可辨"
-            MaterialOpacity = 0.86 + 0.12 * it,
-        };
-        var acrylic = new ExperimentalAcrylicBorder { CornerRadius = cr, Material = mat };
         var grid = new Grid();
-        grid.Children.Add(acrylic);
-        // 乳白膜加厚遮盖（在系统模糊之上再压一层，进一步拉开与亚克力的差异）
-        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(WithAlpha(tint, 0.18 + 0.18 * it)) });
-        // 极弱边缘发光（磨砂无镜面反射）
-        grid.Children.Add(Ring(cr, 2, (byte)(0.10 * 255 * (0.7 + 0.6 * it)), 200, 220, 255));
+        // ① 着色膜：承接窗口级云母背板（TintColor/TintOpacity 语义对齐 ClassIsland 的 MicaMaterial，取 ~0.5 中值）
+        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(WithAlpha(tint, 0.30 + 0.35 * it)) });
+        // ② 微弱亮度膜（云母的"纸感"提亮，α≈10/255，对齐 Win11 亮度层）
+        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(0x0A, 0xFF, 0xFF, 0xFF) });
+        // ③ 1px 柔和内描边（云母的细微边框）
+        grid.Children.Add(Ring(cr, 1, 0x2E, 0xFF, 0xFF, 0xFF));
         grid.Children.Add(content);
         return grid;
     }
 
     // ===== 编辑器预览：自绘路径（背景透卡由调用方提供，承载被模糊的示例背景）=====
 
-    // 1 磨砂：重模糊 + 高不透明乳白 tint + 明显颗粒 + 极弱 rim，无镜面高光。
-    private static Control BuildFrosted(Control content, CornerRadius cr, Color tint, double intensity, Control? backdrop)
+    // 1 云母（预览）：编辑器为不透明窗口，采不到系统云母背板 → 用示例壁纸（轻模糊）近似"壁纸底"，
+    //   再叠着色膜 / 亮度膜 / 柔和内描边，观感对齐真实云母（比"重模糊"更近"壁纸着色、非透视模糊"）。
+    private static Control BuildMica(Control content, CornerRadius cr, Color tint, double intensity, Control? backdrop)
     {
         double it = Math.Clamp(intensity, 0, 1);
         var grid = new Grid();
-        if (backdrop != null) grid.Children.Add(backdrop);                       // ① 被重模糊的背景
-        grid.Children.Add(new Border { CornerRadius = cr, Background = Solid(WithAlpha(tint, 0.64 + 0.20 * it)) });   // ② 底色遮盖（背景几乎不可辨）
-        // ②b 乳白膜：磨砂的"乳白"质感（与亚克力的"着色透明"拉开差异）
-        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid((byte)(0x1C + 0x18 * it), 0xFF, 0xFF, 0xFF) });
-        grid.Children.Add(Ring(cr, 2, (byte)(0.10 * 255 * (0.7 + 0.6 * it)), 200, 220, 255));  // ③ 极弱边缘发光（描边环）
+        if (backdrop != null) grid.Children.Add(backdrop);                       // ① 示例壁纸（轻模糊）
+        grid.Children.Add(new Border { CornerRadius = cr, Background = Solid(WithAlpha(tint, 0.30 + 0.35 * it)) });   // ② 着色膜
+        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(0x0A, 0xFF, 0xFF, 0xFF) });   // ③ 亮度膜
+        grid.Children.Add(Ring(cr, 1, 0x2E, 0xFF, 0xFF, 0xFF));   // ④ 柔和内描边
         grid.Children.Add(content);                                              // ⑤ 内容置顶
         return grid;
     }

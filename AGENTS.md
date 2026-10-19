@@ -23,3 +23,4 @@
 最后调用AdvisorTool进行vibe review
 
 然后执行Build-Package.ps1打包插件（构建命令已包含，全部success代表构建成功）
+更改的内容需写入CHANGELOG.md文件中

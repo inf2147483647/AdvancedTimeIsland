@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 
 namespace AdvancedTimeIsland.Models;
@@ -106,8 +106,8 @@ public enum FloatingScheduleMaterialType
 {
     /// <summary>0 - 半透明（默认）：主题卡片色 × 不透明度纯色。</summary>
     SemiTransparent = 0,
-    /// <summary>1 - 磨砂：ExperimentalAcrylicBorder 实时背景模糊。</summary>
-    Blur = 1,
+    /// <summary>1 - 云母：窗口级系统合成背板（Win11 DWM/云母），卡片叠按强度映射的着色膜（对齐 ClassIsland 画刷类型-云母）。</summary>
+    Mica = 1,
     /// <summary>2 - 亚克力：高透明 tint + 噪点。</summary>
     Acrylic = 2,
     /// <summary>3 - 液态玻璃（Beta，实验性）。</summary>
@@ -163,16 +163,16 @@ public enum FloatingScheduleThemeMode
     FollowSystem = 3
 }
 
-/// <summary>悬浮窗"液态玻璃"背景捕获方式（2 档）。</summary>
+/// <summary>悬浮窗"液态玻璃"背景捕获方式（采集模式）。</summary>
 public enum FloatingScheduleGlassCaptureMode
 {
-    /// <summary>0 - 完整桌面（默认）：屏幕采集所有下方窗口 + 壁纸；采样瞬间临时排除悬浮窗自身，
-    /// 抓完立即恢复。远程会话自动退回"仅下方窗口"。</summary>
-    FullDesktop = 0,
-    /// <summary>1 - 屏幕采集：DXGI Desktop Duplication（非阻塞、亚毫秒；不排除自身）。</summary>
-    Dxgi = 1,
-    /// <summary>2 - 屏幕采集：GDI BitBlt（单次固定 ~24ms 同步阻塞，DXGI 不可用时回退；不排除自身）。</summary>
-    GdiBitBlt = 2,
+    /// <summary>0 - 经典采集 · DXGI（cf78b44 默认）：采样期间保持窗口"排除捕获"，抓窗口区域；
+    /// DXGI Desktop Duplication 优先，失败回退 GDI。</summary>
+    Dxgi = 0,
+    /// <summary>1 - 经典采集 · GDI BitBlt：同上，强制 GDI（单次固定 ~24ms 同步）。</summary>
+    GdiBitBlt = 1,
+    /// <summary>2 - 完整桌面：所有下方窗口 + 壁纸（后续新增；采样时临时排除悬浮窗自身）。</summary>
+    FullDesktop = 2,
     /// <summary>3 - 仅采集悬浮窗下方的单个窗口：Win11 WGC/DWM（可关黄色捕获边框），
     /// Win10 PrintWindow。不会拍到自己，但只包含一个窗口、不含壁纸。</summary>
     WindowUnder = 3
@@ -246,11 +246,10 @@ public class PluginSettings : INotifyPropertyChanged
     private FloatingScheduleMaterialType _floatingScheduleMaterial = FloatingScheduleMaterialType.SemiTransparent;
     private bool _floatingScheduleJellyEnabled = false;
     private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
-    private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（磨砂/亚克力模糊度、液态玻璃折射度）
+    private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（云母着色膜浓度、亚克力模糊度、液态玻璃折射度）
     private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
-    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.FullDesktop; // 液态玻璃背景采样来源
+    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃采集模式（默认经典 DXGI，与 cf78b44 一致）
     private bool _floatingScheduleGlassVSync = true;            // 液态玻璃拖动位移与渲染帧同步（位移与背景在同一渲染帧提交）
-    private bool _floatingScheduleGlassAllowCapture = false;     // 允许截图（暂停液态玻璃背景采样；默认关）
     private string _floatingScheduleCustomBackgroundPath = "";
     // 边框
     private bool _floatingScheduleBorderEnabled = false;
@@ -1194,7 +1193,7 @@ public class PluginSettings : INotifyPropertyChanged
 
     // ==================== 高级外观：窗口 ====================
 
-    /// <summary>窗口材质类型（半透明/磨砂/亚克力/液态玻璃/古卷/自定义图片）。</summary>
+    /// <summary>窗口材质类型（半透明/云母/亚克力/液态玻璃/古卷/自定义图片）。</summary>
     public FloatingScheduleMaterialType FloatingScheduleMaterial
     {
         get => _floatingScheduleMaterial;
@@ -1222,7 +1221,7 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>圆角程度（0~10px，默认 8；仅半透明/磨砂/亚克力/液态玻璃生效，0=方角）。</summary>
+    /// <summary>圆角程度（0~10px，默认 8；仅半透明/云母/亚克力/液态玻璃生效，0=方角）。</summary>
     public double FloatingScheduleCornerRadius
     {
         get => _floatingScheduleCornerRadius;
@@ -1237,7 +1236,7 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>效果强度（0~1，默认 0.5；磨砂/亚克力模糊度、液态玻璃折射度）。</summary>
+    /// <summary>效果强度（0~1，默认 0.5；云母着色膜浓度、亚克力模糊度、液态玻璃折射度）。</summary>
     public double FloatingScheduleMaterialIntensity
     {
         get => _floatingScheduleMaterialIntensity;
@@ -1267,19 +1266,19 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】背景采样来源：完整桌面（默认，所有下方窗口 + 壁纸；采样瞬间临时排除悬浮窗自身，
-    /// 抓完恢复；远程会话自动退回"仅下方窗口"）、DXGI 屏幕采集、GDI 屏幕采集、仅下方窗口。</summary>
+    /// <summary>【液态玻璃】采集方案（只有两个）：0=方案2（cf78b44 经典采集，低占用/流畅，采样期间排除自身 → 不支持截图）；
+    /// 3=方案1（DWM/WGC 采集，不排除自身 → 支持截图，资源占用高、适配性差）。
+    /// GDI / 完整桌面为内部保留取值，写入时会收敛到方案2。</summary>
     public FloatingScheduleGlassCaptureMode FloatingScheduleGlassCaptureMode
     {
         get => _floatingScheduleGlassCaptureMode;
         set
         {
-            var v = value is FloatingScheduleGlassCaptureMode.FullDesktop
-                or FloatingScheduleGlassCaptureMode.Dxgi
-                or FloatingScheduleGlassCaptureMode.GdiBitBlt
-                or FloatingScheduleGlassCaptureMode.WindowUnder
-                ? value
-                : FloatingScheduleGlassCaptureMode.FullDesktop;   // 非法值收敛到默认（枚举以 int 反序列化，需防脏数据）
+            // 高级外观只暴露两个方案：0=方案2（cf78b44 经典采集）、3=方案1（DWM/WGC）。
+            // 旧的 GDI / 完整桌面取值统一收敛到方案2，避免界面显示与后端不一致。
+            var v = value == FloatingScheduleGlassCaptureMode.WindowUnder
+                ? FloatingScheduleGlassCaptureMode.WindowUnder
+                : FloatingScheduleGlassCaptureMode.Dxgi;
             if (_floatingScheduleGlassCaptureMode != v)
             {
                 _floatingScheduleGlassCaptureMode = v;
@@ -1301,21 +1300,6 @@ public class PluginSettings : INotifyPropertyChanged
             if (_floatingScheduleGlassVSync != value)
             {
                 _floatingScheduleGlassVSync = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>【液态玻璃】允许截图（默认关）：开启后暂停液态玻璃的背景采样与重烘焙（背景冻结在当前已折射的那一帧）。
-    /// 【注意】"抓帧期间强制排除捕获"的逻辑已移除 —— 窗口能否出现在截图/录屏里完全由用户自己的"防截图"设置决定。</summary>
-    public bool FloatingScheduleGlassAllowCapture
-    {
-        get => _floatingScheduleGlassAllowCapture;
-        set
-        {
-            if (_floatingScheduleGlassAllowCapture != value)
-            {
-                _floatingScheduleGlassAllowCapture = value;
                 OnPropertyChanged();
             }
         }

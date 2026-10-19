@@ -1558,7 +1558,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //   - FontScale=默认 18 → teacher=15×21.5=322.5 px；820 - 26-14-16-322.5-141 = 300.5 px 课程列（14+ 字中文，充足）
             MaxWidth = 820
         };
-        // 高级外观：按材质联动窗口透明级别（磨砂/亚克力/液态玻璃需含 AcrylicBlur 才能让系统亚克力采样到桌面）
+        // 高级外观：按材质联动窗口透明级别（云母需含 Mica、亚克力需含 AcrylicBlur 才能让系统采样到桌面）
         ApplyWindowTransparencyAv();
         // 跨版本 Avalonia 兼容：SystemDecorations 枚举在不同 SDK 内嵌的 Avalonia 中
         // 命名空间/类型名可能变化，用反射尝试设置 None 值隐藏系统标题栏
@@ -2249,11 +2249,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 // 【防止截图】开关变化：立即应用/清除窗口捕获亲和性
                 Dispatcher.UIThread.Post(ApplyPreventCaptureAv);
                 break;
-            case nameof(PluginSettings.FloatingScheduleGlassAllowCapture):
-                // 【允许截图】开关变化：立即重评窗口捕获亲和性（采样启停由采样定时器下一 tick 生效；
-                //   若仍有在途抓帧则延迟一个采样周期再清排除，避免冻结点"拍到自己"的帧）。
-                Dispatcher.UIThread.Post(ApplyPreventCaptureAv);
-                break;
             // ===================== 独立进程模式（4 新设置项，全部即时生效、无需重启 ClassIsland） =====================
             case nameof(PluginSettings.FloatingScheduleIndependentProcess):
                 Dispatcher.UIThread.Post(() =>
@@ -2508,13 +2503,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_window == null) return;
 #if WINDOWS
-        // 捕获亲和性只由用户自己的"防截图"设置决定。
-        // 液态玻璃抓帧不再强制排除捕获（该逻辑已移除），窗口是否可被截图/录屏/远程捕获完全交给用户选择。
+        // 方案2（经典采集）采样期间玻璃会持续持有"排除捕获"；用户防截图关闭时不要去抢它。
         bool want = _settings.FloatingSchedulePreventCapture;
         if (OperatingSystem.IsWindows())
         {
             try
             {
+                if (!want && _glassAv.IsCaptureExclusionActive) return;
                 // 先归还液态玻璃采样期间的临时排除，再按用户设置写亲和性。
                 _glassAv.ReleaseCaptureExclusion();
                 var hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
@@ -4712,6 +4707,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     /// </summary>
     private void PublishModelAv(FloatScheduleRenderModel model)
     {
+        // 离开液态玻璃（方案2 采样）→ 归还采样期间的排除捕获（对齐 cf78b44 的 RestoreAffinity）。
+        if (ResolveMaterialAv() != 3) _glassAv.ReleaseCaptureExclusion();
         // 独立进程模式优先：进程内窗口对象可能仍存活（Connected 后只 Hide 未销毁），不能再走进程内渲染
         if (IndependentActive)
         {
@@ -4727,7 +4724,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             var (root, refs) = FloatScheduleRenderer.Build(model);
             int matAv = ResolveMaterialAv();
             if (matAv == 3) StartGlassTimerAv();   // 液态玻璃：确保背景采样定时器在跑（低频 2fps）
-            // 高级外观：按材质装配卡片背景层（磨砂/亚克力/液态玻璃/古卷/自定义图片；实验材质未开实验性功能时回退半透明）
+            // 高级外观：按材质装配卡片背景层（云母/亚克力/液态玻璃/古卷/自定义图片；实验材质未开实验性功能时回退半透明）
             FloatScheduleMaterialApplier.Apply(
                 _containerBorder,
                 matAv,
@@ -4736,11 +4733,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 model.CardBackgroundArgb,
                 _settings.FloatingScheduleCustomBackgroundPath,
                 root,
-                osBackdrop: matAv == 1 || matAv == 2,   // 磨砂/亚克力走系统亚克力；液态玻璃走自绘"折射"管线（刻意不启用系统模糊）
+                osBackdrop: matAv == 1 || matAv == 2,   // 云母走窗口级系统背板；亚克力走系统亚克力；液态玻璃走自绘"折射"管线（刻意不启用系统模糊）
                 // 内容内边距内移（材质层需铺满整卡，避免非半透明材质出现空心边框）
                 contentPadding: new Thickness(_settings.FloatingScheduleMarginLeft, _settings.FloatingScheduleMarginTop, _settings.FloatingScheduleMarginRight, _settings.FloatingScheduleMarginBottom),
                 backdropLayer: GlassBackdropLayerAv(), backdropIsRefracted: _glassAv.HasContent && matAv == 3);
-            // 材质切换 → 窗口透明级别联动（磨砂/亚克力需 AcrylicBlur）
+            // 材质切换 → 窗口透明级别联动（云母需 Mica、亚克力需 AcrylicBlur）
             ApplyWindowTransparencyAv();
             // 装饰边框（液态玻璃/古卷下强制关）
             FloatScheduleMaterialApplier.ApplyBorder(_containerBorder,
@@ -4867,8 +4864,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _glassTimerAv.Tick += (_, _) =>
         {
             _glassTimerAv.Interval = GlassIntervalAv();   // 采样率设置变更后热跟随（无需重启）
-            // 仅"材质=液态玻璃 且可见 且未允许截图"才抓帧
-            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible && !_settings.FloatingScheduleGlassAllowCapture)
+            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible)
                 _ = RefreshGlassBackdropAvAsync();
         };
         _glassTimerAv.Start();
@@ -4980,8 +4976,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (_glassBusyAv || _window == null || _containerBorder == null) return;
         if (ResolveMaterialAv() != 3 || !_window.IsVisible) return;
-        // 【允许截图】开启 → 不采样（背景冻结在当前已折射帧）。
-        if (_settings.FloatingScheduleGlassAllowCapture) return;
         IntPtr hwnd;
         try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return; }
         if (hwnd == IntPtr.Zero) return;
@@ -4992,6 +4986,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
         // 捕获方式设置热跟随（直接读 PluginSettings，改动即时生效）
         _glassAv.CaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode;
+        _glassAv.PreventCapture = _settings.FloatingSchedulePreventCapture;
         _glassBusyAv = true;
         try
         {
@@ -5015,8 +5010,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     /// <summary>
     /// 高级外观：按当前材质联动窗口透明级别。
-    /// 磨砂(1)/亚克力(2) 走系统合成材质（ExperimentalAcrylicBorder，真实桌面背景模糊），
-    /// 需要窗口 TransparencyLevelHint 含 AcrylicBlur/Blur 才能让系统采样到桌面背景做模糊；
+    /// 云母(1) 走窗口级系统云母背板（WindowTransparencyLevel.Mica；Win11 有，Win10 回退 AcrylicBlur 亚克力模糊）；
+    /// 亚克力(2) 走系统合成材质（ExperimentalAcrylicBorder），需要 TransparencyLevelHint 含 AcrylicBlur/Blur
+    ///   才能让系统采样到桌面背景做模糊；
     /// 液态玻璃(3) 刻意保持纯 Transparent —— Apple 取向是"透镜折射而非模糊"，背景保持清晰；
     /// 其余材质同样纯 Transparent（保证卡片圆角外真透明、无系统模糊）。
     /// </summary>
@@ -5026,12 +5022,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             if (_window == null) return;
             int m = ResolveMaterialAv();
-            int mode = (m == 1 || m == 2) ? 1 : 0;   // 1=需系统亚克力(AcrylicBlur) 0=纯透明
+            int mode = (m == 1 || m == 2) ? m : 0;   // 1=云母(Mica) 2=亚克力(AcrylicBlur) 0=纯透明
             if (mode == _lastTransparencyModeAv) return;   // 透明级别未变则跳过（该属性会触发平台调用）
             _lastTransparencyModeAv = mode;
-            _window.TransparencyLevelHint = mode == 1
-                ? new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None }
-                : new[] { WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None };
+            _window.TransparencyLevelHint = mode switch
+            {
+                // 云母：优先系统云母背板；Win11 以下无云母 → 回退亚克力模糊保底观感
+                1 => new[] { WindowTransparencyLevel.Mica, WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+                2 => new[] { WindowTransparencyLevel.AcrylicBlur, WindowTransparencyLevel.Blur, WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+                _ => new[] { WindowTransparencyLevel.Transparent, WindowTransparencyLevel.None },
+            };
         }
         catch (Exception ex) { _logger.LogDebug(ex, "ApplyWindowTransparencyAv 异常（忽略）"); }
     }
@@ -5110,7 +5110,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
             GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
             GlassVSync = _settings.FloatingScheduleGlassVSync,
-            GlassAllowCapture = _settings.FloatingScheduleGlassAllowCapture,
             TintArgb = tintArgb,
         };
     }

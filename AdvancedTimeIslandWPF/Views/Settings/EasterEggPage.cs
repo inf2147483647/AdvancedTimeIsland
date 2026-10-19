@@ -63,7 +63,30 @@ public class EasterEggPage : UserControl
     public EasterEggPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
+        Log($"===== session start, baseDir={AppContext.BaseDirectory}, wpf={Environment.Version} =====");
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// 右键“另存为”问题诊断日志（写插件目录 ContextMenuDebug.log）：跟踪右键事件是否到达
+    /// 图片卡片、是否被上游标记 Handled、ContextMenu 是否尝试打开、保存流程各步骤。定位完成后可移除。
+    /// </summary>
+    private static readonly object DebugLogLock = new();
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff} T{Environment.CurrentManagedThreadId}] {message}\r\n";
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "ContextMenuDebug.log"), line);
+            }
+        }
+        catch
+        {
+            // 诊断日志失败不影响功能
+        }
     }
 
     private void InitializeComponent()
@@ -574,7 +597,140 @@ public class EasterEggPage : UserControl
 
         LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
 
+        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）
+        AttachImageContextMenu(container, url, image);
+
         return container;
+    }
+
+    /// <summary>
+    /// 取女装图片的本地缓存路径（与 <see cref="LoadRemoteImageWithRetry"/> 的缓存位置一致）。URL 非法时返回 null。
+    /// </summary>
+    private static string? GetImageCachePath(string url)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            return string.IsNullOrWhiteSpace(fileName)
+                ? null
+                : Path.Combine(AppContext.BaseDirectory, "Assets", "Images", fileName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 为图片卡片挂右键菜单（“另存为...”）：优先无损复制本地缓存的原始 JPG（与页面上显示的原图同源）；
+    /// 缓存缺失时把当前显示位图重编码为 JPG 保存。菜单打开时按可保存状态（有缓存文件或已显示位图）
+    /// 动态启用/禁用菜单项，避免对未加载成功的图片弹出“另存为”后毫无反应。
+    /// </summary>
+    private static void AttachImageContextMenu(Border container, string url, Image imageControl)
+    {
+        var saveMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为..." };
+        saveMenuItem.Click += async (_, _) =>
+        {
+            Log($"[click] 另存为 clicked, url={url}");
+            await SaveImageAsAsync(url, imageControl);
+        };
+
+        var menu = new ContextMenu();
+        menu.Items.Add(saveMenuItem);
+        menu.Opened += (_, _) =>
+        {
+            var cachePath = GetImageCachePath(url);
+            var cacheExists = cachePath != null && File.Exists(cachePath);
+            var hasBitmap = imageControl.Source is BitmapSource;
+            saveMenuItem.IsEnabled = cacheExists || hasBitmap;
+            Log($"[opened] menu Opened, url={url}, enabled={saveMenuItem.IsEnabled}, cacheExists={cacheExists}, hasBitmap={hasBitmap}");
+        };
+        menu.Closed += (_, _) => Log($"[closed] menu Closed, url={url}");
+        container.ContextMenu = menu;
+
+        // 右键事件到达情况跟踪（Preview/冒泡各一道）：判断右键事件是否到达卡片、是否被上游标记 Handled
+        container.PreviewMouseRightButtonDown += (s, e) =>
+            Log($"[ptr] RightButtonDown preview, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.MouseRightButtonDown += (s, e) =>
+            Log($"[ptr] RightButtonDown bubble, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.PreviewMouseRightButtonUp += (s, e) =>
+            Log($"[ptr] RightButtonUp preview, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.MouseRightButtonUp += (s, e) =>
+            Log($"[ptr] RightButtonUp bubble, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.ContextMenuOpening += (s, e) =>
+            Log($"[opening] ContextMenuOpening, url={url}, handled={e.Handled}");
+
+        Log($"[attach] ContextMenu attached, url={url}");
+    }
+
+    /// <summary>
+    /// “另存为”：弹出系统保存文件对话框（默认 jpg），把照片写入用户选择的位置。
+    /// 对话框等待与位图编码均在 UI 线程完成（BitmapSource 跨线程访问受限），
+    /// 磁盘读写全部放到后台线程执行，不阻塞 UI；
+    /// 用户取消或无可保存内容时静默返回，保存失败写入调试输出。
+    /// </summary>
+    private static async Task SaveImageAsAsync(string url, Image imageControl)
+    {
+        Log($"[save] begin, url={url}");
+        try
+        {
+            var suggestedName = Path.GetFileName(new Uri(url).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(suggestedName))
+            {
+                suggestedName = "image.jpg";
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "另存为",
+                FileName = Path.GetFileNameWithoutExtension(suggestedName),
+                DefaultExt = ".jpg",
+                Filter = "JPEG 图片|*.jpg;*.jpeg|所有文件|*.*"
+            };
+            var dialogResult = dialog.ShowDialog(Window.GetWindow(imageControl));
+            Log($"[save] dialog result={dialogResult}, path={dialog.FileName}");
+            if (dialogResult != true)
+            {
+                return;
+            }
+
+            var targetPath = dialog.FileName;
+            var cachePath = GetImageCachePath(url);
+
+            // 仅当缓存缺失时才需要把当前显示位图重编码为 JPG（质量 95）；
+            // 位图编码必须在 UI 线程完成（BitmapSource 跨线程访问受限），先编码进内存再交后台写盘
+            byte[]? encoded = null;
+            if ((cachePath == null || !File.Exists(cachePath)) && imageControl.Source is BitmapSource source)
+            {
+                var encoder = new JpegBitmapEncoder { QualityLevel = 95 };
+                encoder.Frames.Add(BitmapFrame.Create(source));
+                using var memory = new MemoryStream();
+                encoder.Save(memory);
+                encoded = memory.ToArray();
+                Log($"[save] cache missing, re-encoded display bitmap to JPEG ({encoded.Length} bytes)");
+            }
+
+            await Task.Run(() =>
+            {
+                if (cachePath != null && File.Exists(cachePath))
+                {
+                    File.Copy(cachePath, targetPath, overwrite: true);
+                    Log($"[save] copied cache file to target (thread T{Environment.CurrentManagedThreadId})");
+                }
+                else if (encoded != null)
+                {
+                    File.WriteAllBytes(targetPath, encoded);
+                    Log($"[save] wrote re-encoded JPEG to target (thread T{Environment.CurrentManagedThreadId})");
+                }
+            });
+            Log("[save] done");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
+            // 磁盘满/路径非法等保存失败不打断页面：写入调试输出便于排查
+            System.Diagnostics.Debug.WriteLine($"SaveImageAsAsync failed: {ex}");
+        }
     }
 
     private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)

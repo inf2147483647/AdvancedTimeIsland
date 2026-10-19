@@ -100,6 +100,13 @@ public static class FloatScheduleScreenCapture
         return false;
     }
 
+    /// <summary>窗口当前是否已被系统排除出捕获（WDA_MONITOR / WDA_EXCLUDEFROMCAPTURE）。</summary>
+    public static bool IsProtectedFromCapture(IntPtr hwnd)
+    {
+        if (hwnd == IntPtr.Zero) return false;
+        try { return GetWindowDisplayAffinity(hwnd, out uint a) && a != WDA_NONE; } catch { return false; }
+    }
+
     /// <summary>恢复采样前的捕获亲和性（WDA_NONE / WDA_MONITOR / WDA_EXCLUDEFROMCAPTURE）。</summary>
     public static void RestoreCaptureAffinity(IntPtr hwnd, uint affinity)
     {

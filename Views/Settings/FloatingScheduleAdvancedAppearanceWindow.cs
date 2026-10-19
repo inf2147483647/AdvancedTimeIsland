@@ -27,7 +27,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     readonly ContentControl _centerHost = new();
     readonly Border _previewCard = new();
     readonly Canvas _previewCanvas = new();
-    // 背景透卡（预览专用）：透出"卡片正下方"那块示例背景并按材质施加不同模糊（磨砂/亚克力/液态玻璃差异的核心）。
+    // 背景透卡（预览专用）：透出"卡片正下方"那块示例背景并按材质施加不同模糊（云母/亚克力/液态玻璃差异的核心）。
     Border? _previewBackdropLayer;
     int _previewBackdropMaterial;   // 3=液态玻璃 → 背景层走"真实 SDF 折射"，其余走模糊
     double _bdLeft = double.NaN, _bdTop = double.NaN, _bdW = double.NaN, _bdH = double.NaN, _bdZoom = double.NaN;
@@ -157,7 +157,16 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     Control BuildWindowPanel()
     {
         var p = NewPanel();
-        p.Children.Add(RowCombo("窗口材质", new[] { "半透明", "磨砂", "亚克力", "液态玻璃 (Beta)", "古卷 (Alpha)", "自定义图片" },
+        // 液态玻璃维护提醒：错误级、不可关闭（FA2/FA3 的 InfoBar 类型名不同，经兼容层创建）。
+        var glassWarn = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Title", "注意");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Message", "请不要使用液态玻璃材质，作者已经没有经济来维护它了");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Margin", new Thickness(0, 0, 0, 8));
+        p.Children.Add(glassWarn);
+        p.Children.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃 (GraveYard)", "古卷 (Alpha)", "自定义图片" },
             (int)_s.FloatingScheduleMaterial, i => _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i,
             out var matCombo));
         p.Children.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
@@ -165,14 +174,16 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Children.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
         p.Children.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
-        // 液态玻璃背景采样来源（改动即时生效；完整桌面会临时排除自身，远程会话自动退回仅下方窗口）
-        p.Children.Add(RowCombo("液态玻璃采样来源", new[] { "完整桌面 (含全部窗口和壁纸)", "屏幕 (DXGI Desktop Duplication)", "屏幕 (GDI BitBlt 回退)", "仅下方窗口 (DWM / Win10 PrintWindow)" },
-            (int)_s.FloatingScheduleGlassCaptureMode, i => _s.FloatingScheduleGlassCaptureMode = (FloatingScheduleGlassCaptureMode)i, out _));
+        // 采集方案（二选一，改动即时生效）：
+        //   方案1 = DWM/WGC 采集（不排除自身 → 支持截图；资源占用高、适配性差）
+        //   方案2 = cf78b44 经典采集（采样期间排除自身 → 不支持截图；占用低、流畅）
+        int captureScheme = _s.FloatingScheduleGlassCaptureMode == FloatingScheduleGlassCaptureMode.WindowUnder ? 0 : 1;
+        p.Children.Add(RowCombo("采集方案", new[] { "方案1（DWM采集，支持截图，但资源占用高，适配不佳）", "方案2（资源占用低，流畅度高，但不支持截图）" },
+            captureScheme, i => _s.FloatingScheduleGlassCaptureMode = i == 0
+                ? FloatingScheduleGlassCaptureMode.WindowUnder
+                : FloatingScheduleGlassCaptureMode.Dxgi, out _));
         // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
         p.Children.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
-        // 允许截图：暂停液态玻璃背景采样/重烘焙（背景冻结）。默认关。
-        // 注：抓帧期间强制"排除捕获"的逻辑已移除，窗口是否可被截图/录屏只由"防截图"设置决定。
-        p.Children.Add(RowToggle("允许截图（暂停液态玻璃背景采样）", _s.FloatingScheduleGlassAllowCapture, v => _s.FloatingScheduleGlassAllowCapture = v));
         p.Children.Add(RowButton("选择自定义背景图片…", async (_, _) =>
         {
             try
@@ -349,8 +360,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         var (root, _) = FloatScheduleRenderer.Build(model);
         int mat = (int)_s.FloatingScheduleMaterial;
         if (!_s.EnableExperimentalFeatures && (mat == 3 || mat == 4 || mat == 5)) mat = 0;
-        // 背景透卡：磨砂/亚克力/液态玻璃需要"背后内容"才成立。编辑器是不透明窗口，采不到真实桌面，
-        // 故在卡片内裁出"卡片正下方的示例背景"这块，由材质层按材质施加不同模糊（磨砂重 / 亚克力中 / 液态玻璃≈0）。
+        // 背景透卡：云母/亚克力/液态玻璃需要"背后内容"才成立。编辑器是不透明窗口，采不到真实桌面，
+        // 故在卡片内裁出"卡片正下方的示例背景"这块，由材质层按材质施加不同模糊（云母轻 / 亚克力中 / 液态玻璃≈0）。
         _previewBackdropMaterial = mat;
         _previewBackdropLayer = (mat >= 1 && mat <= 3) ? BuildPreviewBackdropLayer() : null;
         // 内容内边距内移（材质层铺满整卡，避免非半透明材质出现空心边框）
@@ -589,7 +600,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             Geometry = new RectangleGeometry(full)
         });
         var grid = new DrawingGroup();
-        // 细节色块（落在卡片正下方区域）：让"模糊程度"可见——磨砂/亚克力把细节糊掉，液态玻璃保留清晰。
+        // 细节色块（落在卡片正下方区域）：让"模糊程度"可见——云母/亚克力把细节糊掉，液态玻璃保留清晰。
         dg.Children.Add(new GeometryDrawing
         {
             Brush = new SolidColorBrush(Color.FromArgb(0x80, 0xFF, 0xE2, 0x9A)),
@@ -621,7 +632,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     };
 
     // 背景透卡：一张透明层，Background 由 UpdatePreviewBackdrop 按卡片位置从示例背景取像；
-    // 模糊半径由材质层（FloatScheduleMaterialApplier.Apply）按材质设置（磨砂重 / 亚克力中 / 液态玻璃≈0）。
+    // 模糊半径由材质层（FloatScheduleMaterialApplier.Apply）按材质设置（云母轻 / 亚克力中 / 液态玻璃≈0）。
     Border BuildPreviewBackdropLayer() => new()
     {
         IsHitTestVisible = false,

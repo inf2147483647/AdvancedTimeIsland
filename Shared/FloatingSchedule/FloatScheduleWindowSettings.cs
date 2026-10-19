@@ -37,9 +37,9 @@ public sealed class FloatScheduleWindowSettings
     public string ExeStamp { get; set; } = "";
 
     // ===== 高级外观：窗口材质 / 边框 / 圆角 / 果冻 / FPS（子进程据此本地应用，插件侧已解析终态）=====
-    /// <summary>材质类型：0半透明 1磨砂 2亚克力 3液态玻璃 4古卷 5自定义图片。</summary>
+    /// <summary>材质类型：0半透明 1云母 2亚克力 3液态玻璃 4古卷 5自定义图片。</summary>
     public int Material { get; set; } = 0;
-    /// <summary>效果强度（0~1；磨砂/亚克力模糊度、液态玻璃折射度）。</summary>
+    /// <summary>效果强度（0~1；云母着色膜浓度、亚克力模糊度、液态玻璃折射度）。</summary>
     public double MaterialIntensity { get; set; } = 0.5;
     /// <summary>卡片圆角（0~10px，默认 8）。</summary>
     public double CornerRadius { get; set; } = 8;
@@ -65,15 +65,12 @@ public sealed class FloatScheduleWindowSettings
 
     // 液态玻璃：真折射背景的采样率（Hz，1~60，默认 30）——子进程按此节流"抓屏 + 折射"
     public double GlassSampleRateHz { get; set; } = 30.0;
-    /// <summary>液态玻璃背景采样来源（子进程 FLOATING 采样后端）：
-    /// 0=完整桌面（所有下方窗口 + 壁纸；采样瞬间临时排除自身，远程会话退回 3）
-    /// 1=DXGI 屏幕采集  2=GDI 屏幕采集  3=仅下方窗口（Win11 WGC / 更早系统 PrintWindow）。
+    /// <summary>液态玻璃采集方案（子进程 FLOATING 采样后端）：
+    /// 0=方案2（cf78b44 经典采集：排除自身后抓窗口区域，低占用/流畅，不支持截图）；
+    /// 3=方案1（DWM/WGC 仅下方窗口，支持截图，资源占用高）。1/2 为内部保留模式。
     /// 与设置枚举 FloatingScheduleGlassCaptureMode 取值一一对应（以 int 传输避免跨程序集类型依赖）。</summary>
     public int GlassCaptureMode { get; set; } = 0;
     public bool GlassVSync { get; set; } = true;
-    /// <summary>允许截图（默认关）：开启后子进程暂停液态玻璃背景采样/重烘焙（背景冻结在当前已折射帧）。
-    /// 【注意】"抓帧期间强制排除捕获"的逻辑已移除，窗口捕获亲和性只按用户自己的"防截图"设置。</summary>
-    public bool GlassAllowCapture { get; set; } = false;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
     public uint TintArgb { get; set; } = 0xCC2D2D30;
 }

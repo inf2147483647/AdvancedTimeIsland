@@ -14,11 +14,22 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Media.Imaging;
 using Avalonia.Media.Transformation;
+using Avalonia.Platform.Storage;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Styling;
 using Avalonia.Threading;
 using Avalonia.VisualTree;
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
+using SkiaSharp;
+// Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity，
+// 用别名统一，业务代码统一用 FAInfoBarSeverity
+#if NET10_0_OR_GREATER
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
+#else
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.InfoBarSeverity;
+#endif
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using ClassIsland.Core.Abstractions.Services;
@@ -86,6 +97,7 @@ public partial class EasterEggPage : UserControl
     public EasterEggPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
+        Log($"===== session start, baseDir={AppContext.BaseDirectory}, avalonia={typeof(Image).Assembly.GetName().Version} =====");
         InitializeComponent();
         WireUI();
         IntroAnimationHelper.EnableSmoothScroll(this);
@@ -659,7 +671,279 @@ public partial class EasterEggPage : UserControl
 
         LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator, GetCurrentLoadToken());
 
+        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）
+        AttachImageContextMenu(container, url, image);
+
         return container;
+    }
+
+    /// <summary>
+    /// 取女装图片的本地缓存路径（与 <see cref="LoadRemoteImageWithRetry"/> 的缓存位置一致）。URL 非法时返回 null。
+    /// </summary>
+    private static string? GetImageCachePath(string url)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            return string.IsNullOrWhiteSpace(fileName)
+                ? null
+                : Path.Combine(AppContext.BaseDirectory, "Assets", "Images", fileName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 右键“另存为”问题诊断日志（写插件目录 ContextMenuDebug.log）：跟踪右键事件是否到达
+    /// 图片卡片、是否被上游标记 Handled、ContextMenu 是否尝试打开、保存流程各步骤。定位完成后可移除。
+    /// </summary>
+    private static readonly object DebugLogLock = new();
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff} T{Environment.CurrentManagedThreadId}] {message}\r\n";
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "ContextMenuDebug.log"), line);
+            }
+        }
+        catch
+        {
+            // 诊断日志失败不影响功能
+        }
+    }
+
+    /// <summary>右键事件跟踪时的人类可读按键描述。</summary>
+    private static string DescribePointerButton(PointerPoint point) =>
+        point.Properties.PointerUpdateKind.ToString();
+
+    /// <summary>
+    /// 为图片卡片挂右键菜单（“另存为...”）：优先无损复制本地缓存的原始 JPG（与页面上显示的原图同源）；
+    /// 缓存缺失时把当前显示位图重编码保存。菜单打开时按可保存状态（有缓存文件或已显示位图）
+    /// 动态启用/禁用菜单项，避免对未加载成功的图片弹出“另存为”后毫无反应。
+    /// 注意：这里用 MenuFlyout（挂 ContextFlyout）而不是 ContextMenu——Avalonia 12 的 ContextMenu
+    /// 改为 MenuBase、以自身作为 Popup 内容渲染，需要自己的 ControlTheme，而 FA3 (3.0.0) 未提供
+    /// 该样式（反编译确认），导致菜单打开却完全不可见；MenuFlyout 走 MenuFlyoutPresenter，
+    /// FA2/FA3 均有现成样式，ContextFlyout 机制在 Avalonia 11.3/12.1 行为一致（右键/长按自动弹出并定位指针）。
+    /// </summary>
+    private static void AttachImageContextMenu(Border container, string url, Image imageControl)
+    {
+        var saveMenuItem = new MenuItem { Header = "另存为..." };
+        saveMenuItem.Click += async (_, _) =>
+        {
+            Log($"[click] 另存为 clicked, url={url}");
+            await SaveImageAsAsync(url, imageControl);
+        };
+
+        var menuFlyout = new MenuFlyout();
+        menuFlyout.Items.Add(saveMenuItem);
+        menuFlyout.Opening += (_, _) =>
+        {
+            var cachePath = GetImageCachePath(url);
+            var cacheExists = cachePath != null && File.Exists(cachePath);
+            var hasBitmap = imageControl.Source is Bitmap;
+            saveMenuItem.IsEnabled = cacheExists || hasBitmap;
+            Log($"[opening] flyout Opening, url={url}, enabled={saveMenuItem.IsEnabled}, cacheExists={cacheExists}, hasBitmap={hasBitmap}");
+        };
+        menuFlyout.Closed += (_, _) => Log($"[closed] flyout Closed, url={url}");
+        container.ContextFlyout = menuFlyout;
+
+        // 右键事件到达情况跟踪（隧道+冒泡各一道）：判断右键事件是否到达卡片、是否被上游标记 Handled
+        container.AddHandler(InputElement.PointerPressedEvent, (object? s, PointerPressedEventArgs e) =>
+        {
+            var p = e.GetCurrentPoint(container);
+            Log($"[ptr] Pressed tunnel btn={DescribePointerButton(p)}, handled={e.Handled}, source={e.Source?.GetType().Name ?? "null"}");
+        }, RoutingStrategies.Tunnel);
+
+        container.AddHandler(InputElement.PointerReleasedEvent, (object? s, PointerReleasedEventArgs e) =>
+        {
+            var p = e.GetCurrentPoint(container);
+            Log($"[ptr] Released tunnel btn={DescribePointerButton(p)}, handled={e.Handled}, source={e.Source?.GetType().Name ?? "null"}");
+        }, RoutingStrategies.Tunnel);
+
+        container.AddHandler(InputElement.PointerReleasedEvent, (object? s, PointerReleasedEventArgs e) =>
+        {
+            var p = e.GetCurrentPoint(container);
+            Log($"[ptr] Released bubble btn={DescribePointerButton(p)}, handled={e.Handled}, source={e.Source?.GetType().Name ?? "null"}");
+        }, RoutingStrategies.Bubble);
+
+        Log($"[attach] MenuFlyout attached via ContextFlyout, url={url}");
+    }
+
+    /// <summary>
+    /// “另存为”：弹出系统保存文件对话框（默认 jpg），把照片写入用户选择的位置。
+    /// 保存对话框 await 异步等待，文件读写全部在后台线程执行，不阻塞 UI；
+    /// 用户取消时静默返回，成功/失败均通过宿主右下角 Toast 提示（失败时给出具体原因）。
+    /// </summary>
+    private static async Task SaveImageAsAsync(string url, Image imageControl)
+    {
+        Log($"[save] begin, url={url}");
+        string targetPath = string.Empty;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(imageControl);
+            if (topLevel?.StorageProvider == null)
+            {
+                Log("[save] topLevel or StorageProvider is null, abort");
+                ShowSaveFailureToast(imageControl, "无法获取宿主窗口的存储服务，请重试。");
+                return;
+            }
+
+            var suggestedName = Path.GetFileName(new Uri(url).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(suggestedName))
+            {
+                suggestedName = "image.jpg";
+            }
+
+            Log($"[save] opening save dialog, suggested={suggestedName}");
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "另存为",
+                SuggestedFileName = Path.GetFileNameWithoutExtension(suggestedName),
+                DefaultExtension = "jpg",
+                FileTypeChoices = new List<FilePickerFileType>
+                {
+                    new("JPEG 图片") { Patterns = new[] { "*.jpg", "*.jpeg" } }
+                }
+            });
+            if (file == null)
+            {
+                Log("[save] dialog returned null (user cancelled)");
+                return;
+            }
+
+            targetPath = file.Path.LocalPath;
+            Log($"[save] dialog returned: {targetPath}");
+            var cachePath = GetImageCachePath(url);
+
+            // 优先无损复制本地缓存的原始 JPG（与页面上显示的原图同源）；
+            // 仅当缓存缺失时才把当前显示位图重编码为 JPG：Avalonia 11/12 公开 API 都没有
+            // JpegEncoder（连 IImageEncoder 类型也未公开），故先在 UI 线程用 Save(Stream)
+            // （默认 PNG 输出）拿到无损像素流（Bitmap 属于 UI 线程对象，不在后台线程访问），
+            // 再交后台线程用 SkiaSharp 转码为 JPEG 并写盘。
+            byte[]? pngBytes = null;
+            if ((cachePath == null || !File.Exists(cachePath)) && imageControl.Source is Bitmap bitmap)
+            {
+                using var memory = new MemoryStream();
+                bitmap.Save(memory);
+                pngBytes = memory.ToArray();
+                Log($"[save] cache missing, re-encoded display bitmap to PNG stream ({pngBytes.Length} bytes)");
+            }
+
+            var saved = false;
+            await Task.Run(() =>
+            {
+                if (cachePath != null && File.Exists(cachePath))
+                {
+                    File.Copy(cachePath, targetPath, overwrite: true);
+                    Log($"[save] copied cache file to target (thread T{Environment.CurrentManagedThreadId})");
+                    saved = true;
+                }
+                else if (pngBytes != null)
+                {
+                    File.WriteAllBytes(targetPath, EncodeJpegViaSkia(pngBytes));
+                    Log($"[save] wrote re-encoded JPEG to target (thread T{Environment.CurrentManagedThreadId})");
+                    saved = true;
+                }
+            });
+
+            if (saved)
+            {
+                Log("[save] done");
+                // 与宿主“从本地安装插件”提示同款：右下角 InfoBar 风格成功 Toast
+                imageControl.ShowSuccessToast($"已保存到 {targetPath}");
+            }
+            else
+            {
+                ShowSaveFailureToast(imageControl, "照片尚未加载完成，暂无可保存的图像。");
+            }
+        }
+        catch (Exception ex)
+        {
+            var reason = DescribeSaveFailure(targetPath, ex);
+            Log($"[save] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
+            ShowSaveFailureToast(imageControl, reason);
+        }
+    }
+
+    /// <summary>
+    /// 在宿主窗口右下角弹出“另存为失败”提示（InfoBar 错误样式，不自动关闭，需用户手动关闭），
+    /// 正文为具体失败原因。
+    /// </summary>
+    private static void ShowSaveFailureToast(Image imageControl, string reason)
+    {
+        try
+        {
+            imageControl.ShowToast(new ToastMessage(reason)
+            {
+                Title = "另存为失败",
+                Severity = FAInfoBarSeverity.Error,
+                AutoClose = false
+            });
+        }
+        catch (Exception toastEx)
+        {
+            // Toast 展示失败不影响主流程
+            System.Diagnostics.Debug.WriteLine($"ShowSaveFailureToast failed: {toastEx}");
+        }
+    }
+
+    /// <summary>
+    /// 把保存失败异常翻译为用户可读的具体原因：磁盘空间不足 / 无写入权限 / 路径无效 / 文件被占用等。
+    /// </summary>
+    private static string DescribeSaveFailure(string targetPath, Exception ex)
+    {
+        if (ex is UnauthorizedAccessException)
+        {
+            return "没有写入该位置的权限，请尝试更换保存位置（如文档或桌面）。";
+        }
+
+        if (ex is ArgumentException or PathTooLongException or NotSupportedException)
+        {
+            return $"保存路径无效：{ex.Message}";
+        }
+
+        if (ex is IOException)
+        {
+            // IOException 覆盖磁盘满、文件被占用、位置不可达等多种情况；优先探测目标盘剩余空间给出更具体的原因
+            try
+            {
+                var root = Path.GetPathRoot(targetPath);
+                if (!string.IsNullOrEmpty(root))
+                {
+                    var drive = new DriveInfo(root);
+                    if (drive.IsReady && drive.AvailableFreeSpace < 64L * 1024 * 1024)
+                    {
+                        return $"目标磁盘 {root} 剩余空间不足（仅剩 {drive.AvailableFreeSpace / (1024 * 1024)} MB），请清理空间后重试。";
+                    }
+                }
+            }
+            catch
+            {
+                // 磁盘探测失败时退回通用 IO 描述
+            }
+
+            return $"写入文件时发生 I/O 错误，目标位置可能不可用或文件正被占用：{ex.Message}";
+        }
+
+        return ex.Message;
+    }
+
+    /// <summary>
+    /// 用 SkiaSharp 把 PNG 像素流转码为 JPEG 字节（质量 95）。SkiaSharp 是 Avalonia
+    /// 渲染后端（Avalonia.Skia）自带的传递依赖，net8/net10 宿主进程内必然存在；
+    /// 选用的 API（Decode/FromBitmap/Encode）在 SkiaSharp 2.x/3.x 间一致，两个宿主版本通用。
+    /// </summary>
+    private static byte[] EncodeJpegViaSkia(byte[] pngBytes)
+    {
+        using var bitmap = SKBitmap.Decode(pngBytes);
+        using var image = SKImage.FromBitmap(bitmap);
+        using var data = image.Encode(SKEncodedImageFormat.Jpeg, 95);
+        return data.ToArray();
     }
 
     /// <summary>共享 HttpClient：避免每张图各建一个（原实现 20+ 张图会创建 20+ 个 HttpClient/连接池）。</summary>

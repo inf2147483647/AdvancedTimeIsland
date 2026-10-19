@@ -116,7 +116,8 @@ public sealed class FloatScheduleWindowCapture : IDisposable
             IntPtr cur = GetWindow(self, GW_HWNDNEXT);
             while (cur != IntPtr.Zero)
             {
-                if (IsWindowVisible(cur) && !IsIconic(cur) && !IsCloaked(cur))
+                // 跳过无响应窗口：PrintWindow 会同步给目标窗口发消息，目标卡死时会把采样线程一起卡死。
+                if (IsWindowVisible(cur) && !IsIconic(cur) && !IsCloaked(cur) && !IsHungAppWindow(cur))
                 {
                     long ex = GetWindowLongPtr(cur, GWL_EXSTYLE).ToInt64();
                     // 跳过分层/点击穿透窗口：它们多是覆盖层，采到的往往不是用户看到的内容。
@@ -739,6 +740,7 @@ public sealed class FloatScheduleWindowCapture : IDisposable
     [DllImport("user32.dll")] static extern IntPtr GetWindow(IntPtr hWnd, uint uCmd);
     [DllImport("user32.dll")] static extern bool IsWindowVisible(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool IsIconic(IntPtr hWnd);
+    [DllImport("user32.dll")] static extern bool IsHungAppWindow(IntPtr hWnd);
     [DllImport("user32.dll")] static extern bool GetWindowRect(IntPtr hWnd, out RECT r);
     [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hWnd, out RECT r);
     [DllImport("user32.dll")] static extern bool ClientToScreen(IntPtr hWnd, ref POINT p);
