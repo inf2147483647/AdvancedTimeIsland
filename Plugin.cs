@@ -171,6 +171,16 @@ public class Plugin : PluginBase
     }
 
     /// <summary>
+    /// 立即触发一次设置原子落盘（在 <see cref="SaveSettings"/> 的锁 + 临时文件 + File.Replace 保护下于后台线程执行），
+    /// 绕过防抖延迟。供高级外观等设置窗口在每个设置项写回后调用，避免改动停留在防抖窗口期内因宿主退出/崩溃而丢失。
+    /// 连续触发（如 Slider 拖动）时多次保存请求会在锁内串行，不阻塞 UI 线程。
+    /// </summary>
+    public void SaveSettingsNow()
+    {
+        _saveDebounceTimer.Change(0, Timeout.Infinite);
+    }
+
+    /// <summary>
     /// 悬浮时间表启动兜底：ClassIsland 用 Generic Host 启动，<c>Host.StartAsync()</c> 按 IHostedService 注册顺序
     /// 依次 await，<b>任一服务抛异常即中止后续启动</b>，注册在其后的插件宿主服务全部不会启动。
     /// 实测（2026-09，Windows 8.1 + ClassIsland 2.1.0.1）：MediaIsland 依赖的 Windows.Media.Control 在 Win8.1 上

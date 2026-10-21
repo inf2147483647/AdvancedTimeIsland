@@ -203,7 +203,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
                 if (files is { Count: > 0 })
                 {
                     var path = files[0].TryGetLocalPath();
-                    if (!string.IsNullOrEmpty(path)) _s.FloatingScheduleCustomBackgroundPath = path;
+                    if (!string.IsNullOrEmpty(path)) { _s.FloatingScheduleCustomBackgroundPath = path; PersistNow(); }
                 }
             }
             catch { }
@@ -259,19 +259,19 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             var defColor = SubjectColorHelper.DefaultSubjectColors.TryGetValue(nm, out var d) ? d : 0xFF7A7A7A;
             var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [nm] = defColor };
             _s.FloatingScheduleSubjectColorMap = map;
-            RebuildPreview(); SwitchPanel(1);
+            RebuildPreview(); SwitchPanel(1); PersistNow();
         };
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 2) };
         addRow.Children.Add(addName); addRow.Children.Add(addBtn);
         p.Children.Add(addRow);
         p.Children.Add(RowButton("从课表刷新学科", (_, _) => RefreshSubjects()));
-        p.Children.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap(); RebuildPreview(); SwitchPanel(1); }));
+        p.Children.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap(); RebuildPreview(); SwitchPanel(1); PersistNow(); }));
         foreach (var kv in _s.FloatingScheduleSubjectColorMap)
         {
             var name = kv.Key;
             p.Children.Add(SubjectRow(name, kv.Value,
                 v => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [name] = v }; _s.FloatingScheduleSubjectColorMap = map; },
-                () => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap); map.Remove(name); _s.FloatingScheduleSubjectColorMap = map; RebuildPreview(); SwitchPanel(1); }));
+                () => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap); map.Remove(name); _s.FloatingScheduleSubjectColorMap = map; RebuildPreview(); SwitchPanel(1); PersistNow(); }));
         }
 #endif
         return p;
@@ -291,7 +291,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             try
             {
                 var t = box.Text?.Trim().TrimStart('#') ?? "";
-                if (t.Length == 8 && uint.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) { onColor(v); swatch.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(v)); RebuildPreview(); }
+                if (t.Length == 8 && uint.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) { onColor(v); swatch.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(v)); RebuildPreview(); PersistNow(); }
             }
             catch { }
         };
@@ -353,7 +353,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
                 if (!map.ContainsKey(kv.Key)) map[kv.Key] = kv.Value;
             }
             _s.FloatingScheduleSubjectColorMap = map;
-            SwitchPanel(1);
+            SwitchPanel(1); PersistNow();
         }
         catch { }
     }
@@ -572,7 +572,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     Control RowToggle(string label, bool val, Action<bool> set)
     {
         var t = new ToggleSwitch { IsChecked = val };
-        t.IsCheckedChanged += (_, _) => { if (_suppress) return; set(t.IsChecked == true); RebuildPreview(); };
+        t.IsCheckedChanged += (_, _) => { if (_suppress) return; set(t.IsChecked == true); RebuildPreview(); PersistNow(); };
         return Row(label, t);
     }
 
@@ -583,7 +583,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         var c = new ComboBox { MinWidth = 180 };
         foreach (var it in items) c.Items.Add(it);
         c.SelectedIndex = Math.Clamp(sel, 0, items.Length - 1);
-        c.SelectionChanged += (_, _) => { if (_suppress || c.SelectedIndex < 0) return; set(c.SelectedIndex); RebuildPreview(); };
+        c.SelectionChanged += (_, _) => { if (_suppress || c.SelectedIndex < 0) return; set(c.SelectedIndex); RebuildPreview(); PersistNow(); };
         combo = c; return Row(label, c);
     }
 
@@ -605,6 +605,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             if (e.Property != NumericUpDown.ValueProperty || _suppress) return;
             if (n.Value is not { } v) return;
             set((double)v);
+            PersistNow();
         };
         return Row(label, n);
     }
@@ -616,7 +617,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         var tb = new TextBlock { Text = val.ToString("0.##", CultureInfo.InvariantCulture), VerticalAlignment = VerticalAlignment.Center, Width = 48 };
         s.PropertyChanged += (_, e) =>
         {
-            if (e.Property == Slider.ValueProperty) { if (_suppress) return; set(s.Value); tb.Text = s.Value.ToString("0.##", CultureInfo.InvariantCulture); RebuildPreview(); }
+            if (e.Property == Slider.ValueProperty) { if (_suppress) return; set(s.Value); tb.Text = s.Value.ToString("0.##", CultureInfo.InvariantCulture); RebuildPreview(); PersistNow(); }
         };
         sp.Children.Add(s); sp.Children.Add(tb);
         slider = s; return Row(label, sp);
@@ -639,12 +640,20 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             try
             {
                 var t = box.Text?.Trim().TrimStart('#') ?? "";
-                if (t.Length == 8 && uint.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) { set(v); swatch.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(v)); RebuildPreview(); }
+                if (t.Length == 8 && uint.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) { set(v); swatch.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(v)); RebuildPreview(); PersistNow(); }
             }
             catch { }
         };
         sp.Children.Add(swatch); sp.Children.Add(box);
         return Row(label, sp);
+    }
+
+    // 设置项写回后立即原子落盘（后台线程执行，不阻塞 UI）：
+    // 常规路径 PropertyChanged → 500ms 防抖，改动停留在防抖窗口期内时若宿主退出/崩溃会丢失；
+    // 高级外观窗口的所有设置项写回后绕过防抖立即保存，Slider 拖动等连续触发的保存请求在 SaveSettings 锁内串行。
+    void PersistNow()
+    {
+        try { Plugin.Instance?.SaveSettingsNow(); } catch { }
     }
 
     // 预览“桌面”示例背景：彩色渐变 + 直线网格（参考 D:\liquid-glass 的背景层配色）。
