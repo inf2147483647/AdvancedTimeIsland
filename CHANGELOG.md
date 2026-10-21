@@ -1,5 +1,10 @@
 ## [未发布]
 
+### 修复
+
+- **修复切换标签页后插件设置页「同步时间」大时钟停走**：`PluginSettingsPage` 在「关于」页标签栏中只创建一次、切回时复用同一实例，但同步时间大时钟的刷新计时器在页面离树（切走标签页）时被 `OnDetachedFromVisualTree` 释放，而 `OnInitialized` 不会再次执行——切回后计时器无人重启，大时钟冻结在切走瞬间的值。现新增 `OnAttachedToVisualTree` 重启计时器（内部先释放旧计时器，重复调用安全），无论作为独立设置页还是「关于」页标签页，重新进入均恢复走时。
+- **修复女装图片页事件订阅累积导致的内存泄漏**：[ResponsiveImageHelper](Helpers/ResponsiveImageHelper.cs) 的 `MakeWidthFollowAncestor` 此前在每次 `Loaded`（页面每次重新进入视觉树）时都向宽度来源祖先追加一个 `SizeChanged` 订阅且从不退订——女装页 24 张图片卡片，`WomenswearPage` 内嵌的彩蛋页随页面存活整个宿主运行期，反复切换标签页会无上限积累订阅闭包；且 `Loaded` 时中间层宽度为 0 时来源可能解析到比页面更长命百岁的宿主级控件，直接把整页控件树钉在内存里。现改为：订阅唯一化（重绑前先退订旧来源）并在 `DetachedFromVisualTree` 时退订、清空来源引用；`MakeInlineWidthFollowTextBlock` 的同类重复订阅问题一并修复。另修复 `EasterEggPage.LoadRemoteImageWithRetry` 写缓存 await 之后缺少取消复查的问题——页面离树（位图已全部释放）后，在途加载回调仍会把新解码位图写回已离树控件，导致该位图被钉在已卸载页面上只能等 GC/finalizer 归还非托管内存；现与解码后的两处取消检查保持一致，离树即释放、不写回。
+
 ### 变更
 
 - **高级外观设置项改为原子写入**：设置项写回原本依赖 `PropertyChanged → 500ms 防抖 → 原子落盘`，改动若停留在防抖窗口期内而宿主退出/崩溃会丢失。现新增 `Plugin.SaveSettingsNow()`（复用既有锁 + 临时文件 + `File.Replace` 原子保存，在后台线程执行不阻塞 UI），高级外观窗口的所有设置项（开关 / 下拉框 / 数值 / 滑杆 / 颜色、背景图片路径、学科色的添加 / 移除 / 刷新 / 恢复默认 / 逐科编辑）写回后立即触发保存；Slider 拖动等连续触发由保存锁串行，无并发风险。

@@ -1320,6 +1320,15 @@ public partial class EasterEggPage : UserControl
                             try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
                         }
                     }, CancellationToken.None);
+
+                    // 【防泄漏】写缓存期间页面可能已离树（OnDetached 已把全部 Source 清空）：
+                    // 若此时仍把新解码位图写回控件，该位图会钉在已卸载页面上，只能等 GC/finalizer
+                    // 才归还非托管内存。与前两处取消检查保持一致，离树后立即释放、不写回。
+                    if (cancellationToken.IsCancellationRequested)
+                    {
+                        decoded.Dispose();
+                        return;
+                    }
                 }
             }
 

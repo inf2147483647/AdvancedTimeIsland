@@ -1965,6 +1965,16 @@ public class PluginSettingsPage : UserControl
         StartNtpTimeDisplayTimer();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        // 【修复】同步时间大时钟在切走标签页时被 OnDetachedFromVisualTree 停止（Dispose），
+        // 而本页在 AboutPage 标签页中只创建一次、切回时复用同一实例——OnInitialized 不会再次执行，
+        // 若不在此处重启计时器，切回后大时钟会冻结在切走瞬间的值。
+        // StartNtpTimeDisplayTimer 内部会先释放旧计时器，重复调用安全。
+        StartNtpTimeDisplayTimer();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);

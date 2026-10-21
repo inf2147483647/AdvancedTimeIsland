@@ -21,10 +21,12 @@ public static class ResponsiveImageHelper
     public static void MakeWidthFollowAncestor(Control target, double fraction, bool applyAsMax = true)
     {
         double lastWidth = double.NaN;
+        Control? source = null;
+        EventHandler<SizeChangedEventArgs>? sizeChangedHandler = null;
 
-        void Apply(Control source)
+        void Apply()
         {
-            if (source.Bounds.Width <= 0) return;
+            if (source == null || source.Bounds.Width <= 0) return;
             var w = source.Bounds.Width * fraction;
             if (Math.Abs(w - lastWidth) < 0.5) return;
             lastWidth = w;
@@ -34,12 +36,12 @@ public static class ResponsiveImageHelper
                 target.Width = w;
         }
 
-        target.Loaded += (_, _) =>
+        // 向上遍历视觉树：取最近的具有实际宽度（Bounds.Width > 0）的祖先作为宽度来源。
+        // 注意：不能继续向上覆盖到最外层（如 ScrollViewer），否则图片会被放大到整页宽度，
+        // 超出所在卡片/展示框。
+        Control? FindSource()
         {
-            // 向上遍历视觉树：取最近的具有实际宽度（Bounds.Width > 0）的祖先作为宽度来源。
-            // 注意：不能继续向上覆盖到最外层（如 ScrollViewer），否则图片会被放大到整页宽度，
-            // 超出所在卡片/展示框。
-            Control? source = null;
+            Control? found = null;
             Control? fallback = null;
             var p = target.GetVisualParent();
             while (p != null)
@@ -48,7 +50,7 @@ public static class ResponsiveImageHelper
                 {
                     if (c.Bounds.Width > 0)
                     {
-                        source = c;
+                        found = c;
                         break;
                     }
                     if (fallback == null)
@@ -58,17 +60,49 @@ public static class ResponsiveImageHelper
                 }
                 p = p.GetVisualParent();
             }
-            if (source == null) source = fallback;
-            if (source == null) return;
+            return found ?? fallback;
+        }
 
-            Apply(source);
-            source.SizeChanged += (_, _) => Apply(source);
+        void BindSource()
+        {
+            var found = FindSource();
+            if (found == null) return;
+
+            // 【防泄漏】SizeChanged 订阅必须唯一且可退订：
+            // - 页面每次重新进入视觉树 Loaded 都会触发，若每次都追加订阅，长生命周期页面
+            //   （如女装页内嵌的 EasterEggPage）会随切换次数无上限积累订阅与闭包；
+            // - 来源可能解析到比页面更长命的宿主级控件，不退订会把整页控件树钉在内存里。
+            if (!ReferenceEquals(found, source))
+            {
+                if (source != null && sizeChangedHandler != null)
+                {
+                    source.SizeChanged -= sizeChangedHandler;
+                }
+                source = found;
+                sizeChangedHandler ??= (_, _) => Apply();
+                source.SizeChanged += sizeChangedHandler;
+            }
+
+            Apply();
 
             // 若 Loaded 时父级宽度尚未就绪（Bounds.Width 仍为 0），延迟重试一次
             if (source.Bounds.Width <= 0)
             {
-                Dispatcher.UIThread.Post(() => Apply(source));
+                Dispatcher.UIThread.Post(Apply);
             }
+        }
+
+        target.Loaded += (_, _) => BindSource();
+
+        // 离开视觉树时退订 SizeChanged，断开对宽度来源（可能长命于页面）的引用
+        target.DetachedFromVisualTree += (_, _) =>
+        {
+            if (source != null && sizeChangedHandler != null)
+            {
+                source.SizeChanged -= sizeChangedHandler;
+            }
+            source = null;
+            lastWidth = double.NaN;
         };
     }
 
@@ -116,8 +150,13 @@ public static class ResponsiveImageHelper
             {
                 if (p is TextBlock tb)
                 {
-                    textBlock = tb;
-                    tb.SizeChanged += (_, _) => Apply();
+                    // 【防泄漏】同一 TextBlock 只订阅一次 SizeChanged：页面反复进出视觉树时
+                    // AttachedToVisualTree 会多次触发，重复订阅会无上限积累闭包
+                    if (!ReferenceEquals(textBlock, tb))
+                    {
+                        textBlock = tb;
+                        tb.SizeChanged += (_, _) => Apply();
+                    }
                     break;
                 }
                 p = p.GetVisualParent();
