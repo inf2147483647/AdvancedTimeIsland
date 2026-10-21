@@ -23,6 +23,7 @@ using Avalonia.VisualTree;
 using ClassIsland.Core.Helpers.UI;
 using ClassIsland.Core.Models.UI;
 using SkiaSharp;
+using System.Text;
 // Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity，
 // 用别名统一，业务代码统一用 FAInfoBarSeverity
 #if NET10_0_OR_GREATER
@@ -671,8 +672,9 @@ public partial class EasterEggPage : UserControl
 
         LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator, GetCurrentLoadToken());
 
-        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）
-        AttachImageContextMenu(container, url, image);
+        // 右键菜单：按卡片状态分流——有缓存/位图 → 另存照片 JPG；无缓存无位图且错误态 → 另存错误日志；
+        // 无缓存无位图且加载中 → 另存 ExpressiveLoadingIndicator.cs 源代码（见 AttachImageContextMenu）
+        AttachImageContextMenu(container, url, image, errorPanel, loadingIndicator);
 
         return container;
     }
@@ -722,21 +724,41 @@ public partial class EasterEggPage : UserControl
         point.Properties.PointerUpdateKind.ToString();
 
     /// <summary>
-    /// 为图片卡片挂右键菜单（“另存为...”）：优先无损复制本地缓存的原始 JPG（与页面上显示的原图同源）；
-    /// 缓存缺失时把当前显示位图重编码保存。菜单打开时按可保存状态（有缓存文件或已显示位图）
-    /// 动态启用/禁用菜单项，避免对未加载成功的图片弹出“另存为”后毫无反应。
+    /// 为图片卡片挂右键菜单（“另存为…”），按卡片当前状态分三路：
+    /// ① 有本地缓存或已显示位图 → 另存为照片 JPG（优先无损复制本地缓存的原始 JPG；缓存缺失时把
+    ///    当前显示位图重编码保存）；
+    /// ② 无缓存无位图且处于错误状态（错误面板可见）→ 另存为加载错误日志 TXT；
+    /// ③ 无缓存无位图且正在加载中（加载占位符可见）→ 另存为 ExpressiveLoadingIndicator.cs 源代码。
+    /// 菜单打开时按是否有任一可保存目标动态启用/禁用菜单项，避免对加载中的卡片右键“另存为”毫无反应。
     /// 注意：这里用 MenuFlyout（挂 ContextFlyout）而不是 ContextMenu——Avalonia 12 的 ContextMenu
     /// 改为 MenuBase、以自身作为 Popup 内容渲染，需要自己的 ControlTheme，而 FA3 (3.0.0) 未提供
     /// 该样式（反编译确认），导致菜单打开却完全不可见；MenuFlyout 走 MenuFlyoutPresenter，
     /// FA2/FA3 均有现成样式，ContextFlyout 机制在 Avalonia 11.3/12.1 行为一致（右键/长按自动弹出并定位指针）。
     /// </summary>
-    private static void AttachImageContextMenu(Border container, string url, Image imageControl)
+    private static void AttachImageContextMenu(Border container, string url, Image imageControl, StackPanel errorPanel, ExpressiveLoadingIndicator loadingIndicator)
     {
-        var saveMenuItem = new MenuItem { Header = "另存为..." };
+        var saveMenuItem = new MenuItem { Header = "另存为…" };
         saveMenuItem.Click += async (_, _) =>
         {
-            Log($"[click] 另存为 clicked, url={url}");
-            await SaveImageAsAsync(url, imageControl);
+            var cachePath = GetImageCachePath(url);
+            var cacheExists = cachePath != null && File.Exists(cachePath);
+            var hasBitmap = imageControl.Source is Bitmap;
+
+            if (cacheExists || hasBitmap)
+            {
+                Log($"[click] 另存为 clicked (save image), url={url}");
+                await SaveImageAsAsync(url, imageControl);
+            }
+            else if (loadingIndicator.IsVisible)
+            {
+                Log($"[click] 另存为 clicked (loading state, save source code), url={url}");
+                await SaveSourceCodeAsAsync(imageControl);
+            }
+            else
+            {
+                Log($"[click] 另存为 clicked (error state, save log), url={url}");
+                await SaveErrorLogAsAsync(url, imageControl);
+            }
         };
 
         var menuFlyout = new MenuFlyout();
@@ -746,8 +768,17 @@ public partial class EasterEggPage : UserControl
             var cachePath = GetImageCachePath(url);
             var cacheExists = cachePath != null && File.Exists(cachePath);
             var hasBitmap = imageControl.Source is Bitmap;
-            saveMenuItem.IsEnabled = cacheExists || hasBitmap;
-            Log($"[opening] flyout Opening, url={url}, enabled={saveMenuItem.IsEnabled}, cacheExists={cacheExists}, hasBitmap={hasBitmap}");
+            var isLoading = loadingIndicator.IsVisible;
+            // 错误态判据：错误面板当前可见，或该图留有历史加载失败记录。
+            // 面板可见性是瞬态 UI 状态（重试/刷新/重排的间隙里可能为 false），而失败记录是持久化数据；
+            // 两者取或可避免失败卡片在“部分图片已加载成功”的混合状态下被误判为“无任何可保存内容”而变灰
+            //（实测日志：错误面板显示中，右键时 errorPanel.IsVisible 却为 false，导致菜单项被禁用）。
+            var isError = errorPanel.IsVisible || GetImageLoadErrorCount(url) > 0;
+            // 卡片状态只可能落在三种分支上：已有图片（缓存/位图） / 错误态 / 加载中（含尚未产生结果的
+            // 瞬态），三者覆盖全部情形，菜单项因此恒可用——避免失败项或加载项在“部分图片已加载成功”的
+            // 混合状态下被误判为“无任何可保存内容”而变灰（用户实测反馈：右键失败项菜单变灰）。
+            saveMenuItem.IsEnabled = true;
+            Log($"[opening] flyout Opening, url={url}, cacheExists={cacheExists}, hasBitmap={hasBitmap}, isLoading={isLoading}, isError={isError}");
         };
         menuFlyout.Closed += (_, _) => Log($"[closed] flyout Closed, url={url}");
         container.ContextFlyout = menuFlyout;
@@ -774,6 +805,211 @@ public partial class EasterEggPage : UserControl
         Log($"[attach] MenuFlyout attached via ContextFlyout, url={url}");
     }
 
+    /// <summary>单次图片加载失败记录。</summary>
+    private sealed record ImageLoadErrorEntry(DateTime Time, string ExceptionType, string Message);
+
+    private static readonly object ImageLoadErrorsLock = new();
+    private static readonly Dictionary<string, List<ImageLoadErrorEntry>> ImageLoadErrors = new();
+
+    /// <summary>
+    /// 记录一次图片加载失败（每次重试失败都会追加）。每个 URL 最多保留 20 条，防止长期驻留内存。
+    /// </summary>
+    private static void RecordImageLoadError(string url, Exception ex)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            if (!ImageLoadErrors.TryGetValue(url, out var list))
+            {
+                list = new List<ImageLoadErrorEntry>();
+                ImageLoadErrors[url] = list;
+            }
+
+            list.Add(new ImageLoadErrorEntry(DateTime.Now, ex.GetType().Name, ex.Message));
+            if (list.Count > 20)
+            {
+                list.RemoveAt(0);
+            }
+        }
+    }
+
+    private static int GetImageLoadErrorCount(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list) ? list.Count : 0;
+        }
+    }
+
+    private static List<ImageLoadErrorEntry> GetImageLoadErrors(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list)
+                ? new List<ImageLoadErrorEntry>(list)
+                : new List<ImageLoadErrorEntry>();
+        }
+    }
+
+    /// <summary>
+    /// 为错误面板挂右键菜单（“另存为错误日志...”）：把该图片的加载失败记录导出为文本日志，
+    /// 便于用户反馈网络/服务端问题（如 429 限流、超时等）。菜单打开时按是否有失败记录动态启用。
+    /// 与照片右键菜单同理使用 MenuFlyout/ContextFlyout（FA3 无 ContextMenu 样式，见 AttachImageContextMenu 注释）。
+    /// </summary>
+    private static void AttachErrorPanelContextMenu(StackPanel errorPanel, string url, Image imageControl)
+    {
+        var saveLogMenuItem = new MenuItem { Header = "另存为…" };
+        saveLogMenuItem.Click += async (_, _) => await SaveErrorLogAsAsync(url, imageControl);
+
+        var menuFlyout = new MenuFlyout();
+        menuFlyout.Items.Add(saveLogMenuItem);
+        menuFlyout.Opening += (_, _) =>
+        {
+            saveLogMenuItem.IsEnabled = GetImageLoadErrorCount(url) > 0;
+            Log($"[opening] error panel flyout Opening, url={url}, records={GetImageLoadErrorCount(url)}");
+        };
+        errorPanel.ContextFlyout = menuFlyout;
+    }
+
+    /// <summary>
+    /// 加载中状态的“另存为…”：把 <c>Views\Controls\ExpressiveLoadingIndicator.cs</c> 的源代码
+    /// 另存到用户选择的位置。该源文件以 EmbeddedResource 随程序集分发（插件安装态下插件目录里
+    /// 没有源码文件，只能从程序集资源读取），默认文件名 ExpressiveLoadingIndicator.cs。
+    /// 对话框 await 异步等待，写盘在后台线程执行；成功/失败均通过宿主右下角 Toast 提示。
+    /// </summary>
+    private static async Task SaveSourceCodeAsAsync(Image imageControl)
+    {
+        string targetPath = string.Empty;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(imageControl);
+            if (topLevel?.StorageProvider == null)
+            {
+                ShowErrorToast(imageControl, "另存为失败", "无法获取宿主窗口的存储服务，请重试。");
+                return;
+            }
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "另存为",
+                SuggestedFileName = "ExpressiveLoadingIndicator",
+                DefaultExtension = "cs",
+                FileTypeChoices = new List<FilePickerFileType>
+                {
+                    new("C# 源文件") { Patterns = new[] { "*.cs" } }
+                }
+            });
+            if (file == null)
+            {
+                Log("[save source] dialog returned null (user cancelled)");
+                return;
+            }
+
+            targetPath = file.Path.LocalPath;
+            var content = ReadEmbeddedSourceCode(EmbeddedLoadingIndicatorSourceName);
+            await Task.Run(() => File.WriteAllText(targetPath, content));
+            imageControl.ShowSuccessToast($"已保存到 {targetPath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save source] exception: {ex.GetType().Name}: {ex.Message}");
+            ShowErrorToast(imageControl, "另存为失败", DescribeSaveFailure(targetPath, ex));
+        }
+    }
+
+    /// <summary>内嵌源代码资源的逻辑名（与 csproj 的 EmbeddedResource LogicalName 一致）。</summary>
+    private const string EmbeddedLoadingIndicatorSourceName = "ExpressiveLoadingIndicator.cs";
+
+    /// <summary>
+    /// 从插件程序集读取内嵌的源代码文本（LogicalName 见 csproj 的 EmbeddedResource 配置）。
+    /// </summary>
+    private static string ReadEmbeddedSourceCode(string logicalName)
+    {
+        using var stream = typeof(EasterEggPage).Assembly.GetManifestResourceStream(logicalName);
+        if (stream == null)
+        {
+            return $"// 未找到内嵌源文件资源“{logicalName}”。{Environment.NewLine}";
+        }
+
+        using var reader = new StreamReader(stream, Encoding.UTF8);
+        return reader.ReadToEnd();
+    }
+
+    /// <summary>
+    /// “另存为错误日志”：弹出系统保存文件对话框（默认 .txt），把该图片的加载失败记录
+    /// （含环境信息）写入用户选择的位置。对话框 await 异步等待，写盘在后台线程执行；
+    /// 成功/失败均通过宿主右下角 Toast 提示。
+    /// </summary>
+    private static async Task SaveErrorLogAsAsync(string url, Image imageControl)
+    {
+        string targetPath = string.Empty;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(imageControl);
+            if (topLevel?.StorageProvider == null)
+            {
+                ShowErrorToast(imageControl, "错误日志保存失败", "无法获取宿主窗口的存储服务，请重试。");
+                return;
+            }
+
+            var entries = GetImageLoadErrors(url);
+            if (entries.Count == 0)
+            {
+                ShowErrorToast(imageControl, "错误日志保存失败", "该图片暂无加载失败记录。");
+                return;
+            }
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "另存为错误日志",
+                SuggestedFileName = $"AdvancedTimeIsland-image-load-error-{DateTime.Now:yyyyMMdd-HHmmss}",
+                DefaultExtension = "txt",
+                FileTypeChoices = new List<FilePickerFileType>
+                {
+                    new("文本文件") { Patterns = new[] { "*.txt" } }
+                }
+            });
+            if (file == null)
+            {
+                return;
+            }
+
+            targetPath = file.Path.LocalPath;
+            var content = BuildImageLoadErrorLogText(url, entries);
+            await Task.Run(() => File.WriteAllText(targetPath, content));
+            imageControl.ShowSuccessToast($"错误日志已保存到 {targetPath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save error log] exception: {ex.GetType().Name}: {ex.Message}");
+            ShowErrorToast(imageControl, "错误日志保存失败", DescribeSaveFailure(targetPath, ex));
+        }
+    }
+
+    /// <summary>
+    /// 组装错误日志文本：环境信息 + 该 URL 的全部失败记录（时间/异常类型/消息）。
+    /// </summary>
+    private static string BuildImageLoadErrorLogText(string url, List<ImageLoadErrorEntry> entries)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("AdvancedTimeIsland 女装图片加载错误日志");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"运行时：{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"操作系统：{System.Runtime.InteropServices.RuntimeInformation.OSDescription}");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"失败 URL：{url}");
+        sb.AppendLine($"失败记录（共 {entries.Count} 次，按时间顺序）：");
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            sb.AppendLine($"[{i + 1}] {entry.Time:yyyy-MM-dd HH:mm:ss}  {entry.ExceptionType}");
+            sb.AppendLine($"    {entry.Message}");
+        }
+        sb.AppendLine("========================================");
+        sb.AppendLine("本日志仅包含图片加载的网络/解码错误信息，不含任何个人数据。");
+        return sb.ToString();
+    }
+
     /// <summary>
     /// “另存为”：弹出系统保存文件对话框（默认 jpg），把照片写入用户选择的位置。
     /// 保存对话框 await 异步等待，文件读写全部在后台线程执行，不阻塞 UI；
@@ -789,7 +1025,7 @@ public partial class EasterEggPage : UserControl
             if (topLevel?.StorageProvider == null)
             {
                 Log("[save] topLevel or StorageProvider is null, abort");
-                ShowSaveFailureToast(imageControl, "无法获取宿主窗口的存储服务，请重试。");
+                ShowErrorToast(imageControl, "另存为失败", "无法获取宿主窗口的存储服务，请重试。");
                 return;
             }
 
@@ -859,28 +1095,28 @@ public partial class EasterEggPage : UserControl
             }
             else
             {
-                ShowSaveFailureToast(imageControl, "照片尚未加载完成，暂无可保存的图像。");
+                ShowErrorToast(imageControl, "另存为失败", "照片尚未加载完成，暂无可保存的图像。");
             }
         }
         catch (Exception ex)
         {
             var reason = DescribeSaveFailure(targetPath, ex);
             Log($"[save] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
-            ShowSaveFailureToast(imageControl, reason);
+            ShowErrorToast(imageControl, "另存为失败", reason);
         }
     }
 
     /// <summary>
-    /// 在宿主窗口右下角弹出“另存为失败”提示（InfoBar 错误样式，不自动关闭，需用户手动关闭），
-    /// 正文为具体失败原因。
+    /// 在宿主窗口右下角弹出错误提示（InfoBar 错误样式，不自动关闭，需用户手动关闭），
+    /// 标题 + 具体原因正文。
     /// </summary>
-    private static void ShowSaveFailureToast(Image imageControl, string reason)
+    private static void ShowErrorToast(Image imageControl, string title, string reason)
     {
         try
         {
             imageControl.ShowToast(new ToastMessage(reason)
             {
-                Title = "另存为失败",
+                Title = title,
                 Severity = FAInfoBarSeverity.Error,
                 AutoClose = false
             });
@@ -888,7 +1124,7 @@ public partial class EasterEggPage : UserControl
         catch (Exception toastEx)
         {
             // Toast 展示失败不影响主流程
-            System.Diagnostics.Debug.WriteLine($"ShowSaveFailureToast failed: {toastEx}");
+            System.Diagnostics.Debug.WriteLine($"ShowErrorToast failed: {toastEx}");
         }
     }
 
@@ -1111,6 +1347,7 @@ public partial class EasterEggPage : UserControl
             errorPanel.IsVisible = true;
             retryButton.IsEnabled = true;
             retryButton.Content = "重新刷新";
+            RecordImageLoadError(url, ex);
         }
         finally
         {

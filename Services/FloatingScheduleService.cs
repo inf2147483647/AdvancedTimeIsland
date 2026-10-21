@@ -666,7 +666,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private static string FormatHhMm(TimeSpan ts) => $"{ts.Hours:D2}:{ts.Minutes:D2}";
 
     // 反射宿主服务类型查找（仿 FontSizeSyncService 模式）
-    private static Type? FindHostServiceType(string typeName)
+    // internal：供设置窗口等复用（如 FA3 端经 IUriNavigationService 跳转宿主档案学科编辑页）
+    internal static Type? FindHostServiceType(string typeName)
     {
         try
         {
@@ -4578,12 +4579,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
                 var rowStartAv = ReflectGetStartTime(layoutItem);
                 var rowEndAv = ReflectGetEndTime(layoutItem);
-                // 按学科配色：开启且映射命中该科目名 → 用自定义色；否则 0（渲染器回退全局字体色）
+                // 按学科配色：
+                //  FA3（net10，ClassIsland 2.1.1.1+）：直接复用宿主档案 Subject.ColorHex（反射读取，
+                //    编译期 NuGet SDK 2.1.1.1 的 ClassIsland.Shared 尚无该属性），插件映射体系已取消；
+                //  FA2（net8，旧版 ClassIsland 无原生学科主题色）：沿用插件本地映射（默认色表=官方默认学科色）。
+                //  未命中 → 0（渲染器回退全局字体色）
                 uint subjectArgb = 0;
-                if (_settings.FloatingScheduleSubjectColorEnabled && subject?.Name is { Length: > 0 } sName
-                    && _settings.FloatingScheduleSubjectColorMap.TryGetValue(sName, out var mappedArgb))
+                if (_settings.FloatingScheduleSubjectColorEnabled && subject?.Name is { Length: > 0 } sName)
                 {
-                    subjectArgb = mappedArgb;
+#if NET10_0_OR_GREATER
+                    subjectArgb = SubjectColorHelper.GetSubjectColorArgb(subject);
+#else
+                    if (_settings.FloatingScheduleSubjectColorMap.TryGetValue(sName, out var mappedArgb))
+                    {
+                        subjectArgb = mappedArgb;
+                    }
+#endif
                 }
                 model.Rows.Add(new FloatScheduleRowModel
                 {

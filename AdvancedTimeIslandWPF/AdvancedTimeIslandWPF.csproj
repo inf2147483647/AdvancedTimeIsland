@@ -44,6 +44,10 @@
         <None Update="manifest.yml">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
+        <!-- CHANGELOG.md 在仓库根目录，通过 Link 引入输出目录（更新日志抽屉的数据源） -->
+        <None Include="..\CHANGELOG.md" Link="CHANGELOG.md">
+            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+        </None>
         <None Update="README.md">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>

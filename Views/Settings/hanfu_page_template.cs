@@ -483,6 +483,17 @@ InfoBar 语法格式：
         }
     }
 
+    /// <summary>
+    /// 供其他页面（如「关于」页更新日志抽屉）复用的 Markdown 渲染入口：
+    /// 以延迟初始化构造（不执行页面初始化、无副作用）创建模板实例，把 markdown 渲染进指定 StackPanel。
+    /// 支持 Markdig 解析的全部语法（表格、代码块、删除线等）以及模板自带的 alert / info bar / 图片 / 路由链接等扩展。
+    /// </summary>
+    public static void RenderMarkdownToPanel(StackPanel panel, string markdown)
+    {
+        var page = new HanfuPageTemplate(true);
+        page.RenderMarkdown(panel, markdown);
+    }
+
     private string PreprocessAlertBlocks(string markdown)
     {
         var lines = markdown.Split('\n');

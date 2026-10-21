@@ -642,47 +642,11 @@ public class PluginSettingsPage : UserControl
             };
             mainPanel.Children.Add(_titleTextBlock);
 
-            // 管理启用的功能 - 使用 SettingsExpander（仿照SystemTools样式）
-            var featureManagementExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Header", "管理启用的功能");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Description", "点击管理各类功能的启用状态");
-
-            // 添加图标（Settings 图标）
-            var iconSource = FluentAvaloniaCompatibilityHelper.CreateSymbolIconSource("Settings");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "IconSource", iconSource);
-
-            var featureFooterPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            var featureButton = new Button
-            {
-                Content = "管理启用的功能...",
-                Width = 165
-            };
-            featureButton.Click += OnManageFeaturesClick;
-            featureFooterPanel.Children.Add(featureButton);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Footer", featureFooterPanel);
-
-            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(featureManagementExpander));
-
-            // 许可证声明
-            _licenseTextBlock = new TextBlock
-            {
-                Text = "本项目基于 GNU GENERAL PUBLIC LICENSE v3.0 获得许可",
-                FontSize = 12,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Margin = new Avalonia.Thickness(0, 0, 0, 8)
-            };
-            mainPanel.Children.Add(_licenseTextBlock);
-
-            // 通用设置 SettingsExpander
+            // 通用设置 SettingsExpander（置于最前，默认展开）
             var generalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Header", "通用设置");
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Description", "插件的基本设置");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "IsExpanded", true);
 
             // 地方时经度设置
             AddSettingsExpanderItem(generalExpander,
@@ -736,6 +700,43 @@ public class PluginSettingsPage : UserControl
             }
 
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(generalExpander));
+
+            // 许可证声明
+            _licenseTextBlock = new TextBlock
+            {
+                Text = "本项目基于 GNU GENERAL PUBLIC LICENSE v3.0 获得许可",
+                FontSize = 12,
+                Foreground = ThemeHelper.GetSubTextBrush(),
+                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+                Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            };
+            mainPanel.Children.Add(_licenseTextBlock);
+
+            // 管理启用的功能 - 使用 SettingsExpander（仿照SystemTools样式），置于协议声明下方
+            var featureManagementExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Header", "管理启用的功能");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Description", "点击管理各类功能的启用状态");
+
+            // 添加图标（Settings 图标）
+            var iconSource = FluentAvaloniaCompatibilityHelper.CreateSymbolIconSource("Settings");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "IconSource", iconSource);
+
+            var featureFooterPanel = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var featureButton = new Button
+            {
+                Content = "管理启用的功能...",
+                Width = 165
+            };
+            featureButton.Click += OnManageFeaturesClick;
+            featureFooterPanel.Children.Add(featureButton);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Footer", featureFooterPanel);
+
+            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(featureManagementExpander));
 
             // 悬浮时间表设置已拆分至独立页面 FloatingScheduleSettingsPage（"时间表悬浮窗"）
 

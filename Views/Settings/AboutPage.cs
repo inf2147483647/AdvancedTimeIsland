@@ -1,11 +1,15 @@
 using System;
+using System.Collections.Generic;
+using System.IO;
 using System.Reflection;
+using System.Text;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Platform.Storage;
 using Avalonia.Styling;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
@@ -15,7 +19,16 @@ using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
 using ClassIsland.Shared;
+// Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity，
+// 用别名统一，业务代码统一用 FAInfoBarSeverity（同 EasterEggPage）
+#if NET10_0_OR_GREATER
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
+#else
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.InfoBarSeverity;
+#endif
 
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -67,6 +80,8 @@ public class AboutPage : SettingsPageBase
     private List<TextBlock>? _infoRowLabelTextBlocks;
     private List<TextBlock>? _infoRowValueTextBlocks;
     private Button? _usingGuideButton;
+    private Button? _changelogButton;
+    private bool _isLoadingChangelog;
 
     public AboutPage() : this(null)
     {
@@ -480,7 +495,404 @@ public class AboutPage : SettingsPageBase
 
         panel.Children.Add(_usingGuideButton);
 
+        // 更新日志：点击后从右侧滑出抽屉，展示 CHANGELOG.md 中当前版本的发布说明
+        _changelogButton = new Button
+        {
+            Content = "更新日志",
+            FontSize = 16,
+            Padding = new Thickness(16, 12),
+            CornerRadius = new CornerRadius(8),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        UpdateChangelogButtonStyle();
+        _changelogButton.Click += OnChangelogButtonClick;
+        panel.Children.Add(_changelogButton);
+
         return panel;
+    }
+
+    /// <summary>
+    /// 「更新日志」按钮点击：先打开抽屉显示加载占位（ExpressiveLoadingIndicator），
+    /// 异步加载 CHANGELOG.md 完成后替换为正式内容。
+    /// </summary>
+    private async void OnChangelogButtonClick(object? sender, Avalonia.Interactivity.RoutedEventArgs e)
+    {
+        if (_drawerHost == null || _isLoadingChangelog)
+        {
+            return;
+        }
+
+        _isLoadingChangelog = true;
+        try
+        {
+            _drawerHost.DrawerContent = BuildChangelogDrawerLoading();
+            _drawerHost.IsDrawerOpen = true;
+
+            var entries = await ChangelogHelper.LoadEntriesAsync();
+            if (_drawerHost.IsDrawerOpen)
+            {
+                _drawerHost.DrawerContent = BuildChangelogDrawerContent(entries);
+            }
+        }
+        catch (Exception ex)
+        {
+            _lastChangelogError = new ChangelogErrorRecord(DateTime.Now, ex.GetType().Name, ex.Message);
+            if (_drawerHost.IsDrawerOpen)
+            {
+                _drawerHost.DrawerContent = BuildChangelogDrawerMessage("更新日志加载失败", ex.Message);
+            }
+        }
+        finally
+        {
+            _isLoadingChangelog = false;
+        }
+    }
+
+    /// <summary>更新日志抽屉宽度（与「管理启用的功能」抽屉一致，DrawerHost 按抽屉内容的 Width + 水平 Margin 决定滑出宽度）。</summary>
+    private const double ChangelogDrawerWidth = 500;
+
+    /// <summary>构建抽屉标题行：标题靠左、关闭按钮靠右（加载占位与正式内容共用）。</summary>
+    private Grid BuildChangelogDrawerHeader()
+    {
+        var header = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
+            Margin = new Thickness(0, 0, 0, 12)
+        };
+        var closeButton = new Button
+        {
+            Content = "✕",
+            FontSize = 14,
+            Padding = new Thickness(10, 4),
+            VerticalAlignment = VerticalAlignment.Top,
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0)
+        };
+        closeButton.Click += (_, _) =>
+        {
+            if (_drawerHost != null)
+            {
+                _drawerHost.IsDrawerOpen = false;
+            }
+        };
+        Grid.SetColumn(closeButton, 1);
+        header.Children.Add(closeButton);
+        header.Children.Add(new TextBlock
+        {
+            Text = "更新日志",
+            FontSize = 18,
+            FontWeight = FontWeight.Bold,
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        return header;
+    }
+
+    /// <summary>构建加载占位视图：ExpressiveLoadingIndicator + 提示文本（宽度与正式内容一致，避免抽屉宽度跳动）。</summary>
+    private Control BuildChangelogDrawerLoading()
+    {
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(16)
+        };
+        panel.Children.Add(BuildChangelogDrawerHeader());
+        panel.Children.Add(new AdvancedTimeIsland.Views.Controls.ExpressiveLoadingIndicator
+        {
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Foreground = GetAccentBrush(),
+            Margin = new Thickness(0, 48, 0, 0)
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = "正在加载更新日志…",
+            FontSize = 13,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 16, 0, 0)
+        });
+        return new Border { Width = ChangelogDrawerWidth, Child = panel };
+    }
+
+    /// <summary>构建更新日志抽屉：固定宽度根容器 + 标题栏 + 滚动内容区（长日志可滚动浏览）。</summary>
+    private Control BuildChangelogDrawerContent(IReadOnlyList<ChangelogHelper.ChangelogEntry> entries)
+    {
+        var root = new Border { Width = ChangelogDrawerWidth };
+
+        var rootGrid = new Grid
+        {
+            Margin = new Thickness(16),
+            RowDefinitions = new RowDefinitions("Auto,*")
+        };
+
+        // 标题行（第 0 行）
+        rootGrid.Children.Add(BuildChangelogDrawerHeader());
+
+        // 版本卡片列表（第 1 行，剩余高度内滚动）
+        var listPanel = new StackPanel { Orientation = Orientation.Vertical };
+        if (entries.Count == 0)
+        {
+            listPanel.Children.Add(new TextBlock
+            {
+                Text = "暂无更新日志记录。",
+                FontSize = 13,
+                Foreground = ThemeHelper.GetSubTextBrush(),
+                TextWrapping = TextWrapping.Wrap
+            });
+        }
+        else
+        {
+            foreach (var entry in entries)
+            {
+                listPanel.Children.Add(BuildChangelogEntryCard(entry));
+            }
+        }
+
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = listPanel
+        };
+        Grid.SetRow(scrollViewer, 1);
+        rootGrid.Children.Add(scrollViewer);
+
+        root.Child = rootGrid;
+        return root;
+    }
+
+    /// <summary>最近一次更新日志加载失败的记录（用于错误占位的右键“另存为错误日志”）。</summary>
+    private sealed record ChangelogErrorRecord(DateTime Time, string ExceptionType, string Message);
+
+    private ChangelogErrorRecord? _lastChangelogError;
+
+    /// <summary>
+    /// 构建加载失败 / 异常占位视图（照搬 EasterEggPage 错误面板模式）：
+    /// 标题 + 错误详情文本 + 右键“另存为…”（MenuFlyout 挂 ContextFlyout——FA3 无 ContextMenu 样式），
+    /// 把加载失败记录导出为文本日志，成功/失败均通过宿主右下角 Toast 提示。
+    /// </summary>
+    private Control BuildChangelogDrawerMessage(string title, string message)
+    {
+        if (_lastChangelogError == null)
+        {
+            _lastChangelogError = new ChangelogErrorRecord(DateTime.Now, "Exception", message);
+        }
+
+        var root = new Border { Width = ChangelogDrawerWidth };
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(16)
+        };
+        panel.Children.Add(BuildChangelogDrawerHeader());
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = title,
+            FontSize = 16,
+            FontWeight = FontWeight.Bold,
+            Foreground = ThemeHelper.GetTextBrush(),
+            Margin = new Thickness(0, 0, 0, 8)
+        });
+
+        var error = _lastChangelogError;
+        panel.Children.Add(new TextBlock
+        {
+            Text = $"时间：{error.Time:yyyy-MM-dd HH:mm:ss}\n错误：{error.ExceptionType}\n{error.Message}",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        panel.Children.Add(new TextBlock
+        {
+            Text = "提示：在此区域右键可另存为错误日志",
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 12, 0, 0)
+        });
+
+        // 右键“另存为…”错误日志（与 EasterEggPage 错误面板一致：MenuFlyout/ContextFlyout 在 FA2/FA3 行为一致）
+        var saveLogMenuItem = new MenuItem { Header = "另存为…" };
+        saveLogMenuItem.Click += async (_, _) => await SaveChangelogErrorLogAsync(root);
+        var menuFlyout = new MenuFlyout();
+        menuFlyout.Items.Add(saveLogMenuItem);
+        menuFlyout.Opening += (_, _) => saveLogMenuItem.IsEnabled = _lastChangelogError != null;
+        panel.ContextFlyout = menuFlyout;
+
+        root.Child = panel;
+        return root;
+    }
+
+    /// <summary>
+    /// “另存为错误日志”：弹出系统保存文件对话框（默认 .txt），把更新日志加载失败记录
+    /// （含环境信息）写入用户选择的位置。对话框 await 异步等待，写盘在后台线程执行；
+    /// 成功/失败均通过宿主右下角 Toast 提示。交互照搬 EasterEggPage 的 SaveErrorLogAsAsync。
+    /// </summary>
+    private async Task SaveChangelogErrorLogAsync(Control anchor)
+    {
+        string targetPath = string.Empty;
+        try
+        {
+            var topLevel = TopLevel.GetTopLevel(anchor);
+            if (topLevel?.StorageProvider == null)
+            {
+                anchor.ShowToast(new ToastMessage("无法获取宿主窗口的存储服务，请重试。")
+                {
+                    Title = "错误日志保存失败",
+                    Severity = FAInfoBarSeverity.Error,
+                    AutoClose = false
+                });
+                return;
+            }
+
+            if (_lastChangelogError == null)
+            {
+                anchor.ShowToast(new ToastMessage("暂无错误记录。")
+                {
+                    Title = "错误日志保存失败",
+                    Severity = FAInfoBarSeverity.Error,
+                    AutoClose = false
+                });
+                return;
+            }
+
+            var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+            {
+                Title = "另存为错误日志",
+                SuggestedFileName = $"AdvancedTimeIsland-changelog-error-{DateTime.Now:yyyyMMdd-HHmmss}",
+                DefaultExtension = "txt",
+                FileTypeChoices = new List<FilePickerFileType>
+                {
+                    new("文本文件") { Patterns = new[] { "*.txt" } }
+                }
+            });
+            if (file == null)
+            {
+                return;
+            }
+
+            targetPath = file.Path.LocalPath;
+            var content = BuildChangelogErrorLogText();
+            await Task.Run(() => File.WriteAllText(targetPath, content));
+            anchor.ShowSuccessToast($"错误日志已保存到 {targetPath}");
+        }
+        catch (Exception ex)
+        {
+            anchor.ShowToast(new ToastMessage(DescribeSaveFailure(targetPath, ex))
+            {
+                Title = "错误日志保存失败",
+                Severity = FAInfoBarSeverity.Error,
+                AutoClose = false
+            });
+        }
+    }
+
+    /// <summary>组装更新日志错误日志文本：环境信息 + 失败记录（时间/异常类型/消息）。结构照搬 EasterEggPage。</summary>
+    private string BuildChangelogErrorLogText()
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("AdvancedTimeIsland 更新日志加载错误日志");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"运行时：{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"操作系统：{System.Runtime.InteropServices.RuntimeInformation.OSDescription}");
+        sb.AppendLine("========================================");
+        var error = _lastChangelogError;
+        sb.AppendLine($"时间：{error?.Time:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"异常类型：{error?.ExceptionType}");
+        sb.AppendLine($"消息：{error?.Message}");
+        sb.AppendLine("========================================");
+        sb.AppendLine("本日志仅包含更新日志（CHANGELOG.md）加载时的错误信息，不含任何个人数据。");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// 把保存失败异常翻译为用户可读的具体原因（照搬 EasterEggPage 的 DescribeSaveFailure）：
+    /// 磁盘空间不足 / 无写入权限 / 路径无效 / 文件被占用等。
+    /// </summary>
+    private static string DescribeSaveFailure(string targetPath, Exception ex)
+    {
+        if (ex is UnauthorizedAccessException)
+        {
+            return "没有写入该位置的权限，请尝试更换保存位置（如文档或桌面）。";
+        }
+
+        if (ex is ArgumentException or System.IO.PathTooLongException or NotSupportedException)
+        {
+            return $"保存路径无效：{ex.Message}";
+        }
+
+        if (ex is IOException)
+        {
+            // IOException 覆盖磁盘满、文件被占用、位置不可达等多种情况；优先探测目标盘剩余空间给出更具体的原因
+            try
+            {
+                var root = Path.GetPathRoot(targetPath);
+                if (!string.IsNullOrEmpty(root))
+                {
+                    var drive = new DriveInfo(root);
+                    if (drive.IsReady && drive.AvailableFreeSpace < 64L * 1024 * 1024)
+                    {
+                        return $"目标磁盘 {root} 剩余空间不足（仅剩 {drive.AvailableFreeSpace / (1024 * 1024)} MB），请清理空间后重试。";
+                    }
+                }
+            }
+            catch
+            {
+                // 磁盘探测失败时退回通用 IO 描述
+            }
+
+            return $"写入文件时发生 I/O 错误，目标位置可能不可用或文件正被占用：{ex.Message}";
+        }
+
+        return ex.Message;
+    }
+
+    /// <summary>构建单个版本的卡片：版本号 + 发布日期 + 正文（轻量 Markdown 渲染）。</summary>
+    private Border BuildChangelogEntryCard(ChangelogHelper.ChangelogEntry entry)
+    {
+        var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
+
+        var headGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            Margin = new Thickness(0, 0, 0, 4)
+        };
+        headGrid.Children.Add(new TextBlock
+        {
+            Text = entry.Version == ChangelogHelper.UnreleasedVersion ? "未发布" : $"v{entry.Version}",
+            FontSize = 16,
+            FontWeight = FontWeight.Bold,
+            Foreground = GetAccentBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var dateText = new TextBlock
+        {
+            Text = entry.Date,
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Right,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(dateText, 1);
+        headGrid.Children.Add(dateText);
+        cardPanel.Children.Add(headGrid);
+
+        // 正文统一交给汉服模板的 Markdig 渲染（支持表格 / 代码块 / 删除线 / alert 等全部语法），兼容将来任意 CHANGELOG 格式
+        var bodyPanel = new StackPanel { Orientation = Orientation.Vertical };
+        HanfuPageTemplate.RenderMarkdownToPanel(bodyPanel, entry.RawMarkdown);
+        cardPanel.Children.Add(bodyPanel);
+
+        return new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = cardPanel
+        };
     }
 
     /// <summary>
@@ -771,6 +1183,22 @@ public class AboutPage : SettingsPageBase
         }
 
         UpdateUsingGuideButtonStyle();
+        UpdateChangelogButtonStyle();
+    }
+
+    private void UpdateChangelogButtonStyle()
+    {
+        if (_changelogButton == null) return;
+
+        var isDark = ThemeHelper.IsDarkTheme();
+        _changelogButton.Background = isDark
+            ? new SolidColorBrush(Color.Parse("#37373D"))
+            : new SolidColorBrush(Color.Parse("#E8E8E8"));
+        _changelogButton.Foreground = GetAccentBrush();
+        _changelogButton.BorderBrush = isDark
+            ? new SolidColorBrush(Color.Parse("#444444"))
+            : new SolidColorBrush(Color.Parse("#CCCCCC"));
+        _changelogButton.BorderThickness = new Thickness(1);
     }
 
     private void UpdateUsingGuideButtonStyle()

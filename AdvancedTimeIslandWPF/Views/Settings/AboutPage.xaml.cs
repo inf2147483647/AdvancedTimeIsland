@@ -1,9 +1,12 @@
 using System;
+using System.Collections.Generic;
 using System.Reflection;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Input;
 using System.Windows.Media;
+using System.Windows.Media.Animation;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 
@@ -28,6 +31,14 @@ public partial class AboutPage : SettingsPageBase
 
     private List<TextBlock>? _aboutContentTextBlocks;
     private Button? _usingGuideButton;
+    private Button? _changelogButton;
+    private bool _isLoadingChangelog;
+
+    // 「关于」标签内的自建右侧抽屉（WPF SDK 无 DrawerHost，用遮罩 + 平移动画模拟）
+    private Border? _changelogDrawerMask;
+    private Border? _changelogDrawerPanel;
+    private StackPanel? _changelogDrawerContentPanel;
+    private TranslateTransform? _changelogDrawerTranslate;
 
     public AboutPage() : this(null)
     {
@@ -392,6 +403,19 @@ public partial class AboutPage : SettingsPageBase
 
         panel.Children.Add(_usingGuideButton);
 
+        // 更新日志：点击后从右侧滑出抽屉，展示 CHANGELOG.md 中当前版本的发布说明
+        _changelogButton = new Button
+        {
+            Content = "更新日志",
+            FontSize = 16,
+            Padding = new Thickness(16, 12, 16, 12),
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Margin = new Thickness(0, 8, 0, 0)
+        };
+        UpdateUsingGuideButtonStyle(_changelogButton);
+        _changelogButton.Click += OnChangelogButtonClick;
+        panel.Children.Add(_changelogButton);
+
         var scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -399,7 +423,259 @@ public partial class AboutPage : SettingsPageBase
             Content = panel
         };
 
-        return scrollViewer;
+        // WPF SDK 没有 DrawerHost，用「遮罩 + 右侧滑入面板」自建抽屉层
+        var rootGrid = new Grid();
+        rootGrid.Children.Add(scrollViewer);
+        BuildChangelogDrawerLayer(rootGrid);
+        return rootGrid;
+    }
+
+    /// <summary>更新日志抽屉宽度（与 Avalonia 版「管理启用的功能」抽屉宽度一致）。</summary>
+    private const double ChangelogDrawerWidth = 500;
+
+    /// <summary>构建「关于」标签内的抽屉层：半透明遮罩 + 右侧滑入面板（内容可滚动）。</summary>
+    private void BuildChangelogDrawerLayer(Grid rootGrid)
+    {
+        _changelogDrawerTranslate = new TranslateTransform(ChangelogDrawerWidth, 0);
+
+        _changelogDrawerMask = new Border
+        {
+            Background = new SolidColorBrush(Color.FromArgb(0x88, 0, 0, 0)),
+            Visibility = Visibility.Collapsed
+        };
+        _changelogDrawerMask.MouseLeftButtonDown += (s, e) => CloseChangelogDrawer();
+
+        _changelogDrawerPanel = new Border
+        {
+            Width = ChangelogDrawerWidth,
+            MinWidth = 320,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            RenderTransform = _changelogDrawerTranslate,
+            Visibility = Visibility.Collapsed,
+            BorderBrush = new SolidColorBrush(Color.FromArgb(0x33, 0, 0, 0)),
+            BorderThickness = new Thickness(1, 0, 0, 0)
+        };
+        _changelogDrawerPanel.SetResourceReference(Border.BackgroundProperty, "MaterialDesignPaper");
+
+        _changelogDrawerContentPanel = new StackPanel { Orientation = Orientation.Vertical, Margin = new Thickness(16) };
+        _changelogDrawerPanel.Child = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = _changelogDrawerContentPanel
+        };
+
+        rootGrid.Children.Add(_changelogDrawerMask);
+        rootGrid.Children.Add(_changelogDrawerPanel);
+    }
+
+    /// <summary>
+    /// 「更新日志」按钮点击：异步加载 CHANGELOG.md 后打开右侧抽屉展示。
+    /// </summary>
+    private async void OnChangelogButtonClick(object sender, RoutedEventArgs e)
+    {
+        if (_isLoadingChangelog)
+        {
+            return;
+        }
+
+        _isLoadingChangelog = true;
+        try
+        {
+            var entries = await ChangelogHelper.LoadEntriesAsync();
+            FillChangelogDrawer(BuildChangelogDrawerChildren(entries));
+            OpenChangelogDrawer();
+        }
+        catch (Exception ex)
+        {
+            FillChangelogDrawer(BuildChangelogDrawerMessage("更新日志加载失败", ex.Message));
+            OpenChangelogDrawer();
+        }
+        finally
+        {
+            _isLoadingChangelog = false;
+        }
+    }
+
+    /// <summary>用构建好的控件集合填充抽屉内容面板。</summary>
+    private void FillChangelogDrawer(IEnumerable<UIElement> children)
+    {
+        if (_changelogDrawerContentPanel == null)
+        {
+            return;
+        }
+
+        _changelogDrawerContentPanel.Children.Clear();
+        foreach (var child in children)
+        {
+            _changelogDrawerContentPanel.Children.Add(child);
+        }
+    }
+
+    /// <summary>打开抽屉：显示遮罩与面板并播放从右滑入动画。</summary>
+    private void OpenChangelogDrawer()
+    {
+        if (_changelogDrawerMask == null || _changelogDrawerPanel == null || _changelogDrawerTranslate == null)
+        {
+            return;
+        }
+
+        _changelogDrawerMask.Visibility = Visibility.Visible;
+        _changelogDrawerPanel.Visibility = Visibility.Visible;
+        AnimateChangelogDrawer(ChangelogDrawerWidth, 0, 200, new CubicEase { EasingMode = EasingMode.EaseOut });
+    }
+
+    /// <summary>关闭抽屉：向右滑出后隐藏遮罩与面板。</summary>
+    private void CloseChangelogDrawer()
+    {
+        if (_changelogDrawerMask == null || _changelogDrawerPanel == null || _changelogDrawerTranslate == null)
+        {
+            return;
+        }
+
+        AnimateChangelogDrawer(0, ChangelogDrawerWidth, 180, new CubicEase { EasingMode = EasingMode.EaseIn },
+            () =>
+            {
+                if (_changelogDrawerMask != null && _changelogDrawerPanel != null)
+                {
+                    _changelogDrawerMask.Visibility = Visibility.Collapsed;
+                    _changelogDrawerPanel.Visibility = Visibility.Collapsed;
+                }
+            });
+    }
+
+    /// <summary>抽屉平移动画。</summary>
+    private void AnimateChangelogDrawer(double from, double to, double milliseconds, IEasingFunction easing, Action? onCompleted = null)
+    {
+        if (_changelogDrawerTranslate == null)
+        {
+            return;
+        }
+
+        var animation = new DoubleAnimation(from, to, TimeSpan.FromMilliseconds(milliseconds)) { EasingFunction = easing };
+        if (onCompleted != null)
+        {
+            animation.Completed += (s, e) => onCompleted();
+        }
+
+        _changelogDrawerTranslate.BeginAnimation(TranslateTransform.XProperty, animation, HandoffBehavior.SnapshotAndReplace);
+    }
+
+    /// <summary>构建更新日志抽屉子控件：标题栏 + 关闭按钮 + 各版本卡片。</summary>
+    private List<UIElement> BuildChangelogDrawerChildren(IReadOnlyList<ChangelogHelper.ChangelogEntry> entries)
+    {
+        var children = new List<UIElement>();
+
+        // 标题行：标题靠左，关闭按钮靠右
+        var header = new Grid { Margin = new Thickness(0, 0, 0, 12) };
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        header.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var title = new TextBlock
+        {
+            Text = "更新日志",
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        title.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
+        var closeButton = new Button
+        {
+            Content = "✕",
+            FontSize = 14,
+            Padding = new Thickness(10, 4, 10, 4),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0)
+        };
+        closeButton.Click += (s, e) => CloseChangelogDrawer();
+        Grid.SetColumn(closeButton, 1);
+        header.Children.Add(title);
+        header.Children.Add(closeButton);
+        children.Add(header);
+
+        if (entries.Count == 0)
+        {
+            var empty = new TextBlock
+            {
+                Text = "暂无更新日志记录。",
+                FontSize = 13,
+                TextWrapping = TextWrapping.Wrap
+            };
+            empty.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
+            children.Add(empty);
+            return children;
+        }
+
+        foreach (var entry in entries)
+        {
+            children.Add(BuildChangelogEntryCard(entry));
+        }
+
+        return children;
+    }
+
+    /// <summary>构建加载失败 / 异常占位视图。</summary>
+    private List<UIElement> BuildChangelogDrawerMessage(string title, string message)
+    {
+        var titleBlock = new TextBlock
+        {
+            Text = title,
+            FontSize = 18,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 8)
+        };
+        titleBlock.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
+
+        var messageBlock = new TextBlock
+        {
+            Text = message,
+            FontSize = 13,
+            TextWrapping = TextWrapping.Wrap
+        };
+        messageBlock.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
+
+        return new List<UIElement> { titleBlock, messageBlock };
+    }
+
+    /// <summary>构建单个版本的卡片：版本号 + 发布日期 + 正文（轻量 Markdown 渲染）。</summary>
+    private Border BuildChangelogEntryCard(ChangelogHelper.ChangelogEntry entry)
+    {
+        var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
+
+        var headGrid = new Grid { Margin = new Thickness(0, 0, 0, 4) };
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        headGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        var versionText = new TextBlock
+        {
+            Text = entry.Version == ChangelogHelper.UnreleasedVersion ? "未发布" : $"v{entry.Version}",
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            Foreground = ThemeHelper.GetLightBlueBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        var dateText = new TextBlock
+        {
+            Text = entry.Date,
+            FontSize = 12,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        headGrid.Children.Add(versionText);
+        headGrid.Children.Add(dateText);
+        cardPanel.Children.Add(headGrid);
+
+        // 正文统一交给汉服模板的 Markdig 渲染（支持表格 / 代码块 / 删除线 / alert 等全部语法），兼容将来任意 CHANGELOG 格式
+        var bodyPanel = new StackPanel { Orientation = Orientation.Vertical };
+        HanfuPageTemplate.RenderMarkdownToPanel(bodyPanel, entry.RawMarkdown);
+        cardPanel.Children.Add(bodyPanel);
+
+        var card = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 10),
+            Child = cardPanel
+        };
+        card.SetResourceReference(Border.BackgroundProperty, "MaterialDesignCardBackground");
+        return card;
     }
 
     /// <summary>
@@ -454,13 +730,14 @@ public partial class AboutPage : SettingsPageBase
         base.OnInitialized(e);
     }
 
-    private void UpdateUsingGuideButtonStyle()
+    private void UpdateUsingGuideButtonStyle(Button? button = null)
     {
-        if (_usingGuideButton == null) return;
+        button ??= _usingGuideButton;
+        if (button == null) return;
 
-        _usingGuideButton.SetResourceReference(Control.BackgroundProperty, "MaterialDesignCardBackground");
-        _usingGuideButton.SetResourceReference(Control.ForegroundProperty, "MaterialDesignBody");
-        _usingGuideButton.BorderBrush = Brushes.Transparent;
-        _usingGuideButton.BorderThickness = new Thickness(0);
+        button.SetResourceReference(Control.BackgroundProperty, "MaterialDesignCardBackground");
+        button.SetResourceReference(Control.ForegroundProperty, "MaterialDesignBody");
+        button.BorderBrush = Brushes.Transparent;
+        button.BorderThickness = new Thickness(0);
     }
 }

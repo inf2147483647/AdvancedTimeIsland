@@ -1,5 +1,6 @@
 ﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Models;
 
@@ -264,8 +265,14 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleTextColorEnabled = false;
     private uint _floatingScheduleTextColor = 0xFFFFFFFF;
     // 学科配色
+    //  FA3（net10，ClassIsland 2.1.1.1+）：学科主题色直接复用宿主档案 Subject.ColorHex，插件映射不再消费，保持空表；
+    //  FA2（net8，旧版 ClassIsland 无原生学科主题色）：预置 ClassIsland 官方默认学科色表（见 SubjectColorHelper）。
     private bool _floatingScheduleSubjectColorEnabled = true;
+#if NET10_0_OR_GREATER
     private Dictionary<string, uint> _floatingScheduleSubjectColorMap = new();
+#else
+    private Dictionary<string, uint> _floatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap();
+#endif
     // 表格
     private FloatingScheduleLayoutDir _floatingScheduleLayoutDirection = FloatingScheduleLayoutDir.Vertical;
     private bool _floatingScheduleZebraStriped = false;       // 间色

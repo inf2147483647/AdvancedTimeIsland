@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
@@ -597,7 +598,8 @@ public class EasterEggPage : UserControl
 
         LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
 
-        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）
+        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）；
+        // 无缓存无位图且处于错误状态时，同一菜单改为另存为错误日志（见 AttachImageContextMenu）
         AttachImageContextMenu(container, url, image);
 
         return container;
@@ -628,11 +630,20 @@ public class EasterEggPage : UserControl
     /// </summary>
     private static void AttachImageContextMenu(Border container, string url, Image imageControl)
     {
-        var saveMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为..." };
+        var saveMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为…" };
         saveMenuItem.Click += async (_, _) =>
         {
-            Log($"[click] 另存为 clicked, url={url}");
-            await SaveImageAsAsync(url, imageControl);
+            // 无缓存无位图且处于错误状态（存在加载失败记录）→ 保存错误日志；否则保存照片
+            if (GetImageCachePath(url) == null && imageControl.Source is not BitmapSource && GetImageLoadErrorCount(url) > 0)
+            {
+                Log($"[click] 另存为 clicked (error state, save log), url={url}");
+                await SaveErrorLogAsAsync(url, imageControl);
+            }
+            else
+            {
+                Log($"[click] 另存为 clicked (save image), url={url}");
+                await SaveImageAsAsync(url, imageControl);
+            }
         };
 
         var menu = new ContextMenu();
@@ -642,8 +653,10 @@ public class EasterEggPage : UserControl
             var cachePath = GetImageCachePath(url);
             var cacheExists = cachePath != null && File.Exists(cachePath);
             var hasBitmap = imageControl.Source is BitmapSource;
-            saveMenuItem.IsEnabled = cacheExists || hasBitmap;
-            Log($"[opened] menu Opened, url={url}, enabled={saveMenuItem.IsEnabled}, cacheExists={cacheExists}, hasBitmap={hasBitmap}");
+            var hasErrors = GetImageLoadErrorCount(url) > 0;
+            // 可保存：照片（有缓存或位图）或错误日志（无缓存无位图且处于错误状态）
+            saveMenuItem.IsEnabled = cacheExists || hasBitmap || hasErrors;
+            Log($"[opened] menu Opened, url={url}, enabled={saveMenuItem.IsEnabled}, saveLog={!cacheExists && !hasBitmap && hasErrors}, cacheExists={cacheExists}, hasBitmap={hasBitmap}, hasErrors={hasErrors}");
         };
         menu.Closed += (_, _) => Log($"[closed] menu Closed, url={url}");
         container.ContextMenu = menu;
@@ -661,6 +674,138 @@ public class EasterEggPage : UserControl
             Log($"[opening] ContextMenuOpening, url={url}, handled={e.Handled}");
 
         Log($"[attach] ContextMenu attached, url={url}");
+    }
+
+    /// <summary>单次图片加载失败记录。</summary>
+    private sealed record ImageLoadErrorEntry(DateTime Time, string ExceptionType, string Message);
+
+    private static readonly object ImageLoadErrorsLock = new();
+    private static readonly Dictionary<string, List<ImageLoadErrorEntry>> ImageLoadErrors = new();
+
+    /// <summary>
+    /// 记录一次图片加载失败（每次重试失败都会追加）。每个 URL 最多保留 20 条，防止长期驻留内存。
+    /// </summary>
+    private static void RecordImageLoadError(string url, Exception ex)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            if (!ImageLoadErrors.TryGetValue(url, out var list))
+            {
+                list = new List<ImageLoadErrorEntry>();
+                ImageLoadErrors[url] = list;
+            }
+
+            list.Add(new ImageLoadErrorEntry(DateTime.Now, ex.GetType().Name, ex.Message));
+            if (list.Count > 20)
+            {
+                list.RemoveAt(0);
+            }
+        }
+    }
+
+    private static int GetImageLoadErrorCount(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list) ? list.Count : 0;
+        }
+    }
+
+    private static List<ImageLoadErrorEntry> GetImageLoadErrors(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list)
+                ? new List<ImageLoadErrorEntry>(list)
+                : new List<ImageLoadErrorEntry>();
+        }
+    }
+
+    /// <summary>
+    /// 为错误面板挂右键菜单（“另存为错误日志...”）：把该图片的加载失败记录导出为文本日志，
+    /// 便于用户反馈网络/服务端问题（如 429 限流、超时等）。菜单打开时按是否有失败记录动态启用。
+    /// </summary>
+    private static void AttachErrorPanelContextMenu(StackPanel errorPanel, string url, Image imageControl)
+    {
+        var saveLogMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为…" };
+        saveLogMenuItem.Click += async (_, _) => await SaveErrorLogAsAsync(url, imageControl);
+
+        var menu = new ContextMenu();
+        menu.Items.Add(saveLogMenuItem);
+        menu.Opened += (_, _) =>
+        {
+            saveLogMenuItem.IsEnabled = GetImageLoadErrorCount(url) > 0;
+            Log($"[opened] error panel menu Opened, url={url}, records={GetImageLoadErrorCount(url)}");
+        };
+        errorPanel.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// “另存为错误日志”：弹出系统保存文件对话框（默认 .txt），把该图片的加载失败记录
+    /// （含环境信息）写入用户选择的位置。对话框等待与文本组装在 UI 线程完成，
+    /// 写盘放后台线程执行；CI1 宿主无 Toast 机制，成功/失败均记录到 ContextMenuDebug.log。
+    /// </summary>
+    private static async Task SaveErrorLogAsAsync(string url, Image imageControl)
+    {
+        string targetPath = string.Empty;
+        try
+        {
+            var entries = GetImageLoadErrors(url);
+            if (entries.Count == 0)
+            {
+                Log("[save error log] no error records, abort");
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "另存为错误日志",
+                FileName = $"AdvancedTimeIsland-image-load-error-{DateTime.Now:yyyyMMdd-HHmmss}",
+                DefaultExt = ".txt",
+                Filter = "文本文件|*.txt|所有文件|*.*"
+            };
+            var dialogResult = dialog.ShowDialog(Window.GetWindow(imageControl));
+            Log($"[save error log] dialog result={dialogResult}, path={dialog.FileName}");
+            if (dialogResult != true)
+            {
+                return;
+            }
+
+            targetPath = dialog.FileName;
+            var content = BuildImageLoadErrorLogText(url, entries);
+            await Task.Run(() => File.WriteAllText(targetPath, content));
+            Log($"[save error log] done: {targetPath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save error log] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
+            System.Diagnostics.Debug.WriteLine($"SaveErrorLogAsAsync failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 组装错误日志文本：环境信息 + 该 URL 的全部失败记录（时间/异常类型/消息）。
+    /// </summary>
+    private static string BuildImageLoadErrorLogText(string url, List<ImageLoadErrorEntry> entries)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("AdvancedTimeIsland 女装图片加载错误日志");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"运行时：{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"操作系统：{System.Runtime.InteropServices.RuntimeInformation.OSDescription}");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"失败 URL：{url}");
+        sb.AppendLine($"失败记录（共 {entries.Count} 次，按时间顺序）：");
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            sb.AppendLine($"[{i + 1}] {entry.Time:yyyy-MM-dd HH:mm:ss}  {entry.ExceptionType}");
+            sb.AppendLine($"    {entry.Message}");
+        }
+        sb.AppendLine("========================================");
+        sb.AppendLine("本日志仅包含图片加载的网络/解码错误信息，不含任何个人数据。");
+        return sb.ToString();
     }
 
     /// <summary>
@@ -779,6 +924,7 @@ public class EasterEggPage : UserControl
             errorPanel.Visibility = Visibility.Visible;
             retryButton.IsEnabled = true;
             retryButton.Content = "重新刷新";
+            RecordImageLoadError(url, ex);
         }
     }
 

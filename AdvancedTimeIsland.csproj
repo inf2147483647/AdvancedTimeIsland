@@ -78,8 +78,11 @@
 
     <ItemGroup>
         <None Update="manifest.yml">
-            <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
-        </None>
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
+		<None Update="CHANGELOG.md">
+			<CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+		</None>
         <None Update="README.md">
             <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
         </None>
@@ -99,6 +102,14 @@
 
     <ItemGroup>
       <AvaloniaResource Include="Assets\hanfupage\**\*" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <!-- 加载中状态的右键“另存为”需要把该控件源代码另存出来：插件安装态下插件目录里没有源码文件，
+           故作为内嵌资源随程序集分发，运行时按 LogicalName（ExpressiveLoadingIndicator.cs）读取。 -->
+      <EmbeddedResource Include="Views\Controls\ExpressiveLoadingIndicator.cs">
+        <LogicalName>ExpressiveLoadingIndicator.cs</LogicalName>
+      </EmbeddedResource>
     </ItemGroup>
 
     <ItemGroup>

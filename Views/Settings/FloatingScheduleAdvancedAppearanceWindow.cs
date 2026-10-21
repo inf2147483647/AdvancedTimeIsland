@@ -6,7 +6,9 @@ using System.Collections.Generic;
 using System.Globalization;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Shared.FloatingSchedule;
+using ClassIsland.Shared;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -56,8 +58,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         _settings = settings;
         Title = "ATI 高级外观";
         // 初始给一个适中的回退尺寸；Opened 后按实际屏幕工作区校准（构造期 Screens 可能未就绪）。
-        Width = 1040; Height = 680;
-        MinWidth = 720; MinHeight = 520;
+        Width = 1040; Height = 510;   // 高度较旧版 680 降低 25%
+        MinWidth = 720; MinHeight = 200;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
         Opened += OnEditorOpened;
@@ -124,8 +126,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         RebuildPreview();
     }
 
-    // 窗口显示后按所在屏幕工作区校准尺寸：高 = 工作区高 × 0.82（给标题栏/任务栏留安全余量），
-    // 宽同理；夹到最小/最大区间。避免固定 760 在小屏或 125%/150% DPI 下标题栏溢出屏幕。
+    // 窗口显示后按所在屏幕工作区校准尺寸：高 = 工作区高 × 0.615（旧版 0.82 降低 25%；给标题栏/任务栏留安全余量），
+    // 宽同理；夹到最小/最大区间。避免固定尺寸在小屏或 125%/150% DPI 下标题栏溢出屏幕。
     void OnEditorOpened(object? sender, EventArgs e)
     {
         try
@@ -133,8 +135,9 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             var screen = Screens.ScreenFromWindow(this) ?? Screens.Primary;
             if (screen == null) return;
             var wa = screen.WorkingArea;
+            // 高度系数较旧版 0.82 降低 25% → 0.615；高度下限 200（MinHeight）
             double w = Math.Clamp(Math.Floor(wa.Width * 0.82), MinWidth, 1080);
-            double h = Math.Clamp(Math.Floor(wa.Height * 0.82), MinHeight, 720);
+            double h = Math.Clamp(Math.Floor(wa.Height * 0.615), MinHeight, 720);
             Width = w; Height = h;
         }
         catch { }
@@ -235,6 +238,17 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Children.Add(RowToggle("自定义字体颜色", _s.FloatingScheduleTextColorEnabled, v => _s.FloatingScheduleTextColorEnabled = v));
         p.Children.Add(RowColor("全局字体颜色", _s.FloatingScheduleTextColor, v => { _s.FloatingScheduleTextColorEnabled = true; _s.FloatingScheduleTextColor = v; }));
         p.Children.Add(RowToggle("按学科分色", _s.FloatingScheduleSubjectColorEnabled, v => _s.FloatingScheduleSubjectColorEnabled = v));
+#if NET10_0_OR_GREATER
+        // FA3（ClassIsland 2.1.1.1+）：学科主题色直接复用宿主档案 Subject.ColorHex，插件自有色表体系取消，
+        // 此处仅保留开关与跳转宿主「档案 → 学科」编辑页的入口。
+        p.Children.Add(new TextBlock
+        {
+            Text = "学科颜色直接使用 ClassIsland 档案中的学科主题色，请在 ClassIsland 档案设置中编辑。",
+            FontSize = 12, Margin = new Thickness(0, 2, 0, 8), TextWrapping = TextWrapping.Wrap, Opacity = 0.8
+        });
+        p.Children.Add(RowButton("前往 ClassIsland 编辑学科主题色", (_, _) => OpenClassIslandSubjectEditor()));
+#else
+        // FA2（旧版 ClassIsland 无原生学科主题色）：保留插件端编辑，色表预置/恢复为官方默认学科色。
         // 添加学科：输入科目名 + 添加按钮
         var addName = new TextBox { Watermark = "科目名", Width = 140 };
         var addBtn = new Button { Content = "＋添加学科", Padding = new Thickness(10, 5) };
@@ -242,7 +256,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         {
             var nm = addName.Text?.Trim() ?? "";
             if (nm.Length == 0 || _s.FloatingScheduleSubjectColorMap.ContainsKey(nm)) return;
-            var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [nm] = 0xFF7A7A7A };
+            var defColor = SubjectColorHelper.DefaultSubjectColors.TryGetValue(nm, out var d) ? d : 0xFF7A7A7A;
+            var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [nm] = defColor };
             _s.FloatingScheduleSubjectColorMap = map;
             RebuildPreview(); SwitchPanel(1);
         };
@@ -250,7 +265,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         addRow.Children.Add(addName); addRow.Children.Add(addBtn);
         p.Children.Add(addRow);
         p.Children.Add(RowButton("从课表刷新学科", (_, _) => RefreshSubjects()));
-        p.Children.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = new Dictionary<string, uint>(); RebuildPreview(); SwitchPanel(1); }));
+        p.Children.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap(); RebuildPreview(); SwitchPanel(1); }));
         foreach (var kv in _s.FloatingScheduleSubjectColorMap)
         {
             var name = kv.Key;
@@ -258,10 +273,11 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
                 v => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [name] = v }; _s.FloatingScheduleSubjectColorMap = map; },
                 () => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap); map.Remove(name); _s.FloatingScheduleSubjectColorMap = map; RebuildPreview(); SwitchPanel(1); }));
         }
+#endif
         return p;
     }
 
-    // 学科行：科目名 + 颜色(色块+HEX) + 移除按钮。
+    // 学科行：科目名 + 颜色(色块+HEX) + 移除按钮。（仅 FA2 编译路径使用：FA3 已改为复用宿主档案学科色）
     Control SubjectRow(string name, uint argb, Action<uint> onColor, Action onRemove)
     {
         var g = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto,Auto"), ColumnSpacing = 8, Margin = new Thickness(0, 2) };
@@ -328,26 +344,71 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 
     void RefreshSubjects()
     {
-        // 从当前课表档案读取全部科目，补充默认色（语文橙/数学蓝/英语黄，其余取主题强调色变体）。
+        // FA2：用官方默认学科色表补充缺失科目（色表复制自 ClassIsland 默认档案 default-subjects.json）。
         try
         {
             var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap);
-            foreach (var name in SampleSubjects)
+            foreach (var kv in SubjectColorHelper.DefaultSubjectColors)
             {
-                if (map.ContainsKey(name)) continue;
-                map[name] = name switch
-                {
-                    "语文" => 0xFFE08A2E,
-                    "数学" => 0xFF2E7FE0,
-                    "英语" => 0xFFE0C02E,
-                    _ => 0xFF7A7A7A,
-                };
+                if (!map.ContainsKey(kv.Key)) map[kv.Key] = kv.Value;
             }
             _s.FloatingScheduleSubjectColorMap = map;
             SwitchPanel(1);
         }
         catch { }
     }
+
+#if NET10_0_OR_GREATER
+    // FA3：前往「档案 → 学科」编辑页（classisland://app/profile/subjects）。
+    // 两级尝试：
+    //  1) 进程内 Uri 导航——反射宿主 IUriNavigationService / IPublicUriNavigationService（DI 按
+    //     接口注册方式在不同版本或有差异，两级类型都找；方法亦按单参 NavigateWrapped/Navigate、
+    //     两参 NavigateWrapped(Uri, out _) 依次尝试）；
+    //  2) 兜底：用系统协议 URL 前往（宿主已把 classisland:// 注册到 HKCU\Software\Classes，
+    //     shell 激活后经 IPC 由运行实例接管导航）。
+    const string SubjectEditorUrl = "classisland://app/profile/subjects";
+    void OpenClassIslandSubjectEditor()
+    {
+        // 1) 进程内导航
+        try
+        {
+            if (IAppHost.Host != null)
+            {
+                var tNav = FloatingScheduleService.FindHostServiceType("ClassIsland.Core.Abstractions.Services.IUriNavigationService")
+                        ?? FloatingScheduleService.FindHostServiceType("ClassIsland.Shared.IPC.Abstractions.Services.IPublicUriNavigationService");
+                var nav = tNav == null ? null : IAppHost.Host.Services.GetService(tNav);
+                if (tNav != null && nav != null)
+                {
+                    var uri = new Uri(SubjectEditorUrl);
+                    var m = tNav.GetMethod("NavigateWrapped", new[] { typeof(Uri) })
+                         ?? tNav.GetMethod("Navigate", new[] { typeof(Uri) });
+                    if (m != null)
+                    {
+                        m.Invoke(nav, new object[] { uri });
+                        return;
+                    }
+                    var m2 = tNav.GetMethod("NavigateWrapped", new[] { typeof(Uri), typeof(Exception).MakeByRefType() });
+                    if (m2 != null)
+                    {
+                        m2.Invoke(nav, new[] { (object?)uri, (object?)null });
+                        return;
+                    }
+                }
+            }
+        }
+        catch { }
+        // 2) 兜底：系统协议 URL 前往
+        try
+        {
+            using var _ = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo
+            {
+                FileName = SubjectEditorUrl,
+                UseShellExecute = true
+            });
+        }
+        catch { }
+    }
+#endif
 
     // ===================== 预览 =====================
     static readonly string[] SampleSubjects = { "语文", "数学", "英语", "物理", "化学" };
@@ -425,7 +486,15 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         for (int i = 0; i < SampleSubjects.Length; i++)
         {
             uint sc = 0;
-            if (_s.FloatingScheduleSubjectColorEnabled) _s.FloatingScheduleSubjectColorMap.TryGetValue(SampleSubjects[i], out sc);
+            if (_s.FloatingScheduleSubjectColorEnabled)
+            {
+#if NET10_0_OR_GREATER
+                // FA3：插件映射已取消，预览用官方默认学科色表示意宿主档案色效果
+                SubjectColorHelper.DefaultSubjectColors.TryGetValue(SampleSubjects[i], out sc);
+#else
+                _s.FloatingScheduleSubjectColorMap.TryGetValue(SampleSubjects[i], out sc);
+#endif
+            }
             m.Rows.Add(new FloatScheduleRowModel { Course = SampleSubjects[i], Teacher = teachers[i], TimeText = times[i], SubjectColorArgb = sc });
         }
         m.Break = new FloatScheduleBreakModel { AfterClassIndex = 2, Name = "课间休息", TimeText = "10:20 - 10:30" };
@@ -509,8 +578,11 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 
     Control RowCombo(string label, string[] items, int sel, Action<int> set, out ComboBox combo)
     {
-        var c = new ComboBox { MinWidth = 180, SelectedIndex = Math.Clamp(sel, 0, items.Length - 1) };
+        // 先填充 Items 再设 SelectedIndex：空 Items 上设置 SelectedIndex 在新版 Avalonia（FA3/net10）
+        // 中不会挂起待 Items 添加后补选，而是直接丢弃 → 重进窗口后下拉框文本丢失（配置本身未丢）。
+        var c = new ComboBox { MinWidth = 180 };
         foreach (var it in items) c.Items.Add(it);
+        c.SelectedIndex = Math.Clamp(sel, 0, items.Length - 1);
         c.SelectionChanged += (_, _) => { if (_suppress || c.SelectedIndex < 0) return; set(c.SelectedIndex); RebuildPreview(); };
         combo = c; return Row(label, c);
     }
