@@ -191,7 +191,6 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _enableCountdownNotification = true;
     private int _countdownAlertSeconds = 60;
     private LongitudeDisplayMode _longitudeDisplayMode = LongitudeDisplayMode.Decimal;
-    private bool _enableEasterEgg = false;
     private bool _disclaimerAccepted = false;
     private bool _easterEggDisclaimerAccepted = false;
     private bool _easterEggInfoAccepted = false;
@@ -601,21 +600,9 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>
-    /// 是否启用女装彩蛋
-    /// </summary>
-    public bool EnableEasterEgg
-    {
-        get => _enableEasterEgg;
-        set
-        {
-            if (_enableEasterEgg != value)
-            {
-                _enableEasterEgg = value;
-                OnPropertyChanged();
-            }
-        }
-    }
+    // 【已移除】原先的 EnableEasterEgg 配置项不再存在：女装彩蛋状态改为只在「关于」设置页实例内
+    // 存在（页面重建即丢失，不写入 settings.json）。旧配置里残留的 EnableEasterEgg 字段会在反序列化时
+    // 被 System.Text.Json 按未知成员忽略，升级后需要重新触发彩蛋才会出现「女装」标签页。
 
     /// <summary>
     /// 是否已接受免责声明

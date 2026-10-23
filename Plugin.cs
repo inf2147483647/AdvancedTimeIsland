@@ -901,33 +901,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
-
-                bool isInDayRange;
-                if (s.StartDayOfWeek <= s.EndDayOfWeek)
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
-                }
-                else
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
-                }
-
-                if (!isInDayRange)
-                    return false;
-
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
-
-                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
-                {
-                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
-                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
-                    else
-                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
-                }
-
-                return now >= startTimeToday && now <= endTimeToday;
+                return WeekNumberHelper.IsInWeeklyRange(
+                    now,
+                    s.StartDayOfWeek, startHour, startMinute, startSecond,
+                    s.EndDayOfWeek, endHour, endMinute, endSecond);
             }
         );
         }
@@ -1166,34 +1143,11 @@ public class Plugin : PluginBase
                     !int.TryParse(endParts[2], out int endSecond))
                     return false;
 
-                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZone);
-                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
-
-                bool isInDayRange;
-                if (s.StartDayOfWeek <= s.EndDayOfWeek)
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
-                }
-                else
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
-                }
-
-                if (!isInDayRange)
-                    return false;
-
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
-
-                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
-                {
-                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
-                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
-                    else
-                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
-                }
-
-                return now >= startTimeToday && now <= endTimeToday;
+                var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
+                return WeekNumberHelper.IsInWeeklyRange(
+                    now,
+                    s.StartDayOfWeek, startHour, startMinute, startSecond,
+                    s.EndDayOfWeek, endHour, endMinute, endSecond);
             }
         );
         }
@@ -1229,33 +1183,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
-
-                bool isInDayRange;
-                if (s.StartDayOfWeek <= s.EndDayOfWeek)
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek && currentDayOfWeek <= s.EndDayOfWeek;
-                }
-                else
-                {
-                    isInDayRange = currentDayOfWeek >= s.StartDayOfWeek || currentDayOfWeek <= s.EndDayOfWeek;
-                }
-
-                if (!isInDayRange)
-                    return false;
-
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
-
-                if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
-                {
-                    if (LunarHelper.Compare(now, startTimeToday) >= 0)
-                        endTimeToday = LunarHelper.SolarAddDays(endTimeToday, 1);
-                    else
-                        startTimeToday = LunarHelper.SolarAddDays(startTimeToday, -1);
-                }
-
-                return now >= startTimeToday && now <= endTimeToday;
+                return WeekNumberHelper.IsInWeeklyRange(
+                    now,
+                    s.StartDayOfWeek, startHour, startMinute, startSecond,
+                    s.EndDayOfWeek, endHour, endMinute, endSecond);
             }
         );
 

@@ -11,7 +11,7 @@ public class TimeZoneWeeklyTimeTrigger : TimeTriggerBase<TimeZoneWeeklyTimeRange
     protected override DateTime GetCurrentTime()
     {
         var localTime = base.GetCurrentTime();
-        return Plugin.GetTimeZoneTime(localTime, Settings.TimeZone);
+        return Plugin.GetTimeZoneTime(localTime, Settings.TimeZoneId);
     }
 
     protected override bool CheckTrigger(DateTime now)

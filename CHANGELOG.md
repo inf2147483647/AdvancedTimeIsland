@@ -1,11 +1,18 @@
 ## [未发布]
 
+### 破坏性变更
+
+- **主界面组件设置里的「进度条显示」下拉框改为两个复选框**：多倒计时（ATI）、农历倒计时、周期倒计时、总在校时间统计四个组件设置中的「显示进度条：不显示 / 进度条 / 进度环 / 进度条和进度环」下拉框全部移除，改为「进度条」「进度环」两个独立复选框——两个都不勾 = 不显示进度，只勾一个 = 只显示该种，两个都勾 = 同时显示。旧设置的四种取值与四个勾选组合一一对应，底层仍以 `ProgressDisplayMode` 枚举持久化，**现有配置文件无需迁移、升级后勾选状态与原来一致**（此项属界面层面的破坏性调整：截图、教程与自动化脚本若依赖旧下拉框会失效）。「进度条颜色 / 进度环颜色」的可用性也改为分别跟随对应复选框。WPF 版（ClassIsland 1.x）按维护约定未同步此变更，仍为下拉框。
+
 ### 新增
 
+- **女装彩蛋触发增加集控验证**：当设备已加入 ClassIsland 集控、且集控下发了凭据（管理员 / 用户凭据，即"集控密码"）时，连点插件图标达到触发条件后不再直接点亮「女装」，而是先弹出宿主原生的集控凭据输入窗口；验证通过才触发，取消或输错则提示「集控验证未通过，彩蛋未触发」并重置点击计数。未加入集控、或集控未设置任何凭据时行为不变（宿主 `AuthorizeByLevel` 在无凭据时直接放行，不会弹窗）。验证走 `IManagementService.AuthorizeByLevel(AuthorizeLevel.User)`，成功/失败同时会写入宿主的集控审计日志。
 - **时间表悬浮窗设置新增「复位窗口」**（窗口与高级）：点击后把悬浮窗强制放回默认位置（100,100），并清除贴边停靠/滑出隐藏状态（否则贴边逻辑会按「已停靠」把窗口再次滑回屏幕边缘），用于窗口被拖到屏幕外或找不到时快速找回。进程内模式直接移动窗口；独立进程模式通过新增的 `PositionResetStamp` 复位计数随设置快照下发，子进程检测到计数变化后强制重新应用位置（子进程平时只在 Init 时应用一次位置），两种模式均即时生效、无需重启 ClassIsland。
 
 ### 修复
 
+- **修复「每周时间范围 / 地方时每周时间范围 / 区时每周时间范围」无法表达跨整天区间、且结束端点被误包含**：此前三条条件都按「星期范围 ∩ 当天时段」判断——起止时间相同（如周六 00:00:00 → 周一 00:00:00）会退化成零长窗口，整周 10080 分钟里只命中周六、周日、周一各自的 00:00:00 共 3 分钟，整个周末（周六 00:01 至周日 23:59）均不生效；同时结束比较使用 `<=`，把周一 00:00:00 这个结束端点也算命中，与「每年 / 每月时间范围」的「起点含、终点不含」惯例相反。现新增 `WeekNumberHelper.IsInWeeklyRange(...)` 统一三条条件的判断：以周一 00:00:00 为原点把「星期 + 时刻」铺成周内连续时间轴，起点含、终点不含；结束点早于起点时自动顺延（跨周，如周六 22:00 → 周一 02:00），同一天结束时刻更早时跨到次日；起止完全相同视为零长、恒不命中。`Plugin.cs` 中三份重复的 `isInDayRange + startTimeToday/endTimeToday` 逻辑随之收敛为一个公共方法。现在「周六 00:00 → 周一 00:00」正好覆盖整个周末 2880 分钟，周一 00:00:00 不再命中。
+- **修复「区时每周」时区下拉恒为空、规则静默按本机时间判定**：「区时每周时间范围」规则与「区时每周」触发器的时区默认值是 `"UTC+8"`——它并非 Windows 时区 Id（`TimeZoneInfo.GetSystemTimeZones()` 的 141 项里没有这一项），设置控件中 `tz.Id == Settings.TimeZone` 永远不成立（一进设置页下拉框就是空选）；运行时 `TimeZoneInfo.FindSystemTimeZoneById("UTC+8")` 抛出 `TimeZoneNotFoundException`，又被 `Plugin.GetTimeZoneTime` 的 `catch` 静默吞掉、回退成 `localTime.ToLocalTime()`——「区时每周」实际按**本机时间**判定，非东八区用户结果会错且无任何报错或日志。现时区字段改为 `TimeZoneId`，默认值与其他 7 条「区时」规则统一为 `China Standard Time`；旧字段 `TimeZone` 保留为**反序列化迁移入口**（仅当值为合法系统时区 Id 时才写入 `TimeZoneId`，旧默认值 `"UTC+8"` 等非法值直接丢弃；读取恒为 `null` 且序列化时忽略，不会把废弃字段写回档案），旧档案里用户自选的合法时区不会丢失。设置控件反显另加兜底：Id 缺失或本机不存在时回退默认时区并写回设置，保证「下拉反显值」与「运行时换算时区」一致。规则注册（[Plugin.cs](Plugin.cs)）、[TimeZoneWeeklyTimeTrigger.cs](Automation/Triggers/TimeZoneWeeklyTimeTrigger.cs)、设置控件与 SAI 积木元数据同步更新（`TimeZone` 不再暴露为积木参数，积木改用 `TimeZoneId`）。WPF 版按仓库约定不再维护，本次未同步改动。
 - **修复悬浮窗子进程被杀软误报拦截后整体失效**：独立进程模式此前把 `AdvancedTimeIslandFloatSchedule.exe` 每次启动都复制到 `%TEMP%` 并以随机名执行——「写入临时目录 + 立即执行」「每次启动新落地一个随机名可执行文件」是安全软件启发式里最典型的两条投放特征，会被判为木马并阻止启动，而此时进程内悬浮窗已因独立模式生效被禁用，用户看到的就是悬浮窗彻底消失。现改为：① 运行副本改放 `%LOCALAPPDATA%\AdvancedTimeIsland\FloatSchedule\`（稳定的非临时目录），并复用已存在且内容一致的副本，不再每次重写；② 随机进程名开启时也优先复用上一次的随机名副本，只在子进程 exe 真正更新时才换新名；③ 副本启动失败时自动改用插件目录原件再试一次（绕过「拦截落盘副本」的策略）；④ 均失败才置 Failed 并回退进程内渲染，失败原因明确提示"可能被安全软件拦截，请加入白名单或关闭独立进程模式"。
 - **修复「仅计在校时长」开启时进度条时间基准错误**：进度百分比此前固定按自然时间计算（`已度过自然时长 / (开始时刻 → 目标时刻) 总自然时长`），而显示的剩余时间是「在校秒数」（远小于自然剩余）——两套基准混用导致进度严重虚高（例如开始一天后即显示近半进度）。现开启「仅计在校时长」的倒计时，进度条基准同步改为**总在校时长**（`(开始时刻, 目标时刻]` 的在校秒数）：已度过在校 = 总在校 − 剩余在校，进度随实际上课时间推进（在校日/节假日/课表窗口口径与剩余时间一致）；总在校需覆盖开始时刻，逐日在校窗口缓存的扫描起点相应从「当前日 − 1 天」扩展至开始时刻所在日（缓存仍在后台线程构建，UI 线程无阻塞）。总在校为 0（区间内无在校日）时进度保持 0，不回退自然基准。
 - **修复 FA3（net10）主界面时钟类组件（多倒计时等）全部冻结在初始值**：`SharedRenderClockService` 的刷新计时器 `DispatcherTimer` 在 `StartAsync` 中于**宿主调用线程**直接构造——FA2 宿主在 UI 线程启动 HostedService 时恰好可用，而 FA3 宿主（ClassIsland 2.1.1.1）在后台线程启动 HostedService，`DispatcherTimer` 被绑定到没有消息循环的后台 Dispatcher 上，**永不触发**。症状：多倒计时组件只在构造时计算一次（此刻「仅计在校时长」缓存尚未建立，剩余时间为 0），显示恒为「0天0小时」、进度环/进度条永不变化，其余依赖共享时钟的组件同样停走。现 `StartTimer` 统一经 `Dispatcher.UIThread` 检查并投递到 UI 线程创建计时器（`StopAsync` 的停止操作同步处理），无论宿主在哪个线程启动服务，计时器都能正常走时。
@@ -17,6 +24,8 @@
 
 ### 变更
 
+- **女装彩蛋状态不再持久化（行为变更）**：此前触发彩蛋会把「已开启」写进插件配置，重启 ClassIsland 后「女装」标签页仍在；现在该状态只存在于「关于」设置页实例内，**离开设置页或重启应用即失效**，必须重新连点图标触发（每次触发都要重新通过集控验证，若已加入集控）。设置页里被触发后才出现的「女装」开关仍可关闭彩蛋，但同样只在本次进入设置页期间有效。影响：升级后老用户即便之前开过彩蛋，重启后也不会再自动出现「女装」标签页；旧 `settings.json` 里残留的 `EnableEasterEgg` 字段会在读取时被忽略（不会报错），下次保存时自然消失。WPF 版按维护约定未同步此变更。
+- **每周时间范围语义改为连续区间（行为变更）**：三条「每周时间范围」条件不再表示「在星期范围内、每天重复的时段」，而是从「开始星期 + 开始时间」到「结束星期 + 结束时间」的一整段连续区间（夜间同样命中）；例如「周一 08:00 → 周五 17:00」现在覆盖周一 08:00 至周五 17:00 的全程，而不是每天 08:00–17:00。若需要旧语义，请改用「每天时间范围」配合对应星期几条件的组合。WPF 版（ClassIsland 1.x）按维护约定未同步此变更。
 - **女装图片页改为视口虚拟化加载（内存大幅优化）**：此前进入女装页会把全部图片（当前 24 张，每张降采样位图 6~9MB）一次性并发加载，常驻约 200MB——若扩充到上千张图片内存将不可控。现重构为「占位 → 视口判定 → 按需加载/离视即卸载」三段式：① **先确定图片尺寸**——进程级宽高比缓存（跨页面实例共享），有本地缓存时读文件头、无缓存时用 HTTP Range 只拉 ≤512KB 头部字节解析 JPEG SOF 宽高（服务器不支持 Range 则回退完整下载并顺手落盘缓存），解析完成后为卡片铺设等比占位（宽度对齐卡片 MaxWidth 机制，默认比例兜底），彻底避免加载完成后布局跳动；② **进入视口 ±500px 才加载**——监听实际滚动的 ScrollViewer（页面自带 MainScrollViewer 与外层 ScrollViewer 双挂监听、按“谁有溢出”动态选定根），滚动/缩放重算合并到 Background 优先级单帧执行，卡片与扩展视口相交才发起加载，加载管线 slot 化（每张图独立 linked CTS）；③ **离开范围立即卸载**——滚出 ±500px 即取消在途任务、Dispose 位图并恢复等比占位，页面离树时级联取消全部并清空所有位图。1000 张图片时常驻内存只剩轻量卡片控件与占位尺寸，位图仅覆盖视口附近几张。
 
 - **高级外观设置项改为原子写入**：设置项写回原本依赖 `PropertyChanged → 500ms 防抖 → 原子落盘`，改动若停留在防抖窗口期内而宿主退出/崩溃会丢失。现新增 `Plugin.SaveSettingsNow()`（复用既有锁 + 临时文件 + `File.Replace` 原子保存，在后台线程执行不阻塞 UI），高级外观窗口的所有设置项（开关 / 下拉框 / 数值 / 滑杆 / 颜色、背景图片路径、学科色的添加 / 移除 / 刷新 / 恢复默认 / 逐科编辑）写回后立即触发保存；Slider 拖动等连续触发由保存锁串行，无并发风险。
@@ -28,7 +37,11 @@
 
 ### 技术说明
 
+- 进度显示 UI 统一收敛到 [FontSettingsRowFactory.CreateProgressDisplayRow](Views/Controls/FontSettingsRowFactory.cs)（标签 + 「进度条」「进度环」两复选框）与 [ProgressDisplayHelper](Helpers/ProgressDisplayHelper.cs)（`ShowsBar` / `ShowsRing` / `Compose`），四个组件设置面板（[CountdownSettingsControl](Views/Main/CountdownSettingsControl.cs)、[LunarCountdownSettingsControl](Views/Main/LunarCountdownSettingsControl.cs)、[PeriodicCountdownSettingsControl](Views/Main/PeriodicCountdownSettingsControl.cs)、[AttendanceSettingsControl](Views/Main/AttendanceSettingsControl.cs)）共用，避免四份重复的下拉框索引映射。回填勾选时用 `_isUpdatingProgressDisplay` / 既有 `_isUpdatingControls` 抑制事件，防止程序化设置把设置反复写回；渲染端（`CountdownControl` / `LunarCountdownControl` / `PeriodicCountdownControl` / `AttendanceControl`）仍按枚举分支，未改动。
+- 女装彩蛋状态改为页面级：`PluginSettings.EnableEasterEgg` 已删除，`AboutPage` 只用私有字段 `_easterEggActive` 保存状态，并在 `OnDetachedFromVisualTree` 调用 `ResetEasterEggSessionState()` 清空点击计数和标签页（宿主默认 `SettingsPagesCachePolicy = 0` 本来就不缓存设置页，这里的显式清理用于兼容开启缓存的宿主）。设置页里的「女装」开关（[PluginSettingsPage.cs](Views/Settings/PluginSettingsPage.cs)）只负责显隐 UI 与转发 `EasterEggToggled` 事件，不再写设置。
+- 集控验证：`AboutPage.VerifyManagementCredentialAsync()` 通过 `IAppHost.TryGetService<IManagementService>()` 取宿主集控服务，仅当 `IsManagementEnabled == true` 时调用 `AuthorizeByLevel(AuthorizeLevel.User)`；宿主实现中两种凭据均为空会直接返回 true（不弹窗），因此"集控没设密码就不用验证"无需插件自己判空。验证失败/异常一律不激活并重置 `EasterEggDetector`，异常时按失败处理（fail-closed），避免被集控管理的设备绕开管理员设置。
 - 新增 [SubjectColorHelper.cs](Helpers/SubjectColorHelper.cs)：官方默认学科色表、ColorHex（`#RRGGBB` / `#AARRGGBB`）解析、宿主 Subject 实例反射读色。
+- 新增 [TimeZoneHelper.cs](Helpers/TimeZoneHelper.cs)：时区下拉框按 Id 反显选中项的兜底逻辑（Id 缺失或本机不存在时回退指定的默认时区、再回退列表首项），供「区时每周」规则与触发器的设置控件复用。旧字段迁移依赖 `System.Text.Json` 的 `[JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)]`——该条件只影响序列化，反序列化仍会把旧档案里的 `TimeZone` 交给迁移 setter（ClassIsland 档案读写走默认 `JsonSerializerOptions`，属性名大小写原样匹配）。
 - `FloatingScheduleService.FindHostServiceType` 由 private 改为 internal，供设置窗口复用反射查找宿主服务类型。
 - **修复「前往 ClassIsland 编辑学科主题色」点击无反应**：原实现仅尝试单一接口类型 + 单参 `NavigateWrapped(Uri)` 反射，任一环节（服务类型 / DI 解析 / 方法签名）不匹配即静默返回。现改为多级尝试：依次查找 `IUriNavigationService` / `IPublicUriNavigationService` 两个接口类型，方法按单参 `NavigateWrapped(Uri)` → `Navigate(Uri)` → 两参 `NavigateWrapped(Uri, out _)` 依次尝试；全部失败时兜底用系统协议 URL（`Process.Start` + `classisland://app/profile/subjects`，宿主已注册该协议）前往。
 

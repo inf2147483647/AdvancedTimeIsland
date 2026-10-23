@@ -35,14 +35,10 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         _isLoading = true;
         try
         {
-            foreach (var item in _timeZoneComboBox.Items)
-            {
-                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
-                {
-                    _timeZoneComboBox.SelectedItem = item;
-                    break;
-                }
-            }
+            TimeZoneHelper.SelectTimeZone(
+                _timeZoneComboBox,
+                Settings.TimeZoneId,
+                TimeZoneWeeklyTimeRangeRuleSettings.DefaultTimeZoneId);
 
             if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
             {
@@ -79,14 +75,10 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         base.OnInitialized();
         if (Settings != null)
         {
-            foreach (var item in _timeZoneComboBox.Items)
-            {
-                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
-                {
-                    _timeZoneComboBox.SelectedItem = item;
-                    break;
-                }
-            }
+            TimeZoneHelper.SelectTimeZone(
+                _timeZoneComboBox,
+                Settings.TimeZoneId,
+                TimeZoneWeeklyTimeRangeRuleSettings.DefaultTimeZoneId);
             if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
             {
                 _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
@@ -269,7 +261,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         if (Settings == null) return;
         if (_timeZoneComboBox.SelectedItem is TimeZoneInfo tz)
         {
-            Settings.TimeZone = tz.Id;
+            Settings.TimeZoneId = tz.Id;
         }
     }
 

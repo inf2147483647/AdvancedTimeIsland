@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using System.Text;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -17,11 +18,13 @@ using AdvancedTimeIsland.Models;
 
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Core.Abstractions.Services.Management;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Controls;
 using ClassIsland.Core.Helpers.UI;
 using ClassIsland.Core.Models.UI;
 using ClassIsland.Shared;
+using ClassIsland.Shared.Enums;
 // Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity，
 // 用别名统一，业务代码统一用 FAInfoBarSeverity（同 EasterEggPage）
 #if NET10_0_OR_GREATER
@@ -68,6 +71,9 @@ public class AboutPage : SettingsPageBase
     private bool _easterEggActive;
     private readonly PluginSettings? _pluginSettings;
 
+    /// <summary>集控验证进行中标记：防止验证窗口未关闭时重复进入激活流程。</summary>
+    private bool _easterEggActivating;
+
     /// <summary>
     /// 「管理启用的功能」- 小工具：关闭后主设置导航栏不显示「时间格式转换 / 时间计算器 / 专业名词解释」。
     /// 该选项无需重启，变更后立即重建导航栏标签页。
@@ -90,7 +96,11 @@ public class AboutPage : SettingsPageBase
     public AboutPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
-        _easterEggActive = pluginSettings?.EnableEasterEgg ?? false;
+
+        // 女装彩蛋状态不落盘、只存在于本页实例内：页面重建（关闭设置窗口 / 切到别的设置页再回来）
+        // 即回到未触发状态，必须重新连点图标触发。宿主默认 SettingsPagesCachePolicy = 0，
+        // 因此每次进入本设置页都会创建新实例，这里无需额外清理旧状态。
+        _easterEggActive = false;
 
         _easterEggDetector = new EasterEggDetector(11, 5);
         _easterEggDetector.OnActivated += OnEasterEggActivated;
@@ -305,33 +315,112 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 彩蛋激活处理
+    /// 显示集控验证未通过的提示窗口。
     /// </summary>
-    private void OnEasterEggActivated(object? sender, EventArgs e)
+    private void ShowEasterEggAuthFailedDialog()
     {
-        if (_easterEggActive) return;
-        _easterEggActive = true;
-        if (_pluginSettings != null)
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "提示");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
         {
-            _pluginSettings.EnableEasterEgg = true;
-        }
-
-        SyncNavigationTabs();
-        ShowEasterEggDialog();
+            Text = "集控验证未通过，彩蛋未触发。",
+            FontSize = 16,
+            Foreground = ThemeHelper.GetTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        });
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
     /// <summary>
-    /// 女装开关状态变化处理
+    /// 集控验证：宿主已加入集控且集控下发了凭据（管理员 / 用户凭据）时，必须先通过宿主原生的
+    /// 集控凭据校验才能触发彩蛋。
+    /// <para>
+    /// 这里不直接读取 <c>IManagementService.CredentialConfig</c> 判断"是否设了密码"，而是统一调用
+    /// <c>AuthorizeByLevel</c>：宿主实现里"两种凭据都为空"会直接返回 true（不弹窗），有凭据时才弹出
+    /// 凭据输入窗口，语义与"集控有密码才需要验证"完全一致，也避免插件依赖宿主的凭据内部结构。
+    /// </para>
+    /// </summary>
+    private static async Task<bool> VerifyManagementCredentialAsync()
+    {
+        IManagementService? managementService;
+        try
+        {
+            managementService = IAppHost.TryGetService<IManagementService>();
+        }
+        catch
+        {
+            managementService = null;
+        }
+
+        // 未加入集控（或宿主没有集控服务）时不需要额外验证
+        if (managementService is not { IsManagementEnabled: true })
+        {
+            return true;
+        }
+
+        try
+        {
+            return await managementService.AuthorizeByLevel(AuthorizeLevel.User);
+        }
+        catch (Exception ex)
+        {
+            // 集控已启用却无法完成验证（服务异常 / 凭据数据损坏）时按失败处理：
+            // 宁可让彩蛋触发不了，也不要让被集控管理的设备绕开管理员设置。
+            System.Diagnostics.Debug.WriteLine($"[EasterEgg] 集控验证异常：{ex}");
+            return false;
+        }
+    }
+
+    /// <summary>
+    /// 彩蛋激活处理：先做集控验证（加入集控且设置了凭据时必须通过），再点亮「女装」标签页。
+    /// 状态只保存在本页实例内、不写回设置，页面重建即失效。
+    /// </summary>
+    private async void OnEasterEggActivated(object? sender, EventArgs e)
+    {
+        if (_easterEggActive || _easterEggActivating) return;
+
+        _easterEggActivating = true;
+        try
+        {
+            if (!await VerifyManagementCredentialAsync())
+            {
+                // 验证取消 / 失败：重置检测器，允许用户重新累计点击后再试
+                _easterEggDetector.Reset();
+                ShowEasterEggAuthFailedDialog();
+                return;
+            }
+
+            _easterEggActive = true;
+            SyncNavigationTabs();
+            ShowEasterEggDialog();
+        }
+        finally
+        {
+            _easterEggActivating = false;
+        }
+    }
+
+    /// <summary>
+    /// 女装开关状态变化处理（设置页里的开关只在彩蛋已触发时可见）。
+    /// 该状态同样只作用于本页实例，不写回设置。
     /// </summary>
     private void OnEasterEggToggled(object? sender, bool isEnabled)
     {
-        // 关闭彩蛋时同步重置检测器，保证再次开启后可重新累计点击触发
-        if (!isEnabled)
+        if (isEnabled)
         {
-            _easterEggDetector?.Reset();
+            if (_easterEggActive) return;
+            _easterEggActive = true;
+            SyncNavigationTabs();
+            return;
         }
 
-        if (!isEnabled && _easterEggActive)
+        // 关闭彩蛋时同步重置检测器，保证再次开启后可重新累计点击触发
+        _easterEggDetector?.Reset();
+
+        if (_easterEggActive)
         {
             _easterEggActive = false;
             SyncNavigationTabs();
@@ -1142,6 +1231,24 @@ public class AboutPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+
+        // 女装彩蛋状态不落盘、也不跨页面保留：离开设置页即清空并收起「女装」标签页。
+        // 这样即使宿主开启了设置页实例缓存（SettingsPagesCachePolicy >= 1），重新进入设置页
+        // 也一定是未触发状态，必须重新连点图标触发。
+        ResetEasterEggSessionState();
+    }
+
+    /// <summary>
+    /// 清空本页实例内的女装彩蛋状态（含点击计数），并在已触发时同步收起「女装」标签页。
+    /// </summary>
+    private void ResetEasterEggSessionState()
+    {
+        _easterEggActivating = false;
+        _easterEggDetector?.Reset();
+
+        if (!_easterEggActive) return;
+        _easterEggActive = false;
+        SyncNavigationTabs();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

@@ -185,6 +185,46 @@ public static class FontSettingsRowFactory
         return row;
     }
 
+    /// <summary>
+    /// 创建「显示进度」行：标签 | 「进度条」复选框 | 「进度环」复选框 | 剩余空间。
+    /// 两个复选框都不勾选即不显示进度；勾选组合由调用方用
+    /// <see cref="AdvancedTimeIsland.Helpers.ProgressDisplayHelper.Compose"/> 合成为
+    /// <see cref="AdvancedTimeIsland.Models.ProgressDisplayMode"/> 保存。
+    /// </summary>
+    public static Grid CreateProgressDisplayRow(string labelText,
+        out TextBlock label, out CheckBox barCheckBox, out CheckBox ringCheckBox,
+        EventHandler<RoutedEventArgs>? checkedChangedHandler = null)
+    {
+        var row = CreateBaseRow();
+
+        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
+        Grid.SetColumn(label, 0);
+        row.Children.Add(label);
+
+        barCheckBox = new CheckBox { Content = "进度条", VerticalAlignment = VerticalAlignment.Center };
+        if (checkedChangedHandler != null)
+        {
+            barCheckBox.IsCheckedChanged += checkedChangedHandler;
+        }
+        Grid.SetColumn(barCheckBox, 1);
+        row.Children.Add(barCheckBox);
+
+        ringCheckBox = new CheckBox
+        {
+            Content = "进度环",
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(24, 0, 0, 0)
+        };
+        if (checkedChangedHandler != null)
+        {
+            ringCheckBox.IsCheckedChanged += checkedChangedHandler;
+        }
+        Grid.SetColumn(ringCheckBox, 2);
+        row.Children.Add(ringCheckBox);
+
+        return row;
+    }
+
     public static TextBlock CreateFontWeightHintTextBlock()
     {
         return new TextBlock

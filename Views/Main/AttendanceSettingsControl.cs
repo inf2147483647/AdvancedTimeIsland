@@ -55,7 +55,8 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
     private readonly List<CheckBox> _checkBoxes = new();
     private readonly List<TextStyleRow> _textStyleRows = new();
 
-    private ComboBox _progressDisplayModeComboBox;
+    private CheckBox? _showProgressBarCheckBox;
+    private CheckBox? _showProgressRingCheckBox;
     private ComboBox _timeBaseComboBox;
     private CheckBox _showSegmentDividerCheckBox;
     private CheckBox _showSummaryTextCheckBox;
@@ -66,11 +67,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 
     /// <summary>程序化回填控件时置位，避免控件事件把设置改回控件中的旧值。</summary>
     private bool _isUpdatingControls;
-
-    private static readonly object[] ProgressDisplayModeItems =
-    {
-        "不显示", "进度条", "进度环", "进度条 + 进度环"
-    };
 
     private static readonly object[] TimeBaseItems =
     {
@@ -108,10 +104,13 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         // ==================== 显示设置 ====================
         var displayPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
 
-        var progressModeRow = FontSettingsRowFactory.CreateComboBoxRow("进度显示方式", ProgressDisplayModeItems,
-            out var progressModeLabel, out _progressDisplayModeComboBox, out _,
-            selectionChangedHandler: OnProgressDisplayModeChanged);
+        // 进度显示：「进度条」「进度环」两个复选框（都不勾 = 不显示进度）
+        var progressModeRow = FontSettingsRowFactory.CreateProgressDisplayRow(
+            "显示进度:", out var progressModeLabel, out _showProgressBarCheckBox, out _showProgressRingCheckBox,
+            checkedChangedHandler: OnProgressDisplayChanged);
         _labels.Add(progressModeLabel);
+        if (_showProgressBarCheckBox != null) _checkBoxes.Add(_showProgressBarCheckBox);
+        if (_showProgressRingCheckBox != null) _checkBoxes.Add(_showProgressRingCheckBox);
         displayPanel.Children.Add(progressModeRow);
 
         _showSegmentDividerCheckBox = AddCheckBox(displayPanel, "在各段文案之间插入分割线");
@@ -340,21 +339,16 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 
     // ==================== 事件处理 ====================
 
-    private void OnProgressDisplayModeChanged(object? sender, SelectionChangedEventArgs e)
+    private void OnProgressDisplayChanged(object? sender, RoutedEventArgs e)
     {
         if (_isUpdatingControls)
         {
             return;
         }
 
-        Settings.ProgressDisplayMode = _progressDisplayModeComboBox.SelectedIndex switch
-        {
-            0 => ProgressDisplayMode.None,
-            1 => ProgressDisplayMode.Bar,
-            2 => ProgressDisplayMode.Ring,
-            3 => ProgressDisplayMode.Both,
-            _ => ProgressDisplayMode.Ring
-        };
+        Settings.ProgressDisplayMode = ProgressDisplayHelper.Compose(
+            _showProgressBarCheckBox?.IsChecked ?? false,
+            _showProgressRingCheckBox?.IsChecked ?? false);
     }
 
     private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
@@ -543,14 +537,8 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         _isUpdatingControls = true;
         try
         {
-            _progressDisplayModeComboBox.SelectedIndex = Settings.ProgressDisplayMode switch
-            {
-                ProgressDisplayMode.None => 0,
-                ProgressDisplayMode.Bar => 1,
-                ProgressDisplayMode.Ring => 2,
-                ProgressDisplayMode.Both => 3,
-                _ => 2
-            };
+            if (_showProgressBarCheckBox != null) _showProgressBarCheckBox.IsChecked = ProgressDisplayHelper.ShowsBar(Settings.ProgressDisplayMode);
+            if (_showProgressRingCheckBox != null) _showProgressRingCheckBox.IsChecked = ProgressDisplayHelper.ShowsRing(Settings.ProgressDisplayMode);
             _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
             {
                 TimeBaseType.PluginOffsetServerTime => 0,

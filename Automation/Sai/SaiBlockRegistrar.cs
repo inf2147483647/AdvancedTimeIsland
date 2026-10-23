@@ -318,6 +318,8 @@ internal static class SaiBlockRegistrar
         "LunarYearRangeEnd",
         // 每周期目前仅一个单位（恒为 0），对用户无意义，不暴露为积木参数。
         "Unit",
+        // 旧版「区时每周」的时区字段，现仅作旧档案反序列化迁移入口（读取恒为 null），不暴露为积木参数。
+        "TimeZone",
     };
 
     /// <summary>
@@ -356,7 +358,6 @@ internal static class SaiBlockRegistrar
         ["EndSecond"] = BuildRange(0, 59, 2),
         // 区时类积木的时区：直接用系统时区下拉，用户无需手打时区 Id。
         ["TimeZoneId"] = BuildTimeZoneOptions(),
-        ["TimeZone"] = BuildTimeZoneOptions(),
     };
 
     /// <summary>
@@ -457,7 +458,6 @@ internal static class SaiBlockRegistrar
         ["StartDayOfWeek"] = "开始星期(0-6，0=周一)",
         ["EndDayOfWeek"] = "结束星期(0-6，0=周一)",
         ["TimeZoneId"] = "时区 Id",
-        ["TimeZone"] = "时区",
         ["Longitude"] = "经度",
         ["TargetXingZuo"] = "目标星座",
         ["TargetJieQi"] = "目标节气",

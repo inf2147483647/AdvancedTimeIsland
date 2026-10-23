@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
+using AdvancedTimeIsland.Views.Controls;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -55,8 +56,12 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
     private TextBlock? _timeBaseLabel;
     private TextBlock? _listGroupHeader;
 
-    private ComboBox? _progressDisplayModeComboBox;
-    private TextBlock? _progressDisplayModeLabel;
+    private TextBlock? _progressDisplayLabel;
+    private CheckBox? _showProgressBarCheckBox;
+    private CheckBox? _showProgressRingCheckBox;
+
+    /// <summary>回填复选框时置位，避免程序化勾选触发 OnProgressDisplayChanged 反复写设置。</summary>
+    private bool _isUpdatingProgressDisplay;
     private TextBlock? _progressDisplayModeGroupHeader;
     private ToggleSwitch? _simpleModeToggle;
     private TextBlock? _simpleModeDesc;
@@ -195,24 +200,15 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         };
         progressDisplayModePanel.Children.Add(_simpleModeDesc);
 
-        var progressDisplayModeRow = new Grid();
-        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        // 进度显示：「进度条」「进度环」两个复选框（都不勾 = 不显示进度），
+        // 与旧的「显示进度条: 不显示/进度条/进度环/两者」下拉框等价，底层仍存 ProgressDisplayMode。
+        var progressDisplayRow = FontSettingsRowFactory.CreateProgressDisplayRow(
+            "显示进度:", out var progressDisplayLabel, out _showProgressBarCheckBox, out _showProgressRingCheckBox,
+            checkedChangedHandler: OnProgressDisplayChanged);
+        _progressDisplayLabel = progressDisplayLabel;
+        _dynamicTextBlocks.Add(_progressDisplayLabel);
 
-        _progressDisplayModeLabel = new TextBlock { Text = "显示进度条:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        _dynamicTextBlocks.Add(_progressDisplayModeLabel);
-        Grid.SetColumn(_progressDisplayModeLabel, 0);
-        progressDisplayModeRow.Children.Add(_progressDisplayModeLabel);
-
-        _progressDisplayModeComboBox = new ComboBox();
-        _progressDisplayModeComboBox.Items.Add("不显示");
-        _progressDisplayModeComboBox.Items.Add("进度条");
-        _progressDisplayModeComboBox.Items.Add("进度环");
-        _progressDisplayModeComboBox.Items.Add("进度条和进度环");
-        Grid.SetColumn(_progressDisplayModeComboBox, 1);
-        progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
-
-        progressDisplayModePanel.Children.Add(progressDisplayModeRow);
+        progressDisplayModePanel.Children.Add(progressDisplayRow);
 
         _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
         _enableCustomProgressColorToggle.IsCheckedChanged += OnEnableCustomProgressColorChanged;
@@ -842,6 +838,8 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         if (_progressDisplayModeGroupHeader != null) _progressDisplayModeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeToggle != null) _simpleModeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
+        if (_showProgressBarCheckBox != null) _showProgressBarCheckBox.Foreground = ThemeHelper.GetTextBrush();
+        if (_showProgressRingCheckBox != null) _showProgressRingCheckBox.Foreground = ThemeHelper.GetTextBrush();
         if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         _listEditor?.UpdateThemeColors();
 
@@ -958,14 +956,24 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
         _text4FontColorPicker.IsEnabled = Settings.Text4EnableCustomFontColor;
     }
 
+    private void OnProgressDisplayChanged(object? sender, RoutedEventArgs e)
+    {
+        if (_isUpdatingProgressDisplay) return;
+
+        Settings.ProgressDisplayMode = ProgressDisplayHelper.Compose(
+            _showProgressBarCheckBox?.IsChecked ?? false,
+            _showProgressRingCheckBox?.IsChecked ?? false);
+        UpdateProgressColorControlsEnabled();
+    }
+
     private void UpdateProgressColorControlsEnabled()
     {
         var isCustomEnabled = Settings.EnableCustomProgressColor;
-        var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
-                              Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
-        
+        var showProgressBar = ProgressDisplayHelper.ShowsBar(Settings.ProgressDisplayMode);
+        var showProgressRing = ProgressDisplayHelper.ShowsRing(Settings.ProgressDisplayMode);
+
         _progressBarColorPicker.IsEnabled = isCustomEnabled && showProgressBar;
-        _progressRingColorPicker.IsEnabled = isCustomEnabled;
+        _progressRingColorPicker.IsEnabled = isCustomEnabled && showProgressRing;
     }
 
     protected override void OnInitialized()
@@ -1004,7 +1012,16 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
 
         LoadStartTimeControls();
 
-        if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
+        _isUpdatingProgressDisplay = true;
+        try
+        {
+            if (_showProgressBarCheckBox != null) _showProgressBarCheckBox.IsChecked = ProgressDisplayHelper.ShowsBar(Settings.ProgressDisplayMode);
+            if (_showProgressRingCheckBox != null) _showProgressRingCheckBox.IsChecked = ProgressDisplayHelper.ShowsRing(Settings.ProgressDisplayMode);
+        }
+        finally
+        {
+            _isUpdatingProgressDisplay = false;
+        }
         if (_simpleModeToggle != null) _simpleModeToggle.IsChecked = Settings.EnableSimpleMode;
 
         if (_text1FontSizeNumericUpDown != null) _text1FontSizeNumericUpDown.Value = (decimal)Settings.Text1FontSize;
@@ -1073,18 +1090,6 @@ public class LunarCountdownSettingsControl : ComponentBase<LunarCountdownSetting
                         2 => TimeBaseType.ClassIslandTime,
                         _ => TimeBaseType.PluginOffsetServerTime
                     };
-                }
-            };
-        }
-
-        if (_progressDisplayModeComboBox != null)
-        {
-            _progressDisplayModeComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
-                {
-                    Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
-                    UpdateProgressColorControlsEnabled();
                 }
             };
         }

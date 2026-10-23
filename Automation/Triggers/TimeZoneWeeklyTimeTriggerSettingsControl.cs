@@ -189,14 +189,10 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         {
             if (Settings == null) return;
 
-            foreach (var item in _timeZoneComboBox.Items)
-            {
-                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
-                {
-                    _timeZoneComboBox.SelectedItem = item;
-                    break;
-                }
-            }
+            TimeZoneHelper.SelectTimeZone(
+                _timeZoneComboBox,
+                Settings.TimeZoneId,
+                TimeZoneWeeklyTimeRangeRuleSettings.DefaultTimeZoneId);
 
             if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
             {
@@ -222,7 +218,7 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         if (Settings == null) return;
         if (_timeZoneComboBox.SelectedItem is TimeZoneInfo tz)
         {
-            Settings.TimeZone = tz.Id;
+            Settings.TimeZoneId = tz.Id;
         }
     }
 
