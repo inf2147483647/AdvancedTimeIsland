@@ -826,6 +826,25 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
+    /// 悬浮窗位置复位计数：每次"复位窗口"递增。独立进程模式随设置快照下发，
+    /// 子进程检测到变化后强制重新应用位置（子进程平时只在 Init 时应用一次位置）。
+    /// </summary>
+    public long FloatingSchedulePositionResetStamp
+    {
+        get => _floatingSchedulePositionResetStamp;
+        set
+        {
+            if (_floatingSchedulePositionResetStamp != value)
+            {
+                _floatingSchedulePositionResetStamp = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private long _floatingSchedulePositionResetStamp;
+
+    /// <summary>
     /// 悬浮背景不透明度（0完全透明 ~ 1完全不透明；仅作用卡片背景，不影响文字与进度条透明度）
     /// </summary>
     public double FloatingScheduleOpacity

@@ -70,7 +70,15 @@ public class SharedRenderClockService : IHostedService, IDisposable
         if (_logger != null)
             _logger.LogInformation("SharedRenderClockService is stopping.");
         _isRunning = false;
-        _timer?.Stop();
+        var dispatcher = Dispatcher.UIThread;
+        if (dispatcher.CheckAccess())
+        {
+            _timer?.Stop();
+        }
+        else
+        {
+            dispatcher.Post(() => _timer?.Stop(), DispatcherPriority.Normal);
+        }
         return Task.CompletedTask;
     }
 
@@ -125,6 +133,25 @@ public class SharedRenderClockService : IHostedService, IDisposable
     }
 
     private void StartTimer(int intervalMs)
+    {
+        // DispatcherTimer 必须在 UI 线程创建：FA3 宿主在后台线程调用 StartAsync，
+        // 若直接在当前线程构造，timer 会绑定到没有消息循环的后台 Dispatcher，导致永不触发。
+        var dispatcher = Dispatcher.UIThread;
+        if (!dispatcher.CheckAccess())
+        {
+            dispatcher.Post(() =>
+            {
+                if (_isRunning)
+                {
+                    StartTimerCore(intervalMs);
+                }
+            }, DispatcherPriority.Send);
+            return;
+        }
+        StartTimerCore(intervalMs);
+    }
+
+    private void StartTimerCore(int intervalMs)
     {
         _timer?.Stop();
         _timer = new DispatcherTimer(TimeSpan.FromMilliseconds(intervalMs), DispatcherPriority.Normal, OnTimerTick);

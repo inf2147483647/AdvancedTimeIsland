@@ -535,6 +535,27 @@ internal sealed class FloatScheduleChildWindow : Window
             try { Position = new PixelPoint(s.PositionX, s.PositionY); } catch { }
             _initialPositionApplied = true;
         }
+        // 【复位窗口】插件设置页"复位窗口" → 复位计数随快照下发：强制放回插件下发的存档位置（默认 100,100），
+        //  并退出贴边停靠状态（否则贴边逻辑会按"已停靠"把窗口再次滑回屏幕边缘，复位无效）。
+        else if (prev.PositionResetStamp != s.PositionResetStamp)
+        {
+            try
+            {
+                if (_edgeHiddenAv || _edgeAnimating || _edgeDockedAv)
+                {
+                    _edgeAnimating = false;
+                    _edgeHiddenAv = false;
+                    _edgeDockedAv = false;
+                    StopEdgeSlideTimer();
+                    try { _edgeEvalCts?.Cancel(); } catch { }
+                    try { _edgeSlideOutDelayCts?.Cancel(); } catch { }
+                    _edgeSlideOutPending = false;
+                }
+                Position = new PixelPoint(s.PositionX, s.PositionY);
+                ScheduleEdgeEval();     // 按默认位置重新评估贴边（默认位置不在边缘，不会再次隐藏）
+            }
+            catch { }
+        }
 
         ApplyExStylesSafe();
         ApplyClickThrough(force: true);

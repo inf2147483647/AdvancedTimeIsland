@@ -275,6 +275,24 @@ public partial class FloatingScheduleSettingsPage : SettingsPageBase
             _settings.FloatingScheduleEdgeHideDelay = Math.Clamp((double)v, 0.0, 60.0);
     }
 
+    private async void ResetWindowButton_Click(object? sender, RoutedEventArgs e)
+    {
+        // 服务经宿主 DI 解析（页面本身只注入 PluginSettings）；解析失败时静默跳过（按钮无副作用）
+        var svc = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>();
+        if (svc == null) return;
+        try
+        {
+            svc.ResetWindowPositionToDefault();
+            ResetWindowButton.Content = "已复位";
+            await Task.Delay(1500);
+            ResetWindowButton.Content = "复位窗口";
+        }
+        catch
+        {
+            ResetWindowButton.Content = "复位窗口";
+        }
+    }
+
     // ==================== 3. 窗口与高级 ====================
     private void LayerCombo_SelectionChanged(object? sender, SelectionChangedEventArgs e)
     {

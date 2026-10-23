@@ -1,4 +1,4 @@
-# ClassIsland Plugin Packaging Script
+﻿# ClassIsland Plugin Packaging Script
 # Builds THREE versions of the plugin:
 #   1. .NET 8 compatible version (ClassIsland.PluginSdk 2.0.1.1) for CI2
 #   2. .NET 10 new version (Misha SDK 2.1.1) for CI2

@@ -483,12 +483,22 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         // 【仅计在校时长】开启时，显示的剩余时间改为 (now, 目标时刻] 之间的在校秒数
         //   （在校日 = 周末/节假日等排除规则之外的日子，在校时段 = 当天课表首课→末课）；
         //   到期判定与通知仍在真实时间到达目标时触发，仅替换显示值。
+        //   进度条基准同步改为总在校时长（(开始时刻, 目标时刻] 的在校秒数），
+        //   已度过进度 = 总在校 - 剩余在校，避免自然时间基准导致进度虚高。
+        double inSchoolLeftSeconds = -1;
+        double inSchoolTotalSeconds = 0;
         if (currentItem.CountOnlyInSchoolTime && _inSchoolCalc != null)
         {
-            EnsureInSchoolCache(now, currentTargetDate);
-            var inSchoolSeconds = _inSchoolCalc.ComputeRemainingSeconds(now, currentTargetDate);
-            timeLeft = inSchoolSeconds;
-            timeLeftMs = inSchoolSeconds * 1000.0;
+            var startLocal = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(_settings.StartTime).ToLocalTime();
+            var needProgressBase = _settings.StartTime > 0 && currentItem.TargetTimestamp > _settings.StartTime;
+            EnsureInSchoolCache(now, currentTargetDate, needProgressBase ? startLocal : null);
+            inSchoolLeftSeconds = _inSchoolCalc.ComputeRemainingSeconds(now, currentTargetDate);
+            if (needProgressBase)
+            {
+                inSchoolTotalSeconds = _inSchoolCalc.ComputeRemainingSeconds(startLocal, currentTargetDate);
+            }
+            timeLeft = inSchoolLeftSeconds;
+            timeLeftMs = inSchoolLeftSeconds * 1000.0;
         }
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
@@ -497,9 +507,19 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         double percent = 0;
         if (_settings.StartTime > 0 && currentItem.TargetTimestamp > _settings.StartTime)
         {
-            var totalDuration = currentItem.TargetTimestamp - _settings.StartTime;
-            var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
-            percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
+            if (inSchoolLeftSeconds >= 0 && inSchoolTotalSeconds > 0)
+            {
+                // 仅计在校时长：以总在校时长为基准（缓存未覆盖开始时间时 total 为 0，percent 暂为 0，缓存建好后自动恢复）
+                var elapsedInSchool = inSchoolTotalSeconds - inSchoolLeftSeconds;
+                if (elapsedInSchool < 0) elapsedInSchool = 0;
+                percent = Math.Min(100, elapsedInSchool * 100.0 / inSchoolTotalSeconds);
+            }
+            else
+            {
+                var totalDuration = currentItem.TargetTimestamp - _settings.StartTime;
+                var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
+                percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
+            }
         }
 
         var simple = _settings.EnableSimpleMode;
@@ -519,25 +539,31 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     }
 
     /// <summary>
-    /// 确保 [now.Date, target.Date] 的逐日在校窗口缓存可用；缺失或数据版本变化时后台重建。
+    /// 确保 [now.Date, target.Date]（以及进度基准所需的 extendStart 日期）的逐日在校窗口缓存可用；
+    /// 缺失或数据版本变化时后台重建。
     /// 重建中/重建失败均沿用旧缓存（显示值可能短暂滞后，但不阻塞 UI 线程、不打断倒计时）。
     /// </summary>
-    private void EnsureInSchoolCache(DateTime now, DateTime target)
+    /// <param name="extendStart">进度条总在校基准所需的开始时刻（本地时间）；早于默认范围时扩展缓存起点。</param>
+    private void EnsureInSchoolCache(DateTime now, DateTime target, DateTime? extendStart = null)
     {
         var calc = _inSchoolCalc;
         if (calc == null) return;
         try
         {
             var stamp = AttendanceCalendarService.Revision;
-            if (calc.IsCacheValid(now.Date, target.Date, stamp)) return;
+            var start = now.Date.AddDays(-1);     // 前后各留 1 天，避免跨天瞬间缓存刚好不覆盖
+            var end = target.Date.AddDays(1);
+            if (extendStart is { } es && es.Date < start)
+            {
+                start = es.Date;                  // 总在校基准需要覆盖开始时刻所在日
+            }
+            if (calc.IsCacheValid(start, end, stamp)) return;
             if (_inSchoolBuilding) return;
             // 节流：避免构建持续失败时每个 Tick 都起后台任务
             var ticks = Environment.TickCount64;
             if (ticks - _inSchoolBuildAttemptTicks < InSchoolBuildRetryMs) return;
             _inSchoolBuildAttemptTicks = ticks;
             _inSchoolBuilding = true;
-            var start = now.Date.AddDays(-1);     // 前后各留 1 天，避免跨天瞬间缓存刚好不覆盖
-            var end = target.Date.AddDays(1);
             _ = System.Threading.Tasks.Task.Run(() =>
             {
                 try { calc.BuildRange(start, end, stamp); }

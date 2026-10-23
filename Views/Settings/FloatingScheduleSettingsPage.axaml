@@ -196,6 +196,16 @@
                         </ComboBox>
                     </compat:CompatSettingsExpanderItem.Footer>
                 </compat:CompatSettingsExpanderItem>
+                <compat:CompatSettingsExpanderItem Content="复位窗口"
+                                                   Description="把悬浮窗强制放回默认位置（屏幕左上角 100,100），并退出贴边停靠状态；&#10;窗口拖丢到屏幕外、找不到时使用。立即生效，无需重启 ClassIsland。">
+                    <compat:CompatSettingsExpanderItem.Footer>
+                        <Button x:Name="ResetWindowButton"
+                                Content="复位窗口"
+                                Width="120"
+                                HorizontalAlignment="Right"
+                                Click="ResetWindowButton_Click" />
+                    </compat:CompatSettingsExpanderItem.Footer>
+                </compat:CompatSettingsExpanderItem>
                 <compat:CompatSettingsExpanderItem Content="悬浮窗层级设置频率"
                                                    Description="ClassIsland 在什么时候重新把悬浮窗设回用户选择的层级（置底/置顶）。用于防止其他窗口挤占悬浮窗层级。&#10;高频设置会带来性能占用，并可能导致界面轻微闪烁。">
                     <compat:CompatSettingsExpanderItem.Footer>

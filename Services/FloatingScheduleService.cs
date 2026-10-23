@@ -5100,6 +5100,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             PreventCapture = _settings.FloatingSchedulePreventCapture,
             PositionX = _settings.FloatingSchedulePositionX,
             PositionY = _settings.FloatingSchedulePositionY,
+            PositionResetStamp = _settings.FloatingSchedulePositionResetStamp,
             FollowHostLifetime = _settings.FloatingScheduleFollowHostLifetime,
             // 下传子进程 exe 指纹：旧子进程在插件更新后据此识别自己已过期并退出
             ExeStamp = _hostProcess?.ChildExeStamp ?? "",
@@ -5132,6 +5133,56 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_hostProcess == null || !IndependentRequested) return;
         try { _hostProcess.SendSettings(BuildWindowSettingsSnapshotAv()); }
         catch (Exception ex) { _logger.LogDebug(ex, "PublishIndependentSettingsAv 异常（忽略）"); }
+    }
+
+    /// <summary>悬浮窗默认放置位置（物理像素），与 PluginSettings 位置字段初始值一致。</summary>
+    private static readonly PixelPoint DefaultWindowPositionAv = new(100, 100);
+
+    /// <summary>
+    /// 复位窗口位置：把悬浮窗强制放回默认位置 (100, 100)，并清掉贴边停靠状态（否则贴边逻辑
+    /// 会按"已停靠"把窗口再次滑回屏幕边缘）。
+    /// 两种模式分别处理：进程内窗口直接改 Position；独立进程模式写回设置 + 递增复位计数，
+    /// 子进程经 settings 消息热应用（平时只在 Init 时应用一次位置，必须靠计数强制）。
+    /// 供设置页"复位窗口"按钮调用；窗口未创建/子进程未连接时仅落盘设置，下次打开生效。
+    /// </summary>
+    public void ResetWindowPositionToDefault()
+    {
+        // 1) 落盘设置（X/Y 相同值不触发 INPC 也会被 stamp 推送兜底）；先写位置再递增计数
+        _settings.FloatingSchedulePositionX = DefaultWindowPositionAv.X;
+        _settings.FloatingSchedulePositionY = DefaultWindowPositionAv.Y;
+        _settings.FloatingSchedulePositionResetStamp++;
+
+        // 2) 进程内窗口（非独立模式）：UI 线程直接移动，并退出贴边停靠状态
+        var window = _window;
+        if (!IndependentRequested && window != null)
+        {
+            Dispatcher.UIThread.Post(() =>
+            {
+                try
+                {
+                    if (_edgeHiddenAv || _edgeAnimatingAv || _edgeDockedAv)
+                    {
+                        _edgeAnimatingAv = false;
+                        _edgeHiddenAv = false;
+                        _edgeDockedAv = false;
+                        StopEdgeSlideTimerAv();
+                        CancelEdgeTimersAv();
+                    }
+                    window.Position = DefaultWindowPositionAv;
+                }
+                catch (Exception ex) { _logger.LogDebug(ex, "复位窗口位置（进程内）异常（忽略）"); }
+            });
+        }
+        // 3) 独立进程模式：stamp 变化已随 2) 的 INPC 触发 PublishIndependentSettingsAv 下发；
+        //    若 X/Y 原值就是默认值导致无任何 INPC 触发，这里显式补推一次。
+        if (IndependentRequested) PublishIndependentSettingsAv();
+    }
+
+    /// <summary>取消贴边评估/滑出延迟定时器（复位位置时调用，避免旧计划把窗口再次滑回边缘）。</summary>
+    private void CancelEdgeTimersAv()
+    {
+        try { _edgeEvalCtsAv?.Cancel(); } catch { }
+        try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
     }
 
     /// <summary>

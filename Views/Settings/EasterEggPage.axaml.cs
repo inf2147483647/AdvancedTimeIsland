@@ -74,12 +74,42 @@ public partial class EasterEggPage : UserControl
     private List<TextBlock>? _boldTextBlocks;
     private List<Border>? _separatorBorders;
     private Border? _markdownSectionBorder;
-    private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>? _imageLoadInfos;
+    private List<ImageSlot>? _imageSlots;
     private List<Border>? _imageCardBorders;
     private Border? _headerSeparatorBorder;
     private Button? _backToTopButton;
     private OverlayLayer? _overlayLayer;
     private ScrollViewer? _outerScrollViewer;
+
+    /// <summary>
+    /// 视口虚拟化加载的滚动根：实际发生滚动的 ScrollViewer（页面自带 MainScrollViewer，
+    /// 或页面被外层 ScrollViewer 承载滚动时的外层）。ScrollChanged / SizeChanged 时重算
+    /// 各图片卡片是否落在视口 ±<see cref="ViewportLoadMarginPx"/> 范围内，进入即加载、离开即卸载。
+    /// </summary>
+    private ScrollViewer? _viewportScrollViewer;
+    private ScrollViewer? _viewportOuterScrollViewer;
+    private bool _viewportUpdateScheduled;
+
+    /// <summary>视口上下扩展的预加载余量（px）。</summary>
+    private const double ViewportLoadMarginPx = 500;
+
+    /// <summary>尺寸未知时的默认占位宽高比（高/宽，竖拍人像常见 3:4）。</summary>
+    private const double DefaultImageAspect = 4.0 / 3.0;
+
+    /// <summary>
+    /// 进程级图片尺寸缓存：url → 高/宽比。图片真实尺寸从本地缓存文件头或 HTTP Range 头部
+    /// 字节解析（JPEG SOF marker），用于在位图加载前铺设等比占位、避免加载完成后布局跳动；
+    /// 跨页面实例共享，同一宿主运行期内每张图只解析一次。
+    /// 【线程安全】后台线程（尺寸预扫描写入）与 UI 线程（占位/视口判定读取）并发访问，
+    /// 必须用 ConcurrentDictionary——普通 Dictionary 并发读写会损坏内部状态直接崩溃宿主。
+    /// </summary>
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, double> ImageAspectCache = new();
+
+    /// <summary>尺寸头部解析的并发上限（文件读取 / 网络头部下载）。</summary>
+    private static readonly SemaphoreSlim ImageSizeScanGate = new(4, 4);
+
+    /// <summary>图片尺寸探测需要读取的头部字节数：相机 JPEG 的 EXIF 段（含缩略图）可达数十 KB，SOF 在其后。</summary>
+    private const int ImageHeaderProbeBytes = 512 * 1024;
 
     /// <summary>返回顶部平滑滚动计时器（60fps 插值）。</summary>
     private DispatcherTimer? _scrollToTopTimer;
@@ -130,6 +160,10 @@ public partial class EasterEggPage : UserControl
 
         // Markdown 图片区（逐图独立缓冲占位符 / 错误重试），注入 axaml 中的命名宿主
         MarkdownSectionHost.Content = CreateMarkdownSection(MarkdownContent);
+
+        // 图片尺寸预扫描：后台逐张解析宽高比（缓存文件头 / HTTP Range 头部字节），铺设等比占位。
+        // 仅读头部字节（≤512KB），不下载/解码整图，与视口虚拟化加载互不阻塞
+        _ = PrimeMissingImageSizesAsync();
     }
 
     private const string MarkdownContent = @"## 图片展示
@@ -228,7 +262,7 @@ public partial class EasterEggPage : UserControl
         _separatorBorders = new List<Border>();
         _imageCardBorders = new List<Border>();
         _headerSeparatorBorder = null;
-        _imageLoadInfos = new List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)>();
+        _imageSlots = new List<ImageSlot>();
 
         // 外层卡片：去掉原先的 2px 粗边框，统一为圆角卡片（与插件其他卡片风格一致，深浅主题自适应）
         var section = new Border
@@ -663,14 +697,35 @@ public partial class EasterEggPage : UserControl
             retryButton.Content = "加载中...";
             errorPanel.IsVisible = false;
             errorDetailText.Text = "";
-            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator, GetCurrentLoadToken());
+            if (_imageSlots?.FirstOrDefault(s => ReferenceEquals(s.Image, image)) is { } retrySlot)
+            {
+                EnsureSlotLoaded(retrySlot);
+            }
         }
 
         retryButton.Click += RetryHandler;
 
-        _imageLoadInfos?.Add((url, image, errorPanel, errorDetailText, retryButton, loadingIndicator));
+        var slot = new ImageSlot(url, image, container, errorPanel, errorDetailText, retryButton, loadingIndicator);
+        _imageSlots?.Add(slot);
 
-        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton, loadingIndicator, GetCurrentLoadToken());
+        // 视口虚拟化：构造时不立即加载，等滚动根就绪后由视口判定按需加载（进入视口 ±500px）。
+        // 先铺设等比占位（尺寸来自进程级缓存 / 本地缓存文件头 / HTTP Range 头部解析），
+        // 避免加载完成后布局跳动；占位期间 Container.Width/Height 由占位逻辑接管。
+        ApplyPlaceholderSize(slot);
+        container.SizeChanged += (_, _) =>
+        {
+            // 占位状态下高度必须跟随实际宽度维持等比：Width 属性可能被 MaxWidth 约束收窄，
+            // 实际渲染宽度以 Bounds 为准（窗口缩放/MaxWidth 动态更新时由此收敛）
+            if (image.Source == null && container.Bounds.Width > 1)
+            {
+                var aspect = GetImageAspect(url);
+                var target = container.Bounds.Width * aspect;
+                if (Math.Abs(container.Bounds.Height - target) > 1)
+                {
+                    container.Height = target;
+                }
+            }
+        };
 
         // 右键菜单：按卡片状态分流——有缓存/位图 → 另存照片 JPG；无缓存无位图且错误态 → 另存错误日志；
         // 无缓存无位图且加载中 → 另存 ExpressiveLoadingIndicator.cs 源代码（见 AttachImageContextMenu）
@@ -680,7 +735,7 @@ public partial class EasterEggPage : UserControl
     }
 
     /// <summary>
-    /// 取女装图片的本地缓存路径（与 <see cref="LoadRemoteImageWithRetry"/> 的缓存位置一致）。URL 非法时返回 null。
+    /// 取女装图片的本地缓存路径（与 <see cref="LoadImageCoreAsync"/> 的缓存位置一致）。URL 非法时返回 null。
     /// </summary>
     private static string? GetImageCachePath(string url)
     {
@@ -1198,23 +1253,27 @@ public partial class EasterEggPage : UserControl
     private static readonly SemaphoreSlim ImageDecodeGate = new(2, 2);
 
     /// <summary>
-    /// 加载单张图片（带页面级取消令牌）。页面离树时令牌取消：HTTP/IO 抛出 OCE 后静默返回、
+    /// 加载单个卡片（带卡片级取消令牌）。取消来源有两种：页面离树（linked 页面级令牌级联）或
+    /// 卡片滚出视口 ±500px（<see cref="UpdateViewportLoading"/> 主动取消）——两种情况都静默返回、
     /// 已解码出的位图立即 Dispose，绝不写回控件（否则 async 闭包会把整页控件树钉在内存里）。
     /// </summary>
-    private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator, CancellationToken cancellationToken)
+    private async Task LoadImageCoreAsync(ImageSlot slot, CancellationToken cancellationToken)
     {
-        // 该图缓冲期间显示占位符；缓冲结束（成功/失败）后隐藏
-        loadingIndicator.IsActive = true;
-        loadingIndicator.IsVisible = true;
-
         try
         {
+            var url = slot.Url;
+            var imageControl = slot.Image;
+            var errorPanel = slot.ErrorPanel;
+            var errorDetailText = slot.ErrorDetailText;
+            var retryButton = slot.RetryButton;
+            var loadingIndicator = slot.LoadingIndicator;
+
             // 跨插件冲突拦截：宿主中存在入口 DLL 实际加载在本进程的“女装/男娘”类插件时，
             // 所有女装图片一律不读取本地缓存、也不发起网络请求，直接落到与加载失败相同的错误面板
-            //（“加载失败，轻触屏幕”），详情列出需禁用并重启的插件。首次加载 / 重试 / 刷新 / 离树重载
+            //（“加载失败，轻触屏幕”），详情列出需禁用并重启的插件。首次加载 / 重试 / 刷新 / 视口重载
             // 全部经过本方法，故在此一处拦截即可覆盖所有路径。宿主禁用插件只写 .disabled 标记、
             // 程序集仍驻留内存，因此禁用后必须重启宿主才会解除拦截，提示用户“禁用并重启”。
-            // 本分支在 try 内 return，finally 仍会关闭加载占位符。
+            // 本分支在 try 内 return，finally 仍会复位卡片状态。
             var blockingPlugins = CrossPluginHelper.GetRunningFemboyLikePlugins();
             if (blockingPlugins.Count > 0)
             {
@@ -1255,7 +1314,7 @@ public partial class EasterEggPage : UserControl
                             return null;
                         }
                     }, cancellationToken);
-                    // 等待解码期间页面可能已离树：立刻释放这张图，不写回控件
+                    // 等待解码期间页面可能已离树 / 卡片已滚出视口：立刻释放这张图，不写回控件
                     if (cancellationToken.IsCancellationRequested)
                     {
                         decoded?.Dispose();
@@ -1270,20 +1329,52 @@ public partial class EasterEggPage : UserControl
 
             if (decoded == null)
             {
-                // 网络下载不受解码闸门限制：20+ 张图可并行下载（JPG 缓冲仅数 MB），
-                // 只有下面的解码步骤排队进入闸门，避免“两路下载”串行拖慢全部图片
-                using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, cancellationToken);
+                // 【缓存落盘不响应取消】视口虚拟化下频繁滑动时，卡片刚进入视口开始下载就被滚出
+                // ±500px 取消——若下载/写缓存挂在取消令牌上，任务会在中途抛 OCE 静默退出，
+                // 缓存永远写不进、每次滑回都重新请求网络（触发服务端限流）。
+                // 因此下载与落盘统一使用 CancellationToken.None，一次进入视口的下载必然完整落盘；
+                // 取消令牌只控制“是否解码显示”（下方各检查点）。
+                // 网络下载不受解码闸门限制：视口内的几张图可并行下载（JPG 缓冲仅数 MB），
+                // 只有后面的解码步骤排队进入闸门，避免“两路下载”串行拖慢全部图片
+                using var response = await SharedHttpClient.GetAsync(url, HttpCompletionOption.ResponseHeadersRead, CancellationToken.None);
                 response.EnsureSuccessStatusCode();
-                await using var downloadStream = await response.Content.ReadAsStreamAsync(cancellationToken);
+                await using var downloadStream = await response.Content.ReadAsStreamAsync(CancellationToken.None);
                 using var memoryBuffer = new MemoryStream();
-                await downloadStream.CopyToAsync(memoryBuffer, cancellationToken);
+                await downloadStream.CopyToAsync(memoryBuffer, CancellationToken.None);
 
-                cancellationToken.ThrowIfCancellationRequested();
+                // 原子落盘（临时文件 + Move），先于解码——即使此刻已滚出视口，缓存也已就位，
+                // 下次滑回直接走本地加载，不再发网络请求
+                memoryBuffer.Position = 0;
+                await Task.Run(async () =>
+                {
+                    Directory.CreateDirectory(cacheDir);
+                    var tempPath = Path.Combine(cacheDir, Guid.NewGuid() + ".tmp");
+                    try
+                    {
+                        await using var tempFile = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
+                        await memoryBuffer.CopyToAsync(tempFile, CancellationToken.None);
+                        if (File.Exists(cachePath))
+                        {
+                            File.Delete(cachePath);
+                        }
+                        File.Move(tempPath, cachePath);
+                    }
+                    catch
+                    {
+                        try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
+                    }
+                }, CancellationToken.None);
+
+                // 缓存已落盘：已滚出视口 / 页面已离树则到此为止，不解码不显示
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
 
                 await ImageDecodeGate.WaitAsync(cancellationToken);
                 try
                 {
-                    // 同一缓冲先后用于解码与写缓存，避免 ReadAsByteArray/ToArray 的额外整份拷贝
+                    // 同一缓冲直接用于解码（写缓存已用独立的临时文件流拷贝，互不影响）
                     memoryBuffer.Position = 0;
                     decoded = await Task.Run(() => DecodeDownscaled(memoryBuffer), CancellationToken.None);
                 }
@@ -1292,43 +1383,13 @@ public partial class EasterEggPage : UserControl
                     ImageDecodeGate.Release();
                 }
 
+                // 【防泄漏】解码期间页面可能已离树 / 卡片已滚出视口（OnDetached/卸载逻辑已把
+                // Source 清空）：若此时仍把新解码位图写回控件，该位图会钉在已卸载页面上，只能等
+                // GC/finalizer 才归还非托管内存。与其余取消检查保持一致，取消后立即释放、不写回。
                 if (cancellationToken.IsCancellationRequested)
                 {
                     decoded?.Dispose();
                     return;
-                }
-
-                if (decoded != null)
-                {
-                    memoryBuffer.Position = 0;
-                    await Task.Run(async () =>
-                    {
-                        Directory.CreateDirectory(cacheDir);
-                        var tempPath = Path.Combine(cacheDir, Guid.NewGuid() + ".tmp");
-                        try
-                        {
-                            await using var tempFile = new FileStream(tempPath, FileMode.Create, FileAccess.Write, FileShare.None);
-                            await memoryBuffer.CopyToAsync(tempFile, CancellationToken.None);
-                            if (File.Exists(cachePath))
-                            {
-                                File.Delete(cachePath);
-                            }
-                            File.Move(tempPath, cachePath);
-                        }
-                        catch
-                        {
-                            try { if (File.Exists(tempPath)) File.Delete(tempPath); } catch { }
-                        }
-                    }, CancellationToken.None);
-
-                    // 【防泄漏】写缓存期间页面可能已离树（OnDetached 已把全部 Source 清空）：
-                    // 若此时仍把新解码位图写回控件，该位图会钉在已卸载页面上，只能等 GC/finalizer
-                    // 才归还非托管内存。与前两处取消检查保持一致，离树后立即释放、不写回。
-                    if (cancellationToken.IsCancellationRequested)
-                    {
-                        decoded.Dispose();
-                        return;
-                    }
                 }
             }
 
@@ -1338,11 +1399,13 @@ public partial class EasterEggPage : UserControl
             }
 
             ReplaceImageSource(imageControl, decoded);
+            // 位图已接管卡片尺寸：清除等比占位，交还给位图 + MaxWidth 机制
+            ClearPlaceholderSize(slot);
             PlayImageEntranceAnimation(imageControl);
         }
         catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
-            // 页面已离树：静默退出，不更新任何 UI、不显示错误面板（避免把已释放的页面重新钉回内存）
+            // 页面已离树 / 卡片已滚出视口：静默退出，不更新任何 UI、不显示错误面板
         }
         catch (Exception ex)
         {
@@ -1350,21 +1413,22 @@ public partial class EasterEggPage : UserControl
             {
                 return;
             }
-            ReplaceImageSource(imageControl, null);
-            ResetImageEntranceState(imageControl);
-            errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
-            errorPanel.IsVisible = true;
-            retryButton.IsEnabled = true;
-            retryButton.Content = "重新刷新";
-            RecordImageLoadError(url, ex);
+            ReplaceImageSource(slot.Image, null);
+            ResetImageEntranceState(slot.Image);
+            slot.ErrorDetailText.Text = $"URL: {slot.Url}\n错误: {ex.GetType().Name}: {ex.Message}";
+            slot.ErrorPanel.IsVisible = true;
+            slot.RetryButton.IsEnabled = true;
+            slot.RetryButton.Content = "重新刷新";
+            RecordImageLoadError(slot.Url, ex);
         }
         finally
         {
-            // 页面已离树时不要碰控件（旧加载的 finally 可能晚于新一轮加载执行，会误关新占位符）
+            slot.IsLoading = false;
+            // 取消时不碰控件（卸载路径已负责关闭指示器，避免旧加载的 finally 误开新一轮的占位符）
             if (!cancellationToken.IsCancellationRequested)
             {
-                loadingIndicator.IsActive = false;
-                loadingIndicator.IsVisible = false;
+                slot.LoadingIndicator.IsActive = false;
+                slot.LoadingIndicator.IsVisible = false;
             }
         }
     }
@@ -1394,52 +1458,453 @@ public partial class EasterEggPage : UserControl
     private CancellationToken GetCurrentLoadToken() => _imageLoadCts?.Token ?? CancellationToken.None;
 
     /// <summary>
-    /// 页面离树时释放全部已解码位图（每张降采样后约 6~9MB × 24 张 ≈ 200MB，是每次进入累积增长的主因）。
-    /// 重新进入时由 <see cref="ReloadReleasedImagesIfNeeded"/> 从本地缓存按需重新解码（限并发，约 1 秒内完成）。
+    /// 页面离树时：取消全部在途加载（linked CTS 级联）并释放全部已解码位图。
+    /// 视口虚拟化下每张图常驻内存仅占位尺寸，重进页面时由 <see cref="UpdateViewportLoading"/> 按视口重新加载。
     /// </summary>
     private void ReleaseAllLoadedBitmaps()
     {
-        if (_imageLoadInfos == null)
+        if (_imageSlots == null)
         {
             return;
         }
 
-        foreach (var info in _imageLoadInfos)
+        foreach (var slot in _imageSlots)
         {
-            if (info.image.Source is Bitmap bitmap)
-            {
-                info.image.Source = null;
-                bitmap.Dispose();
-            }
-            info.loadingIndicator.IsActive = false;
-            info.loadingIndicator.IsVisible = false;
+            ReleaseSlotBitmap(slot, keepErrorPanel: true);
+        }
+    }
+
+    /// <summary>释放单个卡片的位图与加载指示器；仍在视口内且需要保留错误面板时可选择性恢复占位尺寸。</summary>
+    private void ReleaseSlotBitmap(ImageSlot slot, bool keepErrorPanel)
+    {
+        slot.CancelLoad();
+        if (slot.Image.Source is Bitmap bitmap)
+        {
+            slot.Image.Source = null;
+            bitmap.Dispose();
+        }
+        slot.LoadingIndicator.IsActive = false;
+        slot.LoadingIndicator.IsVisible = false;
+        // 恢复等比占位（错误态也恢复——错误面板显示在占位区域内）
+        if (!keepErrorPanel || slot.Image.Source == null)
+        {
+            ApplyPlaceholderSize(slot);
         }
     }
 
     /// <summary>
-    /// 页面重新进入视觉树时，重载被 <see cref="ReleaseAllLoadedBitmaps"/> 释放的图片：
-    /// Source 为空、未显示错误面板、且当前没有在加载（占位符未激活）的条目才重载——
-    /// 加载失败的条目保留错误面板等用户手动重试，在途中的条目不重复发起。
+    /// 视口虚拟化引擎。滚动根就绪后挂 ScrollChanged / SizeChanged（合并到 Background 优先级单帧执行）：
+    /// 遍历全部卡片，卡片与视口上下扩展 <see cref="ViewportLoadMarginPx"/> 的范围相交 → 加载；
+    /// 不相交 → 立即释放位图与在途任务。1000 张图常驻的也只有视口附近的几张位图。
     /// </summary>
-    private void ReloadReleasedImagesIfNeeded()
+    private void EnsureViewportTracking()
     {
-        if (_imageLoadInfos == null)
+        // 页面自带 MainScrollViewer 与宿主外层 ScrollViewer 二者都可能实际发生滚动
+        //（取决于宿主如何限制页面高度），两个都挂监听；实际用于计算视口范围的根在
+        // <see cref="UpdateViewportLoading"/> 中按“谁有可滚动溢出”动态选定
+        var main = this.FindControl<ScrollViewer>("MainScrollViewer");
+        ScrollViewer? outer = null;
+        foreach (var ancestor in this.GetVisualAncestors())
+        {
+            if (ancestor is ScrollViewer sv && !ReferenceEquals(sv, main))
+            {
+                outer = sv;
+                break;
+            }
+        }
+
+        if (ReferenceEquals(main, _viewportScrollViewer) && ReferenceEquals(outer, _viewportOuterScrollViewer))
         {
             return;
         }
 
-        var token = GetCurrentLoadToken();
-        foreach (var info in _imageLoadInfos)
+        DetachViewportTracking();
+        _viewportScrollViewer = main;
+        _viewportOuterScrollViewer = outer;
+
+        if (main != null)
         {
-            if (info.image.Source == null
-                && !info.errorPanel.IsVisible
-                && !info.loadingIndicator.IsActive)
+            main.ScrollChanged += OnViewportScrollChanged;
+            main.SizeChanged += OnViewportSizeChanged;
+        }
+        if (outer != null)
+        {
+            outer.ScrollChanged += OnViewportScrollChanged;
+            outer.SizeChanged += OnViewportSizeChanged;
+        }
+    }
+
+    private void DetachViewportTracking()
+    {
+        if (_viewportScrollViewer != null)
+        {
+            _viewportScrollViewer.ScrollChanged -= OnViewportScrollChanged;
+            _viewportScrollViewer.SizeChanged -= OnViewportSizeChanged;
+            _viewportScrollViewer = null;
+        }
+        if (_viewportOuterScrollViewer != null)
+        {
+            _viewportOuterScrollViewer.ScrollChanged -= OnViewportScrollChanged;
+            _viewportOuterScrollViewer.SizeChanged -= OnViewportSizeChanged;
+            _viewportOuterScrollViewer = null;
+        }
+    }
+
+    /// <summary>
+    /// 选定本次视口计算的实际滚动根：页面自带 MainScrollViewer 自身有溢出（内部滚动）时用它，
+    /// 否则用外层 ScrollViewer（外层承载滚动），都没有回退 Main。
+    /// </summary>
+    private ScrollViewer? ResolveViewportRoot()
+    {
+        var main = _viewportScrollViewer;
+        var outer = _viewportOuterScrollViewer;
+        if (main != null && main.Extent.Height > main.Viewport.Height + 1)
+        {
+            return main;
+        }
+        return outer ?? main;
+    }
+
+    private void OnViewportScrollChanged(object? sender, ScrollChangedEventArgs e) => ScheduleViewportUpdate();
+
+    private void OnViewportSizeChanged(object? sender, SizeChangedEventArgs e) => ScheduleViewportUpdate();
+
+    /// <summary>滚动/缩放高频触发的重算合并到单帧执行（Background 优先级），避免逐事件全量遍历。</summary>
+    private void ScheduleViewportUpdate()
+    {
+        if (_viewportUpdateScheduled || !this.IsAttachedToVisualTree())
+        {
+            return;
+        }
+
+        _viewportUpdateScheduled = true;
+        Dispatcher.UIThread.Post(() =>
+        {
+            _viewportUpdateScheduled = false;
+            UpdateViewportLoading();
+        }, DispatcherPriority.Background);
+    }
+
+    /// <summary>按当前视口位置加载/卸载全部图片卡片。</summary>
+    private void UpdateViewportLoading()
+    {
+        if (_imageSlots == null || !this.IsAttachedToVisualTree())
+        {
+            return;
+        }
+
+        var root = ResolveViewportRoot();
+        if (root == null)
+        {
+            return;
+        }
+
+        // 【关键】TranslatePoint(卡片 → root) 得到的已经是“视口坐标”——随滚动实时变化，
+        // 可见卡片的 Y ∈ [0, Viewport.Height]。绝不能再叠加 root.Offset.Y（否则偏移被计算两次，
+        // 滚过约三张图后判定窗口整体漂出所有卡片的坐标范围，之后所有卡片被永久误判为离视不加载）。
+        var top = -ViewportLoadMarginPx;
+        var bottom = root.Viewport.Height + ViewportLoadMarginPx;
+
+        foreach (var slot in _imageSlots)
+        {
+            var container = slot.Container;
+            if (container.Bounds.Height <= 0 && slot.Image.Source == null)
             {
-                info.loadingIndicator.IsActive = true;
-                info.loadingIndicator.IsVisible = true;
-                _ = LoadRemoteImageWithRetry(info.url, info.image, info.errorPanel, info.errorDetailText, info.retryButton, info.loadingIndicator, token);
+                // 占位尚未布局（0 高度）：先补占位再判定
+                ApplyPlaceholderSize(slot);
+            }
+
+            var origin = container.TranslatePoint(new Point(0, 0), root);
+            if (origin == null)
+            {
+                continue;
+            }
+
+            var cardTop = origin.Value.Y;
+            var cardBottom = cardTop + Math.Max(container.Bounds.Height, 1);
+            var inRange = cardBottom > top && cardTop < bottom;
+
+            if (inRange)
+            {
+                if (slot.Image.Source == null && !slot.ErrorPanel.IsVisible)
+                {
+                    EnsureSlotLoaded(slot);
+                }
+            }
+            else
+            {
+                // 离开视口 ±500px：立即卸载位图与在途任务（错误面板保留，等用户回到视口手动重试）
+                if (slot.Image.Source != null || slot.LoadingIndicator.IsActive)
+                {
+                    ReleaseSlotBitmap(slot, keepErrorPanel: true);
+                }
+                else if (slot.ErrorPanel.IsVisible)
+                {
+                    CancelSlotLoad(slot);
+                }
             }
         }
+    }
+
+    /// <summary>启动单个卡片的按需加载（幂等：已在加载/已有位图/错误待重试时跳过）。</summary>
+    private void EnsureSlotLoaded(ImageSlot slot)
+    {
+        if (slot.IsLoading || slot.Image.Source != null || slot.ErrorPanel.IsVisible)
+        {
+            return;
+        }
+
+        slot.CancelLoad();
+        slot.Cts = CancellationTokenSource.CreateLinkedTokenSource(GetCurrentLoadToken());
+        slot.IsLoading = true;
+        slot.LoadingIndicator.IsActive = true;
+        slot.LoadingIndicator.IsVisible = true;
+        _ = LoadImageCoreAsync(slot, slot.Cts.Token);
+    }
+
+    /// <summary>取消单个卡片的在途加载任务并复位其加载状态（不改控件）。</summary>
+    private static void CancelSlotLoad(ImageSlot slot)
+    {
+        slot.CancelLoad();
+        slot.IsLoading = false;
+    }
+
+    /// <summary>
+    /// 获取图片宽高比（高/宽）。进程级缓存命中直接返回；未命中返回默认占位比，
+    /// 真实尺寸由 <see cref="PrimeMissingImageSizesAsync"/> 异步补齐后刷新占位。
+    /// </summary>
+    private static double GetImageAspect(string url) =>
+        ImageAspectCache.TryGetValue(url, out var aspect) ? aspect : DefaultImageAspect;
+
+    /// <summary>
+    /// 计算等比占位宽度：与 <see cref="ResponsiveImageHelper.MakeWidthFollowAncestor"/> 的
+    /// MaxWidth 逻辑一致（内容区宽度的 80%）。基准宽度取视口根宽度（缺页边距 32）。
+    /// </summary>
+    private double ResolvePlaceholderWidth(ImageSlot slot)
+    {
+        var baseWidth = _viewportScrollViewer?.Bounds.Width
+                        ?? this.FindControl<ScrollViewer>("MainScrollViewer")?.Bounds.Width
+                        ?? 640;
+        baseWidth -= 32; // 内容区左右边距
+        return Math.Max(baseWidth * 0.8, 64);
+    }
+
+    /// <summary>位图加载前为卡片铺设等比占位（宽度 + 宽度×宽高比的高度），加载完成后清除。</summary>
+    private void ApplyPlaceholderSize(ImageSlot slot)
+    {
+        if (slot.Image.Source != null)
+        {
+            return;
+        }
+
+        var width = ResolvePlaceholderWidth(slot);
+        slot.Container.Width = width;
+        slot.Container.Height = width * GetImageAspect(slot.Url);
+    }
+
+    /// <summary>清除占位尺寸，交还给位图 + MaxWidth 机制决定卡片尺寸。</summary>
+    private static void ClearPlaceholderSize(ImageSlot slot)
+    {
+        slot.Container.Width = double.NaN;
+        slot.Container.Height = double.NaN;
+    }
+
+    /// <summary>
+    /// 图片尺寸预扫描：为宽高比未知的图片补齐 <see cref="ImageAspectCache"/>。
+    /// 有本地缓存 → 读文件头解析；无缓存 → HTTP Range 请求头部字节解析（失败回退完整下载）。
+    /// 解析完成后在 UI 线程刷新对应卡片占位并触发一次视口重算。进程级缓存跨页面共享，
+    /// 每张图整个运行期只解析一次；并发由 <see cref="ImageSizeScanGate"/> 限制。
+    /// </summary>
+    private async Task PrimeMissingImageSizesAsync()
+    {
+        if (_imageSlots == null)
+        {
+            return;
+        }
+
+        var pending = _imageSlots.Where(s => !ImageAspectCache.ContainsKey(s.Url)).Select(s => s.Url).Distinct().ToList();
+        // 并行探测（网络探测由 ImageSizeScanGate 限并发，文件头读取本身即轻量 IO）
+        var probeTasks = pending.Select(async url =>
+        {
+            try
+            {
+                var size = await Task.Run(() => ProbeImageSizeAsync(url)).ConfigureAwait(false);
+                if (size == null)
+                {
+                    return;
+                }
+
+                ImageAspectCache[url] = (double)size.Value.Height / size.Value.Width;
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    if (_imageSlots != null)
+                    {
+                        foreach (var slot in _imageSlots)
+                        {
+                            if (slot.Url == url && slot.Image.Source == null)
+                            {
+                                // 已加载位图的无需占位；占位态刷新等比尺寸
+                                ApplyPlaceholderSize(slot);
+                            }
+                        }
+                    }
+                    ScheduleViewportUpdate();
+                });
+            }
+            catch
+            {
+                // 尺寸探测失败不影响主流程：保持默认占位比，加载完成后位图自然撑开
+            }
+        }).ToList();
+        await Task.WhenAll(probeTasks).ConfigureAwait(false);
+    }
+
+    /// <summary>探测单张图片的像素尺寸：优先本地缓存文件头，否则 HTTP Range 头部。</summary>
+    private async Task<PixelSize?> ProbeImageSizeAsync(string url)
+    {
+        var cachePath = GetImageCachePath(url);
+        if (cachePath != null && File.Exists(cachePath))
+        {
+            try
+            {
+                using var fs = new FileStream(cachePath, FileMode.Open, FileAccess.Read, FileShare.Read, 64 * 1024, FileOptions.Asynchronous | FileOptions.SequentialScan);
+                var buffer = new byte[Math.Min(ImageHeaderProbeBytes, fs.Length)];
+                await fs.ReadExactlyAsync(buffer).ConfigureAwait(false);
+                if (TryParseJpegSize(buffer, out var w, out var h))
+                {
+                    return new PixelSize(w, h);
+                }
+            }
+            catch
+            {
+                // 文件读取/解析失败 → 走网络探测
+            }
+        }
+
+        return await ProbeImageSizeFromNetworkAsync(url).ConfigureAwait(false);
+    }
+
+    /// <summary>
+    /// 通过 HTTP Range 请求只拉取图片头部字节（≤<see cref="ImageHeaderProbeBytes"/>）解析尺寸，
+    /// 服务器不支持 Range（非 206）时回退完整下载并把响应体写入本地缓存（与加载管道共享缓存文件）。
+    /// </summary>
+    private async Task<PixelSize?> ProbeImageSizeFromNetworkAsync(string url)
+    {
+        await ImageSizeScanGate.WaitAsync().ConfigureAwait(false);
+        try
+        {
+            var cachePath = GetImageCachePath(url);
+            try
+            {
+                using var request = new HttpRequestMessage(HttpMethod.Get, url);
+                request.Headers.Range = new System.Net.Http.Headers.RangeHeaderValue(0, ImageHeaderProbeBytes - 1);
+                using var response = await SharedHttpClient.SendAsync(request, HttpCompletionOption.ResponseContentRead).ConfigureAwait(false);
+                if (response.IsSuccessStatusCode)
+                {
+                    var data = await response.Content.ReadAsByteArrayAsync().ConfigureAwait(false);
+                    if (TryParseJpegSize(data, out var w, out var h))
+                    {
+                        // 已拿到完整响应（文件较小或服务器忽略 Range 返回 200 全量）且尚无缓存 → 顺手落盘
+                        if (cachePath != null && !File.Exists(cachePath) && response.StatusCode != System.Net.HttpStatusCode.PartialContent)
+                        {
+                            try
+                            {
+                                Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+                                var tempPath = Path.Combine(Path.GetDirectoryName(cachePath)!, Guid.NewGuid() + ".tmp");
+                                await File.WriteAllBytesAsync(tempPath, data).ConfigureAwait(false);
+                                File.Move(tempPath, cachePath);
+                            }
+                            catch
+                            {
+                                // 缓存写失败不影响尺寸结果
+                            }
+                        }
+                        return new PixelSize(w, h);
+                    }
+                }
+            }
+            catch
+            {
+                // 头部探测失败 → 回退完整下载
+            }
+
+            // 回退：完整下载解析（不写缓存——留给加载管道统一写，避免双写竞态）
+            try
+            {
+                var data = await SharedHttpClient.GetByteArrayAsync(url).ConfigureAwait(false);
+                if (TryParseJpegSize(data, out var w, out var h))
+                {
+                    return new PixelSize(w, h);
+                }
+            }
+            catch
+            {
+                // 网络不可用：保持默认占位比
+            }
+
+            return null;
+        }
+        finally
+        {
+            ImageSizeScanGate.Release();
+        }
+    }
+
+    /// <summary>
+    /// 解析 JPEG 头部获取像素尺寸：顺序扫描 marker，命中 SOF0~SOF15（剔除 DHT/JPG/DAC 扩展）后
+    /// 读取宽高。只需头部 ≤512KB（相机 EXIF 含缩略图可达数十 KB，SOF 在其后），无需解码整图。
+    /// </summary>
+    private static bool TryParseJpegSize(ReadOnlySpan<byte> data, out int width, out int height)
+    {
+        width = 0;
+        height = 0;
+        if (data.Length < 4 || data[0] != 0xFF || data[1] != 0xD8)
+        {
+            return false;
+        }
+
+        var i = 2;
+        while (i + 4 < data.Length)
+        {
+            if (data[i] != 0xFF)
+            {
+                i++;
+                continue;
+            }
+
+            var marker = data[i + 1];
+            if (marker == 0xFF || marker == 0x01 || (marker >= 0xD0 && marker <= 0xD7) || marker == 0xD8)
+            {
+                i += 2;
+                continue;
+            }
+            if (marker == 0xD9)
+            {
+                return false; // EOI 前未见 SOF
+            }
+
+            var length = (data[i + 2] << 8) | data[i + 3];
+            if (length < 2)
+            {
+                return false;
+            }
+
+            // SOF0~SOF15（0xC4 DHT / 0xC8 JPG / 0xCC DAC 除外）
+            if (marker >= 0xC0 && marker <= 0xCF && marker != 0xC4 && marker != 0xC8 && marker != 0xCC)
+            {
+                if (i + 9 > data.Length)
+                {
+                    return false;
+                }
+                height = (data[i + 5] << 8) | data[i + 6];
+                width = (data[i + 7] << 8) | data[i + 8];
+                return width > 0 && height > 0;
+            }
+
+            i += 2 + length;
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -1569,25 +2034,24 @@ public partial class EasterEggPage : UserControl
     private async void RefreshButton_Click(object? sender, RoutedEventArgs e)
     {
         if (sender is not Button button) return;
-        
+
         button.IsEnabled = false;
         button.Content = "刷新中...";
 
         try
         {
-            if (_imageLoadInfos == null || _imageLoadInfos.Count == 0)
+            if (_imageSlots == null || _imageSlots.Count == 0)
                 return;
 
             var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
-            var tasks = new List<Task>();
 
             // 存在运行中的冲突插件时本轮刷新只会逐图落到拦截错误面板（解除需重启宿主），
-            // 不能删除本地缓存：否则用户在冲突期间点一次刷新，重启后就得重新联网下载全部 24 张图片。
+            // 不能删除本地缓存：否则用户在冲突期间点一次刷新，重启后就得重新联网下载全部图片
             var blockedByPlugins = CrossPluginHelper.GetRunningFemboyLikePlugins();
 
-            foreach (var info in _imageLoadInfos)
+            foreach (var slot in _imageSlots)
             {
-                var fileName = Path.GetFileName(new Uri(info.url).AbsolutePath);
+                var fileName = Path.GetFileName(new Uri(slot.Url).AbsolutePath);
                 var cachePath = Path.Combine(cacheDir, fileName);
 
                 if (blockedByPlugins.Count == 0 && File.Exists(cachePath))
@@ -1601,21 +2065,20 @@ public partial class EasterEggPage : UserControl
                     }
                 }
 
-                // 立即释放旧位图的非托管内存，再重载（否则旧图要等 GC finalizer 才归还，刷新高峰内存翻倍）
-                if (info.image.Source is Bitmap oldBitmap)
-                {
-                    info.image.Source = null;
-                    oldBitmap.Dispose();
-                }
-                info.errorPanel.IsVisible = false;
-                info.errorDetailText.Text = "";
-                info.retryButton.IsEnabled = false;
-                info.retryButton.Content = "加载中...";
-
-                tasks.Add(LoadRemoteImageWithRetry(info.url, info.image, info.errorPanel, info.errorDetailText, info.retryButton, info.loadingIndicator, GetCurrentLoadToken()));
+                // 立即释放旧位图的非托管内存与在途任务，再由视口引擎按需重载
+                //（否则旧图要等 GC finalizer 才归还，刷新高峰内存翻倍）
+                ReleaseSlotBitmap(slot, keepErrorPanel: false);
+                slot.ErrorPanel.IsVisible = false;
+                slot.ErrorDetailText.Text = "";
+                slot.RetryButton.IsEnabled = false;
+                slot.RetryButton.Content = "加载中...";
             }
 
-            await Task.WhenAll(tasks);
+            // 视口引擎立即重载当前视口内的图片；视口外的卡片等滚动到附近再加载
+            ScheduleViewportUpdate();
+
+            // 预扫描期间缓存文件已删除：重新补齐被删除图片的尺寸
+            _ = PrimeMissingImageSizesAsync();
         }
         finally
         {
@@ -1661,8 +2124,9 @@ public partial class EasterEggPage : UserControl
         // 取消所有在途图片下载/解码，阻止其回调写回已离树的控件（否则 async 闭包会钉住整页）
         _imageLoadCts?.Cancel();
 
-        // 立即归还 24 张位图的非托管内存（~200MB），不等待 GC/finalizer——
-        // 这是“每次进入女装页内存增长约 200MB”的直接修复点
+        // 视口虚拟化：取消视口监听、归还全部已加载位图的非托管内存——离树后常驻内存只剩
+        // 轻量卡片控件与占位尺寸，不含任何位图
+        DetachViewportTracking();
         ReleaseAllLoadedBitmaps();
 
         // 注意：不移除KeyDown和Loaded订阅，以便切换Tab回来时仍能正常工作
@@ -1755,21 +2219,25 @@ public partial class EasterEggPage : UserControl
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();
 
-        // 离树期间旧令牌已取消；重新进入时换新令牌，并把已释放的位图从本地缓存重新解码
+        // 离树期间旧令牌已取消；重新进入时换新令牌，视口虚拟化引擎随后按视口位置按需加载
         if (_imageLoadCts == null || _imageLoadCts.IsCancellationRequested)
         {
             _imageLoadCts?.Dispose();
             _imageLoadCts = new CancellationTokenSource();
-            ReloadReleasedImagesIfNeeded();
         }
+
+        // 视口虚拟化：挂载滚动根监听并立即按当前视口加载可见范围内的图片（±500px），
+        // 视口外的卡片保持轻量等比占位——不再全量重载
+        EnsureViewportTracking();
+        ScheduleViewportUpdate();
 
         // 页面重新进入时，把已加载完成的图片卡片落回可见终值：
         // 防止图片成功回调刚把卡片置为透明起播、页面就被切走导致动画取消而停在透明态
-        if (_imageLoadInfos != null)
+        if (_imageSlots != null)
         {
-            foreach (var info in _imageLoadInfos)
+            foreach (var slot in _imageSlots)
             {
-                if (info.image.Source != null && info.image.Parent is Grid g && g.Parent is Border card)
+                if (slot.Image.Source != null && slot.Image.Parent is Grid g && g.Parent is Border card)
                 {
                     SetImageCardFinalState(card);
                 }
@@ -2008,6 +2476,51 @@ public partial class EasterEggPage : UserControl
             (Key.Up or Key.Down or Key.Left or Key.Right or Key.PageUp or Key.PageDown or Key.End or Key.Space))
         {
             StopScrollToTopAnimation();
+        }
+    }
+
+    /// <summary>
+    /// 视口虚拟化的单张图片卡片槽位：控件引用 + 独立取消令牌 + 加载状态。
+    /// 每张卡片的加载用独立 linked CTS（linked 页面级 CTS）：滚出视口时只取消这一张，
+    /// 页面离树时由页面级令牌级联取消全部。
+    /// </summary>
+    private sealed class ImageSlot
+    {
+        public ImageSlot(string url, Image image, Border container, StackPanel errorPanel,
+            TextBlock errorDetailText, Button retryButton, ExpressiveLoadingIndicator loadingIndicator)
+        {
+            Url = url;
+            Image = image;
+            Container = container;
+            ErrorPanel = errorPanel;
+            ErrorDetailText = errorDetailText;
+            RetryButton = retryButton;
+            LoadingIndicator = loadingIndicator;
+        }
+
+        public string Url { get; }
+        public Image Image { get; }
+        public Border Container { get; }
+        public StackPanel ErrorPanel { get; }
+        public TextBlock ErrorDetailText { get; }
+        public Button RetryButton { get; }
+        public ExpressiveLoadingIndicator LoadingIndicator { get; }
+
+        /// <summary>本卡片的在途加载任务；null = 无在途任务。</summary>
+        public CancellationTokenSource? Cts { get; set; }
+
+        /// <summary>是否处于加载中（含等下载/等解码）。</summary>
+        public bool IsLoading { get; set; }
+
+        /// <summary>取消本卡片的在途加载任务并释放 CTS（幂等）。</summary>
+        public void CancelLoad()
+        {
+            if (Cts != null)
+            {
+                Cts.Cancel();
+                Cts.Dispose();
+                Cts = null;
+            }
         }
     }
 }

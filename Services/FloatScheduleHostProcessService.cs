@@ -702,6 +702,18 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 (connected, exitCode) = await SpawnAndAwaitConnectAsync(exePath).ConfigureAwait(false);
             }
 
+            // 【安全软件拦截兜底】运行副本启动失败（副本被查杀/阻止执行）→ 直接跑插件目录原件再试一次：
+            //  杀软常见策略是"只拦 %TEMP%/LocalAppData 里新落地的 exe"或"按路径签名拦截"，
+            //  原位原件通常可放行；仍失败才交由下面的 Failed 路径回退进程内渲染。
+            if (!connected && GetPackagedExePath() is { } inPlaceExe
+                && !string.Equals(inPlaceExe, exePath, StringComparison.OrdinalIgnoreCase))
+            {
+                _logger.LogWarning("FloatSchedule 子进程从运行副本启动失败（退出码 {ExitCode}），尝试直接运行插件目录原件", exitCode);
+                (connected, exitCode) = await SpawnAndAwaitConnectAsync(inPlaceExe).ConfigureAwait(false);
+                if (connected)
+                    _logger.LogInformation("FloatSchedule 已改用插件目录原件运行（运行副本可能被安全软件拦截）");
+            }
+
             if (!connected)
             {
                 string reason = exitCode switch
@@ -716,8 +728,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                     FloatScheduleIpc.ExitCodeAvaloniaStartFailed =>
                         "独立程序启动失败（Avalonia 初始化异常）"
                         + (TakeChildStderrSummary() is { } err ? "：" + err : "，请看 ClassIsland 日志"),
-                    null => "子进程启动后未连接（可能被安全软件拦截）",
-                    _ => $"子进程退出，退出码 {exitCode}",
+                    null => "子进程启动后被系统或安全软件阻止（未建立连接）。请把 AdvancedTimeIslandFloatSchedule.exe 加入杀软白名单，或关闭「独立进程模式」",
+                    _ => $"子进程退出（退出码 {exitCode}）：若反复出现，可能是安全软件拦截，请把 AdvancedTimeIslandFloatSchedule.exe 加入白名单，或关闭「独立进程模式」",
                 };
                 SetStatus(ChildStatus.Failed, reason);
                 return;
@@ -1062,48 +1074,89 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
     /// <summary>
     /// 解析用于启动的子进程 exe 路径。
-    /// 【必须从临时目录副本运行 —— 否则会锁死插件目录导致"更新插件"损坏】
+    /// 【必须用副本运行 —— 否则会锁死插件目录导致"更新插件"损坏】
     ///   若直接运行插件目录下的 exe，Windows 会锁定该文件；而"跟随启停=关"时子进程会在
     ///   ClassIsland 退出后继续存活，此时更新插件（宿主删除/替换 Plugins\{id} 目录）会因文件
     ///   被占用而失败或只删掉一部分 → 插件目录严重损坏。
-    ///   故无论是否开启"随机进程名"，一律把 exe 复制到 %TEMP%\AdvancedTimeIslandFloatSchedule\ 下运行：
+    ///   故默认把 exe 复制到 %LOCALAPPDATA%\AdvancedTimeIsland\FloatSchedule\ 下运行：
     ///     - 随机进程名=关：副本沿用原名（任务管理器进程名仍是 AdvancedTimeIslandFloatSchedule）
     ///     - 随机进程名=开：副本随机命名（进程名随机，进一步规避按进程名拦截）
+    ///   【降低杀软误报】不再使用 %TEMP% 运行目录：安全软件对"写入临时目录 + 立即执行"这一组合
+    ///   的启发式权重极高（典型恶意程序行为），会把悬浮窗子进程判为木马并阻止启动。
+    ///   改用 LocalAppData 下的稳定目录（路径可预期、非临时目录），显著降低误报面。
     ///   副本不占用插件目录，插件可被正常更新；旧副本在每次启动前尽量清理。
+    ///   若复制本身被安全软件阻止（写文件被拒），退化为直接运行插件目录原件（可用性优先，
+    ///   代价是该文件在子进程存活期间被占用，插件更新可能失败，需先关闭独立进程模式）。
     /// </summary>
     private string? ResolveChildExePath()
     {
+        var srcExe = GetPackagedExePath();
+        if (srcExe == null) return null;
+
         try
         {
-            var srcExe = GetPackagedExePath();
-            if (srcExe == null) return null;
-
-            var runDir = Path.Combine(Path.GetTempPath(), "AdvancedTimeIslandFloatSchedule");
+            var baseDir = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (string.IsNullOrWhiteSpace(baseDir)) baseDir = Path.GetTempPath();
+            var runDir = Path.Combine(baseDir, "AdvancedTimeIsland", "FloatSchedule");
             try { Directory.CreateDirectory(runDir); } catch { }
-            CleanupOldExeCopies(runDir);
 
-            var name = _settings.FloatingScheduleRandomProcessName
-                ? "ati_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant() + ".exe"
-                : "AdvancedTimeIslandFloatSchedule.exe";
+            var srcInfo = new FileInfo(srcExe);
+            // 随机进程名：优先复用上一次生成且内容仍一致的随机名副本（避免每次启动都新落地一个 exe——
+            //  "每次启动新写一个随机名可执行文件并执行"正是杀软启发式里最典型的投放行为）。
+            var reuseRandom = _settings.FloatingScheduleRandomProcessName
+                ? FindReusableRandomCopy(runDir, srcInfo)
+                : null;
+            var name = reuseRandom != null
+                ? Path.GetFileName(reuseRandom)
+                : _settings.FloatingScheduleRandomProcessName
+                    ? "ati_" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant() + ".exe"
+                    : "AdvancedTimeIslandFloatSchedule.exe";
             var dst = Path.Combine(runDir, name);
+            CleanupOldExeCopies(runDir, keepPath: dst);
+
+            // 副本已与原件一致（长度 + 写入时间都相同，File.Copy 会保留后者）→ 直接复用，不再重写：
+            //  每次启动都"新写一个 exe 再执行"是杀软启发式里典型的投放行为，复用可显著减少触发扫描/拦截。
+            var dstInfo = new FileInfo(dst);
+            if (dstInfo.Exists && dstInfo.Length == srcInfo.Length
+                && dstInfo.LastWriteTimeUtc == srcInfo.LastWriteTimeUtc)
+                return dst;
+
             try { if (File.Exists(dst)) File.Delete(dst); } catch { /* 仍被旧子进程占用 → 交由 File.Copy 覆盖判定 */ }
             File.Copy(srcExe, dst, overwrite: true);
             return dst;
         }
         catch (Exception ex)
         {
-            _logger.LogDebug(ex, "ResolveChildExePath 异常");
-            return null;
+            // 副本创建失败（常见于安全软件拦截写入/删除）→ 直接运行插件目录原件，保证悬浮窗可用
+            _logger.LogWarning(ex, "FloatSchedule 创建子进程运行副本失败，改为直接运行插件目录原件（该文件将被占用）");
+            return srcExe;
         }
     }
 
-    /// <summary>清理运行目录内的旧 exe 副本（被旧子进程占用的跳过；spawn 前已尽量清理孤儿进程）。</summary>
-    private void CleanupOldExeCopies(string runDir)
+    /// <summary>在运行目录里找一个内容与插件包原件一致的随机名副本（长度 + 写入时间相同，File.Copy 保留后者）。</summary>
+    private static string? FindReusableRandomCopy(string runDir, FileInfo srcInfo)
+    {
+        try
+        {
+            foreach (var f in Directory.GetFiles(runDir, "ati_*.exe"))
+            {
+                var fi = new FileInfo(f);
+                if (fi.Length == srcInfo.Length && fi.LastWriteTimeUtc == srcInfo.LastWriteTimeUtc)
+                    return f;
+            }
+        }
+        catch { }
+        return null;
+    }
+
+    /// <summary>清理运行目录内的旧 exe 副本（被旧子进程占用的、以及本次要复用的 keepPath 跳过）。</summary>
+    private void CleanupOldExeCopies(string runDir, string? keepPath = null)
     {
         try
         {
             foreach (var f in Directory.GetFiles(runDir, "*.exe"))
             {
+                if (keepPath != null && string.Equals(f, keepPath, StringComparison.OrdinalIgnoreCase)) continue;
                 try { File.Delete(f); } catch { /* 占用中 → 跳过 */ }
             }
         }
