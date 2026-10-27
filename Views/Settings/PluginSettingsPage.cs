@@ -1967,6 +1967,17 @@ public class PluginSettingsPage : UserControl
         StartNtpTimeDisplayTimer();
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // 本页在「关于」页标签栏中只创建一次、切回标签页时复用同一实例：
+        // OnInitialized 不会再次执行，而切走时 OnDetachedFromVisualTree 已把同步时间大时钟的
+        // 刷新计时器释放——此处重启（StartNtpTimeDisplayTimer 内部先释放旧计时器，重复调用安全），
+        // 无论作为独立设置页还是「关于」页标签页，重新进入均恢复走时。
+        StartNtpTimeDisplayTimer();
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);

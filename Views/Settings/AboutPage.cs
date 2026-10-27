@@ -334,6 +334,327 @@ public class AboutPage : SettingsPageBase
         FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
+    /// <summary>女装答题验证的题目：题面 + 可接受答案组（判定前与用户输入一样先规范化）。</summary>
+    private sealed record EasterEggQuizQuestion(string Prompt, string[] AcceptableAnswers);
+
+    /// <summary>
+    /// 答题验证失败（提交了答案但有错）后的冷却截止时刻（UTC）——冷却期内不能再次触发答题；
+    /// 静态字段跨页面实例共享（设置页会被宿主重建）。「取消 / 关闭对话框」不算答错、不触发冷却。
+    /// </summary>
+    private static DateTime _quizCooldownUntilUtc = DateTime.MinValue;
+
+    /// <summary>
+    /// 女装答题验证题库（54 题：27 道数学填空 + 27 道英语单句语法填空）：
+    /// 触发时随机不重复抽取 5 题，全部答对才通过。
+    /// </summary>
+    private static readonly EasterEggQuizQuestion[] EasterEggQuizBank =
+    {
+        new("已知 f(x)=2x+1，则 f(3)=？", new[] { "7" }),
+        new("sin30°=？", new[] { "1/2", "0.5", "二分之一" }),
+        new("等差数列首项为 2，公差为 3，则第 5 项为？", new[] { "14" }),
+        new("等比数列首项为 1，公比为 2，则第 6 项为？", new[] { "32" }),
+        new("不等式 |x|<3 的整数解共有几个？", new[] { "5" }),
+        new("向量 a=(1,2)，b=(3,-1)，则 a 与 b 的数量积为？", new[] { "1" }),
+        new("直线 y=2x+1 的斜率为？", new[] { "2" }),
+        new("圆 x²+y²=9 的半径为？", new[] { "3" }),
+        new("抛物线 y²=8x 的焦点到准线的距离为？", new[] { "4" }),
+        new("cos60°=？", new[] { "1/2", "0.5", "二分之一" }),
+        new("tan45°=？", new[] { "1" }),
+        new("虚数单位 i 的平方等于？", new[] { "-1" }),
+        new("(1+i)+(2-i)=？", new[] { "3" }),
+        new("(x+1)³ 展开式中 x² 项的系数为？", new[] { "3" }),
+        new("从 5 人中任选 2 人，选法共有几种？", new[] { "10" }),
+        new("抛一枚均匀硬币两次，恰有一次正面的概率为？", new[] { "1/2", "0.5", "二分之一" }),
+        new("函数 y=x²-4x+3 的对称轴为 x=？", new[] { "2" }),
+        new("函数 f(x)=x³ 在 x=1 处的导数为？", new[] { "3" }),
+        new("数列 1,3,5,7,… 的第 10 项为？", new[] { "19" }),
+        new("等差数列首项为 1，公差为 2，则前 10 项和为？", new[] { "100" }),
+        new("已知 cosθ=1/2，且 θ 为锐角，则 θ=？", new[] { "60°", "60度", "π/3" }),
+        new("向量 (3,4) 的模为？", new[] { "5" }),
+        new("两点 (0,0) 与 (3,4) 之间的距离为？", new[] { "5" }),
+        new("直线 x+y-1=0 与 x 轴交点的横坐标为？", new[] { "1" }),
+        new("函数 y=2^x 在 x=0 时的函数值为？", new[] { "1" }),
+        new("以 2 为底 8 的对数为？", new[] { "3" }),
+        new("袋中有 3 个红球、2 个白球，任取 1 球，取到红球的概率为？", new[] { "3/5", "0.6", "五分之三" }),
+
+        // —— 英语单句语法填空（每空只填一个单词；大小写敏感：句首填空必须大写）——
+        new("The book ______ (write) by a famous writer sells well.", new[] { "written" }),
+        new("It was not until midnight ______ he came back.", new[] { "that" }),
+        new("______ (see) from the top of the hill, the city looks beautiful.", new[] { "Seen" }),
+        new("This is the house ______ windows face south.", new[] { "whose" }),
+        new("______ he will come tomorrow or not is still unknown.", new[] { "Whether" }),
+        new("The harder you work, ______ (good) results you will get.", new[] { "better" }),
+        new("She is the only one of the students who ______ (be) often late for class.", new[] { "is" }),
+        new("The film ______ (begin) at eight last night.", new[] { "began" }),
+        new("______ (face) with the problem, he felt worried.", new[] { "Faced" }),
+        new("There is no doubt ______ he will succeed.", new[] { "that" }),
+        new("He devoted himself to ______ (help) the poor.", new[] { "helping" }),
+        new("The teacher asked us to keep the classroom ______ (clean) and bright.", new[] { "clean" }),
+        new("______ (compare) with his brother, he is more outgoing.", new[] { "Compared" }),
+        new("The Great Wall ______ (attract) many tourists every year.", new[] { "attracts" }),
+        new("He spoke loudly ______ make himself heard.", new[] { "to" }),
+        new("Neither he nor I ______ (be) good at swimming now.", new[] { "am" }),
+        new("The house ______ (build) last year is very beautiful.", new[] { "built" }),
+        new("______ (walk) along the street, I met an old friend.", new[] { "Walking" }),
+        new("He is so honest a boy ______ we all like him.", new[] { "that" }),
+        new("The more careful you are, the ______ (few) mistakes you will make.", new[] { "fewer" }),
+        new("It is important ______ we should learn English well.", new[] { "that" }),
+        new("She had her hair ______ (cut) yesterday.", new[] { "cut" }),
+        new("______ (give) more time, we could have done it better.", new[] { "Given" }),
+        new("The book is worth ______ (read).", new[] { "reading" }),
+        new("He was so tired that he fell asleep ______ (immediate).", new[] { "immediately" }),
+        new("It was in the park ______ I met him.", new[] { "that" }),
+        new("The population of China is larger than ______ of Japan.", new[] { "that" }),
+    };
+
+    /// <summary>
+    /// 答案规范化：去除所有空白字符（半角 / 全角空格、制表符等）与零宽字符（U+200B/C/D、U+FEFF）。
+    /// 大小写不转换——英语题答案**大小写敏感**：位于句首的填空必须大写（如 Seen / Whether / Faced /
+    /// Compared / Walking / Given），小写判错；句中词、数学与中文答案不受影响。
+    /// </summary>
+    private static string NormalizeQuizAnswer(string input)
+    {
+        if (string.IsNullOrEmpty(input))
+        {
+            return string.Empty;
+        }
+
+        var sb = new StringBuilder(input.Length);
+        foreach (var ch in input)
+        {
+            if (char.IsWhiteSpace(ch))
+            {
+                continue;
+            }
+            if (ch is '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
+            {
+                continue;
+            }
+            sb.Append(ch);
+        }
+        return sb.ToString();
+    }
+
+    private static bool IsQuizAnswerCorrect(string? input, EasterEggQuizQuestion question)
+    {
+        var normalized = NormalizeQuizAnswer(input ?? string.Empty);
+        if (normalized.Length == 0)
+        {
+            return false;
+        }
+
+        foreach (var acceptable in question.AcceptableAnswers)
+        {
+            if (NormalizeQuizAnswer(acceptable) == normalized)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /// <summary>
+    /// 女装答题验证对话框：从 54 题库随机不重复抽 5 题，全部答对返回 true；有错题时锁定作答、
+    /// 指出错题并揭晓正确答案，对话框在 10 × 答错数量 秒后自动关闭（或手动关闭）——两种关闭方式
+    /// 均按验证失败处理（返回 false）；「取消」/ 关闭对话框同样按失败处理但不进入答题冷却。
+    /// </summary>
+    private Task<bool> ShowEasterEggQuizAsync()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null)
+        {
+            return Task.FromResult(false);
+        }
+
+        // 随机不重复抽 5 题（洗牌取前 5）
+        var questions = EasterEggQuizBank.OrderBy(_ => Random.Shared.Next()).Take(5).ToArray();
+        var inputs = new TextBox[questions.Length];
+        var promptTexts = new TextBlock[questions.Length];
+
+        var questionPanel = new StackPanel { Spacing = 14 };
+        for (var i = 0; i < questions.Length; i++)
+        {
+            var index = i; // 避免闭包捕获循环变量
+            inputs[index] = new TextBox { Watermark = "请输入答案" };
+            promptTexts[index] = new TextBlock
+            {
+                Text = $"第 {index + 1} 题：{questions[index].Prompt}",
+                TextWrapping = TextWrapping.Wrap,
+                FontSize = 15,
+                Foreground = ThemeHelper.GetTextBrush()
+            };
+            questionPanel.Children.Add(promptTexts[index]);
+            questionPanel.Children.Add(inputs[index]);
+        }
+
+        var content = new StackPanel { Spacing = 12 };
+        content.Children.Add(new ScrollViewer { MaxHeight = 420, Content = questionPanel });
+
+        var succeeded = false;
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "验证");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", content);
+        // 不使用原生底部按钮行：FA ContentDialog 的按钮顺序固定为 [Primary 左 | Close 右]，
+        // 无法呈现「取消在左、确认在右」；改为内容区底部自定义按钮行（关闭 = 只设 CloseButtonText 为空，
+        // 原生按钮全部隐藏）
+
+        Action succeededHide = () => dialog.GetType().GetMethod("Hide", Type.EmptyTypes)?.Invoke(dialog, null);
+
+        // 提交后的结果提示行（全对时不可见）
+        var resultText = new TextBlock
+        {
+            IsVisible = false,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetTextBrush()
+        };
+
+        // 底部按钮行：左侧「取消」（普通样式）、右侧「提交答案」（确认/accent 样式）
+        var cancelButton = new Button { Content = "取消", MinWidth = 84 };
+        var submitButton = new Button { Content = "提交答案", MinWidth = 84 };
+        if (Application.Current?.Styles.TryGetResource("AccentFillColorDefaultBrush", Application.Current.ActualThemeVariant, out var accentBrush) == true && accentBrush is IBrush accentFill)
+        {
+            submitButton.Background = accentFill;
+        }
+        if (Application.Current?.Styles.TryGetResource("TextOnAccentFillColorPrimaryBrush", Application.Current.ActualThemeVariant, out var onAccentBrush) == true && onAccentBrush is IBrush onAccentFill)
+        {
+            submitButton.Foreground = onAccentFill;
+        }
+
+        var closed = false;
+        Avalonia.Threading.DispatcherTimer? countdownTimer = null;
+
+        // 提交判定：全部答对才通过；有错题则进入 30 秒答题冷却（外层重置连点计数）、锁定作答、
+        // 指出错题——已作答的错题揭晓正确答案，未作答的题目只标错、不展示答案；对话框在
+        // 10 × 答错数量 秒后自动关闭（或手动关闭）
+        submitButton.Click += (_, _) =>
+        {
+            var wrong = new List<int>();  // 答错且已作答（揭晓答案）
+            var blank = new List<int>();  // 未作答（只标错，不展示答案）
+            for (var i = 0; i < questions.Length; i++)
+            {
+                if (IsQuizAnswerCorrect(inputs[i].Text, questions[i]))
+                {
+                    continue;
+                }
+                var answered = NormalizeQuizAnswer(inputs[i].Text ?? string.Empty).Length > 0;
+                if (answered)
+                {
+                    wrong.Add(i);
+                }
+                else
+                {
+                    blank.Add(i);
+                }
+            }
+
+            var wrongTotal = wrong.Count + blank.Count;
+            if (wrongTotal == 0)
+            {
+                succeeded = true;
+                succeededHide();
+                return;
+            }
+
+            _quizCooldownUntilUtc = DateTime.UtcNow.AddSeconds(30);
+
+            // 提交后不能修改：锁定全部输入框与提交按钮
+            foreach (var input in inputs)
+            {
+                input.IsEnabled = false;
+            }
+            submitButton.IsEnabled = false;
+
+            // 指出错题（题面标红 ✗）；仅已作答的错题在其输入框下方揭晓正确答案。
+            // 从后往前处理避免子元素位移
+            var allWrong = new List<int>(wrong);
+            allWrong.AddRange(blank);
+            allWrong.Sort((a, b) => b.CompareTo(a));
+            foreach (var index in allWrong)
+            {
+                promptTexts[index].Text = "✗ " + promptTexts[index].Text;
+                promptTexts[index].Foreground = Brushes.Red;
+                if (!wrong.Contains(index))
+                {
+                    continue; // 未作答：不展示答案
+                }
+                var reveal = new TextBlock
+                {
+                    Text = "正确答案：" + string.Join(" / ", questions[index].AcceptableAnswers),
+                    FontSize = 14,
+                    Margin = new Thickness(0, -8, 0, 0),
+                    Foreground = ThemeHelper.GetTextBrush()
+                };
+                questionPanel.Children.Insert(index * 2 + 2, reveal);
+            }
+
+            // 倒计时：10 × 答错数量 秒后自动关闭
+            string BuildResultText(int remain) => blank.Count > 0
+                ? $"答错 {wrongTotal} 题（含 {blank.Count} 题未作答，未作答的题目不展示答案），正确答案已标注在对应错题下方；作答已锁定，对话框将在 {remain} 秒后自动关闭（也可手动关闭）"
+                : $"答错 {wrongTotal} 题，正确答案已标注在对应题目下方；作答已锁定，对话框将在 {remain} 秒后自动关闭（也可手动关闭）";
+            var remaining = wrongTotal * 10;
+            resultText.IsVisible = true;
+            resultText.Text = BuildResultText(remaining);
+            countdownTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+            countdownTimer.Tick += (_, _) =>
+            {
+                if (closed)
+                {
+                    countdownTimer?.Stop();
+                    return;
+                }
+                remaining--;
+                if (remaining <= 0)
+                {
+                    countdownTimer?.Stop();
+                    closed = true;
+                    succeededHide();
+                    return;
+                }
+                resultText.Text = BuildResultText(remaining);
+            };
+            countdownTimer.Start();
+        };
+        cancelButton.Click += (_, _) =>
+        {
+            // 取消不算答错：按失败处理（重置连点计数）但不进入答题冷却
+            closed = true;
+            countdownTimer?.Stop();
+            succeededHide();
+        };
+
+        var buttonRow = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
+            Margin = new Thickness(0, 12, 0, 0)
+        };
+        Grid.SetColumn(cancelButton, 1);
+        Grid.SetColumn(submitButton, 2);
+        buttonRow.Children.Add(cancelButton);
+        buttonRow.Children.Add(submitButton);
+        content.Children.Add(resultText);
+        content.Children.Add(buttonRow);
+
+        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
+        // 对话框关闭（取消 / 遮罩点击 / 提交后的 Hide）时 ShowAsync 完成——按最终标志收尾并停掉倒计时
+        var showTask = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
+        showTask.ContinueWith(t =>
+        {
+            if (t.IsFaulted)
+            {
+                System.Diagnostics.Debug.WriteLine($"[EasterEgg] 答题对话框异常关闭：{t.Exception}");
+            }
+            // 手动关闭（遮罩 / ESC 等）也要停掉倒计时计时器；Stop 需在 UI 线程调用
+            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            {
+                closed = true;
+                countdownTimer?.Stop();
+            });
+            tcs.TrySetResult(succeeded);
+        }, TaskScheduler.Default);
+
+        return tcs.Task;
+    }
+
     /// <summary>
     /// 集控验证：宿主已加入集控且集控下发了凭据（管理员 / 用户凭据）时，必须先通过宿主原生的
     /// 集控凭据校验才能触发彩蛋。
@@ -382,9 +703,33 @@ public class AboutPage : SettingsPageBase
     {
         if (_easterEggActive || _easterEggActivating) return;
 
+        // 触发门槛：仅当「实验性功能」开关在插件启动（应用重启）时已开启才可触发（快照判定，
+        // 运行中改开关不影响本次会话）。未开启时静默重置检测器——彩蛋本就是隐藏性质，不做提示。
+        if (!Plugin.EasterEggGateEnabled)
+        {
+            _easterEggDetector.Reset();
+            return;
+        }
+
         _easterEggActivating = true;
         try
         {
+            // 答题冷却：上次答错后 30 秒内不能再次触发答题（静默重置检测器，
+            // 连点计数从头累计；「取消 / 关闭对话框」不算答错、不进入冷却）
+            if (DateTime.UtcNow < _quizCooldownUntilUtc)
+            {
+                _easterEggDetector.Reset();
+                return;
+            }
+
+            // 答题验证（先于集控验证）：27 题库随机不重复抽 5 题、全部答对才算通过；
+            // 取消 / 关闭按失败处理，重置检测器允许重新累计点击后再试
+            if (!await ShowEasterEggQuizAsync())
+            {
+                _easterEggDetector.Reset();
+                return;
+            }
+
             if (!await VerifyManagementCredentialAsync())
             {
                 // 验证取消 / 失败：重置检测器，允许用户重新累计点击后再试

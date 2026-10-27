@@ -669,7 +669,11 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
             var exePath = ResolveChildExePath();
             if (exePath == null)
             {
-                SetStatus(ChildStatus.Failed, "子进程文件 AdvancedTimeIslandFloatSchedule.exe 不存在（插件包不完整？）");
+                // 区分"包不完整/被隔离"与"运行副本写不出来"：两者都回退进程内渲染，但提示不同
+                var reason = GetPackagedExePath() == null
+                    ? "子进程文件 AdvancedTimeIslandFloatSchedule.exe 不存在（插件包不完整或被安全软件隔离）"
+                    : "无法创建子进程运行副本（可能被安全软件阻止写入），已回退进程内渲染";
+                SetStatus(ChildStatus.Failed, reason);
                 return;
             }
 
@@ -700,18 +704,6 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 KillOrphanChildren();
                 await Task.Delay(300).ConfigureAwait(false);
                 (connected, exitCode) = await SpawnAndAwaitConnectAsync(exePath).ConfigureAwait(false);
-            }
-
-            // 【安全软件拦截兜底】运行副本启动失败（副本被查杀/阻止执行）→ 直接跑插件目录原件再试一次：
-            //  杀软常见策略是"只拦 %TEMP%/LocalAppData 里新落地的 exe"或"按路径签名拦截"，
-            //  原位原件通常可放行；仍失败才交由下面的 Failed 路径回退进程内渲染。
-            if (!connected && GetPackagedExePath() is { } inPlaceExe
-                && !string.Equals(inPlaceExe, exePath, StringComparison.OrdinalIgnoreCase))
-            {
-                _logger.LogWarning("FloatSchedule 子进程从运行副本启动失败（退出码 {ExitCode}），尝试直接运行插件目录原件", exitCode);
-                (connected, exitCode) = await SpawnAndAwaitConnectAsync(inPlaceExe).ConfigureAwait(false);
-                if (connected)
-                    _logger.LogInformation("FloatSchedule 已改用插件目录原件运行（运行副本可能被安全软件拦截）");
             }
 
             if (!connected)
@@ -1085,8 +1077,9 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     ///   的启发式权重极高（典型恶意程序行为），会把悬浮窗子进程判为木马并阻止启动。
     ///   改用 LocalAppData 下的稳定目录（路径可预期、非临时目录），显著降低误报面。
     ///   副本不占用插件目录，插件可被正常更新；旧副本在每次启动前尽量清理。
-    ///   若复制本身被安全软件阻止（写文件被拒），退化为直接运行插件目录原件（可用性优先，
-    ///   代价是该文件在子进程存活期间被占用，插件更新可能失败，需先关闭独立进程模式）。
+    ///   若复制本身被安全软件阻止（写文件被拒），**不做原位运行的降级**：直接在插件目录运行会锁定
+    ///   AdvancedTimeIslandFloatSchedule.exe，插件更新时宿主删除/替换插件目录会失败（或只删一部分），
+    ///   导致插件目录严重损坏。此时返回 null，由调用方置 Failed 并回退进程内渲染（窗口依然可见）。
     /// </summary>
     private string? ResolveChildExePath()
     {
@@ -1127,9 +1120,10 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         }
         catch (Exception ex)
         {
-            // 副本创建失败（常见于安全软件拦截写入/删除）→ 直接运行插件目录原件，保证悬浮窗可用
-            _logger.LogWarning(ex, "FloatSchedule 创建子进程运行副本失败，改为直接运行插件目录原件（该文件将被占用）");
-            return srcExe;
+            // 绝不在插件目录原位运行（会锁死该 exe → 插件更新时目录替换失败 → 插件损坏），
+            // 复制失败一律按"无法准备运行副本"处理，由上层回退进程内渲染。
+            _logger.LogWarning(ex, "FloatSchedule 创建子进程运行副本失败（可能被安全软件阻止写入）");
+            return null;
         }
     }
 

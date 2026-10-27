@@ -948,6 +948,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _edgeAnimatingAv = false;
         // 【隐藏/显示过渡动画】停止计时器、复位窗口位置与内容状态（窗口即将销毁）
         CancelHideShowAv();
+        StopRenderKeepAliveAv();   // 停止渲染帧保温（窗口即将销毁）
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
@@ -1631,6 +1632,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 e.Cancel = true;
                 _window.Hide();
+                StopRenderKeepAliveAv();
             }
         };
         _window.PositionChanged += (_, e) =>
@@ -1685,12 +1687,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             try { _window.Show(); } catch { }
         }
+        PingRenderKeepAliveAv();   // 显示：画面刚变化，唤醒按需渲染保温
         ApplyWindowLayer();
     }
 
     private void HideWindow()
     {
         try { _window?.Hide(); } catch { }
+        StopRenderKeepAliveAv();   // 窗口隐藏：无需再保温（重新显示时由 ShowWindow 重新挂上）
     }
 
     /// <summary>显式 / 事件驱动的层级应用（不受置底竞争防护约束，必须落实）。</summary>
@@ -1907,6 +1911,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
         try
         {
+            // 【按下瞬间】先唤醒渲染帧保温：让紧随其后的 SizeToContent 切换、布局与重绘落在同一合成帧。
+            PingRenderKeepAliveAv();
             // 冻结 SizeToContent.Auto：否则拖动过程中若 Auto 测量触发，会让透明悬浮窗每移动一次重测量 → 桌面合成器抖动
             _preDragAvSizeMode = _window.SizeToContent;
             if (_preDragAvSizeMode != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
@@ -1961,6 +1967,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
         try
         {
+            PingRenderKeepAliveAv();   // 拖动：位置在变，保持渲染帧热
             var curScreenPx = _window.PointToScreen(e.GetPosition(_window));
             var target = new PixelPoint(
                 _dragStartWindowPxAv.X + (curScreenPx.X - _dragStartScreenPxAv.X),
@@ -2039,6 +2046,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { _dragPointerAv?.Capture(null); } catch { }
         _dragPointerAv = null;
         StopGlassVSyncAv();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
+        PingRenderKeepAliveAv();   // 松手：让落位与收尾绘制走完再睡
         FloatScheduleRenderFrameSync.Dbg("vend", "\"commitPending\":" + (_glassCommitPendingAv ? 1 : 0));
         if (_glassCommitPendingAv) { _glassCommitPendingAv = false; _glassAv.Commit(); }   // 未提交的采样帧直接落地
 
@@ -2975,7 +2983,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _edgeHiddenPosAv = hidden;
         if (_edgeHiddenAv && !_edgeAnimatingAv)
         {
-            try { _window.Position = hidden; } catch { }
+            try { _window.Position = hidden; PingRenderKeepAliveAv(); } catch { }
         }
         else if (_edgeAnimatingAv && _edgeAnimWillHideAv)
         {
@@ -3035,6 +3043,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _window.Position = new PixelPoint(
                 (int)Math.Round(_edgeAnimFromAv.X + (_edgeAnimTargetAv.X - _edgeAnimFromAv.X) * eased),
                 (int)Math.Round(_edgeAnimFromAv.Y + (_edgeAnimTargetAv.Y - _edgeAnimFromAv.Y) * eased));
+            PingRenderKeepAliveAv();   // 贴边滑移：位置在变
         }
         catch (Exception ex)
         {
@@ -3691,6 +3700,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             double eased = _hideAnimEasingAv?.Ease(u) ?? u;
             _hideAnimProgressAv = _hideAnimFromAv + (_hideAnimTargetAv - _hideAnimFromAv) * eased;
             ApplyHideShowProgressAv(_hideAnimProgressAv);
+            PingRenderKeepAliveAv();   // 过渡动画：内容透明度/位置在变
         }
         catch (Exception ex)
         {
@@ -4088,7 +4098,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         return (host, indicator);
     }
 
-    private static void ApplyProgressRatioAv(Layoutable? host, Border? indicator, double ratio)
+    private void ApplyProgressRatioAv(Layoutable? host, Border? indicator, double ratio)
     {
         // 【★ 修复：进度条比例改为 Grid Star 列宽驱动】
         //  host 是 CreateSelfDrawnProgressBar 创建的 Grid（含 2 列：Column0=进度比例 / Column1=剩余）。
@@ -4098,8 +4108,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
         //  - 时间跳变/5s 硬刷新频繁重建时进度条连续正确（消除"流速不对/忽快忽慢/倒退"）
         if (host is not Grid hostGrid || hostGrid.ColumnDefinitions.Count < 2) return;
         ratio = double.IsNaN(ratio) ? 0.0 : Math.Clamp(ratio, 0.0, 1.0);
+        // 只在"比例真的变了"时唤醒渲染保温：进度每 500ms 写入，值不变就没有画面变化，不应打扰渲染睡眠。
+        var oldWidth = hostGrid.ColumnDefinitions[0].Width;
+        bool changed = oldWidth.GridUnitType != GridUnitType.Star || Math.Abs(oldWidth.Value - ratio) > 0.0005;
         hostGrid.ColumnDefinitions[0].Width = new GridLength(ratio, GridUnitType.Star);
         hostGrid.ColumnDefinitions[1].Width = new GridLength(Math.Max(0.0, 1.0 - ratio), GridUnitType.Star);
+        if (changed) PingRenderKeepAliveAv();
     }
 
     // ===================== 课表行休息分隔线（3px）辅助 =====================
@@ -4770,6 +4784,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _breakSeparatorLinesAv.AddRange(refs.SeparatorLines);
             if (_breakSeparatorLinesAv.Count > 0) EnsureBreakSeparatorThemeSubAv();
             else UnsubscribeBreakSeparatorThemeAv();
+            PingRenderKeepAliveAv();   // 内容已重建/更新：唤醒渲染保温
         }
         // 进程内渲染同时把模型写入 HostProcessService 缓存：独立模式刚开启（子进程未连接）时 Init 也能拿到最新数据
         _hostProcess?.CacheModel(model);
@@ -4979,6 +4994,45 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
     }
 
+    // ===== 【修复：拖动鼠标按下瞬间 1 帧闪烁】按需渲染帧保温 =====
+    // 现象与结论：给悬浮窗加"逐帧窗口位置采样"插桩后，按下时的 1 帧闪烁稳定复现不了；撤掉插桩又复现。
+    //   两者唯一的结构差异是插桩用链式 RequestAnimationFrame 让渲染循环在窗口可见期间持续出帧
+    //   （窗口平时是按需渲染、帧间空闲）。由此判定：按下时把 SizeToContent 从 Auto 切成 Manual 会提交一次
+    //   窗口尺寸/布局变更，空闲态的这次提交与内容重绘落在不同合成帧（DWM 先按新窗口框呈现旧内容一帧）。
+    // 做法：**按需**保温——任何"可能改变画面/位置"的动作（按下、拖动、内容重建、进度变化、玻璃换图、
+    //   过渡/贴边/淡化动画）都 Ping 一次，把渲染帧链续到 now + 200ms；连续 200ms 无动作则由内嵌回调
+    //   自行停止（渲染循环回到空闲睡眠）。这样按下瞬间渲染循环是热的（布局+重绘+呈现同帧），
+    //   静止时则完全不产生额外帧。
+    // 注意：必须用"链式 RequestAnimationFrame 续帧"而不是 Timer 定时刷新，否则睡眠期间仍会唤醒渲染。
+    const int RenderKeepAliveQuietMs = 200;
+
+    FloatScheduleRenderFrameSync? _renderKeepAliveAv;
+    long _renderKeepAliveUntilAv;
+
+    /// <summary>标记"画面或位置可能变化"，把按需渲染帧保温续到 now + 200ms（幂等）。</summary>
+    void PingRenderKeepAliveAv()
+    {
+        _renderKeepAliveUntilAv = Environment.TickCount64 + RenderKeepAliveQuietMs;
+        if (_window == null) return;
+        if (_renderKeepAliveAv is { IsRunning: true }) return;
+        _renderKeepAliveAv = new FloatScheduleRenderFrameSync(_window, OnRenderKeepAliveFrameAv);
+        _renderKeepAliveAv.Start();
+    }
+
+    // 渲染帧回调：静默期满即停（停后不再请求下一帧 → 渲染循环回到空闲）。
+    void OnRenderKeepAliveFrameAv()
+    {
+        if (Environment.TickCount64 < _renderKeepAliveUntilAv) return;
+        StopRenderKeepAliveAv();
+    }
+
+    void StopRenderKeepAliveAv()
+    {
+        var p = _renderKeepAliveAv;
+        _renderKeepAliveAv = null;
+        try { p?.Stop(); } catch { }
+    }
+
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glassAv 复用），无内容时 null 走近似边缘光
     Border? GlassBackdropLayerAv()
         => ResolveMaterialAv() == 3 ? _glassAv.TakeLayer(_settings.FloatingScheduleCornerRadius) : null;
@@ -5007,8 +5061,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
             // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
             //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
-            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); }
-            else { _glassAv.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); }
+            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); PingRenderKeepAliveAv(); }
+            else { _glassAv.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); PingRenderKeepAliveAv(); }
             if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
             {
                 _glassAv.ClearNeedsApply();
@@ -5069,7 +5123,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
         }
         catch { }
         _fpsNoWaitAv = noWait;
-        try { _currentFpsTextAv.Text = $"{_fpsRenderAv:F1}/{_fpsNoWaitAv:F1}"; } catch { }
+        try
+        {
+            var text = $"{_fpsRenderAv:F1}/{_fpsNoWaitAv:F1}";
+            if (_currentFpsTextAv.Text != text)
+            {
+                _currentFpsTextAv.Text = text;
+                PingRenderKeepAliveAv();   // 角标文字变了（画面变化）
+            }
+        }
+        catch { }
     }
 
     /// <summary>构建悬浮窗行为设置快照（独立进程模式经 settings 消息推送；枚举以 int 传输避免跨程序集类型依赖）。</summary>
@@ -5169,6 +5232,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         CancelEdgeTimersAv();
                     }
                     window.Position = DefaultWindowPositionAv;
+                    PingRenderKeepAliveAv();   // 位置被重置：位置在变
                 }
                 catch (Exception ex) { _logger.LogDebug(ex, "复位窗口位置（进程内）异常（忽略）"); }
             });

@@ -243,6 +243,39 @@ internal sealed class FloatScheduleChildWindow : Window
         }
     }
 
+    // ===== 【修复：拖动鼠标按下瞬间 1 帧闪烁】按需渲染帧保温 =====
+    // 现象与结论：加"逐帧窗口位置采样"插桩后按下时的 1 帧闪烁稳定复现不了，撤掉插桩又复现；
+    //   两者唯一的结构差异是插桩用链式 RequestAnimationFrame 让渲染循环持续出帧（窗口平时按需渲染、帧间空闲）。
+    //   由此判定：按下时 SizeToContent 从 Auto 切成 Manual 提交的窗口尺寸变更，在空闲态与内容重绘落在不同合成帧。
+    // 做法：**按需**保温——按下/拖动/内容重建/进度变化/玻璃换图/过渡与贴边动画都 Ping 一次，
+    //   把渲染帧链续到 now + 200ms；连续 200ms 无动作即自行停止（渲染循环回到空闲睡眠）。
+    const int RenderKeepAliveQuietMs = 200;
+
+    FloatScheduleRenderFrameSync? _renderKeepAlive;
+    long _renderKeepAliveUntil;
+
+    /// <summary>标记"画面或位置可能变化"，把按需渲染帧保温续到 now + 200ms（幂等）。</summary>
+    void PingRenderKeepAlive()
+    {
+        _renderKeepAliveUntil = Environment.TickCount64 + RenderKeepAliveQuietMs;
+        if (_renderKeepAlive is { IsRunning: true }) return;
+        _renderKeepAlive = new FloatScheduleRenderFrameSync(this, OnRenderKeepAliveFrame);
+        _renderKeepAlive.Start();
+    }
+
+    void OnRenderKeepAliveFrame()
+    {
+        if (Environment.TickCount64 < _renderKeepAliveUntil) return;
+        StopRenderKeepAlive();
+    }
+
+    void StopRenderKeepAlive()
+    {
+        var p = _renderKeepAlive;
+        _renderKeepAlive = null;
+        try { p?.Stop(); } catch { }
+    }
+
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glass 复用），无内容时返回 null 走近似边缘光
     Border? GlassBackdropLayer() => _snap.Material == 3 ? _glass.TakeLayer(_snap.CornerRadius) : null;
 
@@ -268,8 +301,8 @@ internal sealed class FloatScheduleChildWindow : Window
             // 只原位更新位图并就地换背景；绝不调用 RenderModel（那会重建整棵可视树）
             // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
             //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
-            if (IsGlassVSyncActive() && _glass.HasContent) { _glassCommitPending = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); }
-            else { _glass.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); }
+            if (IsGlassVSyncActive() && _glass.HasContent) { _glassCommitPending = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); PingRenderKeepAlive(); }
+            else { _glass.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); PingRenderKeepAlive(); }
             if (_glass.NeedsApply && _lastModel != null)   // 首次拿到内容时才重套一次材质
             {
                 _glass.ClearNeedsApply();
@@ -316,6 +349,7 @@ internal sealed class FloatScheduleChildWindow : Window
         StartOrStopHoverTimer();
         ReattachTopmostRefresh();
         ScheduleEdgeEval();
+        PingRenderKeepAlive();   // 显示：画面刚变化，唤醒按需渲染保温
     }
 
     // ===================== 管道消息 =====================
@@ -426,7 +460,7 @@ internal sealed class FloatScheduleChildWindow : Window
                             StopInitTimeoutGuard();
                             StopStartupGuard();
                             StopReconnectGuard();
-                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); ArmPositionReportingAfterSettle(); }
+                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); ArmPositionReportingAfterSettle(); PingRenderKeepAlive(); }
                             // 托盘图标（原生 Win32 实现，独立于本窗口，无需等待窗口就绪）
                             try { FloatScheduleApp.Self?.EnsureTrayIcon(); } catch { }
                         }
@@ -475,6 +509,7 @@ internal sealed class FloatScheduleChildWindow : Window
     /// 宿主据此识别为计划内重启（不受"意外退出"限频约束）并立刻用新构建重启。</summary>
     void CloseAndExit(int exitCode = 0)
     {
+        StopRenderKeepAlive();
         try { _cts.Cancel(); } catch { }
         try { Close(); } catch { }
         Environment.Exit(exitCode);
@@ -514,9 +549,15 @@ internal sealed class FloatScheduleChildWindow : Window
     void ApplyProgress(double classRatio, double breakRatio)
     {
         if (_refs == null) return;
+        bool changed = Math.Abs(classRatio - _lastClassRatio) > 0.0005 || Math.Abs(breakRatio - _lastBreakRatio) > 0.0005;
+        _lastClassRatio = classRatio;
+        _lastBreakRatio = breakRatio;
         FloatScheduleRenderer.ApplyProgressRatio(_refs.ClassProgressHost, _refs.ClassProgressIndicator, classRatio);
         FloatScheduleRenderer.ApplyProgressRatio(_refs.BreakProgressHost, _refs.BreakProgressIndicator, breakRatio);
+        if (changed) PingRenderKeepAlive();   // 进度真的变了（画面变化）才唤醒渲染
     }
+
+    double _lastClassRatio, _lastBreakRatio;
 
     void ApplySettings(FloatScheduleWindowSettings s, bool isInit)
     {
@@ -583,6 +624,7 @@ internal sealed class FloatScheduleChildWindow : Window
             ApplyTransparency();   // 材质联动窗口透明级别（云母需 Mica、亚克力需 AcrylicBlur）
             if (_lastModel != null) { try { RenderModel(_lastModel); } catch { } }
         }
+        PingRenderKeepAlive();   // 设置快照应用后画面可能变化（位置/透明度/材质/边距）
     }
 
     /// <summary>
@@ -629,6 +671,7 @@ internal sealed class FloatScheduleChildWindow : Window
                     // 取不到几何时的回退：先恢复到贴边前位置再隐藏，避免恢复时闪现
                     try { if (_edgeHiddenAv) Position = _edgeDockedPosAv; } catch { }
                     Hide();
+                    StopRenderKeepAlive();
                 }
             }
         }
@@ -792,6 +835,7 @@ internal sealed class FloatScheduleChildWindow : Window
             double eased = _hideAnimEasing?.Ease(u) ?? u;
             _hideAnimProgress = _hideAnimFrom + (_hideAnimTarget - _hideAnimFrom) * eased;
             ApplyHideShowProgress(_hideAnimProgress);
+            PingRenderKeepAlive();   // 过渡动画：内容透明度/位置在变
         }
         catch
         {
@@ -824,6 +868,7 @@ internal sealed class FloatScheduleChildWindow : Window
                 _edgeSlideOutPending = false;
             }
             try { Hide(); } catch { }
+            StopRenderKeepAlive();   // 窗口隐藏：停止渲染帧保温（重新显示时再挂上）
             // 隐藏后再复位：窗口位置回到用户放置位、内容恢复完全可见、进度归零
             //（必须仍在"动画进行中"标志下执行，否则位置变化会被上报给插件持久化）
             _hideAnimProgress = 0;
@@ -1068,6 +1113,8 @@ internal sealed class FloatScheduleChildWindow : Window
         if (_dragActive) return;
         try
         {
+            // 【按下瞬间】先唤醒渲染帧保温：让紧随其后的 SizeToContent 切换、布局与重绘落在同一合成帧。
+            PingRenderKeepAlive();
             _preDragSizeMode = SizeToContent;
             if (_preDragSizeMode != SizeToContent.Manual) SizeToContent = SizeToContent.Manual;
             _dragActive = true;
@@ -1096,6 +1143,7 @@ internal sealed class FloatScheduleChildWindow : Window
         if (_dragPointer != null && !ReferenceEquals(e.Pointer, _dragPointer)) return;
         try
         {
+            PingRenderKeepAlive();   // 拖动：位置在变，保持渲染帧热
             var curScreenPx = this.PointToScreen(e.GetPosition(this));
             var target = new PixelPoint(
                 _dragStartWindowPx.X + (curScreenPx.X - _dragStartScreenPx.X),
@@ -1151,6 +1199,7 @@ internal sealed class FloatScheduleChildWindow : Window
         try { _dragPointer?.Capture(null); } catch { }
         _dragPointer = null;
         StopGlassVSync();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
+        PingRenderKeepAlive();   // 松手：让落位与收尾绘制走完再睡
         FloatScheduleRenderFrameSync.Dbg("vend", "\"commitPending\":" + (_glassCommitPending ? 1 : 0));
         if (_glassCommitPending) { _glassCommitPending = false; _glass.Commit(); }   // 未提交的采样帧直接落地
         try
@@ -1544,6 +1593,7 @@ internal sealed class FloatScheduleChildWindow : Window
             Position = new PixelPoint(
                 (int)Math.Round(_edgeAnimFrom.X + (_edgeAnimTarget.X - _edgeAnimFrom.X) * eased),
                 (int)Math.Round(_edgeAnimFrom.Y + (_edgeAnimTarget.Y - _edgeAnimFrom.Y) * eased));
+            PingRenderKeepAlive();   // 贴边滑移：位置在变
         }
         catch
         {
@@ -1737,6 +1787,7 @@ internal sealed class FloatScheduleChildWindow : Window
             if (t >= 1.0) { StopFadeAnim(); Opacity = _fadeAnimTo; return; }
             double eased = 1 - Math.Pow(1 - t, 3);
             Opacity = _fadeAnimFrom + (_fadeAnimTo - _fadeAnimFrom) * eased;
+            PingRenderKeepAlive();   // 悬停淡化：窗口透明度在变
         }
         catch { StopFadeAnim(); try { Opacity = _fadeAnimTo; } catch { } }
     }
@@ -1886,5 +1937,8 @@ internal sealed class FloatScheduleChildWindow : Window
         _refs = refs;
         FloatScheduleRenderer.ApplyProgressRatio(refs.ClassProgressHost, refs.ClassProgressIndicator, model.ClassProgressRatio);
         FloatScheduleRenderer.ApplyProgressRatio(refs.BreakProgressHost, refs.BreakProgressIndicator, model.BreakProgressRatio);
+        _lastClassRatio = model.ClassProgressRatio;
+        _lastBreakRatio = model.BreakProgressRatio;
+        PingRenderKeepAlive();   // 内容已重建（画面变化）
     }
 }

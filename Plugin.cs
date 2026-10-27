@@ -30,6 +30,12 @@ public class Plugin : PluginBase
 
     public static Plugin Instance { get; private set; } = null!;
 
+    /// <summary>
+    /// 「女装」彩蛋触发门槛的启动快照：仅当「实验性功能」开关在插件启动（应用重启）时已开启，
+    /// 主设置的「女装」彩蛋才可被连点触发。运行中改开关不刷新本快照（改完需重启应用才生效）。
+    /// </summary>
+    public static bool EasterEggGateEnabled { get; private set; }
+
     public PluginSettings Settings { get; set; } = new();
     public DebugSettings DebugSettings { get; set; } = new();
 
@@ -102,6 +108,10 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
+
+        // 「女装」彩蛋触发门槛快照：只在插件启动（Initialize）时读一次，
+        // 运行中改「实验性功能」开关不影响本次会话，重启应用后才生效
+        EasterEggGateEnabled = Settings.EnableExperimentalFeatures;
     }
 
     private void SaveSettings()
