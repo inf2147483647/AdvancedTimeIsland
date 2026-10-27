@@ -125,6 +125,50 @@ function Test-PackageDependencies {
     return $true
 }
 
+function Add-TraceIdRecord {
+    # 记录本次编译产物 AdvancedTimeIsland.dll 的 MD5，
+    # 追加写入 TraceIDlist.txt，格式：[WPF/FA2/FA3]-[版本号]-[构建时间]-[MD5]
+    param(
+        [string]$OutputDir,
+        [string]$Label
+    )
+
+    $dllPath = Join-Path $OutputDir "AdvancedTimeIsland.dll"
+    if (-not (Test-Path $dllPath)) {
+        Write-Warning "TraceID record skipped: AdvancedTimeIsland.dll not found in $OutputDir"
+        return
+    }
+
+    $manifestPath = Join-Path $OutputDir "manifest.yml"
+    $version = "unknown"
+    if (Test-Path $manifestPath) {
+        foreach ($line in Get-Content $manifestPath) {
+            if ($line -match '^\s*version\s*:\s*(\S+)') {
+                $version = $Matches[1]
+                break
+            }
+        }
+    }
+
+    $md5 = (Get-FileHash $dllPath -Algorithm MD5).Hash
+    $timestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss'
+    $record = "$Label-$version-$timestamp-$md5"
+
+    $tracePath = Join-Path $ProjectRoot "TraceIDlist.txt"
+    $existing = if (Test-Path $tracePath) { [System.IO.File]::ReadAllText($tracePath) } else { "" }
+    if ($existing.Length -gt 0 -and -not $existing.EndsWith("`n")) {
+        $existing += "`r`n"
+    }
+    $content = $existing + $record + "`r`n"
+
+    # 原子写入：先写同目录临时文件，再替换目标文件
+    $tempPath = Join-Path $ProjectRoot "TraceIDlist.txt.tmp"
+    [System.IO.File]::WriteAllText($tempPath, $content, (New-Object System.Text.UTF8Encoding $true))
+    Move-Item $tempPath $tracePath -Force
+
+    Write-Host "TraceID: $record"
+}
+
 function Create-CipxPackage {
     param(
         [string]$OutputDir,
@@ -233,7 +277,12 @@ function Build-Variant {
         return $false
     }
 
-    return Create-CipxPackage -OutputDir $OutputDir -PackageName "$PackageBaseName.cipx"
+    $packed = Create-CipxPackage -OutputDir $OutputDir -PackageName "$PackageBaseName.cipx"
+    if ($packed) {
+        $traceLabel = if ($TargetFramework -eq "net10.0") { "FA3" } else { "FA2" }
+        Add-TraceIdRecord -OutputDir $OutputDir -Label $traceLabel
+    }
+    return $packed
 }
 
 function Build-WpfVariant {
@@ -258,7 +307,11 @@ function Build-WpfVariant {
         return $false
     }
 
-    return Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
+    $packed = Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
+    if ($packed) {
+        Add-TraceIdRecord -OutputDir $OutputDir -Label "WPF"
+    }
+    return $packed
 }
 
 function Publish-FloatExe {

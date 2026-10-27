@@ -574,6 +574,9 @@ public class PluginSettingsPage : UserControl
 
         public required Action<PluginSettings, bool> Set { get; init; }
 
+        /// <summary>由关闭改为开启并提交保存时，需先通过集控验证（帧率折线 / 汉服指南 / 小工具）。</summary>
+        public bool RequiresVerification { get; init; }
+
         // 供 DataGrid 的复选框列双向绑定，勾选后立即回写本属性
         public bool IsEnabled
         {
@@ -1503,22 +1506,85 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 「应用并重启」：提交表格内全部勾选项后立即重启 ClassIsland。
-    /// 「小工具」无需重启，提交后立即通知主设置导航栏重建标签页。
+    /// 「应用并重启」：受保护项（帧率折线 / 汉服指南 / 小工具）存在「由关闭改为开启」时先通过集控验证，
+    /// 验证未通过则不提交、不重启；通过后提交表格内全部勾选项并立即重启 ClassIsland。
     /// </summary>
-    private void OnFeatureDrawerApplyAndRestartClick(object? sender, RoutedEventArgs e)
+    private async void OnFeatureDrawerApplyAndRestartClick(object? sender, RoutedEventArgs e)
     {
+        if (!await ValidateProtectedTogglesAsync())
+        {
+            return;
+        }
         SubmitFeatureDrawer();
         ClassIsland.Core.AppBase.Current.Restart();
     }
 
     /// <summary>
-    /// 「确定，稍后重启」：提交表格内全部勾选项，并请求重启
+    /// 「确定，稍后重启」：受保护项存在「由关闭改为开启」时先通过集控验证，验证未通过则不提交；
+    /// 通过后提交表格内全部勾选项，并请求重启
     /// （设置窗口右上角出现「需要重启」按钮，由用户决定何时重启）。
     /// </summary>
-    private void OnFeatureDrawerApplyLaterClick(object? sender, RoutedEventArgs e)
+    private async void OnFeatureDrawerApplyLaterClick(object? sender, RoutedEventArgs e)
     {
+        if (!await ValidateProtectedTogglesAsync())
+        {
+            return;
+        }
         SubmitFeatureDrawer();
+    }
+
+    /// <summary>
+    /// 受保护功能项在「由关闭改为开启」并提交保存前需先通过集控验证（帧率折线 / 汉服指南 / 小工具）；
+    /// 本次提交不涉及受保护项的开启变更时直接放行。
+    /// </summary>
+    private async Task<bool> ValidateProtectedTogglesAsync()
+    {
+        if (_settings == null)
+        {
+            return true;
+        }
+
+        var anyTurningOn = _featureItems.Any(item =>
+            item.RequiresVerification && item.IsEnabled && !item.Get(_settings));
+        if (!anyTurningOn)
+        {
+            return true;
+        }
+
+        var ok = await AboutPage.VerifyManagementCredentialAsync();
+        if (!ok)
+        {
+            await ShowVerificationFailedDialogAsync();
+        }
+        return ok;
+    }
+
+    /// <summary>集控验证未通过的提示对话框（本次更改不提交，抽屉保持打开供用户修改勾选）。</summary>
+    private async Task ShowVerificationFailedDialogAsync()
+    {
+        var topLevel = TopLevel.GetTopLevel(this);
+        if (topLevel == null)
+        {
+            return;
+        }
+
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "验证未通过");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
+        {
+            Text = "集控验证未通过，本次更改未保存。",
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetTextBrush()
+        });
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "确定");
+        try
+        {
+            await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"[PluginSettings] 验证提示对话框异常：{ex}");
+        }
     }
 
     /// <summary>
@@ -1627,7 +1693,7 @@ public class PluginSettingsPage : UserControl
     /// <summary>
     /// 登记表格行（功能名 / 注释 / 设置项读写映射）。
     /// </summary>
-    private void AddFeature(string name, string comment, Func<PluginSettings, bool> get, Action<PluginSettings, bool> set)
+    private void AddFeature(string name, string comment, Func<PluginSettings, bool> get, Action<PluginSettings, bool> set, bool requiresVerification = false)
     {
         _featureItems.Add(new FeatureItem
         {
@@ -1635,6 +1701,7 @@ public class PluginSettingsPage : UserControl
             Comment = comment,
             Get = get,
             Set = set,
+            RequiresVerification = requiresVerification,
             IsEnabled = _settings != null && get(_settings)
         });
     }
@@ -1668,17 +1735,17 @@ public class PluginSettingsPage : UserControl
         AddFeature("节日", "",
             s => s.EnableFestival, (s, v) => s.EnableFestival = v);
 
-        // 帧率折线图及其分析页面是否注册，默认关闭；采集依赖「实验性功能」
-        AddFeature("帧率折线", "控制帧率折线图及其分析页面是否注册。需先开启“实验性功能”。",
-            s => s.EnableFpsChart, (s, v) => s.EnableFpsChart = v);
+        // 帧率折线图及其分析页面是否注册，默认关闭；开启需集控验证；采集依赖「实验性功能」
+        AddFeature("帧率折线", "控制帧率折线图及其分析页面是否注册。需先开启“实验性功能”。由关闭改为开启保存时需集控验证。",
+            s => s.EnableFpsChart, (s, v) => s.EnableFpsChart = v, requiresVerification: true);
 
-        // 170+ 汉服页面与「汉服指南」标签页、汉服 Markdown 下载，默认开启
-        AddFeature("汉服指南", "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。",
-            s => s.EnableHanfuGuide, (s, v) => s.EnableHanfuGuide = v);
+        // 170+ 汉服页面与「汉服指南」标签页、汉服 Markdown 下载，默认关闭；开启需集控验证
+        AddFeature("汉服指南", "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。由关闭改为开启保存时需集控验证。",
+            s => s.EnableHanfuGuide, (s, v) => s.EnableHanfuGuide = v, requiresVerification: true);
 
-        // 主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认开启
-        AddFeature("小工具", "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。此项无需重启，提交后立即生效。",
-            s => s.EnableUtilities, (s, v) => s.EnableUtilities = v);
+        // 主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认关闭；开启需集控验证
+        AddFeature("小工具", "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。此项无需重启，提交后立即生效。由关闭改为开启保存时需集控验证。",
+            s => s.EnableUtilities, (s, v) => s.EnableUtilities = v, requiresVerification: true);
     }
 
     /// <summary>

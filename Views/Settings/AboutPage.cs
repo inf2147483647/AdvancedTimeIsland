@@ -657,14 +657,14 @@ public class AboutPage : SettingsPageBase
 
     /// <summary>
     /// 集控验证：宿主已加入集控且集控下发了凭据（管理员 / 用户凭据）时，必须先通过宿主原生的
-    /// 集控凭据校验才能触发彩蛋。
+    /// 集控凭据校验才能继续（用于「女装」彩蛋触发与「管理启用的功能」中受保护项的开启）。
     /// <para>
     /// 这里不直接读取 <c>IManagementService.CredentialConfig</c> 判断"是否设了密码"，而是统一调用
     /// <c>AuthorizeByLevel</c>：宿主实现里"两种凭据都为空"会直接返回 true（不弹窗），有凭据时才弹出
     /// 凭据输入窗口，语义与"集控有密码才需要验证"完全一致，也避免插件依赖宿主的凭据内部结构。
     /// </para>
     /// </summary>
-    private static async Task<bool> VerifyManagementCredentialAsync()
+    internal static async Task<bool> VerifyManagementCredentialAsync()
     {
         IManagementService? managementService;
         try
