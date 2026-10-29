@@ -852,10 +852,10 @@ public static class IntroAnimationHelper
 
     // 时长与 ClassIsland 的 Expander 一致的展开时长（收起与之保持一致）；
     // 缓动沿用 WinUI：展开 KeySpline(0,0,0,1)、收起 KeySpline(1,1,0,1)。
-    private static readonly TimeSpan ExpandSizeDuration = TimeSpan.FromMilliseconds(333);
-    private static readonly TimeSpan CollapseSizeDuration = ExpandSizeDuration;
-    private static readonly Easing ExpandSizeEasing = Easing.Parse("0,0,0,1");
-    private static readonly Easing CollapseSizeEasing = Easing.Parse("1,1,0,1");
+    // 对外公开：其它页面（如汉服模板的目录折叠）需要复用同一套折叠栏节奏。
+    public static readonly TimeSpan ExpanderExpandDuration = TimeSpan.FromMilliseconds(333);
+    public static readonly Easing ExpanderExpandEasing = Easing.Parse("0,0,0,1");
+    public static readonly Easing ExpanderCollapseEasing = Easing.Parse("1,1,0,1");
 
     /// <summary>
     /// 创建“平滑展开 / 折叠宿主”：把任意带 <c>IsExpanded</c> 属性的控件（如 FluentAvalonia 的
@@ -957,7 +957,7 @@ public static class IntroAnimationHelper
         private double _contentDurationMs = 1;
         private double _contentFromY;
         private double _contentToY;
-        private IEasing _contentEasing = ExpandSizeEasing;
+        private IEasing _contentEasing = ExpanderExpandEasing;
         // 内容块是否已按“折叠态滑出”定位过：首次展开前需先归位，否则起点=终点、没有滑动动画
         private bool _contentSlideInitialized;
 
@@ -1063,12 +1063,12 @@ public static class IntroAnimationHelper
             _sizeTransition = new DoubleTransition
             {
                 Property = Layoutable.HeightProperty,
-                Duration = ExpandSizeDuration,
-                Easing = ExpandSizeEasing
+                Duration = ExpanderExpandDuration,
+                Easing = ExpanderExpandEasing
             };
             _host.Transitions = new Transitions { _sizeTransition };
 
-            _collapseCommitTimer = new DispatcherTimer { Interval = CollapseSizeDuration };
+            _collapseCommitTimer = new DispatcherTimer { Interval = ExpanderExpandDuration };
             _collapseCommitTimer.Tick += OnCollapseCommit;
         }
 
@@ -1318,7 +1318,7 @@ public static class IntroAnimationHelper
                 }
 
                 // 内容随容器一起向下滑入（与容器底部同步）
-                StartContentAnimation(0, ExpandSizeDuration, ExpandSizeEasing);
+                StartContentAnimation(0, ExpanderExpandDuration, ExpanderExpandEasing);
             }
             else
             {
@@ -1334,7 +1334,7 @@ public static class IntroAnimationHelper
                 ApplySizeTransition(false);
                 SetHeight(ResolveTargetHeight());
 
-                StartContentAnimation(-GetContentSlideDistance(), CollapseSizeDuration, CollapseSizeEasing);
+                StartContentAnimation(-GetContentSlideDistance(), ExpanderExpandDuration, ExpanderCollapseEasing);
                 _contentSlideInitialized = true;
 
                 // 过渡结束后再真正折叠内部控件
@@ -1447,8 +1447,8 @@ public static class IntroAnimationHelper
                 return;
             }
 
-            _sizeTransition.Duration = expanded ? ExpandSizeDuration : CollapseSizeDuration;
-            _sizeTransition.Easing = expanded ? ExpandSizeEasing : CollapseSizeEasing;
+            _sizeTransition.Duration = ExpanderExpandDuration;
+            _sizeTransition.Easing = expanded ? ExpanderExpandEasing : ExpanderCollapseEasing;
         }
 
         /// <summary>内容块需要滑动的距离（= 内容高度 = 展开高度 − 折叠高度）。</summary>

@@ -7,6 +7,8 @@ using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using Avalonia;
+using Avalonia.Animation;
+using Avalonia.Animation.Easings;
 using Avalonia.Collections;
 using Avalonia.Controls;
 using Avalonia.Controls.Documents;
@@ -44,6 +46,47 @@ public class HanfuPageTemplate : SettingsPageBase
     private Dictionary<int, LoadingData>? _loadingData;
     private Dictionary<Span, string>? _hyperlinkSpanMap;
 
+    // ==================== 分屏目录（左屏目录 / 右屏正文） ====================
+    /// <summary>目录面板展开时的固定宽度。</summary>
+    private const double TocWidth = 200.0;
+
+    /// <summary>点击目录跳转正文的过渡时长（平滑结束、不平滑开始 = ease-out）。</summary>
+    private static readonly TimeSpan TocJumpDuration = TimeSpan.FromMilliseconds(500);
+    private static readonly IEasing TocJumpEasing = Easing.Parse("0,0,0,1");
+
+    /// <summary>右侧正文滚动容器。</summary>
+    private ScrollViewer? _contentScrollViewer;
+    /// <summary>可折叠的目录外框（宽度做折叠栏动画，内容固定宽度以便裁剪）。</summary>
+    private Border? _tocHost;
+    private Border? _tocCard;
+    private ScrollViewer? _tocScrollViewer;
+    private StackPanel? _tocListPanel;
+    private Button? _tocToggleButton;
+    private TextBlock? _tocToggleGlyph;
+    private TextBlock? _tocTitleTextBlock;
+    /// <summary>构建正文时收集到的标题（用于生成目录）。</summary>
+    private readonly List<TocHeading> _tocHeadings = new();
+    private readonly List<TocItem> _tocItems = new();
+    private TocItem? _activeTocItem;
+    private DispatcherTimer? _tocJumpTimer;
+    private bool _isTocCollapsed;
+    /// <summary>是否收集标题：仅完整初始化（带目录 UI）时开启，延迟初始化（渲染到其它面板）不收集。</summary>
+    private bool _collectTocHeadings;
+
+    private sealed class TocHeading
+    {
+        public required Control Target { get; init; }
+        public required string Title { get; init; }
+        public required int Level { get; init; }
+    }
+
+    private sealed class TocItem
+    {
+        public required TocHeading Heading { get; init; }
+        public required Border Container { get; init; }
+        public required TextBlock Text { get; init; }
+    }
+
     public HanfuPageTemplate()
     {
         InitializeComponent();
@@ -70,6 +113,8 @@ public class HanfuPageTemplate : SettingsPageBase
     {
         _paragraphTextBlocks = new List<TextBlock>();
         _sectionTextBlocks = new List<TextBlock>();
+        _tocHeadings.Clear();
+        _tocItems.Clear();
 
         // 返回按钮脱离滚动容器，始终固定在页面顶部
         _backTextBlock = new TextBlock
@@ -97,6 +142,9 @@ public class HanfuPageTemplate : SettingsPageBase
             Spacing = 8
         };
 
+        // 完整页面初始化时收集标题，供左侧目录使用
+        _collectTocHeadings = true;
+
         try
         {
             BuildContent(panel);
@@ -115,7 +163,7 @@ public class HanfuPageTemplate : SettingsPageBase
 
         _contentBorder.Child = panel;
 
-        var scrollViewer = new ScrollViewer
+        _contentScrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
@@ -123,20 +171,355 @@ public class HanfuPageTemplate : SettingsPageBase
             BringIntoViewOnFocusChange = false,
             Content = _contentBorder
         };
+        _contentScrollViewer.ScrollChanged += OnContentScrollChanged;
+        // 用户接手滚轮时立即结束目录跳转，避免两套滚动互相抢占
+        _contentScrollViewer.PointerWheelChanged += (_, _) => StopTocJump();
 
-        // 使用 Grid 将返回按钮固定在顶部，滚动内容占据剩余空间
+        // 左侧目录面板（先建结构，再填充条目）
+        _tocCard = BuildTocCard();
+        _tocHost = new Border
+        {
+            Width = TocWidth,
+            Opacity = 1,
+            ClipToBounds = true,
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Margin = new Thickness(0, 0, 4, 0),
+            Child = _tocCard
+        };
+        BuildTableOfContents();
+
+        // 目录折叠按钮：始终可见，目录收起后仍可再次展开
+        _tocToggleGlyph = new TextBlock
+        {
+            Text = "‹",
+            FontSize = 16,
+            Foreground = GetAccentBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _tocToggleButton = new Button
+        {
+            Content = _tocToggleGlyph,
+            Width = 30,
+            Height = 30,
+            Padding = new Thickness(0),
+            CornerRadius = new CornerRadius(6),
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(12, 12, 6, 0),
+            IsVisible = _tocItems.Count > 0
+        };
+        _tocToggleButton.Click += (_, _) => ToggleToc();
+        _tocHost.IsVisible = _tocItems.Count > 0;
+        if (_tocItems.Count == 0)
+        {
+            _tocHost.Width = 0;
+            _tocHost.Opacity = 0;
+        }
+
+        // 分屏：切换按钮 | 目录 | 正文
+        var splitGrid = new Grid();
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        Grid.SetColumn(_tocToggleButton, 0);
+        Grid.SetColumn(_tocHost, 1);
+        Grid.SetColumn(_contentScrollViewer, 2);
+        splitGrid.Children.Add(_tocToggleButton);
+        splitGrid.Children.Add(_tocHost);
+        splitGrid.Children.Add(_contentScrollViewer);
+
+        // 使用 Grid 将返回按钮固定在顶部，分屏内容占据剩余空间
         var rootGrid = new Grid();
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
         Grid.SetRow(_backTextBlock, 0);
-        Grid.SetRow(scrollViewer, 1);
+        Grid.SetRow(splitGrid, 1);
         rootGrid.Children.Add(_backTextBlock);
-        rootGrid.Children.Add(scrollViewer);
+        rootGrid.Children.Add(splitGrid);
 
         Content = rootGrid;
 
         // 鼠标滚轮平滑滚动
         IntroAnimationHelper.EnableSmoothScroll(this);
+    }
+
+    /// <summary>构建左侧目录卡片骨架（标题 + 可滚动条目区）。</summary>
+    private Border BuildTocCard()
+    {
+        var grid = new Grid();
+        grid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        grid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        _tocTitleTextBlock = new TextBlock
+        {
+            Text = "目录",
+            FontSize = 14,
+            FontWeight = FontWeight.Bold,
+            Foreground = ThemeHelper.GetTextBrush(),
+            Margin = new Thickness(6, 4, 4, 8)
+        };
+        Grid.SetRow(_tocTitleTextBlock, 0);
+        grid.Children.Add(_tocTitleTextBlock);
+
+        _tocListPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 2
+        };
+        _tocScrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            BringIntoViewOnFocusChange = false,
+            Content = _tocListPanel
+        };
+        Grid.SetRow(_tocScrollViewer, 1);
+        grid.Children.Add(_tocScrollViewer);
+
+        return new Border
+        {
+            Width = TocWidth,
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(6, 6, 4, 8),
+            Margin = new Thickness(0, 12, 8, 12),
+            VerticalAlignment = VerticalAlignment.Stretch,
+            Child = grid
+        };
+    }
+
+    /// <summary>把收集到的标题渲染成目录条目，并高亮首个条目。</summary>
+    private void BuildTableOfContents()
+    {
+        if (_tocListPanel == null)
+        {
+            return;
+        }
+
+        foreach (var heading in _tocHeadings)
+        {
+            var item = CreateTocItem(heading);
+            _tocItems.Add(item);
+            _tocListPanel.Children.Add(item.Container);
+        }
+
+        if (_tocItems.Count > 0)
+        {
+            SetActiveTocItem(_tocItems[0]);
+        }
+    }
+
+    private TocItem CreateTocItem(TocHeading heading)
+    {
+        var text = new TextBlock
+        {
+            Text = heading.Title,
+            FontSize = heading.Level switch { 1 => 14, 2 => 13, _ => 12 },
+            FontWeight = FontWeight.Normal,
+            Foreground = ThemeHelper.GetSubTextBrush(),
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness((heading.Level - 1) * 10, 0, 0, 0)
+        };
+
+        var container = new Border
+        {
+            Child = text,
+            Padding = new Thickness(6, 4),
+            CornerRadius = new CornerRadius(4),
+            Background = Brushes.Transparent,
+            Cursor = new Cursor(StandardCursorType.Hand)
+        };
+
+        var item = new TocItem { Heading = heading, Container = container, Text = text };
+        container.PointerPressed += (_, e) =>
+        {
+            ScrollToTocItem(item);
+            e.Handled = true;
+        };
+        return item;
+    }
+
+    /// <summary>点击目录条目：0.5s ease-out 平滑滚动正文到对应章节。</summary>
+    private void ScrollToTocItem(TocItem item)
+    {
+        if (_contentScrollViewer == null || _contentBorder == null)
+        {
+            return;
+        }
+
+        SetActiveTocItem(item);
+
+        double target = GetHeadingOffset(item.Heading);
+        double maxOffset = Math.Max(0, _contentScrollViewer.Extent.Height - _contentScrollViewer.Viewport.Height);
+        target = Math.Clamp(target, 0, maxOffset);
+
+        StopTocJump();
+        IntroAnimationHelper.StopSmoothScroll(_contentScrollViewer);
+
+        double from = _contentScrollViewer.Offset.Y;
+        if (!IntroAnimationHelper.IsEnabled || Math.Abs(target - from) < 0.5)
+        {
+            _contentScrollViewer.Offset = new Vector(_contentScrollViewer.Offset.X, target);
+            return;
+        }
+
+        var startedAt = DateTime.Now;
+        _tocJumpTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+        _tocJumpTimer.Tick += (_, _) =>
+        {
+            double progress = Math.Clamp(
+                (DateTime.Now - startedAt).TotalMilliseconds / TocJumpDuration.TotalMilliseconds, 0, 1);
+            double y = from + (target - from) * TocJumpEasing.Ease(progress);
+            _contentScrollViewer.Offset = new Vector(_contentScrollViewer.Offset.X, y);
+
+            if (progress >= 1)
+            {
+                _contentScrollViewer.Offset = new Vector(_contentScrollViewer.Offset.X, target);
+                StopTocJump();
+            }
+        };
+        _tocJumpTimer.Start();
+    }
+
+    private void StopTocJump()
+    {
+        _tocJumpTimer?.Stop();
+        _tocJumpTimer = null;
+    }
+
+    /// <summary>标题在正文内容坐标系中的纵向位置。</summary>
+    private double GetHeadingOffset(TocHeading heading)
+    {
+        if (_contentBorder == null)
+        {
+            return 0;
+        }
+
+        var position = heading.Target.TranslatePoint(new Point(0, 0), _contentBorder);
+        return position == null ? 0 : Math.Max(0, position.Value.Y - 8);
+    }
+
+    private void OnContentScrollChanged(object? sender, ScrollChangedEventArgs e)
+    {
+        if (_tocItems.Count == 0 || _contentScrollViewer == null || _contentBorder == null)
+        {
+            return;
+        }
+
+        double top = _contentScrollViewer.Offset.Y;
+        TocItem? current = null;
+        foreach (var item in _tocItems)
+        {
+            var position = item.Heading.Target.TranslatePoint(new Point(0, 0), _contentBorder);
+            if (position == null)
+            {
+                continue;
+            }
+
+            if (position.Value.Y <= top + 40)
+            {
+                current = item;
+            }
+            else
+            {
+                break;
+            }
+        }
+
+        SetActiveTocItem(current ?? _tocItems[0]);
+    }
+
+    private void SetActiveTocItem(TocItem item)
+    {
+        if (ReferenceEquals(_activeTocItem, item))
+        {
+            return;
+        }
+
+        if (_activeTocItem != null)
+        {
+            _activeTocItem.Text.FontWeight = FontWeight.Normal;
+            _activeTocItem.Text.Foreground = ThemeHelper.GetSubTextBrush();
+        }
+
+        _activeTocItem = item;
+        item.Text.FontWeight = FontWeight.Bold;
+        item.Text.Foreground = GetAccentBrush();
+
+        EnsureTocItemVisible(item);
+    }
+
+    /// <summary>目录滚动到高亮条目可见的位置（不触发页面级滚动）。</summary>
+    private void EnsureTocItemVisible(TocItem item)
+    {
+        if (_tocScrollViewer == null || _tocListPanel == null || _tocScrollViewer.Viewport.Height <= 0)
+        {
+            return;
+        }
+
+        var position = item.Container.TranslatePoint(new Point(0, 0), _tocListPanel);
+        if (position == null)
+        {
+            return;
+        }
+
+        double itemTop = position.Value.Y;
+        double itemBottom = itemTop + item.Container.Bounds.Height;
+        double viewTop = _tocScrollViewer.Offset.Y;
+        double viewBottom = viewTop + _tocScrollViewer.Viewport.Height;
+
+        if (itemTop < viewTop)
+        {
+            _tocScrollViewer.Offset = new Vector(0, itemTop);
+        }
+        else if (itemBottom > viewBottom)
+        {
+            _tocScrollViewer.Offset = new Vector(0, itemBottom - _tocScrollViewer.Viewport.Height);
+        }
+    }
+
+    /// <summary>展开 / 收起目录，动画节奏与设置页折叠栏一致。</summary>
+    private void ToggleToc()
+    {
+        if (_tocHost == null || _tocToggleGlyph == null)
+        {
+            return;
+        }
+
+        _isTocCollapsed = !_isTocCollapsed;
+
+        if (IntroAnimationHelper.IsEnabled)
+        {
+            var easing = _isTocCollapsed
+                ? IntroAnimationHelper.ExpanderCollapseEasing
+                : IntroAnimationHelper.ExpanderExpandEasing;
+            _tocHost.Transitions = new Transitions
+            {
+                new DoubleTransition
+                {
+                    Property = Layoutable.WidthProperty,
+                    Duration = IntroAnimationHelper.ExpanderExpandDuration,
+                    Easing = easing
+                },
+                new DoubleTransition
+                {
+                    Property = Visual.OpacityProperty,
+                    Duration = IntroAnimationHelper.ExpanderExpandDuration,
+                    Easing = easing
+                }
+            };
+        }
+        else
+        {
+            _tocHost.Transitions = null;
+        }
+
+        _tocHost.Width = _isTocCollapsed ? 0 : TocWidth;
+        _tocHost.Opacity = _isTocCollapsed ? 0 : 1;
+        _tocHost.IsHitTestVisible = !_isTocCollapsed;
+        _tocToggleGlyph.Text = _isTocCollapsed ? "›" : "‹";
     }
 
     protected virtual void BuildContent(StackPanel panel)
@@ -1010,7 +1393,7 @@ InfoBar 语法格式：
         return sb.ToString().Trim();
     }
 
-    private void CollectInlineText(Markdig.Syntax.Inlines.Inline inline, System.Text.StringBuilder sb)
+    private static void CollectInlineText(Markdig.Syntax.Inlines.Inline inline, System.Text.StringBuilder sb)
     {
         if (inline is Markdig.Syntax.Inlines.LiteralInline literal)
         {
@@ -1206,8 +1589,35 @@ InfoBar 语法格式：
             _sectionTextBlocks?.Add(textBlock);
         }
 
+        if (_collectTocHeadings && heading.Level <= 3)
+        {
+            var title = ExtractHeadingText(heading.Inline);
+            if (!string.IsNullOrWhiteSpace(title))
+            {
+                _tocHeadings.Add(new TocHeading
+                {
+                    Target = textBlock,
+                    Title = title,
+                    Level = heading.Level
+                });
+            }
+        }
+
         AttachHyperlinkClickHandler(textBlock);
         return textBlock;
+    }
+
+    /// <summary>提取标题的纯文本（去掉 Markdown 强调标记），用于目录显示。</summary>
+    private static string ExtractHeadingText(Markdig.Syntax.Inlines.ContainerInline? inline)
+    {
+        if (inline == null)
+        {
+            return "";
+        }
+
+        var sb = new System.Text.StringBuilder();
+        CollectInlineText(inline, sb);
+        return sb.ToString().Trim();
     }
 
     private Control ConvertParagraph(ParagraphBlock paragraph)
@@ -3530,6 +3940,16 @@ InfoBar 语法格式：
         };
         _sectionTextBlocks?.Add(textBlock);
         panel.Children.Add(textBlock);
+
+        if (_collectTocHeadings && !string.IsNullOrWhiteSpace(text))
+        {
+            _tocHeadings.Add(new TocHeading
+            {
+                Target = textBlock,
+                Title = text,
+                Level = 1
+            });
+        }
     }
 
     protected void AddParagraph(StackPanel panel, string text)
@@ -3558,6 +3978,7 @@ InfoBar 语法格式：
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
+        StopTocJump();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
@@ -3590,6 +4011,32 @@ InfoBar 语法格式：
             foreach (var tb in _sectionTextBlocks)
             {
                 tb.Foreground = ThemeHelper.GetLightBlueBrush();
+            }
+        }
+
+        if (_tocCard != null)
+            _tocCard.Background = ThemeHelper.GetCardBackgroundBrush();
+
+        if (_tocTitleTextBlock != null)
+            _tocTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+
+        if (_tocToggleGlyph != null)
+            _tocToggleGlyph.Foreground = GetAccentBrush();
+
+        if (_tocToggleButton != null)
+            _tocToggleButton.Background = ThemeHelper.GetCardBackgroundBrush();
+
+        foreach (var item in _tocItems)
+        {
+            if (ReferenceEquals(item, _activeTocItem))
+            {
+                item.Text.FontWeight = FontWeight.Bold;
+                item.Text.Foreground = GetAccentBrush();
+            }
+            else
+            {
+                item.Text.FontWeight = FontWeight.Normal;
+                item.Text.Foreground = ThemeHelper.GetSubTextBrush();
             }
         }
     }

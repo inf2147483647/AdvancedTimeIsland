@@ -176,3 +176,17 @@ public class YearWeekSettings : WeekSettings
 public class SemesterWeekSettings : WeekSettings
 {
 }
+
+/// <summary>
+/// 农历日期组件设置。
+/// </summary>
+public class LunarDateSettings : WeekSettings
+{
+}
+
+/// <summary>
+/// 本周单双组件设置。
+/// </summary>
+public class WeekParitySettings : WeekSettings
+{
+}

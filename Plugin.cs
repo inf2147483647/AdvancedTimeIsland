@@ -336,11 +336,13 @@ public class Plugin : PluginBase
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
         services.AddComponent<YearWeekControl, YearWeekSettingsControl>();
         services.AddComponent<SemesterWeekControl, SemesterWeekSettingsControl>();
+        services.AddComponent<WeekParityControl, WeekParitySettingsControl>();
         services.AddComponent<AttendanceControl, AttendanceSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
             services.AddComponent<LunarCountdownControl, LunarCountdownSettingsControl>();
+            services.AddComponent<LunarDateControl, LunarDateSettingsControl>();
         }
 
         if (Settings.EnableLocalSolarTime)
