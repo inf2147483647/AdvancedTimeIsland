@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -106,21 +107,64 @@ public class HanfuPage : HanfuPageTemplate
         panel.Children.Add(rootGrid);
     }
 
+    /// <summary>男装/女装标签切换的横滑转场代次：期间再次切换时，旧的切换直接作废。</summary>
+    private int _tabSlideToken;
+    /// <summary>上一次生效的标签序号（用于判断向左还是向右切换）。</summary>
+    private int _lastTabIndex = 1;
+
     private void OnTabSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_tabStrip != null && _contentControl != null)
+        if (_tabStrip == null || _contentControl == null)
         {
-            if (_tabStrip.SelectedIndex == 0)
-            {
-                // 懒构建男装内容（仅首次切换时）。
-                _maleContent ??= CreateMaleContent();
-                _contentControl.Content = _maleContent;
-            }
-            else
-            {
-                _contentControl.Content = _femaleContent;
-            }
+            return;
         }
+
+        // 懒构建男装内容（仅首次切换时）；女装内容在 BuildContent 中必定已创建。
+        var target = _tabStrip.SelectedIndex == 0
+            ? _maleContent ??= CreateMaleContent()
+            : _femaleContent!;
+
+        // 每次选择变化都推进代次：即便本次“目标与当前相同”而不播放动画，
+        // 也要让仍在进行的上一次切换作废，否则它会随后把内容改回旧标签
+        var token = ++_tabSlideToken;
+
+        if (_contentControl.Content == target)
+        {
+            _lastTabIndex = _tabStrip.SelectedIndex;
+            return;
+        }
+
+        var forward = _tabStrip.SelectedIndex > _lastTabIndex;
+        _lastTabIndex = _tabStrip.SelectedIndex;
+
+        _ = SwitchTabContentAsync(target, forward, token);
+    }
+
+    /// <summary>
+    /// 标签内容切换：旧内容整体向左/右滑出，随后换上新内容并从另一侧滑入
+    /// （与“主页 ↔ 子页”横滑转场同一套节奏）。
+    /// </summary>
+    private async Task SwitchTabContentAsync(Control target, bool forward, int token)
+    {
+        var old = (Control)_contentControl!.Content!;
+
+        if (!IntroAnimationHelper.IsEnabled || !IsEffectivelyVisible)
+        {
+            // 动画禁用：直接切换，并把复用的内容复位（上一次滑出会把旧内容留在透明/位移态）
+            target.Opacity = 1;
+            target.RenderTransform = null;
+            _contentControl.Content = target;
+            return;
+        }
+
+        await IntroAnimationHelper.PlaySlideOutAsync(new[] { old }, toLeft: forward);
+        if (token != _tabSlideToken)
+        {
+            return;
+        }
+
+        _contentControl.Content = target;
+        await IntroAnimationHelper.PlaySlideInAsync(new[] { target }, fromRight: forward);
     }
 
     private Border? _maleContentBorder;
@@ -383,7 +427,8 @@ public class HanfuPage : HanfuPageTemplate
         if (markdownName == null)
             return;
 
-        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, GetPageId(markdownName));
+        // 汉服主页 → 形制子页：整页向左滑出，形制页从右侧滑入
+        NavigateSlideTo(GetPageId(markdownName));
     }
 
     /// <summary>条目 → Markdown 内容文件名（不含扩展名）。文件名由条目拼音生成，空格转下划线。</summary>

@@ -200,36 +200,7 @@ public class AboutPage : SettingsPageBase
 
     private void LoadIconImage(Avalonia.Controls.Image imageControl)
     {
-        try
-        {
-            var baseDir = AppContext.BaseDirectory;
-            // 直接复用 manifest 引用的根目录 icon.png，避免在包内保留重复副本以减小安装包体积
-            var fullPath = System.IO.Path.Combine(baseDir, "icon.png");
-
-            if (System.IO.File.Exists(fullPath))
-            {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
-                imageControl.Source = bitmap;
-            }
-            else
-            {
-                var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
-                var pluginDir = System.IO.Path.GetDirectoryName(assemblyLocation);
-                if (!string.IsNullOrEmpty(pluginDir))
-                {
-                    fullPath = System.IO.Path.Combine(pluginDir, "icon.png");
-                    if (System.IO.File.Exists(fullPath))
-                    {
-                        var bitmap = new Avalonia.Media.Imaging.Bitmap(fullPath);
-                        imageControl.Source = bitmap;
-                    }
-                }
-            }
-        }
-        catch
-        {
-            imageControl.Source = null;
-        }
+        imageControl.Source = PluginIconHelper.LoadIconBitmap();
     }
 
     private string GetPluginVersion()
@@ -983,8 +954,9 @@ public class AboutPage : SettingsPageBase
         }
     }
 
-    /// <summary>更新日志抽屉宽度（与「管理启用的功能」抽屉一致，DrawerHost 按抽屉内容的 Width + 水平 Margin 决定滑出宽度）。</summary>
-    private const double ChangelogDrawerWidth = 500;
+    /// <summary>更新日志抽屉宽度。DrawerHost 按抽屉内容的 Width + 水平 Margin 决定滑出宽度；
+    /// 在「管理启用的功能」抽屉的 500 基础上加宽 200，为汉服页面模板新增的「目录」分屏栏留出横向空间。</summary>
+    private const double ChangelogDrawerWidth = 700;
 
     /// <summary>构建抽屉标题行：标题靠左、关闭按钮靠右（加载占位与正式内容共用）。</summary>
     private Grid BuildChangelogDrawerHeader()
@@ -1049,7 +1021,10 @@ public class AboutPage : SettingsPageBase
         return new Border { Width = ChangelogDrawerWidth, Child = panel };
     }
 
-    /// <summary>构建更新日志抽屉：固定宽度根容器 + 标题栏 + 滚动内容区（长日志可滚动浏览）。</summary>
+    /// <summary>
+    /// 构建更新日志抽屉：固定宽度根容器 + 标题栏 + 「目录 / 正文」分屏。
+    /// 正文由汉服页面模板的带目录静态入口渲染，目录只列版本级标题以便快速跳转。
+    /// </summary>
     private Control BuildChangelogDrawerContent(IReadOnlyList<ChangelogHelper.ChangelogEntry> entries)
     {
         var root = new Border { Width = ChangelogDrawerWidth };
@@ -1063,36 +1038,60 @@ public class AboutPage : SettingsPageBase
         // 标题行（第 0 行）
         rootGrid.Children.Add(BuildChangelogDrawerHeader());
 
-        // 版本卡片列表（第 1 行，剩余高度内滚动）
-        var listPanel = new StackPanel { Orientation = Orientation.Vertical };
         if (entries.Count == 0)
         {
-            listPanel.Children.Add(new TextBlock
+            var emptyText = new TextBlock
             {
                 Text = "暂无更新日志记录。",
                 FontSize = 13,
                 Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = TextWrapping.Wrap
-            });
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Top
+            };
+            Grid.SetRow(emptyText, 1);
+            rootGrid.Children.Add(emptyText);
         }
         else
         {
-            foreach (var entry in entries)
-            {
-                listPanel.Children.Add(BuildChangelogEntryCard(entry));
-            }
+            // 第 1 行：分屏（折叠按钮 | 目录 | 正文滚动）。目录只用版本级标题（##），避免小节把目录撑得过长
+            var split = HanfuPageTemplate.RenderMarkdownWithTocToPanel(
+                BuildChangelogMarkdown(entries),
+                maxTocLevel: 2);
+            Grid.SetRow(split, 1);
+            rootGrid.Children.Add(split);
         }
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Content = listPanel
-        };
-        Grid.SetRow(scrollViewer, 1);
-        rootGrid.Children.Add(scrollViewer);
 
         root.Child = rootGrid;
         return root;
+    }
+
+    /// <summary>
+    /// 把多个版本段拼成一份 markdown：每个版本作为二级标题（供目录跳转），正文原样保留，
+    /// 使抽屉能借助模板的 Markdig 渲染与目录能力统一展示任意格式的更新日志。
+    /// </summary>
+    private static string BuildChangelogMarkdown(IReadOnlyList<ChangelogHelper.ChangelogEntry> entries)
+    {
+        var sb = new StringBuilder();
+        foreach (var entry in entries)
+        {
+            var title = entry.Version == ChangelogHelper.UnreleasedVersion ? "未发布" : $"v{entry.Version}";
+            if (!string.IsNullOrWhiteSpace(entry.Date))
+            {
+                title += $" — {entry.Date}";
+            }
+
+            sb.AppendLine($"## {title}");
+            sb.AppendLine();
+
+            var body = entry.RawMarkdown.Trim();
+            if (body.Length > 0)
+            {
+                sb.AppendLine(body);
+                sb.AppendLine();
+            }
+        }
+
+        return sb.ToString();
     }
 
     /// <summary>最近一次更新日志加载失败的记录（用于错误占位的右键“另存为错误日志”）。</summary>
@@ -1282,51 +1281,6 @@ public class AboutPage : SettingsPageBase
         }
 
         return ex.Message;
-    }
-
-    /// <summary>构建单个版本的卡片：版本号 + 发布日期 + 正文（轻量 Markdown 渲染）。</summary>
-    private Border BuildChangelogEntryCard(ChangelogHelper.ChangelogEntry entry)
-    {
-        var cardPanel = new StackPanel { Orientation = Orientation.Vertical };
-
-        var headGrid = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
-            Margin = new Thickness(0, 0, 0, 4)
-        };
-        headGrid.Children.Add(new TextBlock
-        {
-            Text = entry.Version == ChangelogHelper.UnreleasedVersion ? "未发布" : $"v{entry.Version}",
-            FontSize = 16,
-            FontWeight = FontWeight.Bold,
-            Foreground = GetAccentBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        var dateText = new TextBlock
-        {
-            Text = entry.Date,
-            FontSize = 12,
-            Foreground = ThemeHelper.GetSubTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(dateText, 1);
-        headGrid.Children.Add(dateText);
-        cardPanel.Children.Add(headGrid);
-
-        // 正文统一交给汉服模板的 Markdig 渲染（支持表格 / 代码块 / 删除线 / alert 等全部语法），兼容将来任意 CHANGELOG 格式
-        var bodyPanel = new StackPanel { Orientation = Orientation.Vertical };
-        HanfuPageTemplate.RenderMarkdownToPanel(bodyPanel, entry.RawMarkdown);
-        cardPanel.Children.Add(bodyPanel);
-
-        return new Border
-        {
-            CornerRadius = new CornerRadius(8),
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            Margin = new Thickness(0, 0, 0, 10),
-            Child = cardPanel
-        };
     }
 
     /// <summary>

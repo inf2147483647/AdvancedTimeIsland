@@ -137,11 +137,43 @@ public partial class EasterEggPage : UserControl
     /// <summary>
     /// axaml 只承载静态外壳（滚动容器 / 主面板 / 标题 / 两个警告栏宿主 / Markdown 宿主 / 底部留白）；
     /// 条件警告栏（FA2/FA3 的 InfoBar 类型名不同，须经兼容 Helper 创建）与 Markdown 图片区在此动态装配。
+    /// 图片版权注意事项覆盖层与「调试 → 女装」页共用同一控件与同一“已同意”标记——未同意时不装配图片区。
     /// </summary>
     private void WireUI()
     {
         // 首批图片加载使用初始令牌（页面离树后失效，OnLoaded 重新进入时换新令牌）
         _imageLoadCts = new CancellationTokenSource();
+
+        NoticeOverlay.Bind(_pluginSettings);
+        NoticeOverlay.Agreed += OnNoticeAgreed;
+
+        if (NoticeOverlay.IsVisible)
+        {
+            // 未同意：不装配警告栏与图片区，也不触发布局预扫描 / 图片下载
+            return;
+        }
+
+        BuildContent();
+    }
+
+    /// <summary>本页内容（警告栏 + 图片区）是否已装配：同意路径与加载路径可能先后触发，只装配一次。</summary>
+    private bool _contentBuilt;
+
+    /// <summary>用户同意图片版权注意事项后，再装配警告栏与图片区（与首次进入的装配路径一致）。</summary>
+    private void OnNoticeAgreed(object? sender, EventArgs e)
+    {
+        BuildContent();
+        InitializeLoadedContent();
+    }
+
+    private void BuildContent()
+    {
+        if (_contentBuilt)
+        {
+            return;
+        }
+
+        _contentBuilt = true;
 
         if (_pluginSettings?.EasterEggInfoAccepted != true)
         {
@@ -2113,6 +2145,19 @@ public partial class EasterEggPage : UserControl
         AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
     }
 
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+
+        // 若已在其它入口（如「调试 → 女装」页）同意过注意事项，则本页覆盖层随之解除并补装配内容；
+        // 紧随其后的 OnLoaded 会完成视口虚拟化与「返回顶部」按钮的初始化。
+        if (NoticeOverlay.IsVisible && _pluginSettings?.WomenswearNoticeAccepted == true)
+        {
+            NoticeOverlay.IsVisible = false;
+            BuildContent();
+        }
+    }
+
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
@@ -2215,6 +2260,21 @@ public partial class EasterEggPage : UserControl
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        // 未同意图片版权注意事项时不装配内容（图片区为空），也不创建视口跟踪与“返回顶部”悬浮按钮——
+        // 后者挂在宿主 OverlayLayer 上，会浮在注意事项覆盖层之上。
+        if (NoticeOverlay.IsVisible)
+        {
+            return;
+        }
+
+        InitializeLoadedContent();
+    }
+
+    /// <summary>
+    /// 页面进入视觉树 / 用户同意注意事项后的内容激活：重建加载令牌、挂载视口虚拟化与返回顶部按钮。
+    /// </summary>
+    private void InitializeLoadedContent()
     {
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();

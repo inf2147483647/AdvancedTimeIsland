@@ -1,0 +1,87 @@
+<UserControl x:Class="AdvancedTimeIsland.Views.Controls.WomenswearNoticeOverlay"
+             xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             IsVisible="False">
+    <Border x:Name="RootBorder">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto"
+                      BringIntoViewOnFocusChange="False">
+            <StackPanel HorizontalAlignment="Center"
+                        VerticalAlignment="Center"
+                        MaxWidth="420"
+                        Margin="24">
+                <StackPanel.Styles>
+                    <Style Selector="TextBlock">
+                        <Setter Property="TextAlignment" Value="Center" />
+                        <Setter Property="HorizontalAlignment" Value="Center" />
+                        <Setter Property="TextWrapping" Value="WrapWithOverflow" />
+                    </Style>
+                </StackPanel.Styles>
+
+                <!-- 图标行：ATI 图标 + Fluent 加号 &#xE00C; + Fluent 插件图标 &#xE4DA;（字体由 code-behind 指定） -->
+                <Grid ColumnDefinitions="75,Auto,75" HorizontalAlignment="Center">
+                    <Image x:Name="AppIcon"
+                           Grid.Column="0"
+                           Width="75"
+                           Height="75"
+                           Stretch="Uniform" />
+                    <TextBlock x:Name="PlusIcon"
+                               Grid.Column="1"
+                               Text="&#xE00C;"
+                               FontSize="25"
+                               Width="25"
+                               Height="25"
+                               Margin="16,0"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                    <TextBlock x:Name="PlugIcon"
+                               Grid.Column="2"
+                               Text="&#xE4DA;"
+                               FontSize="75"
+                               Width="75"
+                               Height="75"
+                               VerticalAlignment="Center"
+                               HorizontalAlignment="Center" />
+                </Grid>
+
+                <TextBlock x:Name="TitleText"
+                           Text="注意事项"
+                           FontSize="20"
+                           FontWeight="Bold"
+                           Margin="0,12,0,0" />
+
+                <Border x:Name="WarnBorder"
+                        Width="320"
+                        Margin="0,12,0,0"
+                        Padding="8"
+                        CornerRadius="4">
+                    <StackPanel>
+                        <TextBlock x:Name="WarnIcon"
+                                   Text="&#xF430;"
+                                   FontSize="16"
+                                   Margin="0,0,0,4" />
+                        <TextBlock x:Name="BodyText"
+                                   LineSpacing="4"
+                                   Text="此页面的图片不属于仓库github.com/inf2147483647/AdvancedTimeIsland，不具有GPL-v3协议效力，版权归inf2147483647(inf_2147483647)所有。" />
+                    </StackPanel>
+                </Border>
+
+                <Button x:Name="AgreeButton"
+                        Classes="accent"
+                        Margin="0,20,0,0"
+                        Padding="16,8"
+                        HorizontalAlignment="Center"
+                        Click="AgreeButton_OnClick">
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                        <TextBlock x:Name="CheckIcon"
+                                   Text="&#xE424;"
+                                   FontSize="16"
+                                   VerticalAlignment="Center" />
+                        <TextBlock Text="同意并查看"
+                                   VerticalAlignment="Center" />
+                    </StackPanel>
+                </Button>
+            </StackPanel>
+        </ScrollViewer>
+    </Border>
+</UserControl>

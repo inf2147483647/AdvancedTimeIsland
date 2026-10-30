@@ -7,6 +7,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
+using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -48,6 +49,15 @@ public partial class WomenswearPage : SettingsPageBase
     {
         InitializeComponent();
         WireUI();
+        ApplyNoticeGate();
+
+        // 从调试页横滑进入时，入场动画已由宿主导航完成时启动
+        Loaded += OnLoadedPlaySlideEnter;
+    }
+
+    private void OnLoadedPlaySlideEnter(object? sender, RoutedEventArgs e)
+    {
+        IntroAnimationHelper.ConsumeSlideEnterEntry();
     }
 
     private static IBrush GetAccentBrush()
@@ -95,15 +105,37 @@ public partial class WomenswearPage : SettingsPageBase
         jkLoadingPanel.Children.Add(_jkLoadingIndicator);
         _jkLoadingContent = jkLoadingPanel;
 
-        HostContentControl.Content = _hanfuContent;
-
         // axaml 中 TabStrip.SelectedIndex 已声明为 0（此时尚未订阅切换事件，不会误触发）
         TabStrip.SelectionChanged += OnTabSelectionChanged;
     }
 
+    /// <summary>
+    /// 首次进入的图片版权注意事项门禁：未同意时整页覆盖并保持内容区为空——不把
+    /// <see cref="EasterEggPage"/> 装进视觉树，避免其在后台开始下载图片；
+    /// 同意后（覆盖层已写入设置并落盘）再装配正常内容。覆盖层与「主设置 → 女装」标签页共用
+    /// <see cref="Views.Controls.WomenswearNoticeOverlay"/> 与同一份设置标记。
+    /// </summary>
+    private void ApplyNoticeGate()
+    {
+        NoticeOverlay.Bind(Plugin.Instance?.Settings);
+        NoticeOverlay.Agreed += OnNoticeAgreed;
+
+        HostContentControl.Content = NoticeOverlay.IsVisible ? null : _hanfuContent;
+    }
+
+    private void OnNoticeAgreed(object? sender, EventArgs e)
+    {
+        HostContentControl.Content = _hanfuContent;
+    }
+
     private void BackTextBlock_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
-        FluentAvaloniaCompatibilityHelper.NavigateBack(this);
+        // 子页返回上一级（调试页）：当前页向右滑出，调试页从左侧滑入
+        _ = IntroAnimationHelper.SlideNavigateAsync(
+            this,
+            new[] { (Control)Content! },
+            () => FluentAvaloniaCompatibilityHelper.NavigateBack(this),
+            forward: false);
     }
 
     /// <summary>
@@ -569,6 +601,8 @@ public partial class WomenswearPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+
+        ApplyThemeColors();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
@@ -582,6 +616,14 @@ public partial class WomenswearPage : SettingsPageBase
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
+    {
+        ApplyThemeColors();
+    }
+
+    /// <summary>
+    /// 主题相关文字颜色：返回链接用强调色（注意事项覆盖层为共用控件，自行随主题刷新）。
+    /// </summary>
+    private void ApplyThemeColors()
     {
         BackTextBlock.Foreground = GetAccentBrush();
     }

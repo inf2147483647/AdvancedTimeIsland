@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -194,6 +194,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _disclaimerAccepted = false;
     private bool _easterEggDisclaimerAccepted = false;
     private bool _easterEggInfoAccepted = false;
+    private bool _womenswearNoticeAccepted = false;
     private string _ntpServer = "ntp.aliyun.com";
     private int _ntpSyncIntervalMinutes = 5;
     private DateTime? _lastSyncTime;
@@ -649,6 +650,22 @@ public class PluginSettings : INotifyPropertyChanged
             if (_easterEggInfoAccepted != value)
             {
                 _easterEggInfoAccepted = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已同意「女装」页面的图片版权注意事项（首次进入该页面时整页展示，同意后方可查看内容）
+    /// </summary>
+    public bool WomenswearNoticeAccepted
+    {
+        get => _womenswearNoticeAccepted;
+        set
+        {
+            if (_womenswearNoticeAccepted != value)
+            {
+                _womenswearNoticeAccepted = value;
                 OnPropertyChanged();
             }
         }

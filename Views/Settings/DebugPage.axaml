@@ -97,6 +97,21 @@
                 <Separator Margin="0,8" />
             </StackPanel>
 
+            <!-- 显示女装使用须知：重置“已同意”标记后进入女装页，使其重新展示首次进入的版权注意事项 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="显示女装使用须知"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="WomenswearNoticeButton"
+                        Grid.Column="1"
+                        Content="显示"
+                        Padding="16,8"
+                        Click="ButtonShowWomenswearNotice_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
             <!-- 显示节日列表 -->
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0"

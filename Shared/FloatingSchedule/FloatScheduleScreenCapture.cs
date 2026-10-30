@@ -81,6 +81,19 @@ public static class FloatScheduleScreenCapture
         return true;
     }
 
+    /// <summary>取窗口矩形（屏幕物理像素）：原点 + 宽高。诊断插桩 F3 用（不改任何窗口状态）。</summary>
+    public static bool TryGetWindowRect(IntPtr hwnd, out int x, out int y, out int w, out int h)
+    {
+        x = y = w = h = 0;
+        if (hwnd == IntPtr.Zero) return false;
+        if (!GetWindowRect(hwnd, out RECT r)) return false;
+        x = r.Left;
+        y = r.Top;
+        w = r.Right - r.Left;
+        h = r.Bottom - r.Top;
+        return true;
+    }
+
     /// <summary>
     /// 本次采样期间把窗口排除出捕获（WDA_EXCLUDEFROMCAPTURE），并返回原始亲和性供抓完后恢复。
     /// 若窗口本来就已排除（用户的"防截图"开启），直接返回 true（无需恢复，恢复也是同一个值）。

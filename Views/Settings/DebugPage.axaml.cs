@@ -81,12 +81,40 @@ public partial class DebugPage : SettingsPageBase
 
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
     {
-        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandHanfuTemplate");
+        NavigateSlideTo("AdvancedTimeIslandHanfuTemplate");
     }
 
     private void ButtonWomenswear_OnClick(object? sender, RoutedEventArgs e)
     {
-        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandWomenswear");
+        NavigateSlideTo("AdvancedTimeIslandWomenswear");
+    }
+
+    /// <summary>
+    /// “调试页 → 子页面”的横滑转场：调试页各入口整体向左滑出，随后跳转；
+    /// 目标页加载时从右侧错峰滑入（返回调试页时方向相反）。
+    /// </summary>
+    private void NavigateSlideTo(string pageId)
+    {
+        _ = IntroAnimationHelper.SlideNavigateAsync(
+            this,
+            RootPanel.Children,
+            () => FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, pageId),
+            forward: true);
+    }
+
+    /// <summary>
+    /// 显示女装使用须知：清除「已同意」标记后进入女装页，使该页重新展示首次进入时的版权注意事项覆盖层。
+    /// </summary>
+    private void ButtonShowWomenswearNotice_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugin.Instance?.Settings is { } settings)
+        {
+            settings.WomenswearNoticeAccepted = false;
+            // 立即原子落盘：避免停留于 500ms 防抖窗口内时宿主退出导致「已同意」标记未清除
+            Plugin.Instance?.SaveSettingsNow();
+        }
+
+        NavigateSlideTo("AdvancedTimeIslandWomenswear");
     }
 
     private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
@@ -811,7 +839,13 @@ public partial class DebugPage : SettingsPageBase
     private void OnLoaded(object? sender, RoutedEventArgs e)
     {
         // 入场动画放在最前：避免后续初始化逻辑（主题同步、内存泄漏 UI 刷新）异常时中断动画播放
-        if (!_introPlayed)
+        // 从子页面返回调试页时，横滑入场已在宿主导航完成时（渲染之前）开始，
+        // 这里只需跳过自带的依次淡入上滑，避免两套动画叠加。
+        if (IntroAnimationHelper.ConsumeSlideEnterEntry())
+        {
+            _introPlayed = true;
+        }
+        else if (!_introPlayed)
         {
             _introPlayed = true;
             IntroAnimationHelper.PlayIntro(RootPanel);

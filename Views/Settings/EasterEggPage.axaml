@@ -1,33 +1,40 @@
 <UserControl x:Class="AdvancedTimeIsland.Views.Settings.EasterEggPage"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AdvancedTimeIsland.Views.Controls"
              Loaded="OnLoaded">
-    <ScrollViewer x:Name="MainScrollViewer"
-                  VerticalScrollBarVisibility="Auto"
-                  HorizontalScrollBarVisibility="Disabled"
-                  BringIntoViewOnFocusChange="False">
-        <StackPanel x:Name="MainPanel"
-                    Margin="16"
-                    Spacing="16">
-            <!-- 官方 settings-container animated-intro：宿主动画等级为“华丽”时子项依次淡入上滑。
-                 警告栏由 code-behind 按条件注入/清空；图片区卡片（MarkdownSectionHost）作为
-                 一个整体参与入场，卡片内部的 20+ 张异步图片不做逐项时序动画，
-                 而是在每张图加载成功的那一刻各自播放一次淡入上滑（见 code-behind），
-                 天然形成错落入场，且不会在图片未加载时对空白播放动画。 -->
-            <StackPanel Classes="settings-container animated-intro"
+    <Grid>
+        <ScrollViewer x:Name="MainScrollViewer"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled"
+                      BringIntoViewOnFocusChange="False">
+            <StackPanel x:Name="MainPanel"
+                        Margin="16"
                         Spacing="16">
-                <TextBlock Text="女装"
-                           FontSize="24"
-                           FontWeight="Bold"
-                           Foreground="HotPink"
-                           HorizontalAlignment="Center" />
-                <ContentControl x:Name="InfoHost" />
-                <!-- Markdown 图片展示区（卡片由 code-behind 生成并注入，含逐图加载/重试/入场动画） -->
-                <ContentControl x:Name="MarkdownSectionHost" />
-            </StackPanel>
+                <!-- 官方 settings-container animated-intro：宿主动画等级为“华丽”时子项依次淡入上滑。
+                     警告栏由 code-behind 按条件注入/清空；图片区卡片（MarkdownSectionHost）作为
+                     一个整体参与入场，卡片内部的 20+ 张异步图片不做逐项时序动画，
+                     而是在每张图加载成功的那一刻各自播放一次淡入上滑（见 code-behind），
+                     天然形成错落入场，且不会在图片未加载时对空白播放动画。 -->
+                <StackPanel Classes="settings-container animated-intro"
+                            Spacing="16">
+                    <TextBlock Text="女装"
+                               FontSize="24"
+                               FontWeight="Bold"
+                               Foreground="HotPink"
+                               HorizontalAlignment="Center" />
+                    <ContentControl x:Name="InfoHost" />
+                    <!-- Markdown 图片展示区（卡片由 code-behind 生成并注入，含逐图加载/重试/入场动画） -->
+                    <ContentControl x:Name="MarkdownSectionHost" />
+                </StackPanel>
 
-            <!-- 在最后一个链接下面添加 30px 的空白 -->
-            <Border Height="30" />
-        </StackPanel>
-    </ScrollViewer>
+                <!-- 在最后一个链接下面添加 30px 的空白 -->
+                <Border Height="30" />
+            </StackPanel>
+        </ScrollViewer>
+
+        <!-- 首次进入的图片版权注意事项：与「调试 → 女装」页共用同一控件与同一“已同意”状态；
+             未同意时整页不透明覆盖，且不装配下方图片区（避免图片在后台加载）。 -->
+        <controls:WomenswearNoticeOverlay x:Name="NoticeOverlay" />
+    </Grid>
 </UserControl>

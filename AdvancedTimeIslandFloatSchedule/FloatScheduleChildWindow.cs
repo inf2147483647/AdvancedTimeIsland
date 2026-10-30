@@ -229,13 +229,14 @@ internal sealed class FloatScheduleChildWindow : Window
         FloatScheduleRenderFrameSync.Dbg("pos", "\"session\":" + (session == _glassFrameSyncSession ? 1 : 0) +
             ",\"x\":" + target.X + ",\"y\":" + target.Y);
         if (session != _glassFrameSyncSession) return;
-        try { Position = target; } catch { }
+        try { Position = target; TraceSetPos("drag-vsync", target); } catch { }
     }
 
     // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrame(PixelPoint target)
     {
         Position = target;
+        TraceSetPos("drag-direct", target);
         if (_glassCommitPending)
         {
             _glassCommitPending = false;
@@ -275,6 +276,65 @@ internal sealed class FloatScheduleChildWindow : Window
         _renderKeepAlive = null;
         try { p?.Stop(); } catch { }
     }
+
+    // ===== 【临时插桩·诊断 F3】拖动/按下抖动取证 =====
+    // **不链式请求动画帧**（上次 F2 正是它把渲染循环保持"热"而遮住了抖动），只用 5ms 定时采样 + 后台异步写盘。
+    // 日志：%TEMP%\trae-debug\glass-drag-jitter\trae-debug-log-drag-trace.ndjson。定位后整段移除。
+    #region debug-point F3
+    DispatcherTimer? _dragTraceTimer;
+
+    void StartDragTrace()
+    {
+        if (_dragTraceTimer != null) return;
+        _dragTraceTimer = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(5) };
+        _dragTraceTimer.Tick += (_, _) => TraceSample();
+        _dragTraceTimer.Start();
+    }
+
+    void StopDragTrace()
+    {
+        try { _dragTraceTimer?.Stop(); } catch { }
+        _dragTraceTimer = null;
+    }
+
+    void TraceSetPos(string src, PixelPoint p)
+        => FloatScheduleDragTrace.Log("setpos", "\"src\":\"" + src + "\",\"x\":" + p.X + ",\"y\":" + p.Y);
+
+    void TraceSample()
+    {
+        if (!IsVisible) return;
+        int hx = 0, hy = 0, ww = 0, wh = 0;
+        bool ok = false;
+        try
+        {
+            var hwnd = Hwnd;
+            ok = hwnd != IntPtr.Zero && FloatScheduleScreenCapture.TryGetWindowRect(hwnd, out hx, out hy, out ww, out wh);
+        }
+        catch { }
+        try
+        {
+            var pos = Position;
+            var cs = _card.Bounds.Size;
+            FloatScheduleDragTrace.Log("sample",
+                "\"hwndok\":" + (ok ? 1 : 0) + ",\"wx\":" + hx + ",\"wy\":" + hy +
+                ",\"ww\":" + ww + ",\"wh\":" + wh +
+                ",\"ax\":" + pos.X + ",\"ay\":" + pos.Y +
+                ",\"cw\":" + (int)Math.Round(cs.Width) + ",\"ch\":" + (int)Math.Round(cs.Height) +
+                ",\"sc\":" + RenderScaling.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) +
+                ",\"stc\":" + (int)SizeToContent + ",\"mat\":" + _snap.Material +
+                ",\"drag\":" + (_dragActive ? 1 : 0) + ",\"pend\":" + (_dragPendingValid ? 1 : 0) +
+                ",\"tx\":" + (_dragPendingValid ? _dragPendingPos.X : -1) +
+                ",\"ty\":" + (_dragPendingValid ? _dragPendingPos.Y : -1) +
+                ",\"hide\":" + (_hideAnimActive ? 1 : 0) +
+                ",\"ed\":" + (_edgeDockedAv ? 1 : 0) + ",\"eh\":" + (_edgeHiddenAv ? 1 : 0) +
+                ",\"ea\":" + (_edgeAnimating ? 1 : 0) +
+                ",\"gpend\":" + (_glassCommitPending ? 1 : 0) +
+                ",\"op\":" + (int)Math.Round(Opacity * 1000) +
+                ",\"cop\":" + (int)Math.Round(_card.Opacity * 1000));
+        }
+        catch { }
+    }
+    #endregion
 
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glass 复用），无内容时返回 null 走近似边缘光
     Border? GlassBackdropLayer() => _snap.Material == 3 ? _glass.TakeLayer(_snap.CornerRadius) : null;
@@ -350,6 +410,7 @@ internal sealed class FloatScheduleChildWindow : Window
         ReattachTopmostRefresh();
         ScheduleEdgeEval();
         PingRenderKeepAlive();   // 显示：画面刚变化，唤醒按需渲染保温
+        StartDragTrace();        // 【临时插桩 F3】抖动取证采样
     }
 
     // ===================== 管道消息 =====================
@@ -460,7 +521,7 @@ internal sealed class FloatScheduleChildWindow : Window
                             StopInitTimeoutGuard();
                             StopStartupGuard();
                             StopReconnectGuard();
-                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); ArmPositionReportingAfterSettle(); PingRenderKeepAlive(); }
+                            if (_hostVisible) { try { Show(); } catch { } ApplyWindowLayer(); ArmPositionReportingAfterSettle(); PingRenderKeepAlive(); StartDragTrace(); }
                             // 托盘图标（原生 Win32 实现，独立于本窗口，无需等待窗口就绪）
                             try { FloatScheduleApp.Self?.EnsureTrayIcon(); } catch { }
                         }
@@ -510,6 +571,7 @@ internal sealed class FloatScheduleChildWindow : Window
     void CloseAndExit(int exitCode = 0)
     {
         StopRenderKeepAlive();
+        StopDragTrace();
         try { _cts.Cancel(); } catch { }
         try { Close(); } catch { }
         Environment.Exit(exitCode);
@@ -672,6 +734,7 @@ internal sealed class FloatScheduleChildWindow : Window
                     try { if (_edgeHiddenAv) Position = _edgeDockedPosAv; } catch { }
                     Hide();
                     StopRenderKeepAlive();
+                    StopDragTrace();
                 }
             }
         }
@@ -725,9 +788,9 @@ internal sealed class FloatScheduleChildWindow : Window
         {
             if (_hideAnimBasePos is { } basePos)
             {
-                Position = new PixelPoint(
-                    basePos.X,
-                    (int)Math.Round(basePos.Y + _hideAnimDelta.Y * p));
+                var hp = new PixelPoint(basePos.X, (int)Math.Round(basePos.Y + _hideAnimDelta.Y * p));
+                Position = hp;
+                TraceSetPos("hide-show", hp);
             }
         }
         catch { }
@@ -869,6 +932,7 @@ internal sealed class FloatScheduleChildWindow : Window
             }
             try { Hide(); } catch { }
             StopRenderKeepAlive();   // 窗口隐藏：停止渲染帧保温（重新显示时再挂上）
+            StopDragTrace();         // 【临时插桩 F3】窗口隐藏即停采样
             // 隐藏后再复位：窗口位置回到用户放置位、内容恢复完全可见、进度归零
             //（必须仍在"动画进行中"标志下执行，否则位置变化会被上报给插件持久化）
             _hideAnimProgress = 0;
@@ -1131,6 +1195,11 @@ internal sealed class FloatScheduleChildWindow : Window
             _dragPendingValid = false;
             _dragStartScreenPx = this.PointToScreen(e.GetPosition(this));
             _dragStartWindowPx = Position;
+            FloatScheduleDragTrace.Log("press",
+                "\"px\":" + _dragStartScreenPx.X + ",\"py\":" + _dragStartScreenPx.Y +
+                ",\"wx\":" + _dragStartWindowPx.X + ",\"wy\":" + _dragStartWindowPx.Y +
+                ",\"stc\":" + (int)SizeToContent + ",\"stc0\":" + (int)_preDragSizeMode +
+                ",\"mat\":" + _snap.Material);
             try { e.Pointer.Capture(_card); } catch { }
             try { e.Handled = true; } catch { }
         }
@@ -1200,11 +1269,15 @@ internal sealed class FloatScheduleChildWindow : Window
         _dragPointer = null;
         StopGlassVSync();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
         PingRenderKeepAlive();   // 松手：让落位与收尾绘制走完再睡
+        FloatScheduleDragTrace.Log("release",
+            "\"ax\":" + Position.X + ",\"ay\":" + Position.Y +
+            ",\"pend\":" + (_dragPendingValid ? 1 : 0) +
+            ",\"tx\":" + _dragPendingPos.X + ",\"ty\":" + _dragPendingPos.Y);
         FloatScheduleRenderFrameSync.Dbg("vend", "\"commitPending\":" + (_glassCommitPending ? 1 : 0));
         if (_glassCommitPending) { _glassCommitPending = false; _glass.Commit(); }   // 未提交的采样帧直接落地
         try
         {
-            if (_dragPendingValid) { Position = _dragPendingPos; _dragPendingValid = false; }
+            if (_dragPendingValid) { Position = _dragPendingPos; TraceSetPos("drag-tail", _dragPendingPos); _dragPendingValid = false; }
             if (SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
             ApplyWindowLayer();
             // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
@@ -1583,6 +1656,7 @@ internal sealed class FloatScheduleChildWindow : Window
             {
                 StopEdgeSlideTimer();
                 Position = _edgeAnimTarget;
+                TraceSetPos("edge-end", _edgeAnimTarget);
                 _edgeHiddenAv = _edgeAnimWillHide;
                 _edgeHoverTicks = 0;
                 _edgeHoverLastIn = !_edgeAnimWillHide;
@@ -1590,9 +1664,11 @@ internal sealed class FloatScheduleChildWindow : Window
                 return;
             }
             double eased = 1 - Math.Pow(1 - t, 3);
-            Position = new PixelPoint(
+            var ep = new PixelPoint(
                 (int)Math.Round(_edgeAnimFrom.X + (_edgeAnimTarget.X - _edgeAnimFrom.X) * eased),
                 (int)Math.Round(_edgeAnimFrom.Y + (_edgeAnimTarget.Y - _edgeAnimFrom.Y) * eased));
+            Position = ep;
+            TraceSetPos("edge-anim", ep);
             PingRenderKeepAlive();   // 贴边滑移：位置在变
         }
         catch

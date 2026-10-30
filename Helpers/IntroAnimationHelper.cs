@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Threading.Tasks;
@@ -10,6 +11,7 @@ using Avalonia;
 using Avalonia.Animation;
 using Avalonia.Animation.Easings;
 using Avalonia.Controls;
+using Avalonia.Controls.Presenters;
 using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Layout;
@@ -309,6 +311,222 @@ public static class IntroAnimationHelper
         if (finished)
         {
             Stop();
+        }
+    }
+
+    // ==================== 主页 ↔ 子页 横滑转场 ====================
+    // 移植自 FemboyTest 的 NavigateSlide：旧页整体向左/右滑出（150ms 线性），随后切换页面；
+    // 新页从另一侧错峰滑入。
+    // 跨 SettingsPage 时页面切换由宿主 FAFrame 完成，它每次导航都会强制播放「从下淡入」入场过渡
+    // （FAFrame.SetContentAndAnimate 内部实现，公开 API 无法替换）。该过渡会写 ContentPresenter 的
+    // RenderTransform 与透明度：若在动画进行中取消，已写入的 100px 垂直偏移会残留下来，表现为
+    // 页面顶部多出一整块空白。因此这里在导航前挂上 Frame 的 Navigated 一次性订阅，在
+    // SetContentAndAnimate 建好 _cts、尚未执行入场动画时同步取消并把 presenter 的变换/透明度复位。
+
+    private static bool _pendingSlideEnter;
+    private static bool _pendingSlideEnterFromRight;
+    private static bool _slideEnterHandled;
+    private static long _slideNavigateGeneration;
+
+    /// <summary>已挂上抑制订阅的宿主 Frame 与其一次性事件委托。</summary>
+    private static Visual? _armedFrame;
+    private static Delegate? _armedNavigatedHandler;
+
+    /// <summary>
+    /// 主页 ↔ 子页横滑转场：当前页整体向左（<paramref name="forward"/>，进入下级页面）
+    /// 或向右（返回上级页面）滑出并淡出，随后执行 <paramref name="navigate"/>；
+    /// 新页面从另一侧滑入（起始隐藏态在宿主导航完成、尚未渲染时写入）。
+    /// </summary>
+    /// <param name="owner">当前页面（用于判断可见性与定位宿主导航框架）。</param>
+    /// <param name="outgoing">参与离场的控件，通常传页面根容器的直接子元素。</param>
+    /// <param name="navigate">离场结束后执行的导航操作。</param>
+    /// <param name="forward">true = 进入下级（向左滑出、新页自右滑入）；false = 返回上级。</param>
+    public static async Task SlideNavigateAsync(
+        Control owner, IEnumerable<Control> outgoing, Action navigate, bool forward)
+    {
+        var generation = ++_slideNavigateGeneration;
+
+        // 动画禁用或页面不可见：直接导航，避免留下空白的离场状态
+        if (!IsEnabled || !owner.IsEffectivelyVisible)
+        {
+            navigate();
+            return;
+        }
+
+        var targets = outgoing.Where(x => x.IsVisible).ToList();
+        if (targets.Count > 0)
+        {
+            await PlaySlideOutAsync(targets, toLeft: forward);
+        }
+
+        // 离场期间又发生了新的转场：本次作废，不再导航
+        if (generation != _slideNavigateGeneration)
+        {
+            return;
+        }
+
+        _pendingSlideEnter = true;
+        _pendingSlideEnterFromRight = forward;
+        _slideEnterHandled = false;
+
+        ArmHostEntranceSuppression(owner);
+        try
+        {
+            navigate();
+        }
+        finally
+        {
+            // 宿主可能按 SettingsPagesCachePolicy 复用设置页实例：离场动画把控件留在
+            // Opacity=0 / 位移态，若不复位，下次复用该页面时内容会整页不可见（只剩滚动条）。
+            // 此时页面已切走，复位不会产生可见变化。
+            foreach (var c in targets)
+            {
+                c.Opacity = 1;
+                c.RenderTransform = null;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 页面加载时调用：判断本次进入是否已由 <see cref="SlideNavigateAsync"/> 的横滑入场处理。
+    /// 答案只用于让页面跳过自己的入场动画——横滑动画在宿主 <c>Navigated</c> 时就已开始，
+    /// 页面自身的 <c>Loaded</c> 是排队延后触发的（Avalonia 在布局/渲染后才派发 Loaded），
+    /// 若在 Loaded 里才开始动画，首帧会先露出终态再倒回隐藏态。
+    /// </summary>
+    /// <returns>是否已播放横滑入场（消费后返回 true）。</returns>
+    public static bool ConsumeSlideEnterEntry()
+    {
+        if (!_slideEnterHandled)
+        {
+            return false;
+        }
+
+        _slideEnterHandled = false;
+        return true;
+    }
+
+    /// <summary>
+    /// 新页面横滑入场的动画目标：页面根内容为 <see cref="Panel"/> 时取其直接子元素
+    /// （如汉服模板的返回链接 + 分屏、调试页 ScrollViewer 内的 StackPanel 子项），
+    /// 否则整页作为一个目标。
+    /// </summary>
+    private static IReadOnlyList<Control> ResolveSlideTargets(Control page)
+    {
+        if (page is ContentControl { Content: Panel panel })
+        {
+            return panel.Children.Where(x => x.IsVisible).ToList();
+        }
+
+        if (page is ContentControl { Content: ScrollViewer { Content: Panel scrollPanel } })
+        {
+            return scrollPanel.Children.Where(x => x.IsVisible).ToList();
+        }
+
+        return new[] { page };
+    }
+
+    /// <summary>
+    /// 在导航前给宿主 <c>FAFrame</c>/<c>Frame</c> 挂一个一次性 <c>Navigated</c> 订阅，
+    /// 在导航完成、入场动画尚未执行时取消它，避免「从下 100px 淡入」与横滑方向叠加，
+    /// 也避免动画中途取消后残留的垂直位移在页面顶部留下空白。
+    /// </summary>
+    private static void ArmHostEntranceSuppression(Control owner)
+    {
+        var frame = FindHostFrame(owner);
+        var navigated = GetNavigatedEvent(frame.GetType());
+
+        // 上一次转场未等到 Navigated（例如导航被取消）：先摘掉旧订阅，避免重复挂接
+        if (_armedFrame != null && _armedNavigatedHandler != null)
+        {
+            GetNavigatedEvent(_armedFrame.GetType()).RemoveEventHandler(_armedFrame, _armedNavigatedHandler);
+        }
+
+        var handler = CreateNavigatedHandler(navigated.EventHandlerType!);
+
+        _armedFrame = frame;
+        _armedNavigatedHandler = handler;
+        navigated.AddEventHandler(frame, handler);
+    }
+
+    private static Visual FindHostFrame(Control page)
+        => page.GetVisualAncestors().FirstOrDefault(a =>
+            (a.GetType().Name is "FAFrame" or "Frame")
+            && a.GetType().Namespace?.StartsWith("FluentAvalonia", StringComparison.Ordinal) == true)
+            ?? throw new InvalidOperationException(
+                $"页面 {page.GetType().FullName} 不在 FluentAvalonia 的 Frame 内，横滑入场无法抑制宿主过渡。");
+
+    private static System.Reflection.EventInfo GetNavigatedEvent(Type frameType)
+        => frameType.GetEvent("Navigated", BindingFlags.Public | BindingFlags.Instance)
+            ?? throw new InvalidOperationException(
+                $"宿主导航框架 {frameType.FullName} 缺少 Navigated 事件，横滑入场无法抑制宿主过渡。");
+
+    /// <summary>
+    /// 按宿主 <c>Navigated</c> 事件的实际委托签名生成处理器。
+    /// 用表达式树而不是 <see cref="Delegate.CreateDelegate(Type, System.Reflection.MethodInfo)"/>：
+    /// FA2/FA3 的事件参数类型不同，不能依赖运行时的参数协变绑定。
+    /// </summary>
+    private static Delegate CreateNavigatedHandler(Type handlerType)
+    {
+        var invoke = handlerType.GetMethod("Invoke")
+            ?? throw new InvalidOperationException($"事件委托 {handlerType.FullName} 缺少 Invoke 方法。");
+        var parameters = invoke.GetParameters();
+
+        var sender = Expression.Parameter(parameters[0].ParameterType, "sender");
+        var args = Expression.Parameter(parameters[1].ParameterType, "e");
+        var body = Expression.Call(
+            typeof(IntroAnimationHelper).GetMethod(nameof(OnHostFrameNavigated),
+                BindingFlags.NonPublic | BindingFlags.Static)
+            ?? throw new InvalidOperationException("未找到 OnHostFrameNavigated 方法。"),
+            Expression.Convert(sender, typeof(object)),
+            Expression.Convert(args, typeof(EventArgs)));
+
+        return Expression.Lambda(handlerType, body, sender, args).Compile();
+    }
+
+    /// <summary>
+    /// <c>Navigated</c> 的一次性处理器：此时 FAFrame 已设置新页面、创建好入场动画的
+    /// <c>_cts</c> 并发起了 Render 优先级的动画投递；同步取消后该动画不会执行，
+    /// 再清掉 presenter 可能已应用的变换与透明度。
+    /// </summary>
+    private static void OnHostFrameNavigated(object? sender, EventArgs e)
+    {
+        var frame = (Visual)sender!;
+        var type = frame.GetType();
+
+        if (_armedFrame != null && _armedNavigatedHandler != null)
+        {
+            GetNavigatedEvent(type).RemoveEventHandler(_armedFrame, _armedNavigatedHandler);
+        }
+
+        _armedFrame = null;
+        _armedNavigatedHandler = null;
+
+        // FA3 为 FAFrame、FA2 为 Frame，两者内部字段名均为 _presenter / _cts。
+        var presenterField = type.GetField("_presenter", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?? throw new InvalidOperationException(
+                $"宿主导航框架 {type.FullName} 缺少 _presenter 字段，横滑入场无法抑制宿主过渡。");
+        var ctsField = type.GetField("_cts", BindingFlags.NonPublic | BindingFlags.Instance)
+            ?? throw new InvalidOperationException(
+                $"宿主导航框架 {type.FullName} 缺少 _cts 字段，横滑入场无法抑制宿主过渡。");
+
+        var presenter = (ContentPresenter)presenterField.GetValue(frame)!;
+        ((System.Threading.CancellationTokenSource)ctsField.GetValue(frame)!).Cancel();
+
+        presenter.Opacity = 1;
+        // 入场动画通过 TransformAnimator 写入 RenderTransform（可能是 TransformGroup），
+        // 取消后不会自动回滚，必须整体清空，否则残留的 100px 垂直位移会顶出空白。
+        presenter.RenderTransform = null;
+
+        if (_pendingSlideEnter)
+        {
+            _pendingSlideEnter = false;
+
+            // 此时新页面已挂进 Frame、尚未经历布局与渲染：在这里写入隐藏态并启动时钟，
+            // 首帧就是动画起点。页面自己的 Loaded 是排队延后触发的，若等到那时才开始，
+            // 会先渲染一帧终态再倒回隐藏态（表现为“先闪一下完整页面再播动画”）。
+            var page = (Control)((ContentControl)frame).Content!;
+            _ = PlaySlideInAsync(ResolveSlideTargets(page), _pendingSlideEnterFromRight);
+            _slideEnterHandled = true;
         }
     }
 

@@ -72,6 +72,8 @@ public class HanfuPageTemplate : SettingsPageBase
     private bool _isTocCollapsed;
     /// <summary>是否收集标题：仅完整初始化（带目录 UI）时开启，延迟初始化（渲染到其它面板）不收集。</summary>
     private bool _collectTocHeadings;
+    /// <summary>生成目录时收集的最大标题层级（1~3）。</summary>
+    private int _tocMaxLevel = 3;
 
     private sealed class TocHeading
     {
@@ -175,6 +177,111 @@ public class HanfuPageTemplate : SettingsPageBase
         // 用户接手滚轮时立即结束目录跳转，避免两套滚动互相抢占
         _contentScrollViewer.PointerWheelChanged += (_, _) => StopTocJump();
 
+        // 左侧目录面板 + 折叠按钮 + 正文分屏（与静态入口共用同一套构建逻辑）
+        var splitGrid = BuildTocSplit(_contentScrollViewer);
+
+        // 使用 Grid 将返回按钮固定在顶部，分屏内容占据剩余空间
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(_backTextBlock, 0);
+        Grid.SetRow(splitGrid, 1);
+        rootGrid.Children.Add(_backTextBlock);
+        rootGrid.Children.Add(splitGrid);
+
+        Content = rootGrid;
+
+        // 鼠标滚轮平滑滚动
+        IntroAnimationHelper.EnableSmoothScroll(this);
+
+        // 从主页/上级页面横滑进入时，入场动画已由宿主导航完成时启动，
+        // 这里只消费标记（保持状态一致），普通进入方式不受影响
+        Loaded += OnLoadedPlaySlideEnter;
+    }
+
+    /// <summary>
+    /// 当前页面参与“主页 ↔ 子页”横滑转场的控件：根容器的直接子元素
+    /// （返回按钮 + 正文分屏），整体滑出/滑入。
+    /// </summary>
+    /// <remarks>根容器在 <c>InitializeComponent</c> 中固定为 <see cref="Grid"/>，此处直接取用。</remarks>
+    protected IEnumerable<Control> PageSlideTargets => ((Panel)Content!).Children;
+
+    /// <summary>页面加载时消费横滑入场标记（动画本身已在 <see cref="IntroAnimationHelper.SlideNavigateAsync"/> 的导航阶段启动）。</summary>
+    private void OnLoadedPlaySlideEnter(object? sender, RoutedEventArgs e)
+    {
+        IntroAnimationHelper.ConsumeSlideEnterEntry();
+    }
+
+    /// <summary>以横滑转场跳转到其它设置页（默认视为进入下级页面）。</summary>
+    protected void NavigateSlideTo(string pageId, bool forward = true)
+    {
+        _ = IntroAnimationHelper.SlideNavigateAsync(
+            this,
+            PageSlideTargets,
+            () => FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, pageId),
+            forward);
+    }
+
+    /// <summary>以横滑转场返回上一级页面（当前页向右滑出、上级页从左侧滑入）。</summary>
+    protected void NavigateSlideBack()
+    {
+        _ = IntroAnimationHelper.SlideNavigateAsync(
+            this,
+            PageSlideTargets,
+            () => FluentAvaloniaCompatibilityHelper.NavigateBack(this),
+            forward: false);
+    }
+
+    /// <summary>
+    /// 把 markdown 渲染为「折叠按钮 | 左侧目录 | 右侧正文滚动」的分屏控件，
+    /// 供汉服页面以外的场景（如更新日志抽屉）复用同一套目录能力。
+    /// </summary>
+    /// <param name="markdown">要渲染的 markdown 文本。</param>
+    /// <param name="maxTocLevel">生成目录时收集的最大标题层级（1~3，超出范围自动收敛）。</param>
+    public static Control RenderMarkdownWithTocToPanel(string markdown, int maxTocLevel = 3)
+    {
+        // 延迟初始化构造：不触发页面初始化，仅复用渲染与目录逻辑
+        var page = new HanfuPageTemplate(true)
+        {
+            _tocMaxLevel = Math.Clamp(maxTocLevel, 1, 3)
+        };
+        page._collectTocHeadings = true;
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 8
+        };
+        page.RenderMarkdown(panel, markdown);
+
+        var contentBorder = new Border
+        {
+            Background = ThemeHelper.GetHanfuBackgroundBrush(),
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(16),
+            Child = panel
+        };
+
+        var contentScrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0),
+            BringIntoViewOnFocusChange = false,
+            Content = contentBorder
+        };
+
+        page._contentBorder = contentBorder;
+        page._contentScrollViewer = contentScrollViewer;
+        contentScrollViewer.ScrollChanged += page.OnContentScrollChanged;
+        contentScrollViewer.PointerWheelChanged += (_, _) => page.StopTocJump();
+
+        return page.BuildTocSplit(contentScrollViewer);
+    }
+
+    /// <summary>构建「目录折叠按钮 | 目录面板 | 正文」分屏（完整页面与静态入口共用）。</summary>
+    private Control BuildTocSplit(ScrollViewer contentScrollViewer)
+    {
         // 左侧目录面板（先建结构，再填充条目）
         _tocCard = BuildTocCard();
         _tocHost = new Border
@@ -225,24 +332,11 @@ public class HanfuPageTemplate : SettingsPageBase
         splitGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
         Grid.SetColumn(_tocToggleButton, 0);
         Grid.SetColumn(_tocHost, 1);
-        Grid.SetColumn(_contentScrollViewer, 2);
+        Grid.SetColumn(contentScrollViewer, 2);
         splitGrid.Children.Add(_tocToggleButton);
         splitGrid.Children.Add(_tocHost);
-        splitGrid.Children.Add(_contentScrollViewer);
-
-        // 使用 Grid 将返回按钮固定在顶部，分屏内容占据剩余空间
-        var rootGrid = new Grid();
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
-        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
-        Grid.SetRow(_backTextBlock, 0);
-        Grid.SetRow(splitGrid, 1);
-        rootGrid.Children.Add(_backTextBlock);
-        rootGrid.Children.Add(splitGrid);
-
-        Content = rootGrid;
-
-        // 鼠标滚轮平滑滚动
-        IntroAnimationHelper.EnableSmoothScroll(this);
+        splitGrid.Children.Add(contentScrollViewer);
+        return splitGrid;
     }
 
     /// <summary>构建左侧目录卡片骨架（标题 + 可滚动条目区）。</summary>
@@ -1589,7 +1683,7 @@ InfoBar 语法格式：
             _sectionTextBlocks?.Add(textBlock);
         }
 
-        if (_collectTocHeadings && heading.Level <= 3)
+        if (_collectTocHeadings && heading.Level <= _tocMaxLevel)
         {
             var title = ExtractHeadingText(heading.Inline);
             if (!string.IsNullOrWhiteSpace(title))
@@ -2685,7 +2779,7 @@ InfoBar 语法格式：
             if (url.StartsWith("route:", StringComparison.OrdinalIgnoreCase))
             {
                 var routePath = url.Substring("route:".Length);
-                FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, routePath);
+                NavigateSlideTo(routePath);
             }
             else
             {
@@ -3925,7 +4019,7 @@ InfoBar 语法格式：
 
     protected virtual void OnBackClick(object? sender, PointerPressedEventArgs e)
     {
-        FluentAvaloniaCompatibilityHelper.NavigateBack(this);
+        NavigateSlideBack();
     }
 
     protected void AddSection(StackPanel panel, string text, double fontSize, FontWeight fontWeight, IBrush foreground)
