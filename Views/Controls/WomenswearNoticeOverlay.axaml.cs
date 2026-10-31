@@ -13,7 +13,7 @@ namespace AdvancedTimeIsland.Views.Controls;
 /// 与「调试 → 女装」页（<see cref="Views.Settings.WomenswearPage"/>）共用。
 /// 两处共用同一份设置标记 <see cref="PluginSettings.WomenswearNoticeAccepted"/>——任一入口同意后，
 /// 另一入口也不再展示；点击「同意并查看」会立即原子落盘并触发 <see cref="Agreed"/>，由宿主页面装配内容。
-/// 外观对齐宿主「插件 / 自动化使用须知」：ATI 图标 + Fluent 加号 + Fluent 插件图标（&#xE4DA;）、
+/// 外观对齐宿主「插件 / 自动化使用须知」：ATI 图标 + Fluent 加号 + 线性半身裙图标、
 /// 标题、警示色说明块与强调色同意按钮，颜色随深浅主题自适应。
 /// </summary>
 public partial class WomenswearNoticeOverlay : UserControl
@@ -29,7 +29,6 @@ public partial class WomenswearNoticeOverlay : UserControl
 
         AppIcon.Source = PluginIconHelper.LoadIconBitmap();
         PlusIcon.FontFamily = ClassIsland.Core.AppBase.FluentIconsFontFamily;
-        PlugIcon.FontFamily = ClassIsland.Core.AppBase.FluentIconsFontFamily;
         WarnIcon.FontFamily = ClassIsland.Core.AppBase.FluentIconsFontFamily;
         CheckIcon.FontFamily = ClassIsland.Core.AppBase.FluentIconsFontFamily;
 
@@ -93,7 +92,7 @@ public partial class WomenswearNoticeOverlay : UserControl
     {
         TitleText.Foreground = ThemeHelper.GetTextBrush();
         PlusIcon.Foreground = ThemeHelper.GetTextBrush();
-        PlugIcon.Foreground = ThemeHelper.GetTextBrush();
+        SkirtIcon.Stroke = ThemeHelper.GetTextBrush();
         WarnIcon.Foreground = ThemeHelper.GetTextBrush();
         BodyText.Foreground = ThemeHelper.GetTextBrush();
 

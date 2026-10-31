@@ -692,10 +692,13 @@ public partial class EasterEggPage : UserControl
         };
         errorPanel.Children.Add(retryButton);
 
-        // 每张图片独立的加载占位符：该图缓冲完成前悬浮其上居中显示
+        // 每张图片独立的加载占位符：该图缓冲完成前悬浮其上居中显示。
+        // 覆盖控件默认的 168 固定宽度并改为拉伸：占位宽度在首次进入时先按兜底值铺设、布局就绪后再收敛，
+        // 固定 168 宽在宽度尚未更新的窄卡片里会被 ClipToBounds 裁得只剩一个形状。
         var loadingIndicator = new ExpressiveLoadingIndicator
         {
-            HorizontalAlignment = HorizontalAlignment.Center,
+            Width = double.NaN,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Center,
             Foreground = GetAccentBrush()
         };
@@ -747,8 +750,9 @@ public partial class EasterEggPage : UserControl
         container.SizeChanged += (_, _) =>
         {
             // 占位状态下高度必须跟随实际宽度维持等比：Width 属性可能被 MaxWidth 约束收窄，
-            // 实际渲染宽度以 Bounds 为准（窗口缩放/MaxWidth 动态更新时由此收敛）
-            if (image.Source == null && container.Bounds.Width > 1)
+            // 实际渲染宽度以 Bounds 为准（窗口缩放/MaxWidth 动态更新时由此收敛）。
+            // 错误态不维持等比：高度交给错误面板内容自适应（否则错误信息多少都会落在占位高度里）。
+            if (image.Source == null && !errorPanel.IsVisible && container.Bounds.Width > 1)
             {
                 var aspect = GetImageAspect(url);
                 var target = container.Bounds.Width * aspect;
@@ -811,6 +815,48 @@ public partial class EasterEggPage : UserControl
         point.Properties.PointerUpdateKind.ToString();
 
     /// <summary>
+    /// 右键“另存为”的可执行动作：保存照片 / 保存加载占位符源码 / 保存错误日志。
+    /// </summary>
+    private enum ImageSaveAction { Image, LoadingSource, ErrorLog }
+
+    /// <summary>
+    /// 判定右键“另存为”应执行的动作。判据以「卡片当前显示的是什么」为准，而不是「本地有没有缓存」：
+    /// 跨插件冲突拦截时本地可能仍残留旧缓存，此前「先看缓存再看状态」会把这份旧缓存当成可保存内容、
+    /// 导出照片而不是错误信息。现在只要卡片没有显示位图且不在加载中，就按错误态导出错误日志
+    ///（错误面板可见性与历史失败记录任一成立即可，避免面板可见性在重排间隙为 false 时误判）。
+    /// 菜单标题与实际动作共用本判定。
+    /// </summary>
+    private static ImageSaveAction ResolveSaveAction(string url, Image imageControl, StackPanel errorPanel, ExpressiveLoadingIndicator loadingIndicator)
+    {
+        if (imageControl.Source is Bitmap)
+        {
+            return ImageSaveAction.Image;
+        }
+
+        if (errorPanel.IsVisible)
+        {
+            return ImageSaveAction.ErrorLog;
+        }
+
+        var cachePath = GetImageCachePath(url);
+        var cacheExists = cachePath != null && File.Exists(cachePath);
+
+        if (loadingIndicator.IsVisible)
+        {
+            // 正在加载：有本地缓存可直接复制原始 JPG，否则导出加载占位符源码
+            return cacheExists ? ImageSaveAction.Image : ImageSaveAction.LoadingSource;
+        }
+
+        // 无位图且不在加载中：错误态，或视口外等待加载的纯占位卡片（此时缓存即其唯一可保存内容）
+        if (GetImageLoadErrorCount(url) > 0)
+        {
+            return ImageSaveAction.ErrorLog;
+        }
+
+        return cacheExists ? ImageSaveAction.Image : ImageSaveAction.ErrorLog;
+    }
+
+    /// <summary>
     /// 为图片卡片挂右键菜单（“另存为…”），按卡片当前状态分三路：
     /// ① 有本地缓存或已显示位图 → 另存为照片 JPG（优先无损复制本地缓存的原始 JPG；缓存缺失时把
     ///    当前显示位图重编码保存）；
@@ -827,24 +873,20 @@ public partial class EasterEggPage : UserControl
         var saveMenuItem = new MenuItem { Header = "另存为…" };
         saveMenuItem.Click += async (_, _) =>
         {
-            var cachePath = GetImageCachePath(url);
-            var cacheExists = cachePath != null && File.Exists(cachePath);
-            var hasBitmap = imageControl.Source is Bitmap;
-
-            if (cacheExists || hasBitmap)
+            switch (ResolveSaveAction(url, imageControl, errorPanel, loadingIndicator))
             {
-                Log($"[click] 另存为 clicked (save image), url={url}");
-                await SaveImageAsAsync(url, imageControl);
-            }
-            else if (loadingIndicator.IsVisible)
-            {
-                Log($"[click] 另存为 clicked (loading state, save source code), url={url}");
-                await SaveSourceCodeAsAsync(imageControl);
-            }
-            else
-            {
-                Log($"[click] 另存为 clicked (error state, save log), url={url}");
-                await SaveErrorLogAsAsync(url, imageControl);
+                case ImageSaveAction.Image:
+                    Log($"[click] 另存为 clicked (save image), url={url}");
+                    await SaveImageAsAsync(url, imageControl);
+                    break;
+                case ImageSaveAction.LoadingSource:
+                    Log($"[click] 另存为 clicked (loading state, save source code), url={url}");
+                    await SaveSourceCodeAsAsync(imageControl);
+                    break;
+                default:
+                    Log($"[click] 另存为 clicked (error state, save log), url={url}");
+                    await SaveErrorLogAsAsync(url, imageControl);
+                    break;
             }
         };
 
@@ -856,16 +898,17 @@ public partial class EasterEggPage : UserControl
             var cacheExists = cachePath != null && File.Exists(cachePath);
             var hasBitmap = imageControl.Source is Bitmap;
             var isLoading = loadingIndicator.IsVisible;
-            // 错误态判据：错误面板当前可见，或该图留有历史加载失败记录。
-            // 面板可见性是瞬态 UI 状态（重试/刷新/重排的间隙里可能为 false），而失败记录是持久化数据；
-            // 两者取或可避免失败卡片在“部分图片已加载成功”的混合状态下被误判为“无任何可保存内容”而变灰
-            //（实测日志：错误面板显示中，右键时 errorPanel.IsVisible 却为 false，导致菜单项被禁用）。
+            // 错误态判据：错误面板当前可见，或该图留有历史加载失败记录
+            //（面板可见性是瞬态 UI 状态，失败记录是持久化数据，日志里同时输出两者便于定位）
             var isError = errorPanel.IsVisible || GetImageLoadErrorCount(url) > 0;
+
+            // 菜单标题固定为“另存为…”，不随卡片状态变化（不同状态下具体保存什么由 ResolveSaveAction 决定）
+            var action = ResolveSaveAction(url, imageControl, errorPanel, loadingIndicator);
             // 卡片状态只可能落在三种分支上：已有图片（缓存/位图） / 错误态 / 加载中（含尚未产生结果的
             // 瞬态），三者覆盖全部情形，菜单项因此恒可用——避免失败项或加载项在“部分图片已加载成功”的
             // 混合状态下被误判为“无任何可保存内容”而变灰（用户实测反馈：右键失败项菜单变灰）。
             saveMenuItem.IsEnabled = true;
-            Log($"[opening] flyout Opening, url={url}, cacheExists={cacheExists}, hasBitmap={hasBitmap}, isLoading={isLoading}, isError={isError}");
+            Log($"[opening] flyout Opening, url={url}, cacheExists={cacheExists}, hasBitmap={hasBitmap}, isLoading={isLoading}, isError={isError}, action={action}");
         };
         menuFlyout.Closed += (_, _) => Log($"[closed] flyout Closed, url={url}");
         container.ContextFlyout = menuFlyout;
@@ -901,7 +944,13 @@ public partial class EasterEggPage : UserControl
     /// <summary>
     /// 记录一次图片加载失败（每次重试失败都会追加）。每个 URL 最多保留 20 条，防止长期驻留内存。
     /// </summary>
-    private static void RecordImageLoadError(string url, Exception ex)
+    private static void RecordImageLoadError(string url, Exception ex) =>
+        RecordImageLoadError(url, ex.GetType().Name, ex.Message);
+
+    /// <summary>
+    /// 记录一次非异常型加载失败（如跨插件冲突拦截的主动阻止加载），使“另存为错误日志”有内容可导出。
+    /// </summary>
+    private static void RecordImageLoadError(string url, string exceptionType, string message)
     {
         lock (ImageLoadErrorsLock)
         {
@@ -911,7 +960,7 @@ public partial class EasterEggPage : UserControl
                 ImageLoadErrors[url] = list;
             }
 
-            list.Add(new ImageLoadErrorEntry(DateTime.Now, ex.GetType().Name, ex.Message));
+            list.Add(new ImageLoadErrorEntry(DateTime.Now, exceptionType, message));
             if (list.Count > 20)
             {
                 list.RemoveAt(0);
@@ -1313,6 +1362,10 @@ public partial class EasterEggPage : UserControl
                 ResetImageEntranceState(imageControl);
                 errorDetailText.Text = BuildPluginsBlockedMessage(blockingPlugins);
                 errorPanel.IsVisible = true;
+                // 错误态卡片尺寸自适应：高度由错误面板内容决定（少量信息不留大空隙，较多信息不溢出）
+                ClearPlaceholderSize(slot);
+                // 记一条失败记录：拦截并非异常，但“另存为错误日志”需要内容，且此处是用户排查问题的唯一线索
+                RecordImageLoadError(url, "PluginConflict", BuildPluginsBlockedMessage(blockingPlugins));
                 retryButton.IsEnabled = true;
                 retryButton.Content = "重新刷新";
                 return;
@@ -1449,6 +1502,8 @@ public partial class EasterEggPage : UserControl
             ResetImageEntranceState(slot.Image);
             slot.ErrorDetailText.Text = $"URL: {slot.Url}\n错误: {ex.GetType().Name}: {ex.Message}";
             slot.ErrorPanel.IsVisible = true;
+            // 失败后卡片尺寸改为自适应：清除等比占位，高度交给错误面板内容（信息少不留大空隙、多不溢出）
+            ClearPlaceholderSize(slot);
             slot.RetryButton.IsEnabled = true;
             slot.RetryButton.Content = "重新刷新";
             RecordImageLoadError(slot.Url, ex);
@@ -1517,8 +1572,13 @@ public partial class EasterEggPage : UserControl
         }
         slot.LoadingIndicator.IsActive = false;
         slot.LoadingIndicator.IsVisible = false;
-        // 恢复等比占位（错误态也恢复——错误面板显示在占位区域内）
-        if (!keepErrorPanel || slot.Image.Source == null)
+        // 错误态：尺寸自适应（错误面板决定高度），不恢复等比占位；
+        // 其余状态恢复等比占位（含错误面板已关闭的待重试卡片）
+        if (slot.ErrorPanel.IsVisible)
+        {
+            ClearPlaceholderSize(slot);
+        }
+        else if (!keepErrorPanel || slot.Image.Source == null)
         {
             ApplyPlaceholderSize(slot);
         }
@@ -1631,6 +1691,10 @@ public partial class EasterEggPage : UserControl
             return;
         }
 
+        // 视口宽度就绪/变化时先刷新占位尺寸：首次进入的兜底占位宽度在此收敛到真实宽度，
+        // 保证加载占位符的三个形状完整落在卡片内
+        RefreshPlaceholderSizes();
+
         // 【关键】TranslatePoint(卡片 → root) 得到的已经是“视口坐标”——随滚动实时变化，
         // 可见卡片的 Y ∈ [0, Viewport.Height]。绝不能再叠加 root.Offset.Y（否则偏移被计算两次，
         // 滚过约三张图后判定窗口整体漂出所有卡片的坐标范围，之后所有卡片被永久误判为离视不加载）。
@@ -1689,6 +1753,12 @@ public partial class EasterEggPage : UserControl
         slot.CancelLoad();
         slot.Cts = CancellationTokenSource.CreateLinkedTokenSource(GetCurrentLoadToken());
         slot.IsLoading = true;
+        // 错误/空卡片重新开始加载前先恢复等比占位：错误态曾把尺寸改成自适应，
+        // 加载期间需要回到占位高度，等位图到达后再交给位图尺寸
+        if (slot.Image.Source == null)
+        {
+            ApplyPlaceholderSize(slot);
+        }
         slot.LoadingIndicator.IsActive = true;
         slot.LoadingIndicator.IsVisible = true;
         _ = LoadImageCoreAsync(slot, slot.Cts.Token);
@@ -1710,28 +1780,79 @@ public partial class EasterEggPage : UserControl
 
     /// <summary>
     /// 计算等比占位宽度：与 <see cref="ResponsiveImageHelper.MakeWidthFollowAncestor"/> 的
-    /// MaxWidth 逻辑一致（内容区宽度的 80%）。基准宽度取视口根宽度（缺页边距 32）。
+    /// MaxWidth 逻辑一致（内容区宽度的 80%）。基准宽度取视口根宽度（缺页边距 32）；
+    /// 首次进入时视口尚未布局（宽度为 0），先用 640 兜底，布局就绪后由
+    /// <see cref="RefreshPlaceholderSizes"/> 收敛到真实宽度。
     /// </summary>
-    private double ResolvePlaceholderWidth(ImageSlot slot)
+    private double ResolvePlaceholderWidth()
     {
-        var baseWidth = _viewportScrollViewer?.Bounds.Width
-                        ?? this.FindControl<ScrollViewer>("MainScrollViewer")?.Bounds.Width
-                        ?? 640;
+        var scrollViewer = _viewportScrollViewer ?? this.FindControl<ScrollViewer>("MainScrollViewer");
+        var baseWidth = scrollViewer?.Bounds.Width ?? 0;
+        if (baseWidth <= 1)
+        {
+            baseWidth = 640;
+        }
         baseWidth -= 32; // 内容区左右边距
         return Math.Max(baseWidth * 0.8, 64);
     }
 
-    /// <summary>位图加载前为卡片铺设等比占位（宽度 + 宽度×宽高比的高度），加载完成后清除。</summary>
-    private void ApplyPlaceholderSize(ImageSlot slot)
+    /// <summary>
+    /// 位图加载前为卡片铺设等比占位（宽度 + 宽度×宽高比的高度），加载完成后清除。
+    /// 错误态卡片不铺设：卡片尺寸由错误面板内容自适应（少量信息不留大空隙、较多信息不溢出）。
+    /// </summary>
+    private void ApplyPlaceholderSize(ImageSlot slot, double? widthOverride = null)
     {
-        if (slot.Image.Source != null)
+        if (slot.Image.Source != null || slot.ErrorPanel.IsVisible)
         {
             return;
         }
 
-        var width = ResolvePlaceholderWidth(slot);
-        slot.Container.Width = width;
-        slot.Container.Height = width * GetImageAspect(slot.Url);
+        var width = widthOverride ?? ResolvePlaceholderWidth();
+        // 高度按「实际渲染宽度」等比：设定的 Width 可能被 MaxWidth 收窄，Bounds.Width 才是真实宽度；
+        // 两者混用会让占位高度在「设定宽度」和「收窄宽度」之间每帧反复弹跳
+        var effectiveWidth = slot.Container.Bounds.Width > 1
+            ? Math.Min(width, slot.Container.Bounds.Width)
+            : width;
+        var height = effectiveWidth * GetImageAspect(slot.Url);
+        if (double.IsNaN(slot.Container.Width) || Math.Abs(slot.Container.Width - width) > 0.5)
+        {
+            slot.Container.Width = width;
+        }
+        // 高度按占位宽度等比：Width 还可能被 MaxWidth 收窄，SizeChanged 会继续收敛
+        if (double.IsNaN(slot.Container.Height) || Math.Abs(slot.Container.Height - height) > 0.5)
+        {
+            slot.Container.Height = height;
+        }
+    }
+
+    /// <summary>
+    /// 视口宽度变化后重新铺设全部卡片的占位尺寸。首次进入时视口尚未布局，占位只能先按兜底宽度铺设，
+    /// 布局完成 / 窗口缩放后由本方法收敛到真实宽度（否则占位符的三个形状会被窄卡片裁成一个）。
+    /// 错误态卡片清掉占位尺寸，保持内容自适应。
+    /// </summary>
+    private void RefreshPlaceholderSizes()
+    {
+        if (_imageSlots == null || _imageSlots.Count == 0)
+        {
+            return;
+        }
+
+        var width = ResolvePlaceholderWidth();
+        foreach (var slot in _imageSlots)
+        {
+            if (slot.Image.Source != null)
+            {
+                continue;
+            }
+
+            if (slot.ErrorPanel.IsVisible)
+            {
+                ClearPlaceholderSize(slot);
+                continue;
+            }
+
+            ApplyPlaceholderSize(slot, width);
+        }
     }
 
     /// <summary>清除占位尺寸，交还给位图 + MaxWidth 机制决定卡片尺寸。</summary>
@@ -1773,9 +1894,9 @@ public partial class EasterEggPage : UserControl
                     {
                         foreach (var slot in _imageSlots)
                         {
-                            if (slot.Url == url && slot.Image.Source == null)
+                            if (slot.Url == url && slot.Image.Source == null && !slot.ErrorPanel.IsVisible)
                             {
-                                // 已加载位图的无需占位；占位态刷新等比尺寸
+                                // 已加载位图 / 错误态的无需占位；占位态刷新等比尺寸
                                 ApplyPlaceholderSize(slot);
                             }
                         }

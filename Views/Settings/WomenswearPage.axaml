@@ -22,10 +22,11 @@
                            Foreground="HotPink"
                            HorizontalAlignment="Center"
                            Margin="16,8,16,0" />
-                <!-- 选中项与切换事件在 code-behind 中按“先赋初值再订阅”的顺序接线，避免初始化误触发 -->
+                <!-- 选中项与切换事件在 code-behind 中按“先赋初值再订阅”的顺序接线，避免初始化误触发；
+                     标签导航栏靠左对齐（与「‹ 返回上一级」同一左边距），标题仍居中 -->
                 <TabStrip x:Name="TabStrip"
                           Margin="16,8,16,0"
-                          HorizontalAlignment="Center">
+                          HorizontalAlignment="Left">
                     <TabStripItem>汉服</TabStripItem>
                     <TabStripItem>JK制服</TabStripItem>
                 </TabStrip>

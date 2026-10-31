@@ -1,6 +1,7 @@
 <UserControl x:Class="AdvancedTimeIsland.Views.Controls.WomenswearNoticeOverlay"
              xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="clr-namespace:AdvancedTimeIsland.Views.Controls"
              IsVisible="False">
     <Border x:Name="RootBorder">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled"
@@ -18,7 +19,7 @@
                     </Style>
                 </StackPanel.Styles>
 
-                <!-- 图标行：ATI 图标 + Fluent 加号 &#xE00C; + Fluent 插件图标 &#xE4DA;（字体由 code-behind 指定） -->
+                <!-- 图标行：ATI 图标 + Fluent 加号 &#xE00C; + 线性半身裙图标（描边色由 code-behind 随主题指定） -->
                 <Grid ColumnDefinitions="75,Auto,75" HorizontalAlignment="Center">
                     <Image x:Name="AppIcon"
                            Grid.Column="0"
@@ -34,14 +35,12 @@
                                Margin="16,0"
                                VerticalAlignment="Center"
                                HorizontalAlignment="Center" />
-                    <TextBlock x:Name="PlugIcon"
-                               Grid.Column="2"
-                               Text="&#xE4DA;"
-                               FontSize="75"
-                               Width="75"
-                               Height="75"
-                               VerticalAlignment="Center"
-                               HorizontalAlignment="Center" />
+                    <controls:WomenswearSkirtIcon x:Name="SkirtIcon"
+                                                  Grid.Column="2"
+                                                  Width="75"
+                                                  Height="75"
+                                                  VerticalAlignment="Center"
+                                                  HorizontalAlignment="Center" />
                 </Grid>
 
                 <TextBlock x:Name="TitleText"
