@@ -36,6 +36,12 @@ public class Plugin : PluginBase
     /// </summary>
     public static bool EasterEggGateEnabled { get; private set; }
 
+    /// <summary>
+    /// 「女装」彩蛋的本次运行会话状态（是否已触发/已开启）。
+    /// 只存在于内存中：设置页重建、切到别的设置页再回来都不会丢失，重启宿主（ClassIsland）后才复位为未触发。
+    /// </summary>
+    public static bool EasterEggSessionActive { get; set; }
+
     public PluginSettings Settings { get; set; } = new();
     public DebugSettings DebugSettings { get; set; } = new();
 

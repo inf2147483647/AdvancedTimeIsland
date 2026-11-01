@@ -97,10 +97,9 @@ public class AboutPage : SettingsPageBase
     {
         _pluginSettings = pluginSettings;
 
-        // 女装彩蛋状态不落盘、只存在于本页实例内：页面重建（关闭设置窗口 / 切到别的设置页再回来）
-        // 即回到未触发状态，必须重新连点图标触发。宿主默认 SettingsPagesCachePolicy = 0，
-        // 因此每次进入本设置页都会创建新实例，这里无需额外清理旧状态。
-        _easterEggActive = false;
+        // 女装彩蛋状态不落盘，但跨页面重建保留：状态放在 Plugin.EasterEggSessionActive（进程内静态字段），
+        // 页面重建（关闭设置窗口 / 切到别的设置页再回来）时从这里恢复，只有重启宿主（ClassIsland）才复位。
+        _easterEggActive = Plugin.EasterEggSessionActive;
 
         _easterEggDetector = new EasterEggDetector(11, 5);
         _easterEggDetector.OnActivated += OnEasterEggActivated;
@@ -668,7 +667,8 @@ public class AboutPage : SettingsPageBase
 
     /// <summary>
     /// 彩蛋激活处理：先做集控验证（加入集控且设置了凭据时必须通过），再点亮「女装」标签页。
-    /// 状态只保存在本页实例内、不写回设置，页面重建即失效。
+    /// 状态不写回设置（不落盘），只保留在内存会话中（<see cref="Plugin.EasterEggSessionActive"/>），
+    /// 页面重建会恢复，重启宿主才复位。
     /// </summary>
     private async void OnEasterEggActivated(object? sender, EventArgs e)
     {
@@ -710,6 +710,7 @@ public class AboutPage : SettingsPageBase
             }
 
             _easterEggActive = true;
+            Plugin.EasterEggSessionActive = true;
             SyncNavigationTabs();
             ShowEasterEggDialog();
         }
@@ -721,7 +722,7 @@ public class AboutPage : SettingsPageBase
 
     /// <summary>
     /// 女装开关状态变化处理（设置页里的开关只在彩蛋已触发时可见）。
-    /// 该状态同样只作用于本页实例，不写回设置。
+    /// 该状态不写回设置（不落盘），但同步到内存会话，页面重建后仍保留，重启宿主才复位。
     /// </summary>
     private void OnEasterEggToggled(object? sender, bool isEnabled)
     {
@@ -729,6 +730,7 @@ public class AboutPage : SettingsPageBase
         {
             if (_easterEggActive) return;
             _easterEggActive = true;
+            Plugin.EasterEggSessionActive = true;
             SyncNavigationTabs();
             return;
         }
@@ -739,6 +741,7 @@ public class AboutPage : SettingsPageBase
         if (_easterEggActive)
         {
             _easterEggActive = false;
+            Plugin.EasterEggSessionActive = false;
             SyncNavigationTabs();
         }
     }
@@ -1531,23 +1534,10 @@ public class AboutPage : SettingsPageBase
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
 
-        // 女装彩蛋状态不落盘、也不跨页面保留：离开设置页即清空并收起「女装」标签页。
-        // 这样即使宿主开启了设置页实例缓存（SettingsPagesCachePolicy >= 1），重新进入设置页
-        // 也一定是未触发状态，必须重新连点图标触发。
-        ResetEasterEggSessionState();
-    }
-
-    /// <summary>
-    /// 清空本页实例内的女装彩蛋状态（含点击计数），并在已触发时同步收起「女装」标签页。
-    /// </summary>
-    private void ResetEasterEggSessionState()
-    {
+        // 女装彩蛋状态不落盘，但跨页面保留（见 Plugin.EasterEggSessionActive）：
+        // 离开设置页只清掉本页的连点检测计数，已触发/已开启状态保留，只有重启宿主才复位。
         _easterEggActivating = false;
         _easterEggDetector?.Reset();
-
-        if (!_easterEggActive) return;
-        _easterEggActive = false;
-        SyncNavigationTabs();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

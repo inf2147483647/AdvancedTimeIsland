@@ -603,9 +603,9 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    // 【已移除】原先的 EnableEasterEgg 配置项不再存在：女装彩蛋状态改为只在「关于」设置页实例内
-    // 存在（页面重建即丢失，不写入 settings.json）。旧配置里残留的 EnableEasterEgg 字段会在反序列化时
-    // 被 System.Text.Json 按未知成员忽略，升级后需要重新触发彩蛋才会出现「女装」标签页。
+    // 【已移除】原先的 EnableEasterEgg 配置项不再存在：女装彩蛋状态改为只存在于内存会话
+    // （Plugin.EasterEggSessionActive，不写入 settings.json），页面重建后保留、重启宿主才复位。
+    // 旧配置里残留的 EnableEasterEgg 字段会在反序列化时被 System.Text.Json 按未知成员忽略。
 
     /// <summary>
     /// 是否已接受免责声明

@@ -764,9 +764,9 @@ public class PluginSettingsPage : UserControl
 
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(experimentalExpander));
 
-            // 女装彩蛋（默认不可见）：状态只存在于「关于」页实例内、不落盘，
-            // 因此这里恒从隐藏 / 未开启开始，彩蛋触发后由 AboutPage 调 ShowEasterEggSetting() 点亮。
-            const bool isEasterEggEnabled = false;
+            // 女装彩蛋（默认不可见）：状态不落盘，但跨页面重建保留（Plugin.EasterEggSessionActive），
+            // 因此这里按内存会话恢复：本次运行内触发过就保持显示 / 已开启，只有重启宿主才回到隐藏 / 未开启。
+            var isEasterEggEnabled = Plugin.EasterEggSessionActive;
             _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggled);
             _easterEggToggle.IsVisible = isEasterEggEnabled; // 未触发时隐藏，触发后由 ShowEasterEggSetting() 点亮
 
@@ -1931,8 +1931,8 @@ public class PluginSettingsPage : UserControl
 
     private void OnEasterEggToggled(bool isEnabled)
     {
-        // 女装状态不再写入设置（不落盘，重进设置页即重置）：只做本页 UI 收起与事件转发，
-        // 由 AboutPage 维护页面级状态并增删「女装」标签页。
+        // 女装状态不写入设置（不落盘，重启宿主才复位）：只做本页 UI 收起与事件转发，
+        // 由 AboutPage 维护内存会话状态（Plugin.EasterEggSessionActive）并增删「女装」标签页。
         if (!isEnabled)
         {
             HideEasterEggSetting();
