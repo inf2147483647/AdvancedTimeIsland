@@ -6,7 +6,7 @@ namespace AdvancedTimeIsland.Models;
 
 /// <summary>
 /// 主界面组件共用的设置基类（周数、在校时间统计等）：
-/// 提供字体大小、颜色、样式、字重的自定义开关与默认值，以及时间基准。
+/// 提供字体大小、颜色、样式、字重的自定义开关与默认值。
 /// </summary>
 public abstract class WeekSettings : INotifyPropertyChanged
 {
@@ -18,20 +18,6 @@ public abstract class WeekSettings : INotifyPropertyChanged
     private bool _enableCustomFontColor = false;
     private bool _enableCustomFontFamily = false;
     private bool _enableCustomFontWeight = false;
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
-
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
-                OnPropertyChanged();
-            }
-        }
-    }
 
     public double FontSize
     {

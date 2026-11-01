@@ -10,7 +10,7 @@ using Avalonia.Threading;
 namespace AdvancedTimeIsland.ViewModels.Main;
 
 /// <summary>
-/// 周数组件视图模型基类，负责统一的时间刷新、时间基准切换与字体回调分发。
+/// 周数组件视图模型基类，负责统一的时间刷新与字体回调分发。
 /// </summary>
 public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDisposable
     where TSettings : WeekSettings
@@ -44,13 +44,6 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
         _updateFontColor = updateFontColor;
         _updateFontSize = updateFontSize;
 
-        // 迁移旧版时间基准值
-        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
-        if (migrated != _settings.TimeBaseType)
-        {
-            _settings.TimeBaseType = migrated;
-        }
-
         Refresh();
 
         // 复用全局共享渲染时钟（普通档 200ms），不再各自维护 System.Timers.Timer，
@@ -73,13 +66,7 @@ public abstract class WeekViewModelBase<TSettings> : INotifyPropertyChanged, IDi
 
     private DateTime GetCurrentTime()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
-            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
-            _ => _timeBaseService.GetCurrentTime()
-        };
+        return _timeBaseService.GetClassIslandTime();
     }
 
     private void Refresh()

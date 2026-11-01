@@ -21,7 +21,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private TextBox? _text4TextBox;
     private TextBox? _timeFormatTextBox;
     private TextBlock? _timeFormatHint;
-    private ComboBox? _timeBaseComboBox;
     private CheckBox? _text1EnableCustomFontSizeToggle;
     private CheckBox? _text1EnableCustomFontColorToggle;
     private CheckBox? _nameEnableCustomFontSizeToggle;
@@ -74,8 +73,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
     private TextBlock? _timeGroupHeader;
     private TextBlock? _formatGroupHeader;
     private TextBlock? _formatLabel;
-    private TextBlock? _timeBaseGroupHeader;
-    private TextBlock? _timeBaseLabel;
     private TextBlock? _startTimeGroupHeader;
     private TextBlock? _startDateLabel;
     private TextBlock? _startTimeLabel;
@@ -143,18 +140,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
             TextWrapping = TextWrapping.Wrap
         };
         timePanel.Children.Add(_timeFormatHint);
-
-        // --- 时间基准 ---
-        _timeBaseGroupHeader = new TextBlock { Text = "时间基准", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
-        timePanel.Children.Add(_timeBaseGroupHeader);
-
-        _timeBaseLabel = new TextBlock { Text = "时间来源:", FontSize = 12, FontWeight = FontWeight.Bold };
-        timePanel.Children.Add(_timeBaseLabel);
-        _timeBaseComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
-        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("ClassIsland时间");
-        timePanel.Children.Add(_timeBaseComboBox);
 
         // --- 开始时间 ---
         _startTimeGroupHeader = new TextBlock { Text = "开始时间", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
@@ -467,8 +452,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_formatLabel != null) _formatLabel.Foreground = ThemeHelper.GetLightBlueBrush();
         if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
-        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeBaseLabel != null) _timeBaseLabel.Foreground = ThemeHelper.GetLightBlueBrush();
         if (_startTimeGroupHeader != null) _startTimeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_startDateLabel != null) _startDateLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_startTimeLabel != null) _startTimeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -685,20 +668,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
         if (_text4TextBox != null) _text4TextBox.Text = Settings.Text4;
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
-        // 迁移旧版时间基准值
-        var migratedType = TimeBaseTypeHelper.Migrate((int)Settings.TimeBaseType);
-        if (migratedType != Settings.TimeBaseType)
-        {
-            Settings.TimeBaseType = migratedType;
-        }
-
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => 0,
-            TimeBaseType.RawServerTime => 1,
-            TimeBaseType.ClassIslandTime => 2,
-            _ => 0
-        };
 
         var startTime = DateTimeOffset.FromUnixTimeSeconds(Settings.StartTime).LocalDateTime;
         if (_startYearTextBox != null) _startYearTextBox.Text = startTime.Year.ToString();
@@ -734,20 +703,6 @@ public class ForwardTimerSettingsControl : ComponentBase<ForwardTimerSettings>
         AttachTextHandler(_text3TextBox, v => Settings.Text3 = v ?? "已过");
         AttachTextHandler(_text4TextBox, v => Settings.Text4 = v ?? "");
         AttachTextHandler(_timeFormatTextBox, v => Settings.TimeFormat = v ?? "%d天%h小时%m分钟%s秒");
-
-        if (_timeBaseComboBox != null)
-        {
-            _timeBaseComboBox.SelectionChanged += (s, e) =>
-            {
-                Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
-                {
-                    0 => TimeBaseType.PluginOffsetServerTime,
-                    1 => TimeBaseType.RawServerTime,
-                    2 => TimeBaseType.ClassIslandTime,
-                    _ => TimeBaseType.PluginOffsetServerTime
-                };
-            };
-        }
 
         AttachDateTimeHandlers();
 

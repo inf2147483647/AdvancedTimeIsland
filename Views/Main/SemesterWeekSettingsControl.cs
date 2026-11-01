@@ -29,12 +29,6 @@ public class SemesterWeekSettingsControl : ComponentBase<SemesterWeekSettings>
     private NumericUpDown _fontSizeNumericUpDown;
     private ComboBox _fontFamilyComboBox;
     private ComboBox _fontWeightComboBox;
-    private ComboBox _timeBaseComboBox;
-
-    private static readonly object[] TimeBaseItems =
-    {
-        "插件偏移后的服务器时间", "原始服务器时间", "ClassIsland时间"
-    };
 
     public SemesterWeekSettingsControl()
     {
@@ -50,18 +44,6 @@ public class SemesterWeekSettingsControl : ComponentBase<SemesterWeekSettings>
 
         _descTextBlock = new TextBlock { Text = "以ClassIsland学期开始日为一周第一天，显示当前周所处的学期周数，形如\"第 N 周\"。可自定义字体颜色、大小、样式与字重。", FontSize = 12, TextWrapping = TextWrapping.Wrap };
         sp.Children.Add(_descTextBlock);
-
-        // ==================== 时间设置 ====================
-        var timePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var timeBaseRow = FontSettingsRowFactory.CreateComboBoxRow("时间基准", TimeBaseItems,
-            out var timeBaseLabel, out _timeBaseComboBox, out var timeBaseToggle,
-            toggleContent: null,
-            selectionChangedHandler: OnTimeBaseChanged);
-        _labels.Add(timeBaseLabel);
-        timePanel.Children.Add(timeBaseRow);
-
-        sp.Children.Add(SettingsGroupFactory.Create("时间设置", timePanel));
 
         // ==================== 文案设置 ====================
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
@@ -291,18 +273,6 @@ public class SemesterWeekSettingsControl : ComponentBase<SemesterWeekSettings>
         }
     }
 
-    private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        var idx = _timeBaseComboBox.SelectedIndex;
-        Settings.TimeBaseType = idx switch
-        {
-            0 => TimeBaseType.PluginOffsetServerTime,
-            1 => TimeBaseType.RawServerTime,
-            2 => TimeBaseType.ClassIslandTime,
-            _ => TimeBaseType.PluginOffsetServerTime
-        };
-    }
-
     private void UpdateControlsEnabled()
     {
         _colorPicker.IsEnabled = Settings.EnableCustomFontColor;
@@ -354,13 +324,6 @@ public class SemesterWeekSettingsControl : ComponentBase<SemesterWeekSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => 0,
-            TimeBaseType.RawServerTime => 1,
-            TimeBaseType.ClassIslandTime => 2,
-            _ => 0
-        };
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;

@@ -222,16 +222,11 @@ public class Plugin : PluginBase
     }
 
     /// <summary>
-    /// 获取当前时间（应用插件全局偏移，基于NTP服务器时间）
+    /// 获取当前时间（统一使用 ClassIsland 时间）
     /// </summary>
     public static DateTime GetCurrentTime()
     {
-        if (TimeBaseService.Instance != null)
-        {
-            return TimeBaseService.Instance.GetCurrentTime();
-        }
-        var offset = Instance?.Settings.TimeOffsetSeconds ?? 0;
-        return DateTime.Now.AddSeconds(offset);
+        return TimeBaseService.Instance?.GetCurrentTime() ?? DateTime.Now;
     }
 
     /// <summary>
@@ -1759,7 +1754,6 @@ public class Plugin : PluginBase
         }
 
         services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();
-        services.AddAction<Automation.Actions.SyncPluginTimeAction>();
         services.AddAction<Automation.Actions.SetFloatingScheduleAction, Automation.Actions.SetFloatingScheduleActionSettingsControl>();
 
         // ========== 新增条件：星座、节气、生肖 ==========

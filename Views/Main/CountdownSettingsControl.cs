@@ -43,7 +43,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private CheckBox? _text3EnableCustomFontWeightToggle;
     private CheckBox? _timeEnableCustomFontWeightToggle;
     private CheckBox? _text4EnableCustomFontWeightToggle;
-    private ComboBox? _timeBaseComboBox;
     private CountdownListEditor<CountdownItem>? _listEditor;
 
     private NumericUpDown? _text1FontSizeNumericUpDown;
@@ -94,8 +93,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
     private TextBlock? _simpleModeDesc;
     private TextBlock? _formatGroupHeader;
     private TextBlock? _formatLabel;
-    private TextBlock? _timeBaseGroupHeader;
-    private TextBlock? _timeBaseLabel;
     private TextBlock? _startTimeGroupHeader;
     private TextBlock? _startDateLabel;
     private TextBlock? _startTimeLabel;
@@ -220,27 +217,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         startTimeRow.Children.Add(_startSecondComboBox);
 
         timePanel.Children.Add(startTimeRow);
-
-        // --- 时间基准 ---
-        _timeBaseGroupHeader = new TextBlock { Text = "时间基准", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
-        timePanel.Children.Add(_timeBaseGroupHeader);
-
-        var timeBaseRow = new Grid();
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _timeBaseLabel = new TextBlock { Text = "时间基准:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeBaseLabel, 0);
-        timeBaseRow.Children.Add(_timeBaseLabel);
-
-        _timeBaseComboBox = new ComboBox();
-        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("ClassIsland时间");
-        Grid.SetColumn(_timeBaseComboBox, 1);
-        timeBaseRow.Children.Add(_timeBaseComboBox);
-
-        timePanel.Children.Add(timeBaseRow);
 
         // --- 时间格式 ---
         _formatGroupHeader = new TextBlock { Text = "时间格式", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
@@ -579,8 +555,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_formatLabel != null) _formatLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
-        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeBaseLabel != null) _timeBaseLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_startTimeGroupHeader != null) _startTimeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_startDateLabel != null) _startDateLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_startTimeLabel != null) _startTimeLabel.Foreground = ThemeHelper.GetTextBrush();
@@ -828,21 +802,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
         if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
 
-        // 迁移旧版时间基准值
-        var migratedType = TimeBaseTypeHelper.Migrate((int)Settings.TimeBaseType);
-        if (migratedType != Settings.TimeBaseType)
-        {
-            Settings.TimeBaseType = migratedType;
-        }
-
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => 0,
-            TimeBaseType.RawServerTime => 1,
-            TimeBaseType.ClassIslandTime => 2,
-            _ => 0
-        };
-
         _isUpdatingProgressDisplay = true;
         try
         {
@@ -958,23 +917,6 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         AttachTextHandler(_text3TextBox, v => Settings.Text3 = v ?? "还有");
         AttachTextHandler(_text4TextBox, v => Settings.Text4 = v ?? "");
         AttachTextHandler(_timeFormatTextBox, v => Settings.TimeFormat = v ?? "%d天%h小时%m分钟%s秒");
-
-        if (_timeBaseComboBox != null)
-        {
-            _timeBaseComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
-                {
-                    Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
-                    {
-                        0 => TimeBaseType.PluginOffsetServerTime,
-                        1 => TimeBaseType.RawServerTime,
-                        2 => TimeBaseType.ClassIslandTime,
-                        _ => TimeBaseType.PluginOffsetServerTime
-                    };
-                }
-            };
-        }
 
         AttachNumericUpDownHandler(_text1FontSizeNumericUpDown, v => Settings.Text1FontSize = v);
         AttachColorPickerHandler(_text1FontColorPicker, v => Settings.Text1FontColor = v);

@@ -281,7 +281,7 @@ public class TimeCalculatorPage : UserControl
 
     private void OnMinuendNowButtonClick(object? sender, RoutedEventArgs e)
     {
-        var now = TimeBaseService.Instance?.GetRawServerTime() ?? DateTime.Now;
+        var now = TimeBaseService.Instance?.GetCurrentTime() ?? DateTime.Now;
         SetDateTimeToControls(now, _minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker);
     }
 

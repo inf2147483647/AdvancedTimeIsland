@@ -36,12 +36,6 @@ public class WeekTextSettingsPanel
     private NumericUpDown _fontSizeNumericUpDown = null!;
     private ComboBox _fontFamilyComboBox = null!;
     private ComboBox _fontWeightComboBox = null!;
-    private readonly ComboBox _timeBaseComboBox;
-
-    private static readonly object[] TimeBaseItems =
-    {
-        "插件偏移后的服务器时间", "原始服务器时间", "ClassIsland时间"
-    };
 
     /// <summary>
     /// 设置面板根控件。
@@ -51,7 +45,7 @@ public class WeekTextSettingsPanel
     /// <param name="settings">组件设置。</param>
     /// <param name="title">面板标题。</param>
     /// <param name="description">面板描述。</param>
-    /// <param name="extraGroups">插在时间设置之前的分组控件（可为空）。</param>
+    /// <param name="extraGroups">插在文案设置之前的分组控件（可为空）。</param>
     public WeekTextSettingsPanel(WeekSettings settings, string title, string description,
         params Control[] extraGroups)
     {
@@ -74,18 +68,6 @@ public class WeekTextSettingsPanel
         {
             sp.Children.Add(group);
         }
-
-        // ==================== 时间设置 ====================
-        var timePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var timeBaseRow = FontSettingsRowFactory.CreateComboBoxRow("时间基准", TimeBaseItems,
-            out var timeBaseLabel, out _timeBaseComboBox, out _,
-            toggleContent: null,
-            selectionChangedHandler: OnTimeBaseChanged);
-        _labels.Add(timeBaseLabel);
-        timePanel.Children.Add(timeBaseRow);
-
-        sp.Children.Add(SettingsGroupFactory.Create("时间设置", timePanel));
 
         // ==================== 文案设置 ====================
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
@@ -114,13 +96,6 @@ public class WeekTextSettingsPanel
         }
 
         UpdateThemeColors();
-        _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => 0,
-            TimeBaseType.RawServerTime => 1,
-            TimeBaseType.ClassIslandTime => 2,
-            _ => 0
-        };
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
@@ -353,17 +328,6 @@ public class WeekTextSettingsPanel
         {
             Settings.FontWeight = _fontWeightComboBox.SelectedItem.ToString() ?? "";
         }
-    }
-
-    private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
-        {
-            0 => TimeBaseType.PluginOffsetServerTime,
-            1 => TimeBaseType.RawServerTime,
-            2 => TimeBaseType.ClassIslandTime,
-            _ => TimeBaseType.PluginOffsetServerTime
-        };
     }
 
     private void UpdateControlsEnabled()

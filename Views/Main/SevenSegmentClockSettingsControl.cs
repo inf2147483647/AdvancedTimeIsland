@@ -16,7 +16,6 @@ namespace AdvancedTimeIsland.Views.Main;
 public class SevenSegmentClockSettingsControl : ComponentBase<SevenSegmentClockSettings>
 {
     private ToggleSwitch? _showSecondsToggle;
-    private ComboBox? _timeBaseComboBox;
     private ToggleSwitch? _skewModeToggle;
     private ColorPicker? _accentColorPicker;
     private ToggleSwitch? _separatorBlinkToggle;
@@ -47,16 +46,6 @@ public class SevenSegmentClockSettingsControl : ComponentBase<SevenSegmentClockS
         displayPanel.Children.Add(_showSecondsToggle);
 
         displayPanel.Children.Add(CreateDescription("关闭后仅显示“时:分”（HH:mm）。默认为开启。"));
-
-        displayPanel.Children.Add(CreateLabel("时间基准（时间差值）:", 6));
-
-        _timeBaseComboBox = new ComboBox { HorizontalAlignment = HorizontalAlignment.Left };
-        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("ClassIsland时间");
-        displayPanel.Children.Add(_timeBaseComboBox);
-
-        displayPanel.Children.Add(CreateDescription("选择数码管时钟取时所依据的时间差值来源。"));
 
         mainPanel.Children.Add(SettingsGroupFactory.Create("显示设置", displayPanel));
 
@@ -189,39 +178,11 @@ public class SevenSegmentClockSettingsControl : ComponentBase<SevenSegmentClockS
 
         UpdateThemeColors();
 
-        // 迁移旧版时间基准值
-        var migratedType = TimeBaseTypeHelper.Migrate((int)Settings.TimeBaseType);
-        if (migratedType != Settings.TimeBaseType)
-        {
-            Settings.TimeBaseType = migratedType;
-        }
-
         if (_showSecondsToggle != null)
         {
             _showSecondsToggle.IsChecked = Settings.ShowSeconds;
             _showSecondsToggle.IsCheckedChanged += (_, _) =>
                 Settings.ShowSeconds = _showSecondsToggle.IsChecked ?? false;
-        }
-
-        if (_timeBaseComboBox != null)
-        {
-            _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-            {
-                TimeBaseType.PluginOffsetServerTime => 0,
-                TimeBaseType.RawServerTime => 1,
-                TimeBaseType.ClassIslandTime => 2,
-                _ => 0
-            };
-            _timeBaseComboBox.SelectionChanged += (_, _) =>
-            {
-                Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
-                {
-                    0 => TimeBaseType.PluginOffsetServerTime,
-                    1 => TimeBaseType.RawServerTime,
-                    2 => TimeBaseType.ClassIslandTime,
-                    _ => TimeBaseType.PluginOffsetServerTime
-                };
-            };
         }
 
         if (_skewModeToggle != null)

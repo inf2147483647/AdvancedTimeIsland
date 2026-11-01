@@ -33,7 +33,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private CheckBox? _timeEnableCustomFontColorToggle;
     private CheckBox? _text4EnableCustomFontSizeToggle;
     private CheckBox? _text4EnableCustomFontColorToggle;
-    private ComboBox? _timeBaseComboBox;
     private CountdownListEditor<PeriodicCountdownItem>? _listEditor;
 
     private NumericUpDown? _text1FontSizeNumericUpDown;
@@ -54,8 +53,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
     private TextBlock? _timeGroupHeader;
     private TextBlock? _formatGroupHeader;
     private TextBlock? _formatLabel;
-    private TextBlock? _timeBaseGroupHeader;
-    private TextBlock? _timeBaseLabel;
     private TextBlock? _listGroupHeader;
 
     private TextBlock? _progressDisplayLabel;
@@ -150,28 +147,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
             Settings.EnableTimeCorrection = _timeCorrectionToggle.IsChecked == true;
         };
         timePanel.Children.Add(_timeCorrectionToggle);
-
-        // --- 时间基准 ---
-        _timeBaseGroupHeader = new TextBlock { Text = "时间基准", FontSize = 12, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 6, 0, 0) };
-        timePanel.Children.Add(_timeBaseGroupHeader);
-
-        var timeBaseRow = new Grid();
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _timeBaseLabel = new TextBlock { Text = "时间基准:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeBaseLabel, 0);
-        timeBaseRow.Children.Add(_timeBaseLabel);
-
-        _timeBaseComboBox = new ComboBox();
-        _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
-        _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
-        _timeBaseComboBox.Items.Add("原始服务器时间");
-        _timeBaseComboBox.Items.Add("原始系统时间");
-        Grid.SetColumn(_timeBaseComboBox, 1);
-        timeBaseRow.Children.Add(_timeBaseComboBox);
-
-        timePanel.Children.Add(timeBaseRow);
 
         timeGroup.Content = timePanel;
         _mainPanel.Children.Add(timeGroup);
@@ -419,8 +394,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (_formatLabel != null) _formatLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
         if (_timeCorrectionToggle != null) _timeCorrectionToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeBaseLabel != null) _timeBaseLabel.Foreground = ThemeHelper.GetTextBrush();
         if (_appearanceGroupHeader != null) _appearanceGroupHeader.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeToggle != null) _simpleModeToggle.Foreground = ThemeHelper.GetTextBrush();
         if (_simpleModeDesc != null) _simpleModeDesc.Foreground = ThemeHelper.GetGrayBrush();
@@ -602,8 +575,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
         if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
 
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
-
         _isUpdatingProgressDisplay = true;
         try
         {
@@ -678,17 +649,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         AttachTextHandler(_text3TextBox, v => Settings.Text3 = v ?? "还有");
         AttachTextHandler(_text4TextBox, v => Settings.Text4 = v ?? "");
         AttachTextHandler(_timeFormatTextBox, v => Settings.TimeFormat = v ?? "%d天%h小时%m分钟%s秒");
-
-        if (_timeBaseComboBox != null)
-        {
-            _timeBaseComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
-                {
-                    Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
-                }
-            };
-        }
 
         AttachNumericUpDownHandler(_text1FontSizeNumericUpDown, v => Settings.Text1FontSize = v);
         AttachColorPickerHandler(_text1FontColorPicker, v => Settings.Text1FontColor = v);

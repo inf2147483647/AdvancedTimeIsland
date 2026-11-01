@@ -13,31 +13,6 @@ public enum ProgressDisplayMode
     Both = 3
 }
 
-public enum TimeBaseType
-{
-    PluginOffsetServerTime = 0,  // 插件偏移后的服务器时间（默认）
-    RawServerTime = 2,           // 原始服务器时间
-    ClassIslandTime = 4          // ClassIsland时间
-}
-
-public static class TimeBaseTypeHelper
-{
-    /// <summary>
-    /// 迁移旧版时间基准值到新版枚举
-    /// </summary>
-    public static TimeBaseType Migrate(int value)
-    {
-        return value switch
-        {
-            0 => TimeBaseType.PluginOffsetServerTime,
-            1 => TimeBaseType.PluginOffsetServerTime,   // 旧 PluginOffsetSystemTime → PluginOffsetServerTime
-            2 => TimeBaseType.RawServerTime,
-            3 => TimeBaseType.ClassIslandTime,         // 旧 RawSystemTime → ClassIslandTime
-            _ => (TimeBaseType)value
-        };
-    }
-}
-
 public class CountdownSettings : INotifyPropertyChanged
 {
     private string _text1 = "距离";
@@ -55,7 +30,6 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "";
     private string _timeFontColor = "";
     private string _text4FontColor = "";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<CountdownItem> _countdownItems = new();
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
     private string _notificationMaskText = "倒计时到达";
@@ -253,19 +227,6 @@ public class CountdownSettings : INotifyPropertyChanged
             if (_text4FontColor != value)
             {
                 _text4FontColor = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
                 OnPropertyChanged();
             }
         }
@@ -917,7 +878,6 @@ public class CountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "";
     private string _timeFontColor = "";
     private string _text4FontColor = "";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
     public string Text1
@@ -1110,19 +1070,6 @@ public class CountdownSettings : INotifyPropertyChanged
             if (_text4FontColor != value)
             {
                 _text4FontColor = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
                 OnPropertyChanged();
             }
         }
@@ -3482,7 +3429,6 @@ public class LunarCountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "";
     private string _timeFontColor = "";
     private string _text4FontColor = "";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<LunarCountdownItem> _countdownItems = new();
     private long _startTime = (long)(DateTime.UtcNow - new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds;
 
@@ -3663,19 +3609,6 @@ public class LunarCountdownSettings : INotifyPropertyChanged
             if (_text4FontColor != value)
             {
                 _text4FontColor = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
                 OnPropertyChanged();
             }
         }
@@ -3960,7 +3893,6 @@ public class PeriodicCountdownSettings : INotifyPropertyChanged
     private string _text3FontColor = "";
     private string _timeFontColor = "";
     private string _text4FontColor = "";
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private List<PeriodicCountdownItem> _countdownItems = new();
     private bool _enableTimeCorrection = true;
 
@@ -4154,19 +4086,6 @@ public class PeriodicCountdownSettings : INotifyPropertyChanged
             if (_text4FontColor != value)
             {
                 _text4FontColor = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
                 OnPropertyChanged();
             }
         }

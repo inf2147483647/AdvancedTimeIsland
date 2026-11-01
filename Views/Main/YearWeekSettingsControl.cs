@@ -30,16 +30,10 @@ public class YearWeekSettingsControl : ComponentBase<YearWeekSettings>
     private ComboBox _fontFamilyComboBox;
     private ComboBox _fontWeightComboBox;
     private ComboBox _firstDayOfWeekComboBox;
-    private ComboBox _timeBaseComboBox;
 
     private static readonly object[] FirstDayOfWeekItems =
     {
         "周日", "周一", "周二", "周三", "周四", "周五", "周六"
-    };
-
-    private static readonly object[] TimeBaseItems =
-    {
-        "插件偏移后的服务器时间", "原始服务器时间", "ClassIsland时间"
     };
 
     public YearWeekSettingsControl()
@@ -68,18 +62,6 @@ public class YearWeekSettingsControl : ComponentBase<YearWeekSettings>
         weekPanel.Children.Add(firstDayRow);
 
         sp.Children.Add(SettingsGroupFactory.Create("周数设置", weekPanel));
-
-        // ==================== 时间设置 ====================
-        var timePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var timeBaseRow = FontSettingsRowFactory.CreateComboBoxRow("时间基准", TimeBaseItems,
-            out var timeBaseLabel, out _timeBaseComboBox, out var timeBaseToggle,
-            toggleContent: null,
-            selectionChangedHandler: OnTimeBaseChanged);
-        _labels.Add(timeBaseLabel);
-        timePanel.Children.Add(timeBaseRow);
-
-        sp.Children.Add(SettingsGroupFactory.Create("时间设置", timePanel));
 
         // ==================== 文案设置 ====================
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
@@ -318,18 +300,6 @@ public class YearWeekSettingsControl : ComponentBase<YearWeekSettings>
         }
     }
 
-    private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        var idx = _timeBaseComboBox.SelectedIndex;
-        Settings.TimeBaseType = idx switch
-        {
-            0 => TimeBaseType.PluginOffsetServerTime,
-            1 => TimeBaseType.RawServerTime,
-            2 => TimeBaseType.ClassIslandTime,
-            _ => TimeBaseType.PluginOffsetServerTime
-        };
-    }
-
     private void UpdateControlsEnabled()
     {
         _colorPicker.IsEnabled = Settings.EnableCustomFontColor;
@@ -382,13 +352,6 @@ public class YearWeekSettingsControl : ComponentBase<YearWeekSettings>
         }
         UpdateThemeColors();
         _firstDayOfWeekComboBox.SelectedIndex = Settings.FirstDayOfWeek;
-        _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => 0,
-            TimeBaseType.RawServerTime => 1,
-            TimeBaseType.ClassIslandTime => 2,
-            _ => 0
-        };
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;

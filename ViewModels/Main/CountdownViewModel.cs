@@ -172,12 +172,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         _timeBaseService = timeBaseService;
         _settings = settings;
         _inSchoolCalc = inSchoolCalc;
-        // 迁移旧版时间基准值
-        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
-        if (migrated != _settings.TimeBaseType)
-        {
-            _settings.TimeBaseType = migrated;
-        }
         _updateText1Style = updateText1Style;
         _updateText2Style = updateText2Style;
         _updateText3Style = updateText3Style;
@@ -245,8 +239,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(CountdownSettings.Text3) ||
             e.PropertyName == nameof(CountdownSettings.Text4) ||
             e.PropertyName == nameof(CountdownSettings.CountdownItems) ||
-            e.PropertyName == nameof(CountdownSettings.EnableSimpleMode) ||
-            e.PropertyName == nameof(CountdownSettings.TimeBaseType))
+            e.PropertyName == nameof(CountdownSettings.EnableSimpleMode))
         {
             UpdateCountdown();
         }
@@ -372,24 +365,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private DateTime GetCurrentTime()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
-            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
-            _ => _timeBaseService.GetCurrentTime()
-        };
+        return _timeBaseService.GetClassIslandTime();
     }
 
     private async System.Threading.Tasks.Task<DateTime> GetCurrentTimeAsync()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
-            _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
-        };
+        return await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false);
     }
 
     private void ProcessCountdown(DateTime now)

@@ -18,22 +18,6 @@ using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-internal static class PlatformHelper
-{
-    private static bool? _is32Bit;
-
-    public static bool Is32BitProcess
-    {
-        get
-        {
-            if (_is32Bit.HasValue)
-                return _is32Bit.Value;
-            _is32Bit = IntPtr.Size == 4;
-            return _is32Bit.Value;
-        }
-    }
-}
-
 /// <summary>
 /// 插件设置页面
 /// </summary>
@@ -523,30 +507,14 @@ public class PluginSettingsPage : UserControl
         return luminance > 0.6 ? Brushes.Black : Brushes.White;
     }
 
-    private static IBrush GetSyncingTextBrush()
-    {
-        // 正在同步时使用白色（深色主题）或黑色（浅色主题）
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
-        {
-            var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
-            return luminance > 0.6 ? Brushes.Black : Brushes.White;
-        }
-        return Brushes.White;
-    }
-
     private readonly PluginSettings? _settings;
     private TextBlock? _titleTextBlock;
     private TextBlock? _licenseTextBlock;
-    private TextBlock? _ntpHintTextBlock;
     private TextBox? _longitudeTextBox;
     private TextBox? _dmsDegreesTextBox;
     private TextBox? _dmsMinutesTextBox;
     private TextBox? _dmsSecondsTextBox;
     private ComboBox? _dmsDirectionComboBox;
-    private TextBlock? _ntpTimeDisplayText;
-    private TextBlock? _syncStatusText;
-    private Button? _syncNowButton;
-    private System.Timers.Timer? _ntpTimeDisplayTimer;
     private Button? _echoHoleButton;
     private TextBlock? _echoHoleDisplayText;
     private CancellationTokenSource? _echoHoleCts;
@@ -668,39 +636,6 @@ public class PluginSettingsPage : UserControl
                 "区时时区",
                 "选择区时显示使用的时区",
                 CreateTimeZoneComboBox());
-
-            // 插件时间偏移设置（与ClassIsland时间独立）
-            AddSettingsExpanderItem(generalExpander,
-                "插件时间偏移",
-                "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
-                CreateTimeOffsetTextBox());
-
-            // 时间同步相关设置（仅64位显示）
-            if (!PlatformHelper.Is32BitProcess)
-            {
-                // 时间服务器设置
-                AddSettingsExpanderItem(generalExpander,
-                    "时间服务器",
-                    "选择用于同步时间的NTP服务器",
-                    CreateNtpServerComboBox());
-
-                // 同步时间周期设置
-                AddSettingsExpanderItem(generalExpander,
-                    "同步时间周期",
-                    "NTP时间同步周期，单位为分钟",
-                    CreateNtpSyncIntervalTextBox());
-            }
-            else
-            {
-                // 32位系统显示警告InfoBar
-                var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Message", "由于32位架构的原因，时间同步不可用，如果有时间同步需求，请运行64位ClassIsland。");
-                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
-                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
-                FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
-                AddChildToSettingsExpander(generalExpander, warningBar);
-            }
 
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(generalExpander));
 
@@ -865,22 +800,6 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 创建时间偏移输入框（秒）
-    /// </summary>
-    private TextBox CreateTimeOffsetTextBox()
-    {
-        var textBox = new TextBox
-        {
-            Width = 100,
-            Text = (_settings?.TimeOffsetSeconds ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Watermark = "0"
-        };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, OnTimeOffsetLostFocus);
-        return textBox;
-    }
-
-    /// <summary>
     /// 创建经度输入面板（小数/度分秒切换）
     /// </summary>
     private Control CreateLongitudePanel()
@@ -990,284 +909,6 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 创建时间服务器下拉框（包含同步时间显示）
-    /// </summary>
-    private Control CreateNtpServerComboBox()
-    {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-
-        // 同步时间显示文本（放在左侧）
-        _ntpTimeDisplayText = new TextBlock
-        {
-            FontSize = 24, // 字号改为原来的2倍
-            VerticalAlignment = VerticalAlignment.Center,
-            Text = "正在获取时间..."
-        };
-        panel.Children.Add(_ntpTimeDisplayText);
-
-        var comboBox = new ComboBox
-        {
-            Width = 280,
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-
-        comboBox.Items.Add("ntp.aliyun.com");
-        comboBox.Items.Add("ntp.tencent.com");
-        comboBox.Items.Add("cn.ntp.org.cn");
-        comboBox.Items.Add("pool.ntp.org");
-        comboBox.Items.Add("time.windows.com");
-
-        if (_settings != null)
-        {
-            comboBox.SelectedItem = _settings.NtpServer;
-        }
-        else
-        {
-            comboBox.SelectedIndex = 0;
-        }
-
-        comboBox.SelectionChanged += OnNtpServerSelectionChanged;
-        panel.Children.Add(comboBox);
-
-        return panel;
-    }
-
-    private void StartNtpTimeDisplayTimer()
-    {
-        _ntpTimeDisplayTimer?.Dispose();
-        _ntpTimeDisplayTimer = new System.Timers.Timer(100); // 0.1秒
-        _ntpTimeDisplayTimer.Elapsed += (s, e) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                if (_ntpTimeDisplayText != null)
-                {
-                    // 使用原始服务器时间（不经过插件偏移）
-                    var ntpTime = TimeBaseService.Instance?.GetRawServerTime() ?? DateTime.Now;
-                    var weekDay = GetChineseWeekDay(ntpTime);
-                    _ntpTimeDisplayText.Text = $"{ntpTime:yyyy-MM-dd-HH-mm-ss} {weekDay}";
-                }
-            });
-        };
-        _ntpTimeDisplayTimer.Start();
-    }
-
-    private static string GetChineseWeekDay(DateTime date)
-    {
-        return date.DayOfWeek switch
-        {
-            DayOfWeek.Sunday => "周日",
-            DayOfWeek.Monday => "周一",
-            DayOfWeek.Tuesday => "周二",
-            DayOfWeek.Wednesday => "周三",
-            DayOfWeek.Thursday => "周四",
-            DayOfWeek.Friday => "周五",
-            DayOfWeek.Saturday => "周六",
-            _ => ""
-        };
-    }
-
-    /// <summary>
-    /// 创建同步时间周期输入框（包含立即同步按钮和状态提示）
-    /// </summary>
-    private Control CreateNtpSyncIntervalTextBox()
-    {
-        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
-
-        // 输入框和按钮的行
-        var inputRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-
-        var textBox = new TextBox
-        {
-            Width = 350,
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Text = _settings?.NtpSyncIntervalMinutes.ToString() ?? "5"
-        };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, OnNtpSyncIntervalLostFocus);
-        inputRow.Children.Add(textBox);
-
-        // 立即同步按钮
-        _syncNowButton = new Button
-        {
-            Content = "立即同步时间",
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        _syncNowButton.Click += OnSyncNowButtonClick;
-        inputRow.Children.Add(_syncNowButton);
-
-        panel.Children.Add(inputRow);
-
-        // 状态提示文本（在按钮正下方）
-        _syncStatusText = new TextBlock
-        {
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            IsVisible = true
-        };
-        panel.Children.Add(_syncStatusText);
-
-        _ntpHintTextBlock = new TextBlock
-        {
-            Text = "请输入不小于1的整数，单位为分钟",
-            FontSize = 11,
-            Foreground = ThemeHelper.GetGrayBrush(),
-            TextWrapping = TextWrapping.Wrap
-        };
-        panel.Children.Add(_ntpHintTextBlock);
-
-        // 订阅TimeBaseService的同步事件
-        if (TimeBaseService.Instance != null)
-        {
-            TimeBaseService.Instance.SyncStatusChanged += OnSyncStatusChanged;
-        }
-
-        // 显示上次同步状态
-        ShowLastSyncStatus();
-
-        return panel;
-    }
-
-    private async void OnSyncNowButtonClick(object? sender, RoutedEventArgs e)
-    {
-        if (_syncNowButton == null) return;
-        
-        _syncNowButton.IsEnabled = false;
-        
-        try
-        {
-            if (TimeBaseService.Instance == null)
-            {
-                if (_syncStatusText != null)
-                {
-                    _syncStatusText.Text = "同步服务未初始化，请重启插件";
-                    _syncStatusText.Foreground = Brushes.Red;
-                }
-                return;
-            }
-            
-            await TimeBaseService.Instance.SyncTimeNowAsync();
-        }
-        catch (Exception ex)
-        {
-            if (_syncStatusText != null)
-            {
-                _syncStatusText.Text = $"同步失败: {ex.Message}";
-                _syncStatusText.Foreground = Brushes.Red;
-            }
-        }
-        finally
-        {
-            _syncNowButton.IsEnabled = true;
-        }
-    }
-
-    private void OnSyncStatusChanged(object? sender, SyncStatusEventArgs e)
-    {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-        {
-            UpdateSyncStatusText(e.Status, e.SyncTime, e.SyncSource);
-        });
-    }
-
-    private void UpdateSyncStatusText(SyncStatus status, DateTime? syncTime, string? syncSource = null)
-    {
-        if (_syncStatusText == null) return;
-
-        _syncStatusText.IsVisible = true;
-
-        switch (status)
-        {
-            case SyncStatus.Syncing:
-                _syncStatusText.Text = "正在同步时间...";
-                _syncStatusText.Foreground = GetSyncingTextBrush();
-                break;
-
-            case SyncStatus.Success:
-                if (syncTime.HasValue)
-                {
-                    var timeStr = syncTime.Value.ToString("yyyy年M月d日 HH:mm:ss");
-                    if (!string.IsNullOrEmpty(syncSource))
-                    {
-                        if (syncSource == "ClassIsland")
-                        {
-                            _syncStatusText.Text = $"成功从ClassIsland同步时间：{timeStr}";
-                        }
-                        else
-                        {
-                            _syncStatusText.Text = $"成功从{syncSource}同步时间：{timeStr}";
-                        }
-                    }
-                    else
-                    {
-                        _syncStatusText.Text = $"同步时间成功：{timeStr}";
-                    }
-                }
-                else
-                {
-                    _syncStatusText.Text = "同步时间成功";
-                }
-                _syncStatusText.Foreground = GetSuccessForegroundBrush();
-                break;
-
-            case SyncStatus.Failed:
-                _syncStatusText.Text = "同步时间失败！";
-                _syncStatusText.Foreground = Brushes.Red;
-                break;
-        }
-    }
-
-    private void ShowLastSyncStatus()
-    {
-        if (_syncStatusText == null || _settings == null) return;
-
-        if (_settings.LastSyncTime.HasValue && !string.IsNullOrEmpty(_settings.LastSyncStatus))
-        {
-            if (_settings.LastSyncStatus == "Success")
-            {
-                var timeStr = _settings.LastSyncTime.Value.ToString("yyyy年M月d日 HH:mm:ss");
-                if (!string.IsNullOrEmpty(_settings.LastSyncSource))
-                {
-                    if (_settings.LastSyncSource == "ClassIsland")
-                    {
-                        _syncStatusText.Text = $"成功从ClassIsland同步时间：{timeStr}";
-                    }
-                    else
-                    {
-                        _syncStatusText.Text = $"成功从{_settings.LastSyncSource}同步时间：{timeStr}";
-                    }
-                }
-                else
-                {
-                    _syncStatusText.Text = $"同步时间成功：{timeStr}";
-                }
-                _syncStatusText.Foreground = GetSuccessForegroundBrush();
-            }
-            else if (_settings.LastSyncStatus == "Failed")
-            {
-                _syncStatusText.Text = "同步时间失败！";
-                _syncStatusText.Foreground = Brushes.Red;
-            }
-        }
-        else
-        {
-            _syncStatusText.Text = "尚未同步时间";
-            _syncStatusText.Foreground = ThemeHelper.GetGrayBrush();
-        }
-    }
-
-    private SolidColorBrush GetSuccessForegroundBrush()
-    {
-        // 浅色主题用深绿色，深色主题用浅绿色
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
-        {
-            var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
-            return luminance > 0.6 ? new SolidColorBrush(Color.FromRgb(0, 128, 0)) : new SolidColorBrush(Color.FromRgb(144, 238, 144));
-        }
-        // 默认使用浅绿色
-        return new SolidColorBrush(Color.FromRgb(144, 238, 144));
-    }
-
-    /// <summary>
     /// 创建时区下拉框
     /// </summary>
     private ComboBox CreateTimeZoneComboBox()
@@ -1334,54 +975,6 @@ public class PluginSettingsPage : UserControl
     }
 
     #region 事件处理
-
-    private void OnTimeOffsetLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (_settings != null && sender is TextBox textBox)
-        {
-            if (double.TryParse(textBox.Text, out double offset))
-            {
-                // 限制偏移范围为 -86400 到 86400 秒（-24小时到+24小时）
-                offset = Math.Max(-86400, Math.Min(86400, offset));
-                _settings.TimeOffsetSeconds = offset;
-                textBox.Text = offset.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-            else
-            {
-                textBox.Text = _settings.TimeOffsetSeconds.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            }
-        }
-    }
-
-    private void OnNtpServerSelectionChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_settings != null && sender is ComboBox comboBox && comboBox.SelectedItem is string server)
-        {
-            _settings.NtpServer = server;
-        }
-    }
-
-    private void OnNtpSyncIntervalLostFocus(object? sender, RoutedEventArgs e)
-    {
-        if (_settings != null && sender is TextBox textBox)
-        {
-            int value;
-            if (!int.TryParse(textBox.Text, out value))
-            {
-                value = 5;
-            }
-            else
-            {
-                value = (int)Math.Round((double)value);
-                if (value < 1)
-                {
-                    value = 1;
-                }
-            }
-            _settings.NtpSyncIntervalMinutes = value;
-            textBox.Text = value.ToString();
-        }
-    }
 
     private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
     {
@@ -2031,25 +1624,11 @@ public class PluginSettingsPage : UserControl
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
-        StartNtpTimeDisplayTimer();
-    }
-
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnAttachedToVisualTree(e);
-
-        // 本页在「关于」页标签栏中只创建一次、切回标签页时复用同一实例：
-        // OnInitialized 不会再次执行，而切走时 OnDetachedFromVisualTree 已把同步时间大时钟的
-        // 刷新计时器释放——此处重启（StartNtpTimeDisplayTimer 内部先释放旧计时器，重复调用安全），
-        // 无论作为独立设置页还是「关于」页标签页，重新进入均恢复走时。
-        StartNtpTimeDisplayTimer();
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        _ntpTimeDisplayTimer?.Dispose();
-        _ntpTimeDisplayTimer = null;
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;

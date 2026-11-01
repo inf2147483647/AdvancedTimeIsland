@@ -35,10 +35,9 @@ public class YearWeekViewModel : WeekViewModelBase<YearWeekSettings>
         {
             NotifyFontSize(_settings.EnableCustomFontSize ? _settings.FontSize : 0);
         }
-        else if (e.PropertyName == nameof(YearWeekSettings.FirstDayOfWeek) ||
-                 e.PropertyName == nameof(YearWeekSettings.TimeBaseType))
+        else if (e.PropertyName == nameof(YearWeekSettings.FirstDayOfWeek))
         {
-            // 更改一周第一天或时间基准后立即刷新显示。
+            // 更改一周第一天后立即刷新显示。
             TriggerAsyncUpdate();
         }
     }

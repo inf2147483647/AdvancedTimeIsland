@@ -9,7 +9,7 @@ using Avalonia.Threading;
 namespace AdvancedTimeIsland.ViewModels.Main;
 
 /// <summary>
-/// 七段数码管时钟视图模型：按所选时间基准取时、格式化显示文本，并驱动分隔符（冒号）闪动相位。
+/// 七段数码管时钟视图模型：按 ClassIsland 时间取时、格式化显示文本，并驱动分隔符（冒号）闪动相位。
 /// </summary>
 public class SevenSegmentClockViewModel : INotifyPropertyChanged, IDisposable
 {
@@ -28,13 +28,6 @@ public class SevenSegmentClockViewModel : INotifyPropertyChanged, IDisposable
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
-
-        // 迁移旧版时间基准值
-        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
-        if (migrated != _settings.TimeBaseType)
-        {
-            _settings.TimeBaseType = migrated;
-        }
 
         _settings.PropertyChanged += OnSettingsChanged;
 
@@ -82,7 +75,6 @@ public class SevenSegmentClockViewModel : INotifyPropertyChanged, IDisposable
         {
             case nameof(SevenSegmentClockSettings.ShowSeconds):
             case nameof(SevenSegmentClockSettings.SeparatorBlink):
-            case nameof(SevenSegmentClockSettings.TimeBaseType):
                 _ = UpdateDisplayAsync();
                 break;
         }
@@ -113,22 +105,12 @@ public class SevenSegmentClockViewModel : INotifyPropertyChanged, IDisposable
 
     private DateTime GetTimeByBase()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
-            _ => _timeBaseService.GetCurrentTime()
-        };
+        return _timeBaseService.GetClassIslandTime();
     }
 
     private async Task<DateTime> GetTimeByBaseAsync()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
-            _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
-        };
+        return await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

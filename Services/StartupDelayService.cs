@@ -9,15 +9,12 @@ namespace AdvancedTimeIsland.Services;
 public class StartupDelayService : IHostedService
 {
     private readonly ILogger<StartupDelayService>? _logger;
-    private readonly TimeBaseService? _timeBaseService;
     private readonly SharedRenderClockService? _sharedRenderClockService;
 
     public StartupDelayService(ILogger<StartupDelayService>? logger = null,
-                               TimeBaseService? timeBaseService = null,
                                SharedRenderClockService? sharedRenderClockService = null)
     {
         _logger = logger;
-        _timeBaseService = timeBaseService;
         _sharedRenderClockService = sharedRenderClockService;
     }
 
@@ -36,20 +33,6 @@ public class StartupDelayService : IHostedService
         try
         {
             await Task.Delay(1000, cancellationToken);
-
-            if (_timeBaseService != null)
-            {
-                try
-                {
-                    _timeBaseService.StartTimers();
-                    _ = _timeBaseService.SyncTimeNowAsync();
-                    _logger?.LogInformation("TimeBaseService started");
-                }
-                catch (Exception ex)
-                {
-                    _logger?.LogError(ex, "Failed to start TimeBaseService");
-                }
-            }
 
             if (_sharedRenderClockService != null)
             {

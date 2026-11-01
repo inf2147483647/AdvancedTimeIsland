@@ -85,12 +85,7 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
 
     private DateTime GetCurrentTime()
     {
-        return _settings.TimeBaseType switch
-        {
-            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
-            _ => _timeBaseService.GetCurrentTime()
-        };
+        return _timeBaseService.GetClassIslandTime();
     }
 
     private void OnExternalChanged(object? sender, EventArgs e) => RefreshOnUiThread();

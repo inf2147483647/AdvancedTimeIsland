@@ -89,7 +89,6 @@ internal static class SaiBlockRegistrar
         var actions = new List<BlockMetadata>
         {
             NewBlock("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", "\uecc8", null),
-            NewBlock("advancedtimeisland.sync_plugin_time", "同步AdvancedTimeIsland插件时间", "\uecc9", null),
             NewBlock("advancedtimeisland.set_floating_schedule", "设置悬浮时间表开关", "\uef27",
                 typeof(SetFloatingScheduleActionSettings)),
         };

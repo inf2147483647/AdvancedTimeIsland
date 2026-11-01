@@ -22,7 +22,6 @@ public class SevenSegmentClockSettings : INotifyPropertyChanged
     public const double MaxZoom = 1.0;
 
     private bool _showSeconds = true;
-    private TimeBaseType _timeBaseType = TimeBaseType.PluginOffsetServerTime;
     private bool _skewMode = false;
     private string _accentColor = DefaultAccentColor;
     private bool _separatorBlink = true;
@@ -40,22 +39,6 @@ public class SevenSegmentClockSettings : INotifyPropertyChanged
             if (_showSeconds != value)
             {
                 _showSeconds = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 时间基准（时间差值来源）。
-    /// </summary>
-    public TimeBaseType TimeBaseType
-    {
-        get => _timeBaseType;
-        set
-        {
-            if (_timeBaseType != value)
-            {
-                _timeBaseType = value;
                 OnPropertyChanged();
             }
         }

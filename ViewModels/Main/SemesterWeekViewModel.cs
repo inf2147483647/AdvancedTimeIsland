@@ -52,11 +52,6 @@ public class SemesterWeekViewModel : WeekViewModelBase<SemesterWeekSettings>
         {
             NotifyFontSize(_settings.EnableCustomFontSize ? _settings.FontSize : 0);
         }
-        else if (e.PropertyName == nameof(SemesterWeekSettings.TimeBaseType))
-        {
-            // 更改时间基准后立即刷新显示。
-            TriggerAsyncUpdate();
-        }
     }
 
     public override void Dispose()

@@ -541,8 +541,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  时间基准直接取宿主 ExactTimeService.GetCurrentLocalDateTime()：
     //    - 包含宿主调试偏移 DebugTimeOffsetSeconds（用户在 ClassIsland 调试页调时间 → 悬浮窗课表/进度条即时反映）
     //    - 包含宿主 TimeOffsetSeconds（时钟页全局偏移）
-    //  不再叠加插件 TimeBaseService 的 NTP 同步偏移（_timeOffset）与插件 TimeOffsetSeconds——
-    //    NTP 链会使悬浮窗时间与 ClassIsland 调试时间产生偏差，调试不直观。
+    //  插件已移除独立的 NTP 同步与插件时间偏移，DefaultTimeBase 与悬浮窗时间同源，
+    //    不会再与 ClassIsland 调试时间产生偏差。
     private DateTime GetClassIslandNow()
     {
         try
@@ -2157,13 +2157,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         try { _randomTitleTimerAv?.Stop(); } catch { }
                     });
                 }
-                break;
-            case nameof(PluginSettings.TimeOffsetSeconds):
-                // 【★ 时间跳变：插件全局时间偏移变化 → 立即 RefreshSchedule 重建】
-                //  TimeBaseService.GetCurrentTime() 每次读最新偏移，但 FloatingScheduleService 不知道偏移变了；
-                //  若不刷新，UpdateProgress 会用"旧高亮课 + 新时间"算进度条（继承旧进度/卡 100%）。
-                //  刷新后高亮行真实时间定位切到目标课，RefreshSchedule 末尾集中 Apply 立即写新进度。
-                Dispatcher.UIThread.Post(RefreshSchedule);
                 break;
             case nameof(PluginSettings.FloatingScheduleWindowLayer):
                 Dispatcher.UIThread.Post(ApplyWindowLayer);

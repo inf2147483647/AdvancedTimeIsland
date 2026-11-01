@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -185,7 +185,9 @@ public enum FloatingScheduleGlassCaptureMode
 public class PluginSettings : INotifyPropertyChanged
 {
     private bool _isLunarInstalled = false;
-    private double _timeOffsetSeconds = 0;
+    // 【已移除】插件独立时间偏移 / NTP 同步相关字段：时间统一取 ClassIsland 时间，
+    // 旧配置里残留的 TimeOffsetSeconds / NtpServer / NtpSyncIntervalMinutes / LastSync* 字段
+    // 会在反序列化时被 System.Text.Json 按未知成员忽略。
     private double _longitude = 114.2628;
     private string _timeZoneId = "China Standard Time";
     private bool _enableCountdownNotification = true;
@@ -195,11 +197,6 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _easterEggDisclaimerAccepted = false;
     private bool _easterEggInfoAccepted = false;
     private bool _womenswearNoticeAccepted = false;
-    private string _ntpServer = "ntp.aliyun.com";
-    private int _ntpSyncIntervalMinutes = 5;
-    private DateTime? _lastSyncTime;
-    private string? _lastSyncStatus;
-    private string? _lastSyncSource;
     private bool _enableExperimentalFeatures = false;
     private bool _enableLunarCalendar = true;
     private bool _enableLocalSolarTime = true;
@@ -507,23 +504,6 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 时间偏移（秒），与ClassIsland时间独立
-    /// 增大偏移抵消铃声滞后，减小偏移抵消铃声提前
-    /// </summary>
-    public double TimeOffsetSeconds
-    {
-        get => _timeOffsetSeconds;
-        set
-        {
-            if (Math.Abs(_timeOffsetSeconds - value) > 0.001)
-            {
-                _timeOffsetSeconds = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
     /// 经度（用于地方时计算）
     /// </summary>
     public double Longitude
@@ -666,86 +646,6 @@ public class PluginSettings : INotifyPropertyChanged
             if (_womenswearNoticeAccepted != value)
             {
                 _womenswearNoticeAccepted = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// NTP时间服务器地址
-    /// </summary>
-    public string NtpServer
-    {
-        get => _ntpServer;
-        set
-        {
-            if (_ntpServer != value)
-            {
-                _ntpServer = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// NTP同步周期（分钟）
-    /// </summary>
-    public int NtpSyncIntervalMinutes
-    {
-        get => _ntpSyncIntervalMinutes;
-        set
-        {
-            if (_ntpSyncIntervalMinutes != value)
-            {
-                _ntpSyncIntervalMinutes = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 上次同步时间
-    /// </summary>
-    public DateTime? LastSyncTime
-    {
-        get => _lastSyncTime;
-        set
-        {
-            if (_lastSyncTime != value)
-            {
-                _lastSyncTime = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 上次同步状态（Success/Failed）
-    /// </summary>
-    public string? LastSyncStatus
-    {
-        get => _lastSyncStatus;
-        set
-        {
-            if (_lastSyncStatus != value)
-            {
-                _lastSyncStatus = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 上次同步来源（NTP服务器地址或ClassIsland）
-    /// </summary>
-    public string? LastSyncSource
-    {
-        get => _lastSyncSource;
-        set
-        {
-            if (_lastSyncSource != value)
-            {
-                _lastSyncSource = value;
                 OnPropertyChanged();
             }
         }

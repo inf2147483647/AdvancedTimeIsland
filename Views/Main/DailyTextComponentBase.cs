@@ -50,12 +50,7 @@ public abstract class DailyTextComponentBase<TSettings> : ComponentBase<TSetting
 
     protected DateTime GetCurrentTime()
     {
-        return Settings.TimeBaseType switch
-        {
-            TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
-            _ => _timeBaseService.GetCurrentTime()
-        };
+        return _timeBaseService.GetClassIslandTime();
     }
 
     /// <summary>

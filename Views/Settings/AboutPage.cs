@@ -666,9 +666,41 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
+    /// 无需任何验证即可触发「女装」彩蛋的受信设备 ID。
+    /// 取值即 Windows「设置 → 系统 → 系统信息」中的「设备 ID」，
+    /// 对应注册表 <c>HKLM\SOFTWARE\Microsoft\SQMClient\MachineId</c>（值带花括号）。
+    /// </summary>
+    private const string VerificationExemptDeviceId = "242D46AC-C7B4-4D45-8279-BE834CBAE32B";
+
+    /// <summary>
+    /// 本机是否为受信设备：是则触发「女装」彩蛋时跳过答题与集控凭据验证（均不弹窗）。
+    /// 读取注册表失败或设备 ID 不一致时返回 false，仍走原有验证流程。
+    /// </summary>
+    private static bool IsVerificationExemptDevice()
+    {
+        try
+        {
+            var value = Microsoft.Win32.Registry.GetValue(
+                @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\SQMClient", "MachineId", null);
+            if (value is not string raw)
+            {
+                return false;
+            }
+
+            var id = raw.Trim().Trim('{', '}');
+            return string.Equals(id, VerificationExemptDeviceId, StringComparison.OrdinalIgnoreCase);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    /// <summary>
     /// 彩蛋激活处理：先做集控验证（加入集控且设置了凭据时必须通过），再点亮「女装」标签页。
     /// 状态不写回设置（不落盘），只保留在内存会话中（<see cref="Plugin.EasterEggSessionActive"/>），
     /// 页面重建会恢复，重启宿主才复位。
+    /// 受信设备（见 <see cref="IsVerificationExemptDevice"/>）跳过答题与集控验证，不做任何验证直接触发。
     /// </summary>
     private async void OnEasterEggActivated(object? sender, EventArgs e)
     {
@@ -685,28 +717,31 @@ public class AboutPage : SettingsPageBase
         _easterEggActivating = true;
         try
         {
-            // 答题冷却：上次答错后 30 秒内不能再次触发答题（静默重置检测器，
-            // 连点计数从头累计；「取消 / 关闭对话框」不算答错、不进入冷却）
-            if (DateTime.UtcNow < _quizCooldownUntilUtc)
+            if (!IsVerificationExemptDevice())
             {
-                _easterEggDetector.Reset();
-                return;
-            }
+                // 答题冷却：上次答错后 30 秒内不能再次触发答题（静默重置检测器，
+                // 连点计数从头累计；「取消 / 关闭对话框」不算答错、不进入冷却）
+                if (DateTime.UtcNow < _quizCooldownUntilUtc)
+                {
+                    _easterEggDetector.Reset();
+                    return;
+                }
 
-            // 答题验证（先于集控验证）：27 题库随机不重复抽 5 题、全部答对才算通过；
-            // 取消 / 关闭按失败处理，重置检测器允许重新累计点击后再试
-            if (!await ShowEasterEggQuizAsync())
-            {
-                _easterEggDetector.Reset();
-                return;
-            }
+                // 答题验证（先于集控验证）：27 题库随机不重复抽 5 题、全部答对才算通过；
+                // 取消 / 关闭按失败处理，重置检测器允许重新累计点击后再试
+                if (!await ShowEasterEggQuizAsync())
+                {
+                    _easterEggDetector.Reset();
+                    return;
+                }
 
-            if (!await VerifyManagementCredentialAsync())
-            {
-                // 验证取消 / 失败：重置检测器，允许用户重新累计点击后再试
-                _easterEggDetector.Reset();
-                ShowEasterEggAuthFailedDialog();
-                return;
+                if (!await VerifyManagementCredentialAsync())
+                {
+                    // 验证取消 / 失败：重置检测器，允许用户重新累计点击后再试
+                    _easterEggDetector.Reset();
+                    ShowEasterEggAuthFailedDialog();
+                    return;
+                }
             }
 
             _easterEggActive = true;

@@ -57,7 +57,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 
     private CheckBox? _showProgressBarCheckBox;
     private CheckBox? _showProgressRingCheckBox;
-    private ComboBox _timeBaseComboBox;
     private CheckBox _showSegmentDividerCheckBox;
     private CheckBox _showSummaryTextCheckBox;
     private CheckBox _showHoursTextCheckBox;
@@ -67,11 +66,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
 
     /// <summary>程序化回填控件时置位，避免控件事件把设置改回控件中的旧值。</summary>
     private bool _isUpdatingControls;
-
-    private static readonly object[] TimeBaseItems =
-    {
-        "插件偏移后的服务器时间", "原始服务器时间", "ClassIsland时间"
-    };
 
     public AttendanceSettingsControl()
     {
@@ -121,17 +115,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         _decimalizeHoursCheckBox = AddCheckBox(displayPanel, "时长保留一位小数（关闭则取整）");
 
         sp.Children.Add(SettingsGroupFactory.Create("显示设置", displayPanel));
-
-        // ==================== 时间设置 ====================
-        var timePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var timeBaseRow = FontSettingsRowFactory.CreateComboBoxRow("时间基准", TimeBaseItems,
-            out var timeBaseLabel, out _timeBaseComboBox, out _,
-            selectionChangedHandler: OnTimeBaseChanged);
-        _labels.Add(timeBaseLabel);
-        timePanel.Children.Add(timeBaseRow);
-
-        sp.Children.Add(SettingsGroupFactory.Create("时间设置", timePanel));
 
         // ==================== 文案设置 ====================
         var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
@@ -351,22 +334,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
             _showProgressRingCheckBox?.IsChecked ?? false);
     }
 
-    private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
-    {
-        if (_isUpdatingControls)
-        {
-            return;
-        }
-
-        Settings.TimeBaseType = _timeBaseComboBox.SelectedIndex switch
-        {
-            0 => TimeBaseType.PluginOffsetServerTime,
-            1 => TimeBaseType.RawServerTime,
-            2 => TimeBaseType.ClassIslandTime,
-            _ => TimeBaseType.PluginOffsetServerTime
-        };
-    }
-
     private void OnDisplayOptionChanged(object? sender, RoutedEventArgs e)
     {
         if (_isUpdatingControls)
@@ -539,13 +506,6 @@ public class AttendanceSettingsControl : ComponentBase<AttendanceSettings>
         {
             if (_showProgressBarCheckBox != null) _showProgressBarCheckBox.IsChecked = ProgressDisplayHelper.ShowsBar(Settings.ProgressDisplayMode);
             if (_showProgressRingCheckBox != null) _showProgressRingCheckBox.IsChecked = ProgressDisplayHelper.ShowsRing(Settings.ProgressDisplayMode);
-            _timeBaseComboBox.SelectedIndex = Settings.TimeBaseType switch
-            {
-                TimeBaseType.PluginOffsetServerTime => 0,
-                TimeBaseType.RawServerTime => 1,
-                TimeBaseType.ClassIslandTime => 2,
-                _ => 0
-            };
             _showSegmentDividerCheckBox.IsChecked = Settings.ShowSegmentDivider;
             _showSummaryTextCheckBox.IsChecked = Settings.ShowSummaryText;
             _showHoursTextCheckBox.IsChecked = Settings.ShowHoursText;
