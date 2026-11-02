@@ -112,6 +112,21 @@
             </Grid>
             <Separator Margin="0,8" />
 
+            <!-- 展示首次使用插件提示 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="展示首次使用插件提示"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="WelcomeGuideButton"
+                        Grid.Column="1"
+                        Content="展示"
+                        Padding="16,8"
+                        Click="ButtonShowWelcomeGuide_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
             <!-- 显示节日列表 -->
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0"

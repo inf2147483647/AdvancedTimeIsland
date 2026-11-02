@@ -197,6 +197,9 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _easterEggDisclaimerAccepted = false;
     private bool _easterEggInfoAccepted = false;
     private bool _womenswearNoticeAccepted = false;
+    // 默认 false：旧配置 / 升级用户反序列化时缺少该字段，视为尚未展示，
+    // 升级后首次进入「主设置」同样会看到一次欢迎提示；展示后写回 true。
+    private bool _welcomeGuideShown = false;
     private bool _enableExperimentalFeatures = false;
     private bool _enableLunarCalendar = true;
     private bool _enableLocalSolarTime = true;
@@ -646,6 +649,23 @@ public class PluginSettings : INotifyPropertyChanged
             if (_womenswearNoticeAccepted != value)
             {
                 _womenswearNoticeAccepted = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    /// <summary>
+    /// 是否已展示过「首次使用欢迎提示」（仅展示一次；由「主设置」首次进入时写入）。
+    /// 旧配置缺少此字段时默认 false（视为未展示），升级后首次进入主设置仍会提示一次。
+    /// </summary>
+    public bool WelcomeGuideShown
+    {
+        get => _welcomeGuideShown;
+        set
+        {
+            if (_welcomeGuideShown != value)
+            {
+                _welcomeGuideShown = value;
                 OnPropertyChanged();
             }
         }

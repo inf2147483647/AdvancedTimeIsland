@@ -12,6 +12,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Styling;
+using Avalonia.Threading;
 using Avalonia.VisualTree;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
@@ -88,6 +89,9 @@ public class AboutPage : SettingsPageBase
     private Button? _usingGuideButton;
     private Button? _changelogButton;
     private bool _isLoadingChangelog;
+
+    /// <summary>「首次安装欢迎提示」是否已在本页实例内处理过（防止页面反复挂载时重复展示）。</summary>
+    private bool _welcomeGuideHandled;
 
     public AboutPage() : this(null)
     {
@@ -1407,7 +1411,7 @@ public class AboutPage : SettingsPageBase
 
         feedbackButton.Click += (s, e) =>
         {
-            // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / 问卷星双提交渠道）
+            // 反馈问题 → 跳转到 issue_feedback 页面（GitHub Issue 提交渠道）
             FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandIssueFeedback");
         };
 
@@ -1559,6 +1563,32 @@ public class AboutPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
+    }
+
+    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    {
+        base.OnAttachedToVisualTree(e);
+        TryShowFirstRunWelcomeGuide();
+    }
+
+    /// <summary>
+    /// 首次进入「主设置」时展示一次欢迎提示（非模态 Toast，仅展示一次）。
+    /// 旧配置缺少该字段时默认视为未展示，升级用户也会看到一次；展示后立即写入并原子落盘标记，避免重复打扰。
+    /// </summary>
+    private void TryShowFirstRunWelcomeGuide()
+    {
+        if (_welcomeGuideHandled)
+            return;
+        _welcomeGuideHandled = true;
+
+        if (_pluginSettings == null || _pluginSettings.WelcomeGuideShown)
+            return;
+
+        _pluginSettings.WelcomeGuideShown = true;
+        Plugin.Instance?.SaveSettingsNow();
+
+        // 延后到布局完成后再展示：Toast 依赖 TopLevel 上的 AppToastAdorner 就绪
+        Dispatcher.UIThread.Post(() => WelcomeGuideHelper.ShowWelcomeToast(this), DispatcherPriority.Background);
     }
 
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)

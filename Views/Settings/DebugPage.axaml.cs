@@ -117,6 +117,21 @@ public partial class DebugPage : SettingsPageBase
         NavigateSlideTo("AdvancedTimeIslandWomenswear");
     }
 
+    /// <summary>
+    /// 展示「首次使用插件提示」：直接调用与首次进入主设置相同的非模态 Toast（可反复查看效果）。
+    /// </summary>
+    private void ButtonShowWelcomeGuide_OnClick(object? sender, RoutedEventArgs e)
+    {
+        if (Plugin.Instance?.Settings is { } settings)
+        {
+            // 手动展示同样写入「已展示」标记并落盘，避免随后进入主设置时再弹一次
+            settings.WelcomeGuideShown = true;
+            Plugin.Instance.SaveSettingsNow();
+        }
+
+        WelcomeGuideHelper.ShowWelcomeToast(this);
+    }
+
     private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
     {
         try { await ShowFestivalListDialogAsync(); }

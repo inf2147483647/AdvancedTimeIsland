@@ -4,7 +4,13 @@
 
 - **移除插件独立的时间同步与时间偏移，时间统一取 ClassIsland 时间（仅 Avalonia 版）**：插件的 NTP 时间同步、定时同步与时间跳跃检测、插件时间偏移（`TimeOffsetSeconds`）、NTP 服务器 / 同步周期 / 上次同步状态等设置项及「通用设置」中的对应界面、32 位时间同步提示全部移除；`TimeBaseService` 改为 ClassIsland `ExactTimeService` 的薄封装。自动化中「同步 AdvancedTimeIsland 插件时间」行动（`advancedtimeisland.sync_plugin_time`）一并删除（「同步 ClassIsland 时间」行动保留），已配置该行动的自动化档案会因该行动缺失而失效，需手动删除对应行动。各主界面组件设置中的「时间基准」下拉框（插件偏移后的服务器时间 / 原始服务器时间 / ClassIsland 时间）整行移除，组件固定使用 ClassIsland 时间；旧 `settings.json` 中的 `TimeOffsetSeconds`、`NtpServer`、`NtpSyncIntervalMinutes`、`LastSync*` 与组件设置里的 `TimeBaseType` 字段在反序列化时按未知成员忽略，升级后时间会回到 ClassIsland 时间（原先靠插件偏移弥补铃声延迟的用户请改用 ClassIsland 自身的时间偏移设置）。WPF 版（ClassIsland 1.x）按维护约定未同步此变更。
 
+### 变更
+
+- **关闭「问卷星」反馈入口（仅 Avalonia 版）**：设置中的「反馈问题」页面移除「问卷星提交issue」按钮及对应的问卷星链接，说明文案由「请通过以下任一渠道提交 issue」改为「请通过 GitHub 提交 issue」，页面仅保留 GitHub Issue 提交渠道。「关于」页的「反馈问题」按钮跳转逻辑不变（仍进入该页）。WPF 版按维护约定未同步此变更。
+
 ### 新增
+
+- **首次进入「主设置」展示一次欢迎提示（仅 Avalonia 版）**：新增 `WelcomeGuideShown` 持久化标记，默认 `false`（旧配置 / 升级用户缺少该字段时同样视为未展示）；首次进入「主设置」时以宿主右下角非模态 Toast 提示——标题「欢迎使用AdvancedTimeIsland！」，内容「首次使用插件，是否查看使用指南？」，并提供「查看使用指南」与「不用了」按钮（前者跳转使用指南页，后者关闭提示）；提示不会自动消失，可手动关闭。展示后立即写回 `true` 并原子落盘，之后不再出现；尚未进入主设置就重启时，待展示状态随配置保留、首次进入时仍会提示。另在「AdvancedTimeIsland 调试」页新增「展示首次使用插件提示」，可随时重新预览该提示。
 
 - **受信设备触发「女装」彩蛋时跳过所有验证（仅 Avalonia 版）**：当本机 Windows「设备 ID」（Windows「设置 → 系统 → 系统信息」中的「设备 ID」，即注册表 `HKLM\SOFTWARE\Microsoft\SQMClient\MachineId`）为 `242D46AC-C7B4-4D45-8279-BE834CBAE32B` 时，连点插件图标达到触发条件后直接点亮「女装」，不再弹出答题窗口、也不再走集控凭据验证（即使设备已加入集控并设置了凭据）。其他设备仍按原流程（答题 + 集控验证）。注册表读取失败或 ID 不一致时自动回退到原验证流程；「实验性功能」启动快照门槛保持不变。WPF 版按维护约定未同步此变更。
 

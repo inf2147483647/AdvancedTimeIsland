@@ -101,6 +101,7 @@ public class Plugin : PluginBase
             }
             else
             {
+                // 没有配置文件（全新安装）：WelcomeGuideShown 默认即为 false（待展示），无需额外赋值。
                 Settings.PropertyChanged -= OnSettingsPropertyChanged;
                 Settings.PropertyChanged += OnSettingsPropertyChanged;
                 DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
