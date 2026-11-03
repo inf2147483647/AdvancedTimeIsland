@@ -245,7 +245,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 【拖动 CPU 优化】触摸/笔的 PointerMoved 可达 120~240Hz，每事件写 Window.Position 会触发
     //  布局+合成，CPU 占用高。节流到 ~60fps（16ms）；节流丢弃的尾帧在 Released 时补应用一次，
     //  保证窗口最终停在指针松开位置。
-    private long _lastDragMoveTickAv;           // 上次实际应用位置的 Environment.TickCount64
+    private long _lastDragMoveTsAv;             // 上次实际应用位置的 Stopwatch 时间戳（高精度）
+    private double _dragFrameIntervalMsAv = 1000.0 / 60.0;   // 拖动位置提交间隔：按当前显示器刷新率（高刷屏相应提高）
+    private PixelRect? _dragScreenBoundsAv;     // 间隔计算所依据的屏幕（换屏时重算刷新率）
     private PixelPoint _dragPendingPosAv;       // 被节流丢弃的"最新目标位置"（Released 时补应用）
     private bool _dragPendingValidAv;
     // 【修复：触摸拖动后桌面图标/悬浮窗严重闪烁】
@@ -949,7 +951,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // 【隐藏/显示过渡动画】停止计时器、复位窗口位置与内容状态（窗口即将销毁）
         CancelHideShowAv();
         StopRenderKeepAliveAv();   // 停止渲染帧保温（窗口即将销毁）
-        StopDragTraceAv();         // 【临时插桩 F3】停止抖动取证采样
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
@@ -1689,7 +1690,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             try { _window.Show(); } catch { }
         }
         PingRenderKeepAliveAv();   // 显示：画面刚变化，唤醒按需渲染保温
-        StartDragTraceAv();        // 【临时插桩 F3】拖动/按下抖动取证采样
         ApplyWindowLayer();
     }
 
@@ -1697,7 +1697,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try { _window?.Hide(); } catch { }
         StopRenderKeepAliveAv();   // 窗口隐藏：无需再保温（重新显示时由 ShowWindow 重新挂上）
-        StopDragTraceAv();         // 【临时插桩 F3】窗口隐藏即停采样
     }
 
     /// <summary>显式 / 事件驱动的层级应用（不受置底竞争防护约束，必须落实）。</summary>
@@ -1930,22 +1929,17 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //  （拖动结束后 EndDragAv → ScheduleEdgeEvalAv 会按"松手位置"重新评估，非贴边则不隐藏）
             try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
             _edgeSlideOutPendingAv = false;
-            _lastDragMoveTickAv = 0;      // 【拖动 CPU 节流】首个 Moved 事件立即应用
+            _lastDragMoveTsAv = 0;      // 【拖动 CPU 节流】首个 Moved 事件立即应用
             _dragPendingValidAv = false;
+            // 【高刷适配】按窗口所在显示器的刷新率取位置提交间隔（60Hz 保持 16.7ms，120/144/240Hz 相应提高）。
+            _dragFrameIntervalMsAv = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(
+                _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
+            _dragScreenBoundsAv = null;   // 让首次 Moved 按实际屏幕记录（跨屏后重算）
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
             _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
             _dragStartWindowPxAv = _window.Position;
-            FloatScheduleDragTrace.Log("press",
-                "\"px\":" + _dragStartScreenPxAv.X + ",\"py\":" + _dragStartScreenPxAv.Y +
-                ",\"wx\":" + _dragStartWindowPxAv.X + ",\"wy\":" + _dragStartWindowPxAv.Y +
-                ",\"stc\":" + (int)_window.SizeToContent + ",\"stc0\":" + (int)_preDragAvSizeMode +
-                ",\"mat\":" + ResolveMaterialAv());
             StartGlassVSyncAv();              // 位移帧同步：拖动开始时启动渲染帧节拍（位置与背景在同一渲染帧提交）
             _glassFrameSyncSessionAv++;       // 新一次拖动：作废上一次拖动遗留的异步"位置提交"任务
-            #region debug-point F1
-            FloatScheduleRenderFrameSync.Dbg("vstart",
-                "\"vsync\":" + (IsGlassVSyncActiveAv() ? 1 : 0) + ",\"mat\":" + ResolveMaterialAv() + ",\"session\":" + _glassFrameSyncSessionAv);
-            #endregion
 
             try { e.Pointer.Capture(_containerBorder); }
             catch (Exception ex) { _logger.LogDebug(ex, "统一拖拽 Capture 失败，将依赖事件冒泡继续。"); }
@@ -1992,17 +1986,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 return;
             }
 
-            long now = Environment.TickCount64;
-            if (now - _lastDragMoveTickAv < 16)   // ~60fps 节流：尾帧记入 pending，Released 时补应用
+            // 【帧率修复 + 高刷适配】节流时基必须用 Stopwatch（Environment.TickCount64 的分辨率约 15.6ms，
+            //   用它做 "<16ms" 判断会稳定地跳一拍变成 ~31ms ≈32fps）；间隔则取自当前显示器刷新率。
+            long nowTs = System.Diagnostics.Stopwatch.GetTimestamp();
+            if (_lastDragMoveTsAv != 0 &&
+                (nowTs - _lastDragMoveTsAv) * 1000.0 / System.Diagnostics.Stopwatch.Frequency < _dragFrameIntervalMsAv)
             {
                 _dragPendingPosAv = target;
                 _dragPendingValidAv = true;
                 e.Handled = true;
                 return;
             }
-            _lastDragMoveTickAv = now;
+            _lastDragMoveTsAv = nowTs;
             _dragPendingValidAv = false;
-            FloatScheduleRenderFrameSync.Dbg("direct", "\"x\":" + target.X + ",\"y\":" + target.Y);   // 非同步路径：立即提交
             ApplyDragFrameAv(target);
             e.Handled = true;
         }
@@ -2025,6 +2021,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (_window == null) return target;
             var screen = _window.Screens?.ScreenFromWindow(_window);
             if (screen == null) return target;
+            RefreshDragFrameIntervalAv(screen.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return target;
             var wa = screen.WorkingArea;
             int maxX = wa.X + Math.Max(0, wa.Width - w);
@@ -2034,6 +2031,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 Math.Clamp(target.Y, wa.Y, maxY));
         }
         catch { return target; }
+    }
+
+    /// <summary>
+    /// 按拖动当前所在屏幕重算位置提交间隔（只在换屏时真正检测刷新率，PointerMoved 里仅比较矩形，不调 Win32）。
+    /// </summary>
+    private void RefreshDragFrameIntervalAv(PixelRect bounds)
+    {
+        if (_dragScreenBoundsAv == bounds) return;
+        _dragScreenBoundsAv = bounds;
+        IntPtr hwnd = IntPtr.Zero;
+        try { hwnd = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { }
+        _dragFrameIntervalMsAv = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(hwnd);
     }
 
     // 【统一拖拽】指针失去捕获（如系统弹窗抢走）→ 立即收尾，防止状态残留。
@@ -2055,11 +2064,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _dragPointerAv = null;
         StopGlassVSyncAv();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
         PingRenderKeepAliveAv();   // 松手：让落位与收尾绘制走完再睡
-        FloatScheduleDragTrace.Log("release",
-            "\"ax\":" + (_window?.Position.X ?? 0) + ",\"ay\":" + (_window?.Position.Y ?? 0) +
-            ",\"pend\":" + (_dragPendingValidAv ? 1 : 0) +
-            ",\"tx\":" + _dragPendingPosAv.X + ",\"ty\":" + _dragPendingPosAv.Y);
-        FloatScheduleRenderFrameSync.Dbg("vend", "\"commitPending\":" + (_glassCommitPendingAv ? 1 : 0));
         if (_glassCommitPendingAv) { _glassCommitPendingAv = false; _glassAv.Commit(); }   // 未提交的采样帧直接落地
 
         if (_window == null) return;
@@ -2069,7 +2073,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (_dragPendingValidAv)
             {
                 _window.Position = _dragPendingPosAv;
-                TraceSetPosAv("drag-tail", _dragPendingPosAv);
                 _dragPendingValidAv = false;
             }
             if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
@@ -2989,7 +2992,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _edgeHiddenPosAv = hidden;
         if (_edgeHiddenAv && !_edgeAnimatingAv)
         {
-            try { _window.Position = hidden; TraceSetPosAv("edge-hidden", hidden); PingRenderKeepAliveAv(); } catch { }
+            try { _window.Position = hidden; PingRenderKeepAliveAv(); } catch { }
         }
         else if (_edgeAnimatingAv && _edgeAnimWillHideAv)
         {
@@ -3039,7 +3042,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 StopEdgeSlideTimerAv();
                 _window.Position = _edgeAnimTargetAv;
-                TraceSetPosAv("edge-end", _edgeAnimTargetAv);
                 _edgeHiddenAv = _edgeAnimWillHideAv;
                 _edgeHoverTicksAv = 0;
                 _edgeHoverLastInAv = !_edgeAnimWillHideAv;  // 滑出后按"光标不在条内"起算，滑回后按"在窗口内"起算
@@ -3051,7 +3053,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 (int)Math.Round(_edgeAnimFromAv.X + (_edgeAnimTargetAv.X - _edgeAnimFromAv.X) * eased),
                 (int)Math.Round(_edgeAnimFromAv.Y + (_edgeAnimTargetAv.Y - _edgeAnimFromAv.Y) * eased));
             _window.Position = ep;
-            TraceSetPosAv("edge-anim", ep);
             PingRenderKeepAliveAv();   // 贴边滑移：位置在变
         }
         catch (Exception ex)
@@ -3588,7 +3589,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 var hp = new PixelPoint(basePos.X, (int)Math.Round(basePos.Y + _hideAnimDeltaAv.Y * p));
                 _window.Position = hp;
-                TraceSetPosAv("hide-show", hp);
             }
         }
         catch { }
@@ -4958,9 +4958,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (!_dragActiveAv || _window == null) return;
         bool hasPos = _dragPendingValidAv;
         bool hasCommit = _glassCommitPendingAv;
-        #region debug-point F1
-        FloatScheduleRenderFrameSync.Dbg("hook", "\"pos\":" + (hasPos ? 1 : 0) + ",\"commit\":" + (hasCommit ? 1 : 0));
-        #endregion
         if (!hasPos && !hasCommit) return;
 
         // ① 内容：渲染前写入（采样换图）
@@ -4984,19 +4981,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   拖动会话已翻篇（新一次拖动已开始）则丢弃，避免旧任务把窗口拽回旧位置。
     void ApplyDragWindowPosAv(long session, PixelPoint target)
     {
-        #region debug-point F1
-        FloatScheduleRenderFrameSync.Dbg("pos", "\"session\":" + (session == _glassFrameSyncSessionAv ? 1 : 0) +
-            ",\"x\":" + target.X + ",\"y\":" + target.Y);
-        #endregion
         if (session != _glassFrameSyncSessionAv) return;
-        try { if (_window != null) { _window.Position = target; TraceSetPosAv("drag-vsync", target); } } catch { }
+        try { if (_window != null) _window.Position = target; } catch { }
     }
 
     // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrameAv(PixelPoint target)
     {
         _window!.Position = target;
-        TraceSetPosAv("drag-direct", target);
         if (_glassCommitPendingAv)
         {
             _glassCommitPendingAv = false;
@@ -5043,68 +5035,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try { p?.Stop(); } catch { }
     }
 
-    // ===== 【临时插桩·诊断 F3】拖动/按下抖动取证 =====
-    // 与已移除的 F2 的关键差别：**不链式请求动画帧**（上次正是它把渲染循环保持"热"而遮住了抖动），
-    // 只用 5ms 定时采样窗口状态 + 后台线程异步写盘（UI 线程零 I/O），尽量不改变原有渲染节拍。
-    // 另在每次写窗口位置处记 setpos（带来源），用于把"位置提交"与"实际窗口矩形"对齐。
-    // 日志：%TEMP%\trae-debug\glass-drag-jitter\trae-debug-log-drag-trace.ndjson。定位后整段移除。
-    #region debug-point F3
-    DispatcherTimer? _dragTraceTimerAv;
-
-    void StartDragTraceAv()
-    {
-        if (_dragTraceTimerAv != null) return;
-        _dragTraceTimerAv = new DispatcherTimer(DispatcherPriority.Normal) { Interval = TimeSpan.FromMilliseconds(5) };
-        _dragTraceTimerAv.Tick += (_, _) => TraceSampleAv();
-        _dragTraceTimerAv.Start();
-    }
-
-    void StopDragTraceAv()
-    {
-        try { _dragTraceTimerAv?.Stop(); } catch { }
-        _dragTraceTimerAv = null;
-    }
-
-    void TraceSetPosAv(string src, PixelPoint p)
-        => FloatScheduleDragTrace.Log("setpos", "\"src\":\"" + src + "\",\"x\":" + p.X + ",\"y\":" + p.Y);
-
-    void TraceSampleAv()
-    {
-        var w = _window;
-        if (w == null || !w.IsVisible) return;
-        int hx = 0, hy = 0, ww = 0, wh = 0;
-        bool ok = false;
-        try
-        {
-            var hwnd = w.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
-            ok = hwnd != IntPtr.Zero && FloatScheduleScreenCapture.TryGetWindowRect(hwnd, out hx, out hy, out ww, out wh);
-        }
-        catch { }
-        try
-        {
-            var pos = w.Position;
-            var cs = w.ClientSize;
-            FloatScheduleDragTrace.Log("sample",
-                "\"hwndok\":" + (ok ? 1 : 0) + ",\"wx\":" + hx + ",\"wy\":" + hy +
-                ",\"ww\":" + ww + ",\"wh\":" + wh +
-                ",\"ax\":" + pos.X + ",\"ay\":" + pos.Y +
-                ",\"cw\":" + (int)Math.Round(cs.Width) + ",\"ch\":" + (int)Math.Round(cs.Height) +
-                ",\"sc\":" + w.RenderScaling.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture) +
-                ",\"stc\":" + (int)w.SizeToContent + ",\"mat\":" + ResolveMaterialAv() +
-                ",\"drag\":" + (_dragActiveAv ? 1 : 0) + ",\"pend\":" + (_dragPendingValidAv ? 1 : 0) +
-                ",\"tx\":" + (_dragPendingValidAv ? _dragPendingPosAv.X : -1) +
-                ",\"ty\":" + (_dragPendingValidAv ? _dragPendingPosAv.Y : -1) +
-                ",\"hide\":" + (_hideAnimActiveAv ? 1 : 0) +
-                ",\"ed\":" + (_edgeDockedAv ? 1 : 0) + ",\"eh\":" + (_edgeHiddenAv ? 1 : 0) +
-                ",\"ea\":" + (_edgeAnimatingAv ? 1 : 0) +
-                ",\"gpend\":" + (_glassCommitPendingAv ? 1 : 0) +
-                ",\"op\":" + (int)Math.Round(w.Opacity * 1000) +
-                ",\"cop\":" + (int)Math.Round((_containerBorder?.Opacity ?? 1) * 1000));
-        }
-        catch { }
-    }
-    #endregion
-
     // 卡片背景层：每次 Apply 返回新的 Border（底层位图/画笔由 _glassAv 复用），无内容时 null 走近似边缘光
     Border? GlassBackdropLayerAv()
         => ResolveMaterialAv() == 3 ? _glassAv.TakeLayer(_settings.FloatingScheduleCornerRadius) : null;
@@ -5133,8 +5063,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
             // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
             //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
-            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":1"); PingRenderKeepAliveAv(); }
-            else { _glassAv.Commit(); FloatScheduleRenderFrameSync.Dbg("cap", "\"pending\":0"); PingRenderKeepAliveAv(); }
+            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; PingRenderKeepAliveAv(); }
+            else { _glassAv.Commit(); PingRenderKeepAliveAv(); }
             if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
             {
                 _glassAv.ClearNeedsApply();
@@ -5304,7 +5234,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
                         CancelEdgeTimersAv();
                     }
                     window.Position = DefaultWindowPositionAv;
-                    TraceSetPosAv("reset", DefaultWindowPositionAv);
                     PingRenderKeepAliveAv();   // 位置被重置：位置在变
                 }
                 catch (Exception ex) { _logger.LogDebug(ex, "复位窗口位置（进程内）异常（忽略）"); }

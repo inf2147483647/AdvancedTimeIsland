@@ -8,6 +8,8 @@
 
 - **区时 / 地方时组件在未自定义时默认跟随「主设置」（仅 Avalonia 版）**：「区时（ATI）」组件的时区、「地方时（ATI）」组件的经度不再硬编码为 `China Standard Time` / `116.4`，组件设置中的对应字段改为「未设置即跟随主设置」——`TimeZoneTimeSettings.TimeZoneId` 与 `LocalSolarTimeSettings.Longitude` 默认 `null`，渲染时取「主设置 → 通用设置」中的区时/地方时经度，并在主设置变更时实时同步；经纬度表示方式（小数 / 度分秒）也统一取主设置。已有配置文件中已保存的时区 / 经度数值在反序列化时原样保留、不会被主设置覆盖（组件设置面板中手动修改后即视为自定义，继续独立生效）；组件设置面板原有的时区 / 经度等设置项保持不变。WPF 版按维护约定未同步此变更。
 
+- **时间表悬浮窗拖动按需适配高刷新率屏幕（仅 Avalonia 版）**：拖动时窗口位置提交的节流间隔不再固定 16ms（≈60fps），改为按悬浮窗所在显示器的实际刷新率取值（60Hz 仍为 16.7ms，120/144/165/240Hz 分别约 8.3/6.9/6.1/4.2ms，限幅 60–240Hz）；拖动跨到另一块刷新率不同的显示器时按所在屏幕实时重算，取不到刷新率（如设备返回"硬件默认"）则回退 60Hz。检测只在拖动开始与换屏时进行（`MonitorFromWindow` + `MonitorInfoEx` + `EnumDisplaySettingsW`），`PointerMoved` 内不产生额外 Win32 调用。独立进程模式与插件进程内模式两处拖动路径同步生效；液态玻璃的"位置与背景同帧"路径仍由渲染帧节拍驱动（Avalonia 11 渲染节拍固定 60fps，Avalonia 12 跟随刷新率）。WPF 版按维护约定未同步此变更。
+
 - **反馈页第二入口由「问卷星」改为「GitCode」（仅 Avalonia 版）**：「反馈问题」页面的「问卷星提交issue」按钮替换为「GitCode提交issue」，跳转至 GitCode 仓库的 Bug 反馈 Issue 模板创建页（`https://gitcode.com/inf2147483647/AdvancedTimeIsland/issues/create?type=template&title=Bug+反馈&template=.github%2FISSUE_TEMPLATE%2FBugReport.yml`），说明文案保持「请通过以下任一渠道提交 issue」；GitHub 入口不变，「关于」页「反馈问题」按钮跳转逻辑不变（仍进入该页）。WPF 版按维护约定未同步此变更。
 
 ### 新增
@@ -17,6 +19,8 @@
 - **受信设备触发「女装」彩蛋时跳过所有验证（仅 Avalonia 版）**：当本机 Windows「设备 ID」（Windows「设置 → 系统 → 系统信息」中的「设备 ID」，即注册表 `HKLM\SOFTWARE\Microsoft\SQMClient\MachineId`）为 `242D46AC-C7B4-4D45-8279-BE834CBAE32B` 时，连点插件图标达到触发条件后直接点亮「女装」，不再弹出答题窗口、也不再走集控凭据验证（即使设备已加入集控并设置了凭据）。其他设备仍按原流程（答题 + 集控验证）。注册表读取失败或 ID 不一致时自动回退到原验证流程；「实验性功能」启动快照门槛保持不变。WPF 版按维护约定未同步此变更。
 
 ### 修复
+
+- **修复时间表悬浮窗拖动只有约 30–40fps（仅 Avalonia 版）**：拖动时窗口位置提交的 16ms 节流此前用 `Environment.TickCount64` 计时，而该时钟的分辨率约 15.6ms，`<16ms` 判断会稳定地跳一拍变成约 31ms（≈32fps）；现改用 `Stopwatch` 高精度时基，节流回到真正的 ~60fps。同时清理了此前遗留的临时诊断插桩（5ms 周期采样 `DispatcherTimer` 与每个渲染帧同步写日志文件），它们持续占用 UI 线程并打断渲染节拍；同时删除了插桩遗留、已无调用者的窗口矩形抓取辅助方法（`FloatScheduleScreenCapture.TryGetWindowRect`）。独立进程模式与插件进程内模式两处拖动路径均已修复，拖动行为（节流尾帧松手补应用、不跑出屏幕、贴边判定）保持不变。WPF 版按维护约定未同步此变更。
 
 - **修复「农历日期（ATI）」月份缺少“月”字并改为复用 lunar.dll**：组件原先自行用 `MonthInChinese` 拼接文本，而 lunar.dll 返回的月名不含“月”字（如“九”“闰四”），显示为「农历 丙午年九廿五」。现将格式化统一收敛到 `LunarHelper.LunarDate.ToString()`（内部基于 lunar.dll，自动补齐“月”，闰月为「闰四月」），组件直接复用该格式化结果，不再重复拼装月 / 日名，正确显示「农历 丙午年九月廿五」。
 
