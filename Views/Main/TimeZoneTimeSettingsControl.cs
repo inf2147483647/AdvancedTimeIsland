@@ -32,8 +32,20 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
     private TextBlock _titleTextBlock;
     private TextBlock _descTextBlock;
 
-    public TimeZoneTimeSettingsControl()
+    private readonly PluginSettings? _pluginSettings;
+    private bool _isLoadingSelection;
+
+    public TimeZoneTimeSettingsControl() : this(null)
     {
+    }
+
+    public TimeZoneTimeSettingsControl(PluginSettings? pluginSettings = null)
+    {
+        _pluginSettings = pluginSettings ?? Plugin.Instance?.Settings;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
+        }
         InitializeComponent();
     }
 
@@ -336,14 +348,16 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
+        _isLoadingSelection = true;
         foreach (var item in _timeZoneComboBox.Items)
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            if (item is TimeZoneInfo tz && tz.Id == Settings.EffectiveTimeZoneId)
             {
                 _timeZoneComboBox.SelectedItem = item;
                 break;
             }
         }
+        _isLoadingSelection = false;
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
@@ -362,10 +376,38 @@ public class TimeZoneTimeSettingsControl : ComponentBase<TimeZoneTimeSettings>
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged -= OnPluginSettingsPropertyChanged;
+        }
+    }
+
+    /// <summary>
+    /// 主设置变更：组件时区未自定义（跟随主设置）时同步下拉框选中项。
+    /// </summary>
+    private void OnPluginSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName != nameof(PluginSettings.TimeZoneId) || Settings.TimeZoneId is not null)
+        {
+            return;
+        }
+
+        _isLoadingSelection = true;
+        foreach (var item in _timeZoneComboBox.Items)
+        {
+            if (item is TimeZoneInfo tz && tz.Id == Settings.EffectiveTimeZoneId)
+            {
+                _timeZoneComboBox.SelectedItem = item;
+                break;
+            }
+        }
+        _isLoadingSelection = false;
     }
 
     private void OnTimeZoneSelectionChanged(object? sender, SelectionChangedEventArgs e)
     {
+        // 加载时同步选中项不写入组件设置，避免把“跟随主设置”误变为自定义值。
+        if (_isLoadingSelection) return;
         if (_timeZoneComboBox.SelectedItem is TimeZoneInfo tz) Settings.TimeZoneId = tz.Id;
     }
 

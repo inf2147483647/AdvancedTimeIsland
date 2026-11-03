@@ -6,7 +6,9 @@
 
 ### 变更
 
-- **关闭「问卷星」反馈入口（仅 Avalonia 版）**：设置中的「反馈问题」页面移除「问卷星提交issue」按钮及对应的问卷星链接，说明文案由「请通过以下任一渠道提交 issue」改为「请通过 GitHub 提交 issue」，页面仅保留 GitHub Issue 提交渠道。「关于」页的「反馈问题」按钮跳转逻辑不变（仍进入该页）。WPF 版按维护约定未同步此变更。
+- **区时 / 地方时组件在未自定义时默认跟随「主设置」（仅 Avalonia 版）**：「区时（ATI）」组件的时区、「地方时（ATI）」组件的经度不再硬编码为 `China Standard Time` / `116.4`，组件设置中的对应字段改为「未设置即跟随主设置」——`TimeZoneTimeSettings.TimeZoneId` 与 `LocalSolarTimeSettings.Longitude` 默认 `null`，渲染时取「主设置 → 通用设置」中的区时/地方时经度，并在主设置变更时实时同步；经纬度表示方式（小数 / 度分秒）也统一取主设置。已有配置文件中已保存的时区 / 经度数值在反序列化时原样保留、不会被主设置覆盖（组件设置面板中手动修改后即视为自定义，继续独立生效）；组件设置面板原有的时区 / 经度等设置项保持不变。WPF 版按维护约定未同步此变更。
+
+- **反馈页第二入口由「问卷星」改为「GitCode」（仅 Avalonia 版）**：「反馈问题」页面的「问卷星提交issue」按钮替换为「GitCode提交issue」，跳转至 GitCode 仓库的 Bug 反馈 Issue 模板创建页（`https://gitcode.com/inf2147483647/AdvancedTimeIsland/issues/create?type=template&title=Bug+反馈&template=.github%2FISSUE_TEMPLATE%2FBugReport.yml`），说明文案保持「请通过以下任一渠道提交 issue」；GitHub 入口不变，「关于」页「反馈问题」按钮跳转逻辑不变（仍进入该页）。WPF 版按维护约定未同步此变更。
 
 ### 新增
 

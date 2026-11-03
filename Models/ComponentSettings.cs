@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 
 namespace AdvancedTimeIsland.Models;
 
@@ -1566,22 +1567,34 @@ public class CountdownSettings : INotifyPropertyChanged
 
     public class LocalSolarTimeSettings : INotifyPropertyChanged
 {
-    private double _longitude = 116.4;
+    // null 表示未自定义：经度跟随主设置（PluginSettings.Longitude）。
+    // 已有配置文件中保存的经度数值会经反序列化写入 _longitude，保持原值不被覆盖。
+    private double? _longitude;
     private string _fontColor = "";
     private double _textFontSize = 14;
 
-    public double Longitude
+    /// <summary>
+    /// 地方时计算使用的经度。为 null 时跟随主设置的经度。
+    /// </summary>
+    public double? Longitude
     {
         get => _longitude;
         set
         {
-            if (Math.Abs(_longitude - value) > 0.0001)
+            double? v = value is null ? null : Math.Max(-180, Math.Min(180, value.Value));
+            if (_longitude != v)
             {
-                _longitude = Math.Max(-180, Math.Min(180, value));
+                _longitude = v;
                 OnPropertyChanged();
             }
         }
     }
+
+    /// <summary>
+    /// 实际生效的经度：未自定义时取主设置经度（兜底 114.2628）。
+    /// </summary>
+    [JsonIgnore]
+    public double EffectiveLongitude => _longitude ?? Plugin.Instance?.Settings.Longitude ?? 114.2628;
 
     public string FontColor
     {
@@ -1709,11 +1722,16 @@ public class CountdownSettings : INotifyPropertyChanged
 
 public class TimeZoneTimeSettings : INotifyPropertyChanged
 {
-    private string _timeZoneId = "China Standard Time";
+    // null 表示未自定义：时区跟随主设置（PluginSettings.TimeZoneId）。
+    // 已有配置文件中保存的时区会经反序列化写入 _timeZoneId，保持原值不被覆盖。
+    private string? _timeZoneId;
     private string _fontColor = "";
     private double _textFontSize = 14;
 
-    public string TimeZoneId
+    /// <summary>
+    /// 区时显示的时区 ID。为 null 时跟随主设置的时区。
+    /// </summary>
+    public string? TimeZoneId
     {
         get => _timeZoneId;
         set
@@ -1725,6 +1743,12 @@ public class TimeZoneTimeSettings : INotifyPropertyChanged
             }
         }
     }
+
+    /// <summary>
+    /// 实际生效的时区 ID：未自定义时取主设置时区（兜底 China Standard Time）。
+    /// </summary>
+    [JsonIgnore]
+    public string EffectiveTimeZoneId => _timeZoneId ?? Plugin.Instance?.Settings.TimeZoneId ?? "China Standard Time";
 
     public string FontColor
     {

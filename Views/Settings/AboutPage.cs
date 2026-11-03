@@ -1411,7 +1411,7 @@ public class AboutPage : SettingsPageBase
 
         feedbackButton.Click += (s, e) =>
         {
-            // 反馈问题 → 跳转到 issue_feedback 页面（GitHub Issue 提交渠道）
+            // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / GitCode 双提交渠道）
             FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandIssueFeedback");
         };
 

@@ -25,10 +25,12 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
     private TextBlock tb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private readonly PluginSettings? _pluginSettings;
 
-    public TimeZoneTimeControl(TimeBaseService tbs)
+    public TimeZoneTimeControl(TimeBaseService tbs, PluginSettings? pluginSettings = null)
     {
         _timeBaseService = tbs;
+        _pluginSettings = pluginSettings ?? Plugin.Instance?.Settings;
         InitializeComponent();
     }
 
@@ -91,7 +93,7 @@ public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
-        vm = new TimeZoneTimeViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
+        vm = new TimeZoneTimeViewModel(_timeBaseService, Settings, _pluginSettings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.FullDisplay;
         vm.PropertyChanged += OnVmPropertyChanged;

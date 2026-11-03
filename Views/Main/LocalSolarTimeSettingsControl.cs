@@ -40,6 +40,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
     private readonly List<TextBlock> _dynamicTextBlocks = new();
     private readonly List<Border> _tableCellBorders = new();
 
+    private bool _isUpdatingDms;
+
     private TextBlock _titleTextBlock;
     private TextBlock _longitudeLabelTextBlock;
     private TextBlock _dmsDegreeSymbol;
@@ -53,7 +55,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
     public LocalSolarTimeSettingsControl(PluginSettings? pluginSettings = null)
     {
-        _pluginSettings = pluginSettings;
+        _pluginSettings = pluginSettings ?? Plugin.Instance?.Settings;
         if (_pluginSettings != null)
         {
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
@@ -420,7 +422,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
             Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
         }
         UpdateThemeColors();
-        _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+        _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.EffectiveLongitude);
         UpdateDmsFromLongitude();
         if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
         {
@@ -450,15 +452,22 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged -= OnPluginSettingsPropertyChanged;
+        }
     }
 
     private void UpdateDmsFromLongitude()
     {
-        LongitudeConverter.DecomposeDms(Settings.Longitude, out int d, out int m, out double s, out bool isEast);
+        // 同步显示时不得反向写回组件设置，否则“跟随主设置”的状态会被误判为已自定义。
+        _isUpdatingDms = true;
+        LongitudeConverter.DecomposeDms(Settings.EffectiveLongitude, out int d, out int m, out double s, out bool isEast);
         _longitudeDmsDegreesTextBox.Text = d.ToString();
         _longitudeDmsMinutesTextBox.Text = m.ToString();
         _longitudeDmsSecondsTextBox.Text = s.ToString("F2");
         _longitudeDmsDirectionComboBox.SelectedIndex = isEast ? 0 : 1;
+        _isUpdatingDms = false;
     }
 
     private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
@@ -471,12 +480,13 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
         else
         {
-            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.EffectiveLongitude);
         }
     }
 
     private void OnLongitudeDmsValueChanged(object? sender, EventArgs e)
     {
+        if (_isUpdatingDms) return;
         if (!int.TryParse(_longitudeDmsDegreesTextBox.Text, out int d)) d = 0;
         if (!int.TryParse(_longitudeDmsMinutesTextBox.Text, out int m)) m = 0;
         if (!double.TryParse(_longitudeDmsSecondsTextBox.Text, out double s)) s = 0;
@@ -595,6 +605,11 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         {
             UpdateLongitudeDisplay();
         }
+        else if (e.PropertyName == nameof(PluginSettings.Longitude) && Settings.Longitude is null)
+        {
+            // 组件未自定义经度（跟随主设置）时，主设置经度变化后同步刷新显示。
+            UpdateLongitudeDisplay();
+        }
     }
 
     private void UpdateLongitudeDisplay()
@@ -607,7 +622,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
         if (_pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
         {
-            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
+            _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.EffectiveLongitude);
         }
         else
         {

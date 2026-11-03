@@ -12,20 +12,26 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly LocalSolarTimeSettings _settings;
+    private readonly PluginSettings? _pluginSettings;
     private readonly System.Timers.Timer _updateTimer;
     private readonly Action<string> _updateFontColor;
     private readonly Action<double> _updateFontSize;
     private string _fullDisplay = string.Empty;
     private bool _isDisposed;
 
-    public LocalSolarTimeViewModel(TimeBaseService timeBaseService, LocalSolarTimeSettings settings, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
+    public LocalSolarTimeViewModel(TimeBaseService timeBaseService, LocalSolarTimeSettings settings, PluginSettings? pluginSettings = null, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        _pluginSettings = pluginSettings ?? Plugin.Instance?.Settings;
         _updateFontColor = updateFontColor;
         _updateFontSize = updateFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged += OnPluginSettingsChanged;
+        }
         
         UpdateTime();
         
@@ -33,6 +39,17 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
         _updateTimer.Elapsed += OnTimerElapsed;
         _updateTimer.AutoReset = true;
         _updateTimer.Enabled = true;
+    }
+
+    /// <summary>
+    /// 主设置变更：当组件经度未自定义（跟随主设置）时同步刷新。
+    /// </summary>
+    private void OnPluginSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.Longitude) && _settings.Longitude is null)
+        {
+            UpdateTime();
+        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -110,13 +127,13 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
     {
         var localTime = utcTime.ToLocalTime();
         var standardMeridian = TimeZoneInfo.Local.BaseUtcOffset.TotalHours * 15;
-        var timeDifferenceMinutes = (_settings.Longitude - standardMeridian) * 4;
+        var timeDifferenceMinutes = (_settings.EffectiveLongitude - standardMeridian) * 4;
         return localTime.AddMinutes(timeDifferenceMinutes);
     }
 
     private string FormatFullDisplay(DateTime dateTime)
     {
-        double lon = _settings.Longitude;
+        double lon = _settings.EffectiveLongitude;
         string direction = lon >= 0 ? "E" : "W";
         return $"地方时 {dateTime:yyyy-MM-dd} {dateTime:HH:mm:ss} {Math.Abs(lon)}°{direction}";
     }
@@ -134,6 +151,10 @@ public class LocalSolarTimeViewModel : INotifyPropertyChanged, IDisposable
         
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged -= OnPluginSettingsChanged;
+        }
         _updateTimer?.Stop();
         _updateTimer?.Dispose();
     }

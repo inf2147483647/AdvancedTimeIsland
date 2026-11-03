@@ -12,6 +12,7 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly TimeZoneTimeSettings _settings;
+    private readonly PluginSettings? _pluginSettings;
     private IDisposable? _clockSubscription;
     private readonly Action<string> _updateFontColor;
     private readonly Action<double> _updateFontSize;
@@ -23,14 +24,19 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
     private TimeZoneInfo? _cachedTimeZone;
     private string _cachedTimeZoneDisplayName = "未知时区";
 
-    public TimeZoneTimeViewModel(TimeBaseService timeBaseService, TimeZoneTimeSettings settings, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
+    public TimeZoneTimeViewModel(TimeBaseService timeBaseService, TimeZoneTimeSettings settings, PluginSettings? pluginSettings = null, Action<string> updateFontColor = null, Action<double> updateFontSize = null)
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        _pluginSettings = pluginSettings ?? Plugin.Instance?.Settings;
         _updateFontColor = updateFontColor;
         _updateFontSize = updateFontSize;
 
         _settings.PropertyChanged += OnSettingsChanged;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged += OnPluginSettingsChanged;
+        }
 
         UpdateTime();
 
@@ -42,6 +48,17 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
     {
         // 共享时钟回调已在 UI 线程，直接同步刷新。
         UpdateTime();
+    }
+
+    /// <summary>
+    /// 主设置变更：当组件时区未自定义（跟随主设置）时同步刷新。
+    /// </summary>
+    private void OnPluginSettingsChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.TimeZoneId) && _settings.TimeZoneId is null)
+        {
+            UpdateTime();
+        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -97,15 +114,16 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
 
     private TimeZoneInfo ResolveTimeZone()
     {
-        if (_cachedTimeZoneId == _settings.TimeZoneId && _cachedTimeZone != null)
+        var effectiveTimeZoneId = _settings.EffectiveTimeZoneId;
+        if (_cachedTimeZoneId == effectiveTimeZoneId && _cachedTimeZone != null)
         {
             return _cachedTimeZone;
         }
 
-        _cachedTimeZoneId = _settings.TimeZoneId;
+        _cachedTimeZoneId = effectiveTimeZoneId;
         try
         {
-            _cachedTimeZone = TimeZoneInfo.FindSystemTimeZoneById(_settings.TimeZoneId);
+            _cachedTimeZone = TimeZoneInfo.FindSystemTimeZoneById(effectiveTimeZoneId);
             _cachedTimeZoneDisplayName = BuildTimeZoneDisplayName(_cachedTimeZone);
         }
         catch
@@ -163,6 +181,10 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
 
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
+        if (_pluginSettings != null)
+        {
+            _pluginSettings.PropertyChanged -= OnPluginSettingsChanged;
+        }
         _clockSubscription?.Dispose();
     }
 }

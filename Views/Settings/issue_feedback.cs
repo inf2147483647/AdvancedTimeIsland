@@ -12,7 +12,7 @@ using ClassIsland.Core.Enums.SettingsWindow;
 namespace AdvancedTimeIsland.Views.Settings;
 
 /// <summary>
-/// 反馈问题页面：仅提供 GitHub Issue 提交渠道（问卷星入口已下线）。
+/// 反馈问题页面：提供 GitHub Issue 与 GitCode 两条提交渠道。
 /// 由各版本插件设置中"关于"页面的"反馈问题"按钮导航进入
 /// （hideDefault=true：不显示在设置导航列表中，仅通过 classisland:// URI 进入）。
 /// 样式与交互继承 <see cref="HanfuPageTemplate"/>，随主题深浅自适应。
@@ -23,13 +23,16 @@ public class IssueFeedbackPage : HanfuPageTemplate
     private const string GitHubIssueUrl =
         "https://github.com/inf2147483647/AdvancedTimeIsland/issues/new/choose";
 
+    private const string GitCodeIssueUrl =
+        "https://gitcode.com/inf2147483647/AdvancedTimeIsland/issues/create?type=template&title=Bug+%E5%8F%8D%E9%A6%88&template=.github%252FISSUE_TEMPLATE%252FBugReport.yml";
+
     /// <summary>已创建的按钮，供主题切换时统一刷新配色。</summary>
     private readonly List<Button> _feedbackButtons = new();
 
     protected override void BuildContent(StackPanel panel)
     {
         // 顶部说明（会被模板统一记录，主题切换时自动重设配色）
-        AddParagraph(panel, "在使用过程中遇到问题或有改进建议？请通过 GitHub 提交 issue，帮助我们做得更好：");
+        AddParagraph(panel, "在使用过程中遇到问题或有改进建议？请通过以下任一渠道提交 issue，帮助我们做得更好：");
 
         var buttonPanel = new StackPanel
         {
@@ -39,6 +42,7 @@ public class IssueFeedbackPage : HanfuPageTemplate
         };
 
         AddFeedbackButton(buttonPanel, "GitHub提交issue", GitHubIssueUrl);
+        AddFeedbackButton(buttonPanel, "GitCode提交issue", GitCodeIssueUrl);
 
         panel.Children.Add(buttonPanel);
     }
