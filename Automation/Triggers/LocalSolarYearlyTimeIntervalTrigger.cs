@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_yearly_time_interval", "地方时每年时间范围间隔触发", "\uecde")]
+[TriggerInfo("advancedtimeisland.local_solar_yearly_time_interval", "地方时每年时间范围间隔触发", "\uE304")]
 public class LocalSolarYearlyTimeIntervalTrigger : TimeTriggerBase<LocalSolarYearlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

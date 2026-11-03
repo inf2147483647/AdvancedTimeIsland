@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_monthly_time", "地方时每月", "\uecdd")]
+[TriggerInfo("advancedtimeisland.local_solar_monthly_time", "地方时每月", "\uE336")]
 public class LocalSolarMonthlyTimeTrigger : TimeTriggerBase<LocalSolarMonthlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_daily_time", "区时每天", "\uece6")]
+[TriggerInfo("advancedtimeisland.timezone_daily_time", "区时每天", "\uE322")]
 public class TimeZoneDailyTimeTrigger : TimeTriggerBase<TimeZoneDailyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

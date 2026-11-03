@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_weekly_time", "区时每周", "\uece5")]
+[TriggerInfo("advancedtimeisland.timezone_weekly_time", "区时每周", "\uE362")]
 public class TimeZoneWeeklyTimeTrigger : TimeTriggerBase<TimeZoneWeeklyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

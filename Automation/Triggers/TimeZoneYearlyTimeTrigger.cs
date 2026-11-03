@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_yearly_time", "区时每年", "\uece3")]
+[TriggerInfo("advancedtimeisland.timezone_yearly_time", "区时每年", "\uE304")]
 public class TimeZoneYearlyTimeTrigger : TimeTriggerBase<TimeZoneYearlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

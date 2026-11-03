@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_monthly_time_interval", "农历每月时间范围间隔触发", "\uecea")]
+[TriggerInfo("advancedtimeisland.lunar_monthly_time_interval", "农历每月时间范围间隔触发", "\uE354")]
 public class LunarMonthlyTimeIntervalTrigger : TimeTriggerBase<LunarMonthlyTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

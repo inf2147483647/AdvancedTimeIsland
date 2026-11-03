@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Actions;
 
-[ActionInfo("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", "\uecc8")]
+[ActionInfo("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", "\uE161")]
 public class SyncClassIslandTimeAction : ActionBase
 {
     protected override async Task OnInvoke()

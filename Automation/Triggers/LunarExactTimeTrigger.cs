@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_exact_time", "农历精确时间", "\uecd8")]
+[TriggerInfo("advancedtimeisland.lunar_exact_time", "农历精确时间", "\uE354")]
 public class LunarExactTimeTrigger : TimeTriggerBase<LunarExactTimeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

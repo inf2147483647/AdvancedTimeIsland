@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_last_day_time", "农历年倒数第n天", "\uecdb")]
+[TriggerInfo("advancedtimeisland.lunar_last_day_time", "农历年倒数第n天", "\uE354")]
 public class LunarLastDayTimeTrigger : TimeTriggerBase<LunarLastDayRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

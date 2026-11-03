@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.unix_timestamp", "绝对时间", "\uecd7")]
+[TriggerInfo("advancedtimeisland.unix_timestamp", "绝对时间", "\uE990")]
 public class UnixTimestampTrigger : TimeTriggerBase<UnixTimestampTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

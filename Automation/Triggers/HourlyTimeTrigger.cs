@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.hourly_time", "每小时", "\uecd5")]
+[TriggerInfo("advancedtimeisland.hourly_time", "每小时", "\uE4C4")]
 public class HourlyTimeTrigger : TimeTriggerBase<HourlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

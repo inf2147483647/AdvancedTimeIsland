@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_monthly_time_interval", "区时每月时间范围间隔触发", "\uece5")]
+[TriggerInfo("advancedtimeisland.time_zone_monthly_time_interval", "区时每月时间范围间隔触发", "\uE336")]
 public class TimeZoneMonthlyTimeIntervalTrigger : TimeTriggerBase<TimeZoneMonthlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

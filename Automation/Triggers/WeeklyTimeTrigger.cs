@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.weekly_time", "每周", "\uecd3")]
+[TriggerInfo("advancedtimeisland.weekly_time", "每周", "\uE362")]
 public class WeeklyTimeTrigger : TimeTriggerBase<WeeklyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

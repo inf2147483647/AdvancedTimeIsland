@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_weekly_time", "地方时每周", "\uecde")]
+[TriggerInfo("advancedtimeisland.local_solar_weekly_time", "地方时每周", "\uE362")]
 public class LocalSolarWeeklyTimeTrigger : TimeTriggerBase<LocalSolarWeeklyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

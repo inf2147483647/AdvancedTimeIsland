@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.exact_time", "精确时间是", "\uecd0")]
+[TriggerInfo("advancedtimeisland.exact_time", "精确时间是", "\uE4C4")]
 public class ExactTimeTrigger : TimeTriggerBase<ExactTimeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

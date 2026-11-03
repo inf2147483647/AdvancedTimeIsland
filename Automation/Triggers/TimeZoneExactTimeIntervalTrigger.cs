@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_exact_time_interval", "区时精确时间范围间隔触发", "\uece3")]
+[TriggerInfo("advancedtimeisland.time_zone_exact_time_interval", "区时精确时间范围间隔触发", "\uE4C4")]
 public class TimeZoneExactTimeIntervalTrigger : TimeTriggerBase<TimeZoneExactTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

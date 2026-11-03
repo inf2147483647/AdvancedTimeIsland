@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.yearly_time_interval", "每年时间范围间隔触发", "\uecd8")]
+[TriggerInfo("advancedtimeisland.yearly_time_interval", "每年时间范围间隔触发", "\uE304")]
 public class YearlyTimeIntervalTrigger : TimeTriggerBase<YearlyTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

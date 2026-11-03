@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.yearly_time", "每年", "\uecd1")]
+[TriggerInfo("advancedtimeisland.yearly_time", "每年", "\uE304")]
 public class YearlyTimeTrigger : TimeTriggerBase<YearlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

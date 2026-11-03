@@ -88,8 +88,8 @@ internal static class SaiBlockRegistrar
 
         var actions = new List<BlockMetadata>
         {
-            NewBlock("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", "\uecc8", null),
-            NewBlock("advancedtimeisland.set_floating_schedule", "设置悬浮时间表开关", "\uef27",
+            NewBlock("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", "\uE161", null),
+            NewBlock("advancedtimeisland.set_floating_schedule", "设置悬浮时间表开关", "\uEC77",
                 typeof(SetFloatingScheduleActionSettings)),
         };
 
@@ -99,66 +99,66 @@ internal static class SaiBlockRegistrar
             rules.Add(NewBlock(id, name, icon, settingsType));
 
         // ========== 基础时间范围 ==========
-        Add("advancedtimeisland.exact_time_range", "精确时间在范围", "\uecc2", typeof(ExactTimeRangeRuleSettings));
-        Add("advancedtimeisland.yearly_time_range", "每年时间范围", "\uecc3", typeof(YearlyTimeRangeRuleSettings));
-        Add("advancedtimeisland.monthly_time_range", "每月时间范围", "\uecc4", typeof(MonthlyTimeRangeRuleSettings));
-        Add("advancedtimeisland.daily_time_range", "每天时间范围", "\uecc5", typeof(DailyTimeRangeRuleSettings));
-        Add("advancedtimeisland.hourly_time_range", "每小时时间范围", "\uecc6", typeof(HourlyTimeRangeRuleSettings));
-        Add("advancedtimeisland.minutely_time_range", "每分钟时间范围", "\uecc7", typeof(MinutelyTimeRangeRuleSettings));
-        Add("advancedtimeisland.weekly_time_range", "每周时间范围", "\uecd0", typeof(WeeklyTimeRangeRuleSettings));
-        Add("advancedtimeisland.unix_timestamp_range", "绝对时间范围", "\ueceb", typeof(UnixTimestampRangeRuleSettings));
-        Add("advancedtimeisland.specified_time_range", "在指定时间范围内", "\uecc3", typeof(SpecifiedTimeRangeRuleSettings));
+        Add("advancedtimeisland.exact_time_range", "精确时间在范围", "\uE4C4", typeof(ExactTimeRangeRuleSettings));
+        Add("advancedtimeisland.yearly_time_range", "每年时间范围", "\uE304", typeof(YearlyTimeRangeRuleSettings));
+        Add("advancedtimeisland.monthly_time_range", "每月时间范围", "\uE336", typeof(MonthlyTimeRangeRuleSettings));
+        Add("advancedtimeisland.daily_time_range", "每天时间范围", "\uE322", typeof(DailyTimeRangeRuleSettings));
+        Add("advancedtimeisland.hourly_time_range", "每小时时间范围", "\uE4C4", typeof(HourlyTimeRangeRuleSettings));
+        Add("advancedtimeisland.minutely_time_range", "每分钟时间范围", "\uF361", typeof(MinutelyTimeRangeRuleSettings));
+        Add("advancedtimeisland.weekly_time_range", "每周时间范围", "\uE362", typeof(WeeklyTimeRangeRuleSettings));
+        Add("advancedtimeisland.unix_timestamp_range", "绝对时间范围", "\uE990", typeof(UnixTimestampRangeRuleSettings));
+        Add("advancedtimeisland.specified_time_range", "在指定时间范围内", "\uE33C", typeof(SpecifiedTimeRangeRuleSettings));
 
         // ========== 地方时（与主程序一致，仅在启用"地方时"时注册）==========
         if (settings.EnableLocalSolarTime)
         {
-            Add("advancedtimeisland.local_solar_exact_time_range", "地方时精确时间在范围", "\uecc2", typeof(LocalSolarExactTimeRuleSettings));
-            Add("advancedtimeisland.local_solar_yearly_time_range", "地方时每年时间范围", "\uecc3", typeof(LocalSolarYearlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.local_solar_monthly_time_range", "地方时每月时间范围", "\uecc4", typeof(LocalSolarMonthlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.local_solar_daily_time_range", "地方时每天时间范围", "\uecc5", typeof(LocalSolarDailyTimeRangeRuleSettings));
-            Add("advancedtimeisland.local_solar_hourly_time_range", "地方时每小时时间范围", "\uecc6", typeof(LocalSolarHourlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.local_solar_minutely_time_range", "地方时每分钟时间范围", "\uecc7", typeof(LocalSolarMinutelyTimeRangeRuleSettings));
-            Add("advancedtimeisland.local_solar_weekly_time_range", "地方时每周时间范围", "\uecd5", typeof(LocalSolarWeeklyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_exact_time_range", "地方时精确时间在范围", "\uE4C4", typeof(LocalSolarExactTimeRuleSettings));
+            Add("advancedtimeisland.local_solar_yearly_time_range", "地方时每年时间范围", "\uE304", typeof(LocalSolarYearlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_monthly_time_range", "地方时每月时间范围", "\uE336", typeof(LocalSolarMonthlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_daily_time_range", "地方时每天时间范围", "\uE322", typeof(LocalSolarDailyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_hourly_time_range", "地方时每小时时间范围", "\uE4C4", typeof(LocalSolarHourlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_minutely_time_range", "地方时每分钟时间范围", "\uF361", typeof(LocalSolarMinutelyTimeRangeRuleSettings));
+            Add("advancedtimeisland.local_solar_weekly_time_range", "地方时每周时间范围", "\uE362", typeof(LocalSolarWeeklyTimeRangeRuleSettings));
         }
 
         // ========== 区时（与主程序一致，仅在启用"区时"时注册）==========
         if (settings.EnableTimeZoneTime)
         {
-            Add("advancedtimeisland.time_zone_exact_time_range", "区时精确时间在范围", "\uecc2", typeof(TimeZoneExactTimeRuleSettings));
-            Add("advancedtimeisland.time_zone_yearly_time_range", "区时每年时间范围", "\uecc3", typeof(TimeZoneYearlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.time_zone_monthly_time_range", "区时每月时间范围", "\uecc4", typeof(TimeZoneMonthlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.time_zone_daily_time_range", "区时每天时间范围", "\uecc5", typeof(TimeZoneDailyTimeRangeRuleSettings));
-            Add("advancedtimeisland.time_zone_hourly_time_range", "区时每小时时间范围", "\uecc6", typeof(TimeZoneHourlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.time_zone_weekly_time_range", "区时每周时间范围", "\uecd6", typeof(TimeZoneWeeklyTimeRangeRuleSettings));
+            Add("advancedtimeisland.time_zone_exact_time_range", "区时精确时间在范围", "\uE4C4", typeof(TimeZoneExactTimeRuleSettings));
+            Add("advancedtimeisland.time_zone_yearly_time_range", "区时每年时间范围", "\uE304", typeof(TimeZoneYearlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.time_zone_monthly_time_range", "区时每月时间范围", "\uE336", typeof(TimeZoneMonthlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.time_zone_daily_time_range", "区时每天时间范围", "\uE322", typeof(TimeZoneDailyTimeRangeRuleSettings));
+            Add("advancedtimeisland.time_zone_hourly_time_range", "区时每小时时间范围", "\uE4C4", typeof(TimeZoneHourlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.time_zone_weekly_time_range", "区时每周时间范围", "\uE362", typeof(TimeZoneWeeklyTimeRangeRuleSettings));
         }
 
         // ========== 农历（与主程序一致，仅在启用"农历"时注册）==========
         if (settings.EnableLunarCalendar)
         {
-            Add("advancedtimeisland.lunar_exact_time_in_range", "农历精确时间范围", "\uece8", typeof(LunarExactTimeRangeRuleSettings));
-            Add("advancedtimeisland.lunar_yearly_time_in_range", "农历每年时间范围", "\uece9", typeof(LunarYearlyTimeRangeRuleSettings));
-            Add("advancedtimeisland.lunar_monthly_time_in_range", "农历每月时间范围", "\uecea", typeof(LunarMonthlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.lunar_exact_time_in_range", "农历精确时间范围", "\uE354", typeof(LunarExactTimeRangeRuleSettings));
+            Add("advancedtimeisland.lunar_yearly_time_in_range", "农历每年时间范围", "\uE354", typeof(LunarYearlyTimeRangeRuleSettings));
+            Add("advancedtimeisland.lunar_monthly_time_in_range", "农历每月时间范围", "\uE354", typeof(LunarMonthlyTimeRangeRuleSettings));
         }
 
         // ========== 星座 / 节气 / 生肖 / 节日 ==========
         if (settings.EnableXingZuo)
         {
-            Add("advancedtimeisland.xingzuo", "当前星座是", "\uE120", typeof(XingZuoRuleSettings));
+            Add("advancedtimeisland.xingzuo", "当前星座是", "\uF05B", typeof(XingZuoRuleSettings));
         }
 
         if (settings.EnableJieQi)
         {
-            Add("advancedtimeisland.jieqi", "当前节气是", "\uE123", typeof(JieQiRuleSettings));
+            Add("advancedtimeisland.jieqi", "当前节气是", "\uF44F", typeof(JieQiRuleSettings));
         }
 
         if (settings.EnableShengXiao)
         {
-            Add("advancedtimeisland.shengxiao", "当前生肖是", "\uE124", typeof(ShengXiaoRuleSettings));
+            Add("advancedtimeisland.shengxiao", "当前生肖是", "\uE05D", typeof(ShengXiaoRuleSettings));
         }
 
         if (settings.EnableFestival)
         {
-            Add("advancedtimeisland.festival", "当前节日是", "\uE125", typeof(FestivalRuleSettings));
+            Add("advancedtimeisland.festival", "当前节日是", "\uE8ED", typeof(FestivalRuleSettings));
         }
 
         return new RegisterData

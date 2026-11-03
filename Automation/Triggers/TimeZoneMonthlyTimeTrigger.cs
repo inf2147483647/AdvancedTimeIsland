@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_monthly_time", "区时每月", "\uece4")]
+[TriggerInfo("advancedtimeisland.timezone_monthly_time", "区时每月", "\uE336")]
 public class TimeZoneMonthlyTimeTrigger : TimeTriggerBase<TimeZoneMonthlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.daily_time_interval", "每天时间范围间隔触发", "\uecda")]
+[TriggerInfo("advancedtimeisland.daily_time_interval", "每天时间范围间隔触发", "\uE322")]
 public class DailyTimeIntervalTrigger : TimeTriggerBase<DailyTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

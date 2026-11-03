@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.monthly_time", "每月", "\uecd2")]
+[TriggerInfo("advancedtimeisland.monthly_time", "每月", "\uE336")]
 public class MonthlyTimeTrigger : TimeTriggerBase<MonthlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

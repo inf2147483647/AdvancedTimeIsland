@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Automation.Actions;
 /// <summary>
 /// 行动：设置悬浮时间表开关。执行时把插件的"启用悬浮时间表"开关设为设置界面中开关的状态。
 /// </summary>
-[ActionInfo("advancedtimeisland.set_floating_schedule", "设置悬浮时间表开关", "\uef27")]
+[ActionInfo("advancedtimeisland.set_floating_schedule", "设置悬浮时间表开关", "\uEC77")]
 public class SetFloatingScheduleAction : ActionBase<SetFloatingScheduleActionSettings>
 {
     protected override async Task OnInvoke()

@@ -402,7 +402,7 @@ public class Plugin : PluginBase
         services.AddRule<ExactTimeRangeRuleSettings, ExactTimeRangeRuleSettingsControl>(
             "advancedtimeisland.exact_time_range",
             "精确时间在范围",
-            "\uecc2",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not ExactTimeRangeRuleSettings s)
@@ -424,7 +424,7 @@ public class Plugin : PluginBase
         services.AddRule<YearlyTimeRangeRuleSettings, YearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.yearly_time_range",
             "每年时间范围",
-            "\uecc3",
+            "\uE304",
             settings =>
             {
                 if (settings is not YearlyTimeRangeRuleSettings s)
@@ -472,7 +472,7 @@ public class Plugin : PluginBase
         services.AddRule<MonthlyTimeRangeRuleSettings, MonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.monthly_time_range",
             "每月时间范围",
-            "\uecc4",
+            "\uE336",
             settings =>
             {
                 if (settings is not MonthlyTimeRangeRuleSettings s)
@@ -518,7 +518,7 @@ public class Plugin : PluginBase
         services.AddRule<DailyTimeRangeRuleSettings, DailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.daily_time_range",
             "每天时间范围",
-            "\uecc5",
+            "\uE322",
             settings =>
             {
                 if (settings is not DailyTimeRangeRuleSettings s)
@@ -562,7 +562,7 @@ public class Plugin : PluginBase
         services.AddRule<HourlyTimeRangeRuleSettings, HourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.hourly_time_range",
             "每小时时间范围",
-            "\uecc6",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not HourlyTimeRangeRuleSettings s)
@@ -604,7 +604,7 @@ public class Plugin : PluginBase
         services.AddRule<MinutelyTimeRangeRuleSettings, MinutelyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.minutely_time_range",
             "每分钟时间范围",
-            "\uecc7",
+            "\uF361",
             settings =>
             {
                 if (settings is not MinutelyTimeRangeRuleSettings s)
@@ -637,7 +637,7 @@ public class Plugin : PluginBase
         services.AddRule<SpecifiedTimeRangeRuleSettings, SpecifiedTimeRangeRuleSettingsControl>(
             "advancedtimeisland.specified_time_range",
             "在指定时间范围内",
-            "\uecc3",
+            "\uE33C",
             settings =>
             {
                 if (settings is not SpecifiedTimeRangeRuleSettings s)
@@ -655,7 +655,7 @@ public class Plugin : PluginBase
             services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
             "advancedtimeisland.local_solar_exact_time_range",
             "地方时精确时间在范围",
-            "\uecc2",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not LocalSolarExactTimeRuleSettings s)
@@ -677,7 +677,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarYearlyTimeRangeRuleSettings, LocalSolarYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_yearly_time_range",
             "地方时每年时间范围",
-            "\uecc3",
+            "\uE304",
             settings =>
             {
                 if (settings is not LocalSolarYearlyTimeRangeRuleSettings s)
@@ -725,7 +725,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarMonthlyTimeRangeRuleSettings, LocalSolarMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_monthly_time_range",
             "地方时每月时间范围",
-            "\uecc4",
+            "\uE336",
             settings =>
             {
                 if (settings is not LocalSolarMonthlyTimeRangeRuleSettings s)
@@ -771,7 +771,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarDailyTimeRangeRuleSettings, LocalSolarDailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_daily_time_range",
             "地方时每天时间范围",
-            "\uecc5",
+            "\uE322",
             settings =>
             {
                 if (settings is not LocalSolarDailyTimeRangeRuleSettings s)
@@ -815,7 +815,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarHourlyTimeRangeRuleSettings, LocalSolarHourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_hourly_time_range",
             "地方时每小时时间范围",
-            "\uecc6",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not LocalSolarHourlyTimeRangeRuleSettings s)
@@ -857,7 +857,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarMinutelyTimeRangeRuleSettings, LocalSolarMinutelyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_minutely_time_range",
             "地方时每分钟时间范围",
-            "\uecc7",
+            "\uF361",
             settings =>
             {
                 if (settings is not LocalSolarMinutelyTimeRangeRuleSettings s)
@@ -890,7 +890,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarWeeklyTimeRangeRuleSettings, LocalSolarWeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_weekly_time_range",
             "地方时每周时间范围",
-            "\uecd5",
+            "\uE362",
             settings =>
             {
                 if (settings is not LocalSolarWeeklyTimeRangeRuleSettings s)
@@ -931,7 +931,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneExactTimeRuleSettings, TimeZoneExactTimeRuleSettingsControl>(
             "advancedtimeisland.time_zone_exact_time_range",
             "区时精确时间在范围",
-            "\uecc2",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not TimeZoneExactTimeRuleSettings s)
@@ -953,7 +953,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneYearlyTimeRangeRuleSettings, TimeZoneYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_yearly_time_range",
             "区时每年时间范围",
-            "\uecc3",
+            "\uE304",
             settings =>
             {
                 if (settings is not TimeZoneYearlyTimeRangeRuleSettings s)
@@ -1001,7 +1001,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneMonthlyTimeRangeRuleSettings, TimeZoneMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_monthly_time_range",
             "区时每月时间范围",
-            "\uecc4",
+            "\uE336",
             settings =>
             {
                 if (settings is not TimeZoneMonthlyTimeRangeRuleSettings s)
@@ -1047,7 +1047,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneDailyTimeRangeRuleSettings, TimeZoneDailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_daily_time_range",
             "区时每天时间范围",
-            "\uecc5",
+            "\uE322",
             settings =>
             {
                 if (settings is not TimeZoneDailyTimeRangeRuleSettings s)
@@ -1091,7 +1091,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneHourlyTimeRangeRuleSettings, TimeZoneHourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_hourly_time_range",
             "区时每小时时间范围",
-            "\uecc6",
+            "\uE4C4",
             settings =>
             {
                 if (settings is not TimeZoneHourlyTimeRangeRuleSettings s)
@@ -1133,7 +1133,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneWeeklyTimeRangeRuleSettings, TimeZoneWeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_weekly_time_range",
             "区时每周时间范围",
-            "\uecd6",
+            "\uE362",
             settings =>
             {
                 if (settings is not TimeZoneWeeklyTimeRangeRuleSettings s)
@@ -1172,7 +1172,7 @@ public class Plugin : PluginBase
         services.AddRule<WeeklyTimeRangeRuleSettings, WeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.weekly_time_range",
             "每周时间范围",
-            "\uecd0",
+            "\uE362",
             settings =>
             {
                 if (settings is not WeeklyTimeRangeRuleSettings s)
@@ -1212,7 +1212,7 @@ public class Plugin : PluginBase
             services.AddRule<LunarExactTimeRangeRuleSettings, LunarExactTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_exact_time_in_range",
             "农历精确时间范围",
-            "\uece8",
+            "\uE354",
             settings =>
             {
                 if (settings is not LunarExactTimeRangeRuleSettings s)
@@ -1272,7 +1272,7 @@ public class Plugin : PluginBase
         services.AddRule<LunarYearlyTimeRangeRuleSettings, LunarYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_yearly_time_in_range",
             "农历每年时间范围",
-            "\uece9",
+            "\uE354",
             settings =>
             {
                 if (settings is not LunarYearlyTimeRangeRuleSettings s)
@@ -1352,7 +1352,7 @@ public class Plugin : PluginBase
         services.AddRule<LunarMonthlyTimeRangeRuleSettings, LunarMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_monthly_time_in_range",
             "农历每月时间范围",
-            "\uecea",
+            "\uE354",
             settings =>
             {
                 if (settings is not LunarMonthlyTimeRangeRuleSettings s)
@@ -1457,7 +1457,7 @@ public class Plugin : PluginBase
         services.AddRule<UnixTimestampRangeRuleSettings, UnixTimestampRangeRuleSettingsControl>(
             "advancedtimeisland.unix_timestamp_range",
             "绝对时间范围",
-            "\ueceb",
+            "\uE990",
             settings =>
             {
                 if (settings is not UnixTimestampRangeRuleSettings s)
@@ -1763,7 +1763,7 @@ public class Plugin : PluginBase
             services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
                 "advancedtimeisland.xingzuo",
                 "当前星座是",
-                "\uE120",
+                "\uF05B",
                 settings =>
                 {
                     if (settings is not XingZuoRuleSettings s)
@@ -1784,7 +1784,7 @@ public class Plugin : PluginBase
             services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
                 "advancedtimeisland.jieqi",
                 "当前节气是",
-                "\uE123",
+                "\uF44F",
                 settings =>
                 {
                     if (settings is not JieQiRuleSettings s)
@@ -1805,7 +1805,7 @@ public class Plugin : PluginBase
             services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
                 "advancedtimeisland.shengxiao",
                 "当前生肖是",
-                "\uE124",
+                "\uE05D",
                 settings =>
                 {
                     if (settings is not ShengXiaoRuleSettings s)
@@ -1826,7 +1826,7 @@ public class Plugin : PluginBase
             services.AddRule<FestivalRuleSettings, FestivalRuleSettingsControl>(
                 "advancedtimeisland.festival",
                 "当前节日是",
-                "\uE125",
+                "\uE8ED",
                 settings =>
                 {
                     if (settings is not FestivalRuleSettings s)

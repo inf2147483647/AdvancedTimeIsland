@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.daily_time", "每天", "\uecd4")]
+[TriggerInfo("advancedtimeisland.daily_time", "每天", "\uE322")]
 public class DailyTimeTrigger : TimeTriggerBase<DailyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_yearly_time", "农历每年", "\uecd9")]
+[TriggerInfo("advancedtimeisland.lunar_yearly_time", "农历每年", "\uE354")]
 public class LunarYearlyTimeTrigger : TimeTriggerBase<LunarYearlyRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.minutely_time", "每分钟", "\uecd6")]
+[TriggerInfo("advancedtimeisland.minutely_time", "每分钟", "\uF361")]
 public class MinutelyTimeTrigger : TimeTriggerBase<MinutelyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

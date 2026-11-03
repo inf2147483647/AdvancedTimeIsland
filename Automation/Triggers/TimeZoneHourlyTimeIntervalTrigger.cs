@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_hourly_time_interval", "区时每小时时间范围间隔触发", "\uece7")]
+[TriggerInfo("advancedtimeisland.time_zone_hourly_time_interval", "区时每小时时间范围间隔触发", "\uE4C4")]
 public class TimeZoneHourlyTimeIntervalTrigger : TimeTriggerBase<TimeZoneHourlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

@@ -4,7 +4,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_hourly_time", "地方时每小时", "\uece0")]
+[TriggerInfo("advancedtimeisland.local_solar_hourly_time", "地方时每小时", "\uE4C4")]
 public class LocalSolarHourlyTimeTrigger : TimeTriggerBase<LocalSolarHourlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

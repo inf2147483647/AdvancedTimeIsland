@@ -5,7 +5,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.minutely_time_interval", "每分钟时间范围间隔触发", "\uecdc")]
+[TriggerInfo("advancedtimeisland.minutely_time_interval", "每分钟时间范围间隔触发", "\uF361")]
 public class MinutelyTimeIntervalTrigger : TimeTriggerBase<MinutelyTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)
