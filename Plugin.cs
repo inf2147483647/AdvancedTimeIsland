@@ -1554,7 +1554,7 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.AboutPage>();
         // 注册 AdvancedTimeIsland 导航分组，使"主设置"与"时间表悬浮窗"等页折叠在同一父节点下（仿 SystemTools）。
         // net8 兼容版 SDK 需 ≥ 2.0.1.1（该版本起 ClassIsland.Core 提供 AddSettingsPageGroup/GroupAttribute）。
-        services.AddSettingsPageGroup("advancedtimeisland.main", "\uef27", "AdvancedTimeIsland");
+        services.AddSettingsPageGroup("advancedtimeisland.main", "\uE06F", "AdvancedTimeIsland");
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();

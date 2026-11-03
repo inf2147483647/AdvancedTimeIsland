@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556698",
     "星座（ATI）",
-    "\uE120",
+    "\uF05B",
     "显示当前星座及时间范围"
 )]
 public class XingZuoControl : ComponentBase<XingZuoSettings>

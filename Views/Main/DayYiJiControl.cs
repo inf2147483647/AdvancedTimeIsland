@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556702",
     "今日宜忌（ATI）",
-    "\uE126",
+    "\uE232",
     "显示今日宜做和忌做的事情"
 )]
 public class DayYiJiControl : ComponentBase<DayYiJiSettings>

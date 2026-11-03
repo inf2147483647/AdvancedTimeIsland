@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556701",
     "节日（ATI）",
-    "\uE125",
+    "\uE8ED",
     "显示当前节日"
 )]
 public class FestivalControl : ComponentBase<FestivalSettings>

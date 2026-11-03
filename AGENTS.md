@@ -3,8 +3,9 @@
 注意:1. 若无特殊解释,unix时间戳单位为秒
 2.WPF版已停止维护，若没有说明则不改动WPF版
 
+0. 千万千万千万千万千万千万千万千万不要使用终端命令批量替换文件里的内容
 1. 若无特殊解释,全部功能都需要使用异步操作,避免阻塞UI线程造成卡顿
-2. 必要时可前往D:\temp\ClassIsland查看源代码（或C:\Users\Administrator\citemp\ClassIsland）
+2. 必要时可前往"C:\Users\seewo\RiderProjects\ClassIsland"查看源代码
 3. 所有主界面控件都需要随主题深浅自适应
 4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)（简称FA3）和2.x版本（简称FA2）
 5. 新增页面都需要在Plugin.cs中注册

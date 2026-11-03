@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556677",
     "地方时（ATI）",
-    "\uE121",
+    "\uE913",
     "显示指定经度的地方时"
 )]
 public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>

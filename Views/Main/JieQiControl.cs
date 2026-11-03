@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556699",
     "节气（ATI）",
-    "\uE123",
+    "\uF44F",
     "显示当前或最近节气及时间范围"
 )]
 public class JieQiControl : ComponentBase<JieQiSettings>

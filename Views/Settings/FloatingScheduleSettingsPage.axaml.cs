@@ -18,7 +18,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// （经 CompatSettingsExpander 包装），展开 / 折叠由 IntroAnimationHelper 提供平滑高度过渡。
 /// 设置项按折叠面板分组：基础外观 / 交互行为 / 窗口与高级 / 随机窗口名 / 独立进程模式。
 /// </summary>
-[SettingsPageInfo("AdvancedTimeIslandFloatingSchedule", "时间表悬浮窗")]
+[SettingsPageInfo("AdvancedTimeIslandFloatingSchedule", "时间表悬浮窗", "\uEC77", "\uEC76")]
 [Group("advancedtimeisland.main")]
 public partial class FloatingScheduleSettingsPage : SettingsPageBase
 {

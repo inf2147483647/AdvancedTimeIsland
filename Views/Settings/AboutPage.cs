@@ -41,7 +41,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 关于页面
 /// </summary>
 // 与"时间表悬浮窗"等页同属 AdvancedTimeIsland 导航分组（仿 SystemTools 子页面结构）
-[SettingsPageInfo("AdvancedTimeIsland", "主设置")]
+[SettingsPageInfo("AdvancedTimeIsland", "主设置", "\uEF27", "\uEF26")]
 [Group("advancedtimeisland.main")]
 public class AboutPage : SettingsPageBase
 {

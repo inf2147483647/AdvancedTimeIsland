@@ -9,7 +9,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "e7f5c1a2-3b4d-4e6f-8a90-1b2c3d4e5f02",
     "本周单双（ATI）",
-    "\uE2B9",
+    "\uEC28",
     "显示本周在学期中的单双性（以ClassIsland学期开始日为第一周）"
 )]
 public class WeekParityControl : DailyTextComponentBase<WeekParitySettings>

@@ -17,7 +17,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "77889900-1122-3344-5566-778899071122",
     "周期性倒计时（ATI）",
-    "\uE121",
+    "\uE0B7",
     "显示周期性重复的倒计时，支持每小时/每天/每周/每月/每年"
 )]
 public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>

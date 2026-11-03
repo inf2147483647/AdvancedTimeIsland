@@ -27,7 +27,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// 页面可见时由 <see cref="IntroAnimationHelper.PlayIntro"/> 播放标题与分组的错峰入场动画。
 /// </para>
 /// </summary>
-[SettingsPageInfo("AdvancedTimeIslandAttendance", "在校时间统计", "\ue126", "\ue126")]
+[SettingsPageInfo("AdvancedTimeIslandAttendance", "在校时间统计", "\uE31C", "\uE31B")]
 [Group("advancedtimeisland.main")]
 public partial class AttendanceCalendarPage : SettingsPageBase
 {

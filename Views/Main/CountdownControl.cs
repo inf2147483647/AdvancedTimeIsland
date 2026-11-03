@@ -17,7 +17,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "44556677-8899-0011-2233-445566778899",
     "多倒计时（ATI）",
-    "\uE121",
+    "\uF361",
     "显示多个倒计时，自动排序并切换"
 )]
 public class CountdownControl : ComponentBase<CountdownSettings>

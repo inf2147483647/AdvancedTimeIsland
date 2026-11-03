@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "11223344-5566-7788-9900-112233445566",
     "日期显示（ATI）",
-    "\uE121",
+    "\uE304",
     "显示精确日期"
 )]
 public class AdvancedDateControl : ComponentBase<AdvancedDateSettings>

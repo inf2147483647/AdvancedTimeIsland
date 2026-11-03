@@ -17,7 +17,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "44556677-8899-0022-3344-556677889900",
     "农历多倒计时（ATI）",
-    "\uE121",
+    "\uE354",
     "显示农历倒计时，自动排序并切换"
 )]
 public class LunarCountdownControl : ComponentBase<LunarCountdownSettings>

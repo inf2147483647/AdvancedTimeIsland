@@ -14,7 +14,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "99aabbcc-0001-2233-4455-66778899aa02",
     "今日周数（学期）（ATI）",
-    "\uE122",
+    "\uE362",
     "显示当前周所处的学期周数（以ClassIsland学期开始日为第一周第一天）"
 )]
 public class SemesterWeekControl : ComponentBase<SemesterWeekSettings>

@@ -13,7 +13,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-[ComponentInfo("688e6e20-f992-4310-8b16-bdebea05c101", "明日宜忌（ATI）", "\uE124", "显示明日宜忌")]
+[ComponentInfo("688e6e20-f992-4310-8b16-bdebea05c101", "明日宜忌（ATI）", "\uE232", "显示明日宜忌")]
 public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 {
     private TomorrowYiJiViewModel vm;

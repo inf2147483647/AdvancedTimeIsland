@@ -13,7 +13,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-[ComponentInfo("0a67a32c-b772-432a-8c80-8c91ba271893", "下个节气倒计时（ATI）", "\uE121", "显示下个节气倒计时")]
+[ComponentInfo("0a67a32c-b772-432a-8c80-8c91ba271893", "下个节气倒计时（ATI）", "\uF44F", "显示下个节气倒计时")]
 public class NextJieQiCountdownControl : ComponentBase<NextJieQiCountdownSettings>
 {
     private NextJieQiCountdownViewModel vm;

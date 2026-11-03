@@ -23,7 +23,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "99aabbcc-0001-2233-4455-66778899aa03",
     "总在校时间统计（ATI）",
-    "\uE126",
+    "\uE31C",
     "统计学期内的在校天数与时长，自动排除周末、法定节假日与寒暑假"
 )]
 public class AttendanceControl : ComponentBase<AttendanceSettings>

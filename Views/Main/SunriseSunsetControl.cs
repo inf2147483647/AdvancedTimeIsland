@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "33445566-7788-9900-1122-334455667788",
     "日出日落（ATI）",
-    "\uE121",
+    "\uF465",
     "显示日出日落时间"
 )]
 public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>

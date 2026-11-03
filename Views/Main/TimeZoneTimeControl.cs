@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "55667788-9900-1122-3344-556677889900",
     "区时（ATI）",
-    "\uE121",
+    "\uE90D",
     "显示指定时区的区时"
 )]
 public class TimeZoneTimeControl : ComponentBase<TimeZoneTimeSettings>

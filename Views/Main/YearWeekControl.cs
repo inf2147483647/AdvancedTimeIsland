@@ -14,7 +14,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "99aabbcc-0001-2233-4455-66778899aa01",
     "今日周数（年）（ATI）",
-    "\uE126",
+    "\uE360",
     "显示当前周所处的年份周数（一周始自周日，第一个完整周为第一周）"
 )]
 public class YearWeekControl : ComponentBase<YearWeekSettings>

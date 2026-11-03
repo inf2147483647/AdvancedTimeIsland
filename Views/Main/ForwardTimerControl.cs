@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "66778899-0011-2233-4455-667788990011",
     "正向计时器（ATI）",
-    "\uE122",
+    "\uE4C4",
     "显示从开始时间到现在已过的时间"
 )]
 public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>

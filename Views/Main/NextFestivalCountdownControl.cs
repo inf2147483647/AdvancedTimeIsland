@@ -13,7 +13,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-[ComponentInfo("d913f8dd-4bb3-415f-9a5c-4f5a976c167f", "下个节日倒计时（ATI）", "\uE123", "显示下个节日倒计时")]
+[ComponentInfo("d913f8dd-4bb3-415f-9a5c-4f5a976c167f", "下个节日倒计时（ATI）", "\uE8ED", "显示下个节日倒计时")]
 public class NextFestivalCountdownControl : ComponentBase<NextFestivalCountdownSettings>
 {
     private NextFestivalCountdownViewModel vm;

@@ -17,7 +17,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "11223344-5566-7788-9900-aabbccddeefe",
     "实时主界面刷新率（调试）（ATI）",
-    "\uE9D1",
+    "\uE8E1",
     "实时显示ClassIsland主界面帧率"
 )]
 public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>

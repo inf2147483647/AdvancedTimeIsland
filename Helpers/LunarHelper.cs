@@ -537,10 +537,11 @@ public class LunarDate
     public string XingZuo => _lunar.Solar.XingZuo;
 
     /// <summary>
-    /// 格式化为农历字符串，如"甲子年 正月 初一"
+    /// 格式化为农历字符串，如"甲子年正月初一"。
+    /// lunar.dll 的 MonthInChinese 不含“月”字（如“正”“闰四”），此处统一补齐。
     /// </summary>
     public override string ToString()
     {
-        return $"{YearGanZhi}年 {MonthInChinese} {DayInChinese}";
+        return $"{YearGanZhi}年{MonthInChinese}月{DayInChinese}";
     }
 }

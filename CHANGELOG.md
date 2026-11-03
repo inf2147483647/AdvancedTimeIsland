@@ -16,6 +16,12 @@
 
 - **受信设备触发「女装」彩蛋时跳过所有验证（仅 Avalonia 版）**：当本机 Windows「设备 ID」（Windows「设置 → 系统 → 系统信息」中的「设备 ID」，即注册表 `HKLM\SOFTWARE\Microsoft\SQMClient\MachineId`）为 `242D46AC-C7B4-4D45-8279-BE834CBAE32B` 时，连点插件图标达到触发条件后直接点亮「女装」，不再弹出答题窗口、也不再走集控凭据验证（即使设备已加入集控并设置了凭据）。其他设备仍按原流程（答题 + 集控验证）。注册表读取失败或 ID 不一致时自动回退到原验证流程；「实验性功能」启动快照门槛保持不变。WPF 版按维护约定未同步此变更。
 
+### 修复
+
+- **修复「农历日期（ATI）」月份缺少“月”字并改为复用 lunar.dll**：组件原先自行用 `MonthInChinese` 拼接文本，而 lunar.dll 返回的月名不含“月”字（如“九”“闰四”），显示为「农历 丙午年九廿五」。现将格式化统一收敛到 `LunarHelper.LunarDate.ToString()`（内部基于 lunar.dll，自动补齐“月”，闰月为「闰四月」），组件直接复用该格式化结果，不再重复拼装月 / 日名，正确显示「农历 丙午年九月廿五」。
+
+- **主界面组件与设置页图标错乱（仅 Avalonia 版）**：多数组件此前错误地复用 `\uE120`–`\uE126`（`arrow_redo` / `arrow_repeat` 系列）、`\uE2B9`（`briefcase_search`）、`\uE9D1`（`image_search`）、`\uE067`（`app_generic`）等与功能无关的码点，列表中显示为循环箭头等无关图标；现按 `FluentSystemIcons-Resizable.json` 映射表逐一替换为语义匹配的 Fluent 图标：日期显示→`Calendar`、多倒计时→`Timer`、正向计时器/七段数码管时钟→`Clock`、周期性倒计时→`ArrowClockwiseDashes`、今日周数（年）→`CalendarWeekNumbers`、今日周数（学期）→`CalendarWeekStart`、本周单双→`NumberSymbol`、总在校时间统计→`CalendarClock`、农历日期/农历多倒计时→`CalendarStar`、地方时→`GlobeLocation`、区时→`GlobeClock`、日出日落→`WeatherSunny`、星座/下个星座倒计时→`Star`、节气/下个节气倒计时→`WeatherPartlyCloudyDay`、生肖→`AnimalPawPrint`、节日/下个节日倒计时→`Gift`、今日/明日宜忌→`BookOpen`、实时刷新率→`Gauge`。同时修正「在校时间统计」设置页图标（`CalendarClock` 常规/选中态），并为「主设置」（`Settings`）与「时间表悬浮窗」（`PanelRight`）补上专属图标，导航分组 `AdvancedTimeIsland` 改用 `Apps` 图标。WPF 版按维护约定未同步此变更。
+
 ## 2.0.6.0
 
 ### 破坏性变更

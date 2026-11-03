@@ -13,7 +13,7 @@ using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-[ComponentInfo("01245b89-eed1-4e7c-9f55-b111f57c263f", "下个星座倒计时（ATI）", "\uE122", "显示下个星座倒计时")]
+[ComponentInfo("01245b89-eed1-4e7c-9f55-b111f57c263f", "下个星座倒计时（ATI）", "\uF05B", "显示下个星座倒计时")]
 public class NextXingZuoCountdownControl : ComponentBase<NextXingZuoCountdownSettings>
 {
     private NextXingZuoCountdownViewModel vm;

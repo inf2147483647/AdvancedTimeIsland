@@ -17,7 +17,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "3f8a6d21-74c5-4b9e-8a13-0c62d5e97ab4",
     "七段数码管时钟（ATI）",
-    "\uE121",
+    "\uE4C4",
     "以七段数码管（三横四纵）样式显示当前时间"
 )]
 public class SevenSegmentClockControl : ComponentBase<SevenSegmentClockSettings>

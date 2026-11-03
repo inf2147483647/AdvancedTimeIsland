@@ -16,7 +16,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556700",
     "生肖（ATI）",
-    "\uE124",
+    "\uE05D",
     "显示当前生肖及年份"
 )]
 public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
