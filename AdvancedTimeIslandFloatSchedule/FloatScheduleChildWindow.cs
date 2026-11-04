@@ -1093,7 +1093,7 @@ internal sealed class FloatScheduleChildWindow : Window
     PixelPoint _dragStartScreenPx;
     PixelPoint _dragStartWindowPx;
     long _lastDragMoveTs;   // 上次实际提交位置的 Stopwatch 时间戳（高精度，见 PointerMoved 注释）
-    double _dragFrameIntervalMs = 1000.0 / 60.0;   // 拖动位置提交间隔：按当前显示器刷新率（60Hz→16.7ms，高刷→1000/hz）
+    double _dragThrottleMs = 1000.0 / 60.0 * 0.5;   // 位置提交节流阈值（显示帧间隔的一半；60Hz→8.3ms，高刷按刷新率）
     PixelRect? _dragScreenBounds;                  // 间隔计算所依据的屏幕（换屏时重算刷新率）
     PixelPoint _dragPendingPos;
     bool _dragPendingValid;
@@ -1125,8 +1125,8 @@ internal sealed class FloatScheduleChildWindow : Window
             _edgeSlideOutPending = false;
             _lastDragMoveTs = 0;
             _dragPendingValid = false;
-            // 【高刷适配】按窗口所在显示器的刷新率取位置提交间隔（60Hz 保持 16.7ms，120/144/240Hz 相应提高）。
-            _dragFrameIntervalMs = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(Hwnd);
+            // 【高刷适配】按窗口所在显示器的刷新率取位置提交阈值（60Hz 保持约 60fps，120/144/240Hz 相应提高）。
+            _dragThrottleMs = FloatScheduleDisplayRefresh.GetDragThrottleMs(Hwnd);
             _dragScreenBounds = null;   // 让首次 Moved 按实际屏幕记录（跨屏后重算）
             _dragStartScreenPx = this.PointToScreen(e.GetPosition(this));
             _dragStartWindowPx = Position;
@@ -1161,7 +1161,7 @@ internal sealed class FloatScheduleChildWindow : Window
             //   用它做 "<16ms" 判断会稳定地跳一拍变成 ~31ms ≈32fps）；间隔则取自当前显示器刷新率。
             long nowTs = System.Diagnostics.Stopwatch.GetTimestamp();
             if (_lastDragMoveTs != 0 &&
-                (nowTs - _lastDragMoveTs) * 1000.0 / System.Diagnostics.Stopwatch.Frequency < _dragFrameIntervalMs)
+                (nowTs - _lastDragMoveTs) * 1000.0 / System.Diagnostics.Stopwatch.Frequency < _dragThrottleMs)
             {
                 _dragPendingPos = target;
                 _dragPendingValid = true;
@@ -1252,7 +1252,7 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         if (_dragScreenBounds == bounds) return;
         _dragScreenBounds = bounds;
-        _dragFrameIntervalMs = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(Hwnd);
+        _dragThrottleMs = FloatScheduleDisplayRefresh.GetDragThrottleMs(Hwnd);
     }
 
     /// <summary>

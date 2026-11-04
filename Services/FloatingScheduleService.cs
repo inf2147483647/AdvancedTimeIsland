@@ -246,7 +246,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  布局+合成，CPU 占用高。节流到 ~60fps（16ms）；节流丢弃的尾帧在 Released 时补应用一次，
     //  保证窗口最终停在指针松开位置。
     private long _lastDragMoveTsAv;             // 上次实际应用位置的 Stopwatch 时间戳（高精度）
-    private double _dragFrameIntervalMsAv = 1000.0 / 60.0;   // 拖动位置提交间隔：按当前显示器刷新率（高刷屏相应提高）
+    private double _dragThrottleMsAv = 1000.0 / 60.0 * 0.5;   // 位置提交节流阈值（显示帧间隔的一半；60Hz→8.3ms，高刷按刷新率）
     private PixelRect? _dragScreenBoundsAv;     // 间隔计算所依据的屏幕（换屏时重算刷新率）
     private PixelPoint _dragPendingPosAv;       // 被节流丢弃的"最新目标位置"（Released 时补应用）
     private bool _dragPendingValidAv;
@@ -1931,8 +1931,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _edgeSlideOutPendingAv = false;
             _lastDragMoveTsAv = 0;      // 【拖动 CPU 节流】首个 Moved 事件立即应用
             _dragPendingValidAv = false;
-            // 【高刷适配】按窗口所在显示器的刷新率取位置提交间隔（60Hz 保持 16.7ms，120/144/240Hz 相应提高）。
-            _dragFrameIntervalMsAv = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(
+            // 【高刷适配】按窗口所在显示器的刷新率取位置提交阈值（60Hz 保持约 60fps，120/144/240Hz 相应提高）。
+            _dragThrottleMsAv = FloatScheduleDisplayRefresh.GetDragThrottleMs(
                 _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
             _dragScreenBoundsAv = null;   // 让首次 Moved 按实际屏幕记录（跨屏后重算）
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
@@ -1990,7 +1990,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //   用它做 "<16ms" 判断会稳定地跳一拍变成 ~31ms ≈32fps）；间隔则取自当前显示器刷新率。
             long nowTs = System.Diagnostics.Stopwatch.GetTimestamp();
             if (_lastDragMoveTsAv != 0 &&
-                (nowTs - _lastDragMoveTsAv) * 1000.0 / System.Diagnostics.Stopwatch.Frequency < _dragFrameIntervalMsAv)
+                (nowTs - _lastDragMoveTsAv) * 1000.0 / System.Diagnostics.Stopwatch.Frequency < _dragThrottleMsAv)
             {
                 _dragPendingPosAv = target;
                 _dragPendingValidAv = true;
@@ -2042,7 +2042,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _dragScreenBoundsAv = bounds;
         IntPtr hwnd = IntPtr.Zero;
         try { hwnd = _window?.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { }
-        _dragFrameIntervalMsAv = FloatScheduleDisplayRefresh.GetDragFrameIntervalMs(hwnd);
+        _dragThrottleMsAv = FloatScheduleDisplayRefresh.GetDragThrottleMs(hwnd);
     }
 
     // 【统一拖拽】指针失去捕获（如系统弹窗抢走）→ 立即收尾，防止状态残留。

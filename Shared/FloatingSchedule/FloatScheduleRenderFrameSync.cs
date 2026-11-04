@@ -63,10 +63,39 @@ public sealed class FloatScheduleRenderFrameSync
         catch { _running = false; }   // 窗口已销毁 / 平台不支持 → 静默停用，宿主回退"立即提交"
     }
 
+    #region debug-point F1
+    // 临时插桩：拖动节拍取证（会话 vsync-frames）。只写日志，不改业务逻辑；定位后整段移除。
+    // 证据目录在仓库外，可用 TRAE_DEBUG_DIR 覆盖。
+    public static readonly string DbgPath = System.IO.Path.Combine(
+        Environment.GetEnvironmentVariable("TRAE_DEBUG_DIR")
+            ?? System.IO.Path.Combine(System.IO.Path.GetTempPath(), "trae-debug", "glass-drag-jitter"),
+        "trae-debug-log-vsync-frames.ndjson");
+
+    public static void Dbg(string ev, string fields)
+    {
+        try
+        {
+            var dir = System.IO.Path.GetDirectoryName(DbgPath);
+            if (!string.IsNullOrEmpty(dir)) System.IO.Directory.CreateDirectory(dir);
+            System.IO.File.AppendAllText(DbgPath,
+                "{\"ts\":" + Environment.TickCount64 + ",\"ev\":\"" + ev + "\"," + fields + "}\n");
+        }
+        catch { }
+    }
+    #endregion
+
+    long _seq;          // 渲染帧序号（自 Start 起）
+    long _lastTickMs;   // 上次渲染帧回调时刻
+
     // 【渲染帧·UI 线程·渲染之前】先让宿主提交"位置 + 背景"，再请求下一帧，形成以渲染帧为节拍的连续同步。
     void OnFrame(TimeSpan _)
     {
         if (!_running) return;
+        #region debug-point F1
+        long nowMs = Environment.TickCount64;
+        Dbg("frame", "\"seq\":" + (++_seq) + ",\"dt\":" + (_lastTickMs == 0 ? 0 : nowMs - _lastTickMs));
+        _lastTickMs = nowMs;
+        #endregion
         try { _onFrame(); } catch { /* 提交异常不得影响渲染 */ }
         RequestNext();
     }

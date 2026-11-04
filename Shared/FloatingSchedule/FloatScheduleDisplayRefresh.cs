@@ -34,6 +34,15 @@ public static class FloatScheduleDisplayRefresh
         return 1000.0 / hz;
     }
 
+    /// <summary>
+    /// 拖动位置提交的**节流阈值**（ms）= 显示帧间隔的一半。
+    /// 【为什么不是一整帧】PointerMoved 的事件间隔在高刷屏 / 输入合并场景下正好等于一个显示帧，
+    ///   Stopwatch 测出的实际间隔会因消息调度抖动略小于 1000/hz；若阈值取整帧，事件会被稳定地判为
+    ///   "还不到时候"，于是每两帧才提交一次 —— 60Hz 屏上表现为 ~30fps（这是"帧率偶发腰斩"的根因）。
+    ///   取半帧可保证每个显示帧至少提交一次，同时仍能合并同一帧内重复到达的指针事件。
+    /// </summary>
+    public static double GetDragThrottleMs(IntPtr hwnd) => GetDragFrameIntervalMs(hwnd) * 0.5;
+
     /// <summary>取窗口所在显示器刷新率（Hz）；取不到返回 0。</summary>
     public static int GetRefreshRate(IntPtr hwnd)
     {
