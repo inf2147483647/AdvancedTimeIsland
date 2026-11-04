@@ -34,9 +34,17 @@ public static class UnixTimeHelper
             throw new ArgumentException("1582年10月5日至14日在历史上不存在，无法转换为时间戳");
         }
 
-        var solar = Solar.FromDate(utcDateTime);
-        var julianDay = solar.JulianDay;
-        return (julianDay - JulianDayUnixEpoch) * 86400;
+        // 秒级部分：Solar.JulianDay 只精确到秒，且儒略日换算存在 ~1e-6 秒的浮点误差。
+        // 取整到最近的整秒，消除“整秒却得到 x.999998”的问题（否则 ToUnixTimestamp 截断后会整整差 1 秒）。
+        var secondPrecision = new DateTime(
+            utcDateTime.Year, utcDateTime.Month, utcDateTime.Day,
+            utcDateTime.Hour, utcDateTime.Minute, utcDateTime.Second, utcDateTime.Kind);
+        var solar = Solar.FromDate(secondPrecision);
+        var wholeSeconds = Math.Round((solar.JulianDay - JulianDayUnixEpoch) * 86400);
+
+        // 亚秒部分（毫秒/更低精度）：Solar.FromDate 不保留，需单独补回，否则设置页宣称的“支持小数”会失效。
+        var subSecond = (utcDateTime.Ticks % TimeSpan.TicksPerSecond) / (double)TimeSpan.TicksPerSecond;
+        return wholeSeconds + subSecond;
     }
 
     public static DateTime FromUnixTimestamp(long timestamp)

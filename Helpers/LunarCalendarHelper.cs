@@ -328,21 +328,23 @@ public static class LunarCalendarHelper
     /// </summary>
     public static int GetLeapMonth(int lunarYear)
     {
-        try
+        // lunar-csharp 中闰月用“负数月份”表示：必须用 -m 查询才能得到闰月。
+        // 若某月不存在闰月，FromYmdHms 会抛异常，因此逐月 try/catch。
+        for (int m = 1; m <= 12; m++)
         {
-            // 遍历1-12月，检查哪个月是闰月（负数）
-            for (int m = 1; m <= 12; m++)
+            try
             {
-                var lunar = Lunar.Lunar.FromYmdHms(lunarYear, m, 1);
+                var lunar = Lunar.Lunar.FromYmdHms(lunarYear, -m, 1);
                 if (lunar.Month < 0)
                     return Math.Abs(lunar.Month);
             }
-            return 0;
+            catch
+            {
+                // 该月无闰月，继续检查下一个月
+            }
         }
-        catch
-        {
-            return 0;
-        }
+
+        return 0;
     }
 
     /// <summary>

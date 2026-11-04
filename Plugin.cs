@@ -15,9 +15,15 @@ using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Automation.Sai;
 using AdvancedTimeIsland.Helpers;
 using Avalonia.Controls;
+using Avalonia.Controls.ApplicationLifetimes;
 using Avalonia.Styling;
 using Avalonia.Input;
+using Avalonia.Threading;
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 using System.Text.Json;
 using System.Threading;
 
@@ -41,6 +47,13 @@ public class Plugin : PluginBase
     /// 只存在于内存中：设置页重建、切到别的设置页再回来都不会丢失，重启宿主（ClassIsland）后才复位为未触发。
     /// </summary>
     public static bool EasterEggSessionActive { get; set; }
+
+    /// <summary>
+    /// 启动自检结果：插件包与宿主 FluentAvalonia 大版本不匹配时的提示文本（匹配时为 null）。
+    /// net8 包只能跑在 FA2（Avalonia 11）宿主，net10 包只能跑在 FA3（Avalonia 12）宿主；
+    /// 装错包时 FA2/FA3 的控件类型名不同（如 FontIcon → FAFontIcon），设置页会在初始化阶段报错。
+    /// </summary>
+    public static string? HostCompatibilityWarning { get; private set; }
 
     public PluginSettings Settings { get; set; } = new();
     public DebugSettings DebugSettings { get; set; } = new();
@@ -274,9 +287,167 @@ public class Plugin : PluginBase
         }
     }
 
+    /// <summary>
+    /// 按年/月/日/时/分/秒分量构造日期；分量非法（如非闰年的 2 月 29 日、小月的 31 日）时返回 false，
+    /// 供时间范围规则安全求值，避免向宿主抛 <see cref="ArgumentOutOfRangeException"/>。
+    /// </summary>
+    private static bool TryCreateDate(
+        int year, int month, int day, int hour, int minute, int second, out DateTime result)
+    {
+        result = DateTime.MinValue;
+        if (month is < 1 or > 12 || hour is < 0 or > 23 || minute is < 0 or > 59 || second is < 0 or > 59)
+        {
+            return false;
+        }
+
+        if (year is < 1 or > 9999 || day < 1 || day > DateTime.DaysInMonth(year, month))
+        {
+            return false;
+        }
+
+        result = new DateTime(year, month, day, hour, minute, second);
+        return true;
+    }
+
+    /// <summary>
+    /// 启动自检：判断当前插件包（net8 → FA2 / net10 → FA3）与宿主 FluentAvalonia 大版本是否匹配。
+    /// 包与宿主不匹配时，FA2/FA3 的控件类型名不同（如 FontIcon → FAFontIcon），设置页会在初始化阶段报错。
+    /// 这里记录提示文本，并在宿主主窗口就绪后弹一次 Toast（不可用时退回系统通知）。
+    /// </summary>
+    private static void VerifyHostCompatibility()
+    {
+        try
+        {
+#if NET10_0_OR_GREATER
+            const bool builtForFa3 = true;
+#else
+            const bool builtForFa3 = false;
+#endif
+            var hostIsFa3 = FluentAvaloniaCompatibilityHelper.IsV3;
+            if (builtForFa3 == hostIsFa3)
+            {
+                return;
+            }
+
+            HostCompatibilityWarning = builtForFa3
+                ? "当前安装的是 net10（FA3）插件包，但 ClassIsland 宿主使用的是 FluentAvalonia 2.x（Avalonia 11）。\n请卸载本插件后改用 FA2 兼容包（AdvancedTimeIsland-net8.0-compat）。"
+                : "当前安装的是 net8（FA2）兼容包，但 ClassIsland 宿主使用的是 FluentAvalonia 3.0（Avalonia 12）。\n请卸载本插件后改用 FA3 包（AdvancedTimeIsland-net10.0）。";
+
+            ShowHostCompatibilityWarningAsync(HostCompatibilityWarning);
+        }
+        catch
+        {
+            // 自检失败不影响插件启动
+        }
+    }
+
+    private static async void ShowHostCompatibilityWarningAsync(string message)
+    {
+        try
+        {
+            Window? hostWindow = null;
+
+            // 宿主主窗口可能晚于插件初始化出现（FA3 启动是异步的，且会先出现启动画面）
+            for (var i = 0; i < 40 && hostWindow == null; i++)
+            {
+                await Task.Delay(500);
+                hostWindow = ResolveHostMainWindow();
+            }
+
+            var shown = false;
+            if (hostWindow is { IsVisible: true })
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    try
+                    {
+                        hostWindow.ShowToast(new ToastMessage("AdvancedTimeIsland 插件版本不匹配", message)
+                        {
+                            AutoClose = false
+                        });
+                        shown = true;
+                    }
+                    catch
+                    {
+                        // Toast 不可用时退回系统通知
+                    }
+                });
+            }
+
+            if (!shown)
+            {
+                ShowDesktopToast("AdvancedTimeIsland 插件版本不匹配", message);
+            }
+        }
+        catch
+        {
+            // 提示失败不影响插件运行
+        }
+    }
+
+    /// <summary>解析宿主主窗口：优先 ClassIsland.Core.AppBase.Current.MainWindow，其次桌面生命周期窗口。</summary>
+    private static Window? ResolveHostMainWindow()
+    {
+        try
+        {
+            var appBaseType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("ClassIsland.Core.AppBase"))
+                .FirstOrDefault(t => t != null);
+            var app = appBaseType?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            if (app?.GetType().GetProperty("MainWindow", BindingFlags.Public | BindingFlags.Instance)?.GetValue(app) is Window mainWindow)
+            {
+                return mainWindow;
+            }
+        }
+        catch
+        {
+            // 忽略，继续尝试生命周期主窗口
+        }
+
+        try
+        {
+            if (Avalonia.Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
+            {
+                // 排除启动画面 SplashWindow 等短命窗口：优先取类型名含 MainWindow 的窗口
+                if (desktop.Windows.FirstOrDefault(w => w.GetType().Name.Contains("MainWindow", StringComparison.Ordinal)) is { } main)
+                {
+                    return main;
+                }
+                return desktop.MainWindow;
+            }
+        }
+        catch
+        {
+            // 忽略
+        }
+
+        return null;
+    }
+
+    /// <summary>退回宿主平台服务发系统通知（主窗口不可见时仍能提示用户）。</summary>
+    private static void ShowDesktopToast(string title, string body)
+    {
+        try
+        {
+            var servicesType = AppDomain.CurrentDomain.GetAssemblies()
+                .Select(a => a.GetType("ClassIsland.Platforms.Abstraction.PlatformServices"))
+                .FirstOrDefault(t => t != null);
+            var toast = servicesType?.GetProperty("DesktopToastService", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+            var method = toast?.GetType().GetMethod("ShowToastAsync", new[] { typeof(string), typeof(string), typeof(Action) });
+            method?.Invoke(toast, new object?[] { title, body, null });
+        }
+        catch
+        {
+            // 系统通知不可用时静默忽略
+        }
+    }
+
 
     public override void Initialize(HostBuilderContext context, IServiceCollection services)
     {
+        // 启动自检：插件包目标 FA 大版本必须与宿主一致，否则提示用户换包（详见 HostCompatibilityWarning）
+        VerifyHostCompatibility();
+
         // 加载已保存的设置
         LoadSettings();
 
@@ -453,8 +624,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
-                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
+                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
@@ -499,8 +673,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
-                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
+                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {
@@ -706,8 +883,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
-                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
+                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
@@ -752,8 +932,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
-                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
+                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {
@@ -982,8 +1165,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                var startTimeThisYear = new DateTime(now.Year, startMonth, startDay, startHour, startMinute, startSecond);
-                var endTimeThisYear = new DateTime(now.Year, endMonth, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
+                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisYear, endTimeThisYear) > 0)
                 {
@@ -1028,8 +1214,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                var startTimeThisMonth = new DateTime(now.Year, now.Month, startDay, startHour, startMinute, startSecond);
-                var endTimeThisMonth = new DateTime(now.Year, now.Month, endDay, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
+                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisMonth, endTimeThisMonth) > 0)
                 {

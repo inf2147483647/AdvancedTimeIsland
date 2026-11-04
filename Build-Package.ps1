@@ -3,6 +3,9 @@
 #   1. .NET 8 compatible version (ClassIsland.PluginSdk 2.0.1.1) for CI2
 #   2. .NET 10 new version (Misha SDK 2.1.1) for CI2
 #   3. WPF version (ClassIsland 1.x, net8.0-windows) in AdvancedTimeIslandWPF\
+# 其中 Avalonia 两版的 manifest version 按目标框架区分：
+#   net8.0  -> 2.0.x.x（取自 manifest.yml）
+#   net10.0 -> 2.2.x.x（2.2 + manifest.yml 的后两段）
 # Usage: .\Build-Package.ps1 [-Target both|compat|new|wpf] [-NoServerShutdown]
 # Supports: Windows x64
 #
@@ -236,6 +239,54 @@ function Create-CipxPackage {
     }
 }
 
+function Set-ManifestVersion {
+    # Avalonia 版两个包共用一份 manifest.yml（版本号也共用以保持单一版本来源），
+    # 但对外发布的版本号要求按目标框架区分：
+    #   net8.0  -> 保持 manifest.yml 中的版本（2.0.x.x，ClassIsland 2.0.x / FA2 宿主）
+    #   net10.0 -> 主版本固定为 2.2，保留后两段（2.2.x.x，新版 ClassIsland / FA3 宿主）
+    # 仅在构建产物目录里改写，源文件 manifest.yml 不动。
+    param(
+        [string]$OutputDir,
+        [string]$TargetFramework
+    )
+
+    $manifestPath = Join-Path $OutputDir "manifest.yml"
+    if (-not (Test-Path $manifestPath)) {
+        Write-Warning "Version rewrite skipped: manifest.yml not found in $OutputDir"
+        return
+    }
+
+    $text = [System.IO.File]::ReadAllText($manifestPath)
+    $match = [regex]::Match($text, '(?m)^version\s*:\s*(\d+)\.(\d+)\.(\d+)\.(\d+)\s*$')
+    if (-not $match.Success) {
+        Write-Warning "Version rewrite skipped: no 4-part version line in $manifestPath"
+        return
+    }
+
+    $baseVersion = "$($match.Groups[1].Value).$($match.Groups[2].Value).$($match.Groups[3].Value).$($match.Groups[4].Value)"
+
+    if ($TargetFramework -eq "net10.0") {
+        $newVersion = "2.2.$($match.Groups[3].Value).$($match.Groups[4].Value)"
+    }
+    else {
+        # net8 包必须落在 2.0.x.x；源 manifest 若已偏离则提示（不改写，避免擅自变更版本号）
+        if (-not $baseVersion.StartsWith("2.0.")) {
+            Write-Warning "net8 version '$baseVersion' does not start with 2.0; expected 2.0.x.x."
+        }
+        Write-Host "Manifest version ($TargetFramework): $baseVersion"
+        return
+    }
+
+    $updated = $text.Substring(0, $match.Index) + "version: $newVersion" + $text.Substring($match.Index + $match.Length)
+
+    # 原子写入：先写同目录临时文件，再替换目标文件
+    $tempPath = "$manifestPath.tmp"
+    [System.IO.File]::WriteAllText($tempPath, $updated, (New-Object System.Text.UTF8Encoding $false))
+    Move-Item $tempPath $manifestPath -Force
+
+    Write-Host "Manifest version ($TargetFramework): $baseVersion -> $newVersion"
+}
+
 function Build-Variant {
     param(
         [string]$TargetFramework,
@@ -269,6 +320,9 @@ function Build-Variant {
         Write-Error "Build failed for $Label ($TargetFramework)"
         return $false
     }
+
+    # 按目标框架改写产物目录里的 manifest.yml 版本（net8 保持 2.0.x.x，net10 为 2.2.x.x）
+    Set-ManifestVersion -OutputDir $OutputDir -TargetFramework $TargetFramework
 
 
     # Copy FloatSchedule child exe into plugin output dir -> Create-CipxPackage (full copy) picks it up

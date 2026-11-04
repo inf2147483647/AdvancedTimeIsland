@@ -13,6 +13,12 @@ public class ServicesFetcherService : IHostedService
         GlobalConstants.HostInterfaces.ExactTimeService = exactTimeService;
         GlobalConstants.HostInterfaces.PluginLogger = logger;
         logger.Log(LogLevel.Information, "AdvancedTimeIsland services fetched!");
+
+        // 启动自检发现插件包与宿主 FA 大版本不匹配时，同步写入宿主日志便于排查
+        if (Plugin.HostCompatibilityWarning is { Length: > 0 } compatibilityWarning)
+        {
+            logger.Log(LogLevel.Error, "插件包与宿主版本不匹配：{Warning}", compatibilityWarning);
+        }
     }
 
     public Task StartAsync(CancellationToken cancellationToken)

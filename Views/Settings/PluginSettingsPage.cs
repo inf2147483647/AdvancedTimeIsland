@@ -686,10 +686,12 @@ public class PluginSettingsPage : UserControl
         }
         catch (Exception ex)
         {
+            // 包与宿主 FA 版本不匹配时优先展示启动自检给出的换包提示，避免只看到底层类型加载异常
             Content = new TextBlock
             {
-                Text = $"设置页面初始化失败: {ex.Message}",
+                Text = Plugin.HostCompatibilityWarning ?? $"设置页面初始化失败: {ex.Message}",
                 Foreground = Brushes.Red,
+                TextWrapping = TextWrapping.Wrap,
                 Margin = new Thickness(16)
             };
         }
