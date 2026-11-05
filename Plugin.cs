@@ -257,7 +257,9 @@ public class Plugin : PluginBase
     /// </summary>
     public static DateTime GetLocalSolarTime(DateTime localTime, double longitude)
     {
-        var standardMeridian = TimeZoneInfo.Local.BaseUtcOffset.TotalHours * 15;
+        // 使用带夏令时的实际 UTC 偏移，而不是只反映标准时区的 BaseUtcOffset：
+        // 有夏令时的地区在夏令时期间 BaseUtcOffset 不变，会导致地方时偏差 1 小时。
+        var standardMeridian = TimeZoneInfo.Local.GetUtcOffset(localTime).TotalHours * 15;
         var timeDifferenceMinutes = (longitude - standardMeridian) * 4;
         return localTime.AddMinutes(timeDifferenceMinutes);
     }
@@ -283,7 +285,10 @@ public class Plugin : PluginBase
         }
         catch
         {
-            return localTime.ToLocalTime();
+            // 时区 Id 无法识别时退回“本地时间原值”。
+            // 不能用 localTime.ToLocalTime()：对 Unspecified 的 DateTime 该方法会按 UTC 解释并加上本地偏移，
+            // 导致时间凭空偏移数小时。
+            return localTime;
         }
     }
 
@@ -307,6 +312,59 @@ public class Plugin : PluginBase
 
         result = new DateTime(year, month, day, hour, minute, second);
         return true;
+    }
+
+    /// <summary>
+    /// 按分量构造日期，并把超出当月天数的“日”钳制到当月最后一天
+    /// （如 31 日在小月 → 该月最后一天、02-29 在非闰年 → 02-28）。
+    /// 时/分/秒越界或月份非法时返回 false。
+    /// 时间范围规则用此方法，既避免抛异常，也避免把范围错误地顺延到下一个整月。
+    /// </summary>
+    private static bool TryCreateDateClamped(
+        int year, int month, int day, int hour, int minute, int second, out DateTime result)
+    {
+        result = DateTime.MinValue;
+        if (year is < 1 or > 9999 || month is < 1 or > 12 ||
+            day < 1 || hour is < 0 or > 23 || minute is < 0 or > 59 || second is < 0 or > 59)
+        {
+            return false;
+        }
+
+        var clampedDay = Math.Min(day, DateTime.DaysInMonth(year, month));
+        result = new DateTime(year, month, clampedDay, hour, minute, second);
+        return true;
+    }
+
+    /// <summary>构造「每年时间范围」的起止日期（日越界时钳制到当月最后一天）。</summary>
+    private static bool TryCreateYearlyRange(
+        int year,
+        int startMonth, int startDay, int startHour, int startMinute, int startSecond,
+        int endMonth, int endDay, int endHour, int endMinute, int endSecond,
+        out DateTime start, out DateTime end)
+    {
+        if (!TryCreateDateClamped(year, startMonth, startDay, startHour, startMinute, startSecond, out start))
+        {
+            end = DateTime.MinValue;
+            return false;
+        }
+
+        return TryCreateDateClamped(year, endMonth, endDay, endHour, endMinute, endSecond, out end);
+    }
+
+    /// <summary>构造「每月时间范围」的起止日期（日越界时钳制到当月最后一天）。</summary>
+    private static bool TryCreateMonthlyRange(
+        int year, int month,
+        int startDay, int startHour, int startMinute, int startSecond,
+        int endDay, int endHour, int endMinute, int endSecond,
+        out DateTime start, out DateTime end)
+    {
+        if (!TryCreateDateClamped(year, month, startDay, startHour, startMinute, startSecond, out start))
+        {
+            end = DateTime.MinValue;
+            return false;
+        }
+
+        return TryCreateDateClamped(year, month, endDay, endHour, endMinute, endSecond, out end);
     }
 
     /// <summary>
@@ -624,8 +682,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
-                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                if (!TryCreateYearlyRange(now.Year,
+                        startMonth, startDay, startHour, startMinute, startSecond,
+                        endMonth, endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisYear, out var endTimeThisYear))
                 {
                     return false;
                 }
@@ -673,8 +733,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
-                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                if (!TryCreateMonthlyRange(now.Year, now.Month,
+                        startDay, startHour, startMinute, startSecond,
+                        endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisMonth, out var endTimeThisMonth))
                 {
                     return false;
                 }
@@ -720,8 +782,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, startHour, startMinute, startSecond, out var startTimeToday) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, endHour, endMinute, endSecond, out var endTimeToday))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
@@ -762,8 +827,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
-                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond, out var startTimeThisHour) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond, out var endTimeThisHour))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {
@@ -795,8 +863,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
-                var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond, out var startTimeThisMinute) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond, out var endTimeThisMinute))
+                {
+                    return false;
+                }
 
                 if (startTimeThisMinute > endTimeThisMinute)
                 {
@@ -883,8 +954,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
-                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                if (!TryCreateYearlyRange(now.Year,
+                        startMonth, startDay, startHour, startMinute, startSecond,
+                        endMonth, endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisYear, out var endTimeThisYear))
                 {
                     return false;
                 }
@@ -932,8 +1005,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
-                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                if (!TryCreateMonthlyRange(now.Year, now.Month,
+                        startDay, startHour, startMinute, startSecond,
+                        endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisMonth, out var endTimeThisMonth))
                 {
                     return false;
                 }
@@ -979,8 +1054,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, startHour, startMinute, startSecond, out var startTimeToday) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, endHour, endMinute, endSecond, out var endTimeToday))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
@@ -1021,8 +1099,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
-                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond, out var startTimeThisHour) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond, out var endTimeThisHour))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {
@@ -1054,8 +1135,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
-                var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond, out var startTimeThisMinute) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond, out var endTimeThisMinute))
+                {
+                    return false;
+                }
 
                 if (startTimeThisMinute > endTimeThisMinute)
                 {
@@ -1165,8 +1249,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                if (!TryCreateDate(now.Year, startMonth, startDay, startHour, startMinute, startSecond, out var startTimeThisYear) ||
-                    !TryCreateDate(now.Year, endMonth, endDay, endHour, endMinute, endSecond, out var endTimeThisYear))
+                if (!TryCreateYearlyRange(now.Year,
+                        startMonth, startDay, startHour, startMinute, startSecond,
+                        endMonth, endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisYear, out var endTimeThisYear))
                 {
                     return false;
                 }
@@ -1214,8 +1300,10 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                if (!TryCreateDate(now.Year, now.Month, startDay, startHour, startMinute, startSecond, out var startTimeThisMonth) ||
-                    !TryCreateDate(now.Year, now.Month, endDay, endHour, endMinute, endSecond, out var endTimeThisMonth))
+                if (!TryCreateMonthlyRange(now.Year, now.Month,
+                        startDay, startHour, startMinute, startSecond,
+                        endDay, endHour, endMinute, endSecond,
+                        out var startTimeThisMonth, out var endTimeThisMonth))
                 {
                     return false;
                 }
@@ -1261,8 +1349,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                var startTimeToday = new DateTime(now.Year, now.Month, now.Day, startHour, startMinute, startSecond);
-                var endTimeToday = new DateTime(now.Year, now.Month, now.Day, endHour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, startHour, startMinute, startSecond, out var startTimeToday) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, endHour, endMinute, endSecond, out var endTimeToday))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeToday, endTimeToday) > 0)
                 {
@@ -1303,8 +1394,11 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZoneId);
-                var startTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond);
-                var endTimeThisHour = new DateTime(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond);
+                if (!TryCreateDate(now.Year, now.Month, now.Day, now.Hour, startMinute, startSecond, out var startTimeThisHour) ||
+                    !TryCreateDate(now.Year, now.Month, now.Day, now.Hour, endMinute, endSecond, out var endTimeThisHour))
+                {
+                    return false;
+                }
 
                 if (LunarHelper.Compare(startTimeThisHour, endTimeThisHour) > 0)
                 {

@@ -10,10 +10,7 @@ public class LocalSolarWeeklyTimeTrigger : TimeTriggerBase<LocalSolarWeeklyTimeR
 {
     protected override DateTime GetCurrentTime()
     {
-        var localTime = base.GetCurrentTime();
-        var standardMeridian = TimeZoneInfo.Local.BaseUtcOffset.TotalHours * 15;
-        var timeDifferenceMinutes = (Settings.Longitude - standardMeridian) * 4;
-        return localTime.AddMinutes(timeDifferenceMinutes);
+        return Plugin.GetLocalSolarTime(base.GetCurrentTime(), Settings.Longitude);
     }
 
     protected override bool CheckTrigger(DateTime now)

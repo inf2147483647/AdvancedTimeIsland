@@ -22,6 +22,10 @@ public class LocalSolarMinutelyTimeIntervalTrigger : TimeTriggerBase<LocalSolarM
             !int.TryParse(Settings.EndSecond, out int endSecond))
             return false;
 
+        // 非法配置（如秒数 99）不能让 DateTime 构造抛异常
+        if (startSecond is < 0 or > 59 || endSecond is < 0 or > 59)
+            return false;
+
         var startTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, startSecond);
         var endTimeThisMinute = new DateTime(now.Year, now.Month, now.Day, now.Hour, now.Minute, endSecond);
 
