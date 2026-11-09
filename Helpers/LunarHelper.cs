@@ -128,21 +128,13 @@ public static class LunarHelper
     /// </summary>
     public static string[] GetFestivals(DateTime solarDate)
     {
-        return GetFestivals(solarDate, true, true, true, false);
+        return GetFestivals(solarDate, true, true, true);
     }
 
     /// <summary>
     /// 获取节日列表（支持分类筛选）
     /// </summary>
     public static string[] GetFestivals(DateTime solarDate, bool includeInternational, bool includeTraditional, bool includeRed)
-    {
-        return GetFestivals(solarDate, includeInternational, includeTraditional, includeRed, false);
-    }
-
-    /// <summary>
-    /// 获取节日列表（支持分类筛选和实验性功能）
-    /// </summary>
-    public static string[] GetFestivals(DateTime solarDate, bool includeInternational, bool includeTraditional, bool includeRed, bool includeExperimental)
     {
         var festivalNames = new System.Collections.Generic.HashSet<string>();
 
@@ -167,6 +159,11 @@ public static class LunarHelper
                 var traditionalFestivals = GetAdditionalTraditionalFestivals(solarDate);
                 foreach (var f in traditionalFestivals)
                     festivalNames.Add(f);
+
+                // 花朝节（农历二月十五）
+                var lunarDate = Solar.FromDate(solarDate).Lunar;
+                if (lunarDate.Month == 2 && lunarDate.Day == 15)
+                    festivalNames.Add("花朝节");
             }
 
             // 与“下个节日倒计时”对齐：补齐其独有的节日（只增不减，库内置节日保持不变）。
@@ -175,7 +172,7 @@ public static class LunarHelper
             if (includeInternational)
                 FestivalCatalog.AddInternationalFestivals(alignedFestivals, solarDate);
             if (includeTraditional)
-                FestivalCatalog.AddChineseTraditionalFestivals(alignedFestivals, solarDate, false);
+                FestivalCatalog.AddChineseTraditionalFestivals(alignedFestivals, solarDate);
             foreach (var (name, festivalDate) in alignedFestivals)
             {
                 if (festivalDate.Date == solarDate.Date && CountdownAlignedFestivals.Contains(name))
@@ -190,15 +187,8 @@ public static class LunarHelper
                 festivalNames.Add(f);
         }
 
-        if (includeExperimental)
-        {
-            var experimentalFestivals = GetExperimentalFestivals(solarDate);
-            foreach (var f in experimentalFestivals)
-                festivalNames.Add(f);
-        }
-
         // 永久移除：平安夜、圣诞节。这两个节日来自 lunar 库的 solar.Festivals，
-        // 这里统一剔除，保证不受任何分类开关或实验性功能影响。
+        // 这里统一剔除，保证不受任何分类开关影响。
         festivalNames.ExceptWith(RemovedFestivals);
 
         return festivalNames.ToArray();
@@ -239,24 +229,6 @@ public static class LunarHelper
         if (lunar.Month == 3 && lunar.Day == 3)
         {
             festivals.Add("上巳节");
-        }
-
-        return festivals.ToArray();
-    }
-
-    /// <summary>
-    /// 获取实验性节日列表
-    /// </summary>
-    private static string[] GetExperimentalFestivals(DateTime date)
-    {
-        var festivals = new System.Collections.Generic.List<string>();
-
-        var solar = Solar.FromDate(date);
-        var lunar = solar.Lunar;
-
-        if (lunar.Month == 2 && lunar.Day == 15)
-        {
-            festivals.Add("花朝节");
         }
 
         return festivals.ToArray();

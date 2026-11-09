@@ -303,7 +303,7 @@
                     </compat:CompatSettingsExpanderItem.Footer>
                 </compat:CompatSettingsExpanderItem>
                 <compat:CompatSettingsExpanderItem Content="强制重启进程"
-                                                   Description="立即终止并以当前设置重新启动子进程悬浮窗（约 1~2 秒恢复，无需重启 ClassIsland）。">
+                                                   Description="立即终止并以当前设置重新启动子进程悬浮窗（约 1~2 秒恢复，无需重启 ClassIsland；低性能或高负载的情况下启动时间会更长）。">
                     <compat:CompatSettingsExpanderItem.Footer>
                         <Button x:Name="RestartButton"
                                 Content="重启"

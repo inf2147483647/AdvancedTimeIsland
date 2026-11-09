@@ -22,8 +22,6 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
     private string _valueText = string.Empty;
     private bool _isDisposed;
 
-    private bool _enableExperimentalFeatures;
-
     public FestivalViewModel(TimeBaseService timeBaseService, FestivalSettings settings, 
         Action<string> updateLabelFontColor = null, Action<double> updateLabelFontSize = null,
         Action<string> updateValueFontColor = null, Action<double> updateValueFontSize = null)
@@ -36,27 +34,13 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         _updateValueFontSize = updateValueFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
-        
-        _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
-        if (Plugin.Instance?.Settings != null)
-            Plugin.Instance.Settings.PropertyChanged += OnPluginSettingsPropertyChanged;
-        
+
         UpdateDisplay();
         
         _updateTimer = new System.Timers.Timer(60000);
         _updateTimer.Elapsed += OnTimerElapsed;
         _updateTimer.AutoReset = true;
         _updateTimer.Enabled = true;
-    }
-
-    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
-    {
-        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
-        {
-            _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
-            UpdateDisplay();
-            _ = UpdateDisplayAsync();
-        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -143,8 +127,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
             var festivals = LunarHelper.GetFestivals(now,
                 _settings.EnableInternationalFestivals,
                 _settings.EnableChineseTraditionalFestivals,
-                _settings.EnableRedFestivals,
-                _enableExperimentalFeatures);
+                _settings.EnableRedFestivals);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             LabelText = "当前节日：";
             ValueText = festivalsText;
@@ -162,8 +145,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
             var festivals = LunarHelper.GetFestivals(now,
                 _settings.EnableInternationalFestivals,
                 _settings.EnableChineseTraditionalFestivals,
-                _settings.EnableRedFestivals,
-                _enableExperimentalFeatures);
+                _settings.EnableRedFestivals);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             
             await Dispatcher.UIThread.InvokeAsync(() => 
@@ -190,8 +172,6 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
-        if (Plugin.Instance?.Settings != null)
-            Plugin.Instance.Settings.PropertyChanged -= OnPluginSettingsPropertyChanged;
         _updateTimer?.Stop();
         _updateTimer?.Dispose();
     }

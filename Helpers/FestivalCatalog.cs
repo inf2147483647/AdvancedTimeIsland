@@ -29,7 +29,7 @@ public static class FestivalCatalog
     /// <summary>
     /// 添加中国传统节日（下个节日倒计时组件口径）。
     /// </summary>
-    public static void AddChineseTraditionalFestivals(List<(string Name, DateTime Date)> festivals, DateTime date, bool enableExperimental)
+    public static void AddChineseTraditionalFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
     {
         var solar = Solar.FromDate(date);
         var lunarYear = solar.Lunar.Year;
@@ -48,11 +48,7 @@ public static class FestivalCatalog
         festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
         festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
         festivals.Add(("除夕", GetChuXiDate(lunarYear)));
-
-        if (enableExperimental)
-        {
-            festivals.Add(("花朝节", LunarToSolar(lunarYear, 2, 15)));
-        }
+        festivals.Add(("花朝节", LunarToSolar(lunarYear, 2, 15)));
     }
 
     /// <summary>
@@ -156,7 +152,7 @@ public static class FestivalCatalog
     }
 
     /// <summary>
-    /// 枚举指定年份“主界面-节日”组件支持的全部节日（国际、中国传统、红色、实验性 4 类），
+    /// 枚举指定年份“主界面-节日”组件支持的全部节日（国际、中国传统、红色 3 类），
     /// 不受“管理启用的功能”等任何启用开关影响，按日期排序并按节日名去重，同义节日名合并为规范名，
     /// 且不展示早于其起源年份的节日。
     /// </summary>
@@ -170,8 +166,8 @@ public static class FestivalCatalog
         var date = start;
         while (true)
         {
-            // 一律按全部类别（国际/传统/红色/实验性）取节日
-            foreach (var name in LunarHelper.GetFestivals(date, true, true, true, true))
+            // 一律按全部类别（国际/传统/红色）取节日
+            foreach (var name in LunarHelper.GetFestivals(date, true, true, true))
             {
                 var canonical = NormalizeFestivalName(name);
                 if (!ExistsInYear(canonical, year))
