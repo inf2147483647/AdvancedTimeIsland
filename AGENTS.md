@@ -32,6 +32,5 @@
 最后调用AdvisorTool进行vibe review，没有此工具则跳过
 更改的内容需写入CHANGELOG.md文件中,若没有说明不要更新版本号
 然后执行Build-Package.ps1打包插件（构建命令已包含，全部success代表构建成功），若没有改动WPF版则跳过WPF版构建打包
-冒烟测试很重要，别忘了测一测
 每次打包后，需计算编译产物AdvancedTimeIsland.dll的MD5值，追加写入TraceIDlist.txt文件中，格式为[目标框架WPF/FA2/FA3]-[版本号]-[构建时间YYYY-MM-DD-hh-mm-ss]-[MD5值]
 
