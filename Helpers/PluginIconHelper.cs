@@ -6,7 +6,7 @@ using Avalonia.Media.Imaging;
 namespace AdvancedTimeIsland.Helpers;
 
 /// <summary>
-/// 插件根图标（manifest 引用的 icon.png）加载，供「关于」页与「女装」注意事项覆盖层共用。
+/// 插件根图标（manifest 引用的 icon.png）加载，供「关于」页使用。
 /// 包内不保留重复副本：优先读 <see cref="AppContext.BaseDirectory"/> 下的 icon.png，
 /// 读不到再回退到插件程序集所在目录。
 /// </summary>

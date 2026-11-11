@@ -451,8 +451,6 @@ public class PluginSettingsPage : UserControl
     private List<int>? _remainingIndices;
     private bool _isTyping;
     private ToggleSwitch? _experimentalToggle;
-    private ToggleSwitch? _easterEggToggle;
-    private Control? _easterEggExpander;
 
     /// <summary>
     /// 「管理启用的功能」表格中的一行：功能名 / 注释 / 是否启用，以及该行与设置项的读写映射。
@@ -626,28 +624,6 @@ public class PluginSettingsPage : UserControl
             FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Footer", experimentalFooterPanel);
 
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(experimentalExpander));
-
-            // 女装彩蛋（默认不可见）：状态不落盘，但跨页面重建保留（Plugin.EasterEggSessionActive），
-            // 因此这里按内存会话恢复：本次运行内触发过就保持显示 / 已开启，只有重启宿主才回到隐藏 / 未开启。
-            var isEasterEggEnabled = Plugin.EasterEggSessionActive;
-            _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggled);
-            _easterEggToggle.IsVisible = isEasterEggEnabled; // 未触发时隐藏，触发后由 ShowEasterEggSetting() 点亮
-
-            _easterEggExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Header", "女装");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Description", "开启后显示女装彩蛋页面");
-
-            var easterEggFooterPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            easterEggFooterPanel.Children.Add(_easterEggToggle);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Footer", easterEggFooterPanel);
-
-            _easterEggExpander.IsVisible = isEasterEggEnabled;
-            mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(_easterEggExpander));
 
             // 回声洞（实验性功能）
             _echoHoleButton = new Button
@@ -872,38 +848,6 @@ public class PluginSettingsPage : UserControl
         return comboBox;
     }
 
-    /// <summary>
-    /// 显示女装设置项
-    /// </summary>
-    public void ShowEasterEggSetting()
-    {
-        if (_easterEggExpander != null)
-        {
-            _easterEggExpander.IsVisible = true;
-        }
-        if (_easterEggToggle != null)
-        {
-            _easterEggToggle.IsVisible = true;
-            _easterEggToggle.IsChecked = true;
-        }
-    }
-
-    /// <summary>
-    /// 隐藏女装设置项
-    /// </summary>
-    public void HideEasterEggSetting()
-    {
-        if (_easterEggExpander != null)
-        {
-            _easterEggExpander.IsVisible = false;
-        }
-        if (_easterEggToggle != null)
-        {
-            _easterEggToggle.IsVisible = false;
-            _easterEggToggle.IsChecked = false;
-        }
-    }
-
     #region 事件处理
 
     private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
@@ -950,8 +894,6 @@ public class PluginSettingsPage : UserControl
             _settings.TimeZoneId = tz.Id;
         }
     }
-
-    public event EventHandler<bool>? EasterEggToggled;
 
     /// <summary>
     /// 「小工具」开关状态变化。关闭后主设置导航栏需立即移除「时间格式转换 / 时间计算器 / 专业名词解释」
@@ -1450,17 +1392,6 @@ public class PluginSettingsPage : UserControl
                 ClassIsland.Core.AppBase.Current.Restart();
             }
         });
-    }
-
-    private void OnEasterEggToggled(bool isEnabled)
-    {
-        // 女装状态不写入设置（不落盘，重启宿主才复位）：只做本页 UI 收起与事件转发，
-        // 由 AboutPage 维护内存会话状态（Plugin.EasterEggSessionActive）并增删「女装」标签页。
-        if (!isEnabled)
-        {
-            HideEasterEggSetting();
-        }
-        EasterEggToggled?.Invoke(this, isEnabled);
     }
 
     private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)

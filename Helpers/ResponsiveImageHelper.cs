@@ -70,7 +70,7 @@ public static class ResponsiveImageHelper
 
             // 【防泄漏】SizeChanged 订阅必须唯一且可退订：
             // - 页面每次重新进入视觉树 Loaded 都会触发，若每次都追加订阅，长生命周期页面
-            //   （如女装页内嵌的 EasterEggPage）会随切换次数无上限积累订阅与闭包；
+            //   会随切换次数无上限积累订阅与闭包；
             // - 来源可能解析到比页面更长命的宿主级控件，不退订会把整页控件树钉在内存里。
             if (!ReferenceEquals(found, source))
             {

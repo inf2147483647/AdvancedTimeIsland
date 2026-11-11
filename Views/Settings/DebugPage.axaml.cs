@@ -49,9 +49,6 @@ public partial class DebugPage : SettingsPageBase
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 8));
         WarningBarHost.Content = warningBar;
 
-        // “女装”为隐藏入口：启用实验性功能后才在调试页可见
-        WomenswearSection.IsVisible = Plugin.Instance?.Settings.EnableExperimentalFeatures ?? false;
-
         // 内存泄漏测试初始化
         MemoryLeakRateTextBox.Text = MemoryLeakTestService.Instance.LeakRate.ToString();
         var unitIndex = Array.IndexOf(new[] { "Byte", "KiB", "MiB" }, MemoryLeakTestService.Instance.LeakUnit);
@@ -84,11 +81,6 @@ public partial class DebugPage : SettingsPageBase
         NavigateSlideTo("AdvancedTimeIslandHanfuTemplate");
     }
 
-    private void ButtonWomenswear_OnClick(object? sender, RoutedEventArgs e)
-    {
-        NavigateSlideTo("AdvancedTimeIslandWomenswear");
-    }
-
     /// <summary>
     /// “调试页 → 子页面”的横滑转场：调试页各入口整体向左滑出，随后跳转；
     /// 目标页加载时从右侧错峰滑入（返回调试页时方向相反）。
@@ -100,21 +92,6 @@ public partial class DebugPage : SettingsPageBase
             RootPanel.Children,
             () => FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, pageId),
             forward: true);
-    }
-
-    /// <summary>
-    /// 显示女装使用须知：清除「已同意」标记后进入女装页，使该页重新展示首次进入时的版权注意事项覆盖层。
-    /// </summary>
-    private void ButtonShowWomenswearNotice_OnClick(object? sender, RoutedEventArgs e)
-    {
-        if (Plugin.Instance?.Settings is { } settings)
-        {
-            settings.WomenswearNoticeAccepted = false;
-            // 立即原子落盘：避免停留于 500ms 防抖窗口内时宿主退出导致「已同意」标记未清除
-            Plugin.Instance?.SaveSettingsNow();
-        }
-
-        NavigateSlideTo("AdvancedTimeIslandWomenswear");
     }
 
     /// <summary>

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -194,9 +194,6 @@ public class PluginSettings : INotifyPropertyChanged
     private int _countdownAlertSeconds = 60;
     private LongitudeDisplayMode _longitudeDisplayMode = LongitudeDisplayMode.Decimal;
     private bool _disclaimerAccepted = false;
-    private bool _easterEggDisclaimerAccepted = false;
-    private bool _easterEggInfoAccepted = false;
-    private bool _womenswearNoticeAccepted = false;
     // 默认 false：旧配置 / 升级用户反序列化时缺少该字段，视为尚未展示，
     // 升级后首次进入「主设置」同样会看到一次欢迎提示；展示后写回 true。
     private bool _welcomeGuideShown = false;
@@ -586,9 +583,9 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    // 【已移除】原先的 EnableEasterEgg 配置项不再存在：女装彩蛋状态改为只存在于内存会话
-    // （Plugin.EasterEggSessionActive，不写入 settings.json），页面重建后保留、重启宿主才复位。
-    // 旧配置里残留的 EnableEasterEgg 字段会在反序列化时被 System.Text.Json 按未知成员忽略。
+    // 【已移除】原女装彩蛋相关配置项（EnableEasterEgg / EasterEggDisclaimerAccepted /
+    // EasterEggInfoAccepted / WomenswearNoticeAccepted）随功能删除，旧 settings.json 中残留的
+    // 这些字段会在反序列化时被 System.Text.Json 按未知成员忽略。
 
     /// <summary>
     /// 是否已接受免责声明
@@ -601,54 +598,6 @@ public class PluginSettings : INotifyPropertyChanged
             if (_disclaimerAccepted != value)
             {
                 _disclaimerAccepted = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 是否已接受女装彩蛋免责声明
-    /// </summary>
-    public bool EasterEggDisclaimerAccepted
-    {
-        get => _easterEggDisclaimerAccepted;
-        set
-        {
-            if (_easterEggDisclaimerAccepted != value)
-            {
-                _easterEggDisclaimerAccepted = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 是否已接受女装彩蛋关闭方式信息
-    /// </summary>
-    public bool EasterEggInfoAccepted
-    {
-        get => _easterEggInfoAccepted;
-        set
-        {
-            if (_easterEggInfoAccepted != value)
-            {
-                _easterEggInfoAccepted = value;
-                OnPropertyChanged();
-            }
-        }
-    }
-
-    /// <summary>
-    /// 是否已同意「女装」页面的图片版权注意事项（首次进入该页面时整页展示，同意后方可查看内容）
-    /// </summary>
-    public bool WomenswearNoticeAccepted
-    {
-        get => _womenswearNoticeAccepted;
-        set
-        {
-            if (_womenswearNoticeAccepted != value)
-            {
-                _womenswearNoticeAccepted = value;
                 OnPropertyChanged();
             }
         }

@@ -27,7 +27,7 @@ using ClassIsland.Core.Models.UI;
 using ClassIsland.Shared;
 using ClassIsland.Shared.Enums;
 // Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity，
-// 用别名统一，业务代码统一用 FAInfoBarSeverity（同 EasterEggPage）
+// 用别名统一，业务代码统一用 FAInfoBarSeverity
 #if NET10_0_OR_GREATER
 using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
 #else
@@ -65,15 +65,10 @@ public class AboutPage : SettingsPageBase
         return luminance > 0.6 ? Brushes.Black : Brushes.White;
     }
 
-    private EasterEggDetector _easterEggDetector;
     private Border _iconBorder = null!;
     private TabControl? _tabControl;
     private DrawerHost? _drawerHost;
-    private bool _easterEggActive;
     private readonly PluginSettings? _pluginSettings;
-
-    /// <summary>集控验证进行中标记：防止验证窗口未关闭时重复进入激活流程。</summary>
-    private bool _easterEggActivating;
 
     /// <summary>
     /// 「管理启用的功能」- 小工具：关闭后主设置导航栏不显示「时间格式转换 / 时间计算器 / 专业名词解释」。
@@ -100,13 +95,6 @@ public class AboutPage : SettingsPageBase
     public AboutPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
-
-        // 女装彩蛋状态不落盘，但跨页面重建保留：状态放在 Plugin.EasterEggSessionActive（进程内静态字段），
-        // 页面重建（关闭设置窗口 / 切到别的设置页再回来）时从这里恢复，只有重启宿主（ClassIsland）才复位。
-        _easterEggActive = Plugin.EasterEggSessionActive;
-
-        _easterEggDetector = new EasterEggDetector(11, 5);
-        _easterEggDetector.OnActivated += OnEasterEggActivated;
 
         InitializeComponent();
         IntroAnimationHelper.EnableSmoothScroll(this);
@@ -172,7 +160,7 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 创建图标边框（带彩蛋检测）
+    /// 创建图标边框
     /// </summary>
     private Border CreateIconBorder()
     {
@@ -182,8 +170,7 @@ public class AboutPage : SettingsPageBase
             Height = 64,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0),
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Margin = new Thickness(0, 0, 16, 0)
         };
 
         var image = new Avalonia.Controls.Image
@@ -195,8 +182,6 @@ public class AboutPage : SettingsPageBase
 
         LoadIconImage(image);
         iconBorder.Child = image;
-
-        iconBorder.PointerPressed += OnIconClicked;
 
         return iconBorder;
     }
@@ -261,377 +246,8 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 图标点击事件
-    /// </summary>
-    private void OnIconClicked(object? sender, PointerPressedEventArgs e)
-    {
-        _easterEggDetector.RecordClick();
-    }
-
-    /// <summary>
-    /// 显示彩蛋触发提示窗口
-    /// </summary>
-    private void ShowEasterEggDialog()
-    {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "提示");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
-        {
-            Text = "触发彩蛋成功~",
-            FontSize = 16,
-            Foreground = ThemeHelper.GetTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        });
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
-    }
-
-    /// <summary>
-    /// 显示集控验证未通过的提示窗口。
-    /// </summary>
-    private void ShowEasterEggAuthFailedDialog()
-    {
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "提示");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
-        {
-            Text = "集控验证未通过，彩蛋未触发。",
-            FontSize = 16,
-            Foreground = ThemeHelper.GetTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            TextWrapping = TextWrapping.Wrap
-        });
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
-    }
-
-    /// <summary>女装答题验证的题目：题面 + 可接受答案组（判定前与用户输入一样先规范化）。</summary>
-    private sealed record EasterEggQuizQuestion(string Prompt, string[] AcceptableAnswers);
-
-    /// <summary>
-    /// 答题验证失败（提交了答案但有错）后的冷却截止时刻（UTC）——冷却期内不能再次触发答题；
-    /// 静态字段跨页面实例共享（设置页会被宿主重建）。「取消 / 关闭对话框」不算答错、不触发冷却。
-    /// </summary>
-    private static DateTime _quizCooldownUntilUtc = DateTime.MinValue;
-
-    /// <summary>
-    /// 女装答题验证题库（54 题：27 道数学填空 + 27 道英语单句语法填空）：
-    /// 触发时随机不重复抽取 5 题，全部答对才通过。
-    /// </summary>
-    private static readonly EasterEggQuizQuestion[] EasterEggQuizBank =
-    {
-        new("已知 f(x)=2x+1，则 f(3)=？", new[] { "7" }),
-        new("sin30°=？", new[] { "1/2", "0.5", "二分之一" }),
-        new("等差数列首项为 2，公差为 3，则第 5 项为？", new[] { "14" }),
-        new("等比数列首项为 1，公比为 2，则第 6 项为？", new[] { "32" }),
-        new("不等式 |x|<3 的整数解共有几个？", new[] { "5" }),
-        new("向量 a=(1,2)，b=(3,-1)，则 a 与 b 的数量积为？", new[] { "1" }),
-        new("直线 y=2x+1 的斜率为？", new[] { "2" }),
-        new("圆 x²+y²=9 的半径为？", new[] { "3" }),
-        new("抛物线 y²=8x 的焦点到准线的距离为？", new[] { "4" }),
-        new("cos60°=？", new[] { "1/2", "0.5", "二分之一" }),
-        new("tan45°=？", new[] { "1" }),
-        new("虚数单位 i 的平方等于？", new[] { "-1" }),
-        new("(1+i)+(2-i)=？", new[] { "3" }),
-        new("(x+1)³ 展开式中 x² 项的系数为？", new[] { "3" }),
-        new("从 5 人中任选 2 人，选法共有几种？", new[] { "10" }),
-        new("抛一枚均匀硬币两次，恰有一次正面的概率为？", new[] { "1/2", "0.5", "二分之一" }),
-        new("函数 y=x²-4x+3 的对称轴为 x=？", new[] { "2" }),
-        new("函数 f(x)=x³ 在 x=1 处的导数为？", new[] { "3" }),
-        new("数列 1,3,5,7,… 的第 10 项为？", new[] { "19" }),
-        new("等差数列首项为 1，公差为 2，则前 10 项和为？", new[] { "100" }),
-        new("已知 cosθ=1/2，且 θ 为锐角，则 θ=？", new[] { "60°", "60度", "π/3" }),
-        new("向量 (3,4) 的模为？", new[] { "5" }),
-        new("两点 (0,0) 与 (3,4) 之间的距离为？", new[] { "5" }),
-        new("直线 x+y-1=0 与 x 轴交点的横坐标为？", new[] { "1" }),
-        new("函数 y=2^x 在 x=0 时的函数值为？", new[] { "1" }),
-        new("以 2 为底 8 的对数为？", new[] { "3" }),
-        new("袋中有 3 个红球、2 个白球，任取 1 球，取到红球的概率为？", new[] { "3/5", "0.6", "五分之三" }),
-
-        // —— 英语单句语法填空（每空只填一个单词；大小写敏感：句首填空必须大写）——
-        new("The book ______ (write) by a famous writer sells well.", new[] { "written" }),
-        new("It was not until midnight ______ he came back.", new[] { "that" }),
-        new("______ (see) from the top of the hill, the city looks beautiful.", new[] { "Seen" }),
-        new("This is the house ______ windows face south.", new[] { "whose" }),
-        new("______ he will come tomorrow or not is still unknown.", new[] { "Whether" }),
-        new("The harder you work, ______ (good) results you will get.", new[] { "better" }),
-        new("She is the only one of the students who ______ (be) often late for class.", new[] { "is" }),
-        new("The film ______ (begin) at eight last night.", new[] { "began" }),
-        new("______ (face) with the problem, he felt worried.", new[] { "Faced" }),
-        new("There is no doubt ______ he will succeed.", new[] { "that" }),
-        new("He devoted himself to ______ (help) the poor.", new[] { "helping" }),
-        new("The teacher asked us to keep the classroom ______ (clean) and bright.", new[] { "clean" }),
-        new("______ (compare) with his brother, he is more outgoing.", new[] { "Compared" }),
-        new("The Great Wall ______ (attract) many tourists every year.", new[] { "attracts" }),
-        new("He spoke loudly ______ make himself heard.", new[] { "to" }),
-        new("Neither he nor I ______ (be) good at swimming now.", new[] { "am" }),
-        new("The house ______ (build) last year is very beautiful.", new[] { "built" }),
-        new("______ (walk) along the street, I met an old friend.", new[] { "Walking" }),
-        new("He is so honest a boy ______ we all like him.", new[] { "that" }),
-        new("The more careful you are, the ______ (few) mistakes you will make.", new[] { "fewer" }),
-        new("It is important ______ we should learn English well.", new[] { "that" }),
-        new("She had her hair ______ (cut) yesterday.", new[] { "cut" }),
-        new("______ (give) more time, we could have done it better.", new[] { "Given" }),
-        new("The book is worth ______ (read).", new[] { "reading" }),
-        new("He was so tired that he fell asleep ______ (immediate).", new[] { "immediately" }),
-        new("It was in the park ______ I met him.", new[] { "that" }),
-        new("The population of China is larger than ______ of Japan.", new[] { "that" }),
-    };
-
-    /// <summary>
-    /// 答案规范化：去除所有空白字符（半角 / 全角空格、制表符等）与零宽字符（U+200B/C/D、U+FEFF）。
-    /// 大小写不转换——英语题答案**大小写敏感**：位于句首的填空必须大写（如 Seen / Whether / Faced /
-    /// Compared / Walking / Given），小写判错；句中词、数学与中文答案不受影响。
-    /// </summary>
-    private static string NormalizeQuizAnswer(string input)
-    {
-        if (string.IsNullOrEmpty(input))
-        {
-            return string.Empty;
-        }
-
-        var sb = new StringBuilder(input.Length);
-        foreach (var ch in input)
-        {
-            if (char.IsWhiteSpace(ch))
-            {
-                continue;
-            }
-            if (ch is '\u200B' or '\u200C' or '\u200D' or '\uFEFF')
-            {
-                continue;
-            }
-            sb.Append(ch);
-        }
-        return sb.ToString();
-    }
-
-    private static bool IsQuizAnswerCorrect(string? input, EasterEggQuizQuestion question)
-    {
-        var normalized = NormalizeQuizAnswer(input ?? string.Empty);
-        if (normalized.Length == 0)
-        {
-            return false;
-        }
-
-        foreach (var acceptable in question.AcceptableAnswers)
-        {
-            if (NormalizeQuizAnswer(acceptable) == normalized)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-
-    /// <summary>
-    /// 女装答题验证对话框：从 54 题库随机不重复抽 5 题，全部答对返回 true；有错题时锁定作答、
-    /// 指出错题并揭晓正确答案，对话框在 10 × 答错数量 秒后自动关闭（或手动关闭）——两种关闭方式
-    /// 均按验证失败处理（返回 false）；「取消」/ 关闭对话框同样按失败处理但不进入答题冷却。
-    /// </summary>
-    private Task<bool> ShowEasterEggQuizAsync()
-    {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null)
-        {
-            return Task.FromResult(false);
-        }
-
-        // 随机不重复抽 5 题（洗牌取前 5）
-        var questions = EasterEggQuizBank.OrderBy(_ => Random.Shared.Next()).Take(5).ToArray();
-        var inputs = new TextBox[questions.Length];
-        var promptTexts = new TextBlock[questions.Length];
-
-        var questionPanel = new StackPanel { Spacing = 14 };
-        for (var i = 0; i < questions.Length; i++)
-        {
-            var index = i; // 避免闭包捕获循环变量
-            inputs[index] = new TextBox { Watermark = "请输入答案" };
-            promptTexts[index] = new TextBlock
-            {
-                Text = $"第 {index + 1} 题：{questions[index].Prompt}",
-                TextWrapping = TextWrapping.Wrap,
-                FontSize = 15,
-                Foreground = ThemeHelper.GetTextBrush()
-            };
-            questionPanel.Children.Add(promptTexts[index]);
-            questionPanel.Children.Add(inputs[index]);
-        }
-
-        var content = new StackPanel { Spacing = 12 };
-        content.Children.Add(new ScrollViewer { MaxHeight = 420, Content = questionPanel });
-
-        var succeeded = false;
-        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "验证");
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", content);
-        // 不使用原生底部按钮行：FA ContentDialog 的按钮顺序固定为 [Primary 左 | Close 右]，
-        // 无法呈现「取消在左、确认在右」；改为内容区底部自定义按钮行（关闭 = 只设 CloseButtonText 为空，
-        // 原生按钮全部隐藏）
-
-        Action succeededHide = () => dialog.GetType().GetMethod("Hide", Type.EmptyTypes)?.Invoke(dialog, null);
-
-        // 提交后的结果提示行（全对时不可见）
-        var resultText = new TextBlock
-        {
-            IsVisible = false,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-
-        // 底部按钮行：左侧「取消」（普通样式）、右侧「提交答案」（确认/accent 样式）
-        var cancelButton = new Button { Content = "取消", MinWidth = 84 };
-        var submitButton = new Button { Content = "提交答案", MinWidth = 84 };
-        if (Application.Current?.Styles.TryGetResource("AccentFillColorDefaultBrush", Application.Current.ActualThemeVariant, out var accentBrush) == true && accentBrush is IBrush accentFill)
-        {
-            submitButton.Background = accentFill;
-        }
-        if (Application.Current?.Styles.TryGetResource("TextOnAccentFillColorPrimaryBrush", Application.Current.ActualThemeVariant, out var onAccentBrush) == true && onAccentBrush is IBrush onAccentFill)
-        {
-            submitButton.Foreground = onAccentFill;
-        }
-
-        var closed = false;
-        Avalonia.Threading.DispatcherTimer? countdownTimer = null;
-
-        // 提交判定：全部答对才通过；有错题则进入 30 秒答题冷却（外层重置连点计数）、锁定作答、
-        // 指出错题——已作答的错题揭晓正确答案，未作答的题目只标错、不展示答案；对话框在
-        // 10 × 答错数量 秒后自动关闭（或手动关闭）
-        submitButton.Click += (_, _) =>
-        {
-            var wrong = new List<int>();  // 答错且已作答（揭晓答案）
-            var blank = new List<int>();  // 未作答（只标错，不展示答案）
-            for (var i = 0; i < questions.Length; i++)
-            {
-                if (IsQuizAnswerCorrect(inputs[i].Text, questions[i]))
-                {
-                    continue;
-                }
-                var answered = NormalizeQuizAnswer(inputs[i].Text ?? string.Empty).Length > 0;
-                if (answered)
-                {
-                    wrong.Add(i);
-                }
-                else
-                {
-                    blank.Add(i);
-                }
-            }
-
-            var wrongTotal = wrong.Count + blank.Count;
-            if (wrongTotal == 0)
-            {
-                succeeded = true;
-                succeededHide();
-                return;
-            }
-
-            _quizCooldownUntilUtc = DateTime.UtcNow.AddSeconds(30);
-
-            // 提交后不能修改：锁定全部输入框与提交按钮
-            foreach (var input in inputs)
-            {
-                input.IsEnabled = false;
-            }
-            submitButton.IsEnabled = false;
-
-            // 指出错题（题面标红 ✗）；仅已作答的错题在其输入框下方揭晓正确答案。
-            // 从后往前处理避免子元素位移
-            var allWrong = new List<int>(wrong);
-            allWrong.AddRange(blank);
-            allWrong.Sort((a, b) => b.CompareTo(a));
-            foreach (var index in allWrong)
-            {
-                promptTexts[index].Text = "✗ " + promptTexts[index].Text;
-                promptTexts[index].Foreground = Brushes.Red;
-                if (!wrong.Contains(index))
-                {
-                    continue; // 未作答：不展示答案
-                }
-                var reveal = new TextBlock
-                {
-                    Text = "正确答案：" + string.Join(" / ", questions[index].AcceptableAnswers),
-                    FontSize = 14,
-                    Margin = new Thickness(0, -8, 0, 0),
-                    Foreground = ThemeHelper.GetTextBrush()
-                };
-                questionPanel.Children.Insert(index * 2 + 2, reveal);
-            }
-
-            // 倒计时：10 × 答错数量 秒后自动关闭
-            string BuildResultText(int remain) => blank.Count > 0
-                ? $"答错 {wrongTotal} 题（含 {blank.Count} 题未作答，未作答的题目不展示答案），正确答案已标注在对应错题下方；作答已锁定，对话框将在 {remain} 秒后自动关闭（也可手动关闭）"
-                : $"答错 {wrongTotal} 题，正确答案已标注在对应题目下方；作答已锁定，对话框将在 {remain} 秒后自动关闭（也可手动关闭）";
-            var remaining = wrongTotal * 10;
-            resultText.IsVisible = true;
-            resultText.Text = BuildResultText(remaining);
-            countdownTimer = new Avalonia.Threading.DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
-            countdownTimer.Tick += (_, _) =>
-            {
-                if (closed)
-                {
-                    countdownTimer?.Stop();
-                    return;
-                }
-                remaining--;
-                if (remaining <= 0)
-                {
-                    countdownTimer?.Stop();
-                    closed = true;
-                    succeededHide();
-                    return;
-                }
-                resultText.Text = BuildResultText(remaining);
-            };
-            countdownTimer.Start();
-        };
-        cancelButton.Click += (_, _) =>
-        {
-            // 取消不算答错：按失败处理（重置连点计数）但不进入答题冷却
-            closed = true;
-            countdownTimer?.Stop();
-            succeededHide();
-        };
-
-        var buttonRow = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto"),
-            Margin = new Thickness(0, 12, 0, 0)
-        };
-        Grid.SetColumn(cancelButton, 1);
-        Grid.SetColumn(submitButton, 2);
-        buttonRow.Children.Add(cancelButton);
-        buttonRow.Children.Add(submitButton);
-        content.Children.Add(resultText);
-        content.Children.Add(buttonRow);
-
-        var tcs = new TaskCompletionSource<bool>(TaskCreationOptions.RunContinuationsAsynchronously);
-        // 对话框关闭（取消 / 遮罩点击 / 提交后的 Hide）时 ShowAsync 完成——按最终标志收尾并停掉倒计时
-        var showTask = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
-        showTask.ContinueWith(t =>
-        {
-            if (t.IsFaulted)
-            {
-                System.Diagnostics.Debug.WriteLine($"[EasterEgg] 答题对话框异常关闭：{t.Exception}");
-            }
-            // 手动关闭（遮罩 / ESC 等）也要停掉倒计时计时器；Stop 需在 UI 线程调用
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                closed = true;
-                countdownTimer?.Stop();
-            });
-            tcs.TrySetResult(succeeded);
-        }, TaskScheduler.Default);
-
-        return tcs.Task;
-    }
-
-    /// <summary>
     /// 集控验证：宿主已加入集控且集控下发了凭据（管理员 / 用户凭据）时，必须先通过宿主原生的
-    /// 集控凭据校验才能继续（用于「女装」彩蛋触发与「管理启用的功能」中受保护项的开启）。
+    /// 集控凭据校验才能继续（用于「管理启用的功能」中受保护项的开启）。
     /// <para>
     /// 这里不直接读取 <c>IManagementService.CredentialConfig</c> 判断"是否设了密码"，而是统一调用
     /// <c>AuthorizeByLevel</c>：宿主实现里"两种凭据都为空"会直接返回 true（不弹窗），有凭据时才弹出
@@ -663,125 +279,9 @@ public class AboutPage : SettingsPageBase
         catch (Exception ex)
         {
             // 集控已启用却无法完成验证（服务异常 / 凭据数据损坏）时按失败处理：
-            // 宁可让彩蛋触发不了，也不要让被集控管理的设备绕开管理员设置。
-            System.Diagnostics.Debug.WriteLine($"[EasterEgg] 集控验证异常：{ex}");
+            // 宁可让受保护功能无法开启，也不要让被集控管理的设备绕开管理员设置。
+            System.Diagnostics.Debug.WriteLine($"[集控验证] 异常：{ex}");
             return false;
-        }
-    }
-
-    /// <summary>
-    /// 无需任何验证即可触发「女装」彩蛋的受信设备 ID。
-    /// 取值即 Windows「设置 → 系统 → 系统信息」中的「设备 ID」，
-    /// 对应注册表 <c>HKLM\SOFTWARE\Microsoft\SQMClient\MachineId</c>（值带花括号）。
-    /// </summary>
-    private const string VerificationExemptDeviceId = "242D46AC-C7B4-4D45-8279-BE834CBAE32B";
-
-    /// <summary>
-    /// 本机是否为受信设备：是则触发「女装」彩蛋时跳过答题与集控凭据验证（均不弹窗）。
-    /// 读取注册表失败或设备 ID 不一致时返回 false，仍走原有验证流程。
-    /// </summary>
-    private static bool IsVerificationExemptDevice()
-    {
-        try
-        {
-            var value = Microsoft.Win32.Registry.GetValue(
-                @"HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\SQMClient", "MachineId", null);
-            if (value is not string raw)
-            {
-                return false;
-            }
-
-            var id = raw.Trim().Trim('{', '}');
-            return string.Equals(id, VerificationExemptDeviceId, StringComparison.OrdinalIgnoreCase);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-
-    /// <summary>
-    /// 彩蛋激活处理：先做集控验证（加入集控且设置了凭据时必须通过），再点亮「女装」标签页。
-    /// 状态不写回设置（不落盘），只保留在内存会话中（<see cref="Plugin.EasterEggSessionActive"/>），
-    /// 页面重建会恢复，重启宿主才复位。
-    /// 受信设备（见 <see cref="IsVerificationExemptDevice"/>）跳过答题与集控验证，不做任何验证直接触发。
-    /// </summary>
-    private async void OnEasterEggActivated(object? sender, EventArgs e)
-    {
-        if (_easterEggActive || _easterEggActivating) return;
-
-        // 触发门槛：仅当「实验性功能」开关在插件启动（应用重启）时已开启才可触发（快照判定，
-        // 运行中改开关不影响本次会话）。未开启时静默重置检测器——彩蛋本就是隐藏性质，不做提示。
-        if (!Plugin.EasterEggGateEnabled)
-        {
-            _easterEggDetector.Reset();
-            return;
-        }
-
-        _easterEggActivating = true;
-        try
-        {
-            if (!IsVerificationExemptDevice())
-            {
-                // 答题冷却：上次答错后 30 秒内不能再次触发答题（静默重置检测器，
-                // 连点计数从头累计；「取消 / 关闭对话框」不算答错、不进入冷却）
-                if (DateTime.UtcNow < _quizCooldownUntilUtc)
-                {
-                    _easterEggDetector.Reset();
-                    return;
-                }
-
-                // 答题验证（先于集控验证）：27 题库随机不重复抽 5 题、全部答对才算通过；
-                // 取消 / 关闭按失败处理，重置检测器允许重新累计点击后再试
-                if (!await ShowEasterEggQuizAsync())
-                {
-                    _easterEggDetector.Reset();
-                    return;
-                }
-
-                if (!await VerifyManagementCredentialAsync())
-                {
-                    // 验证取消 / 失败：重置检测器，允许用户重新累计点击后再试
-                    _easterEggDetector.Reset();
-                    ShowEasterEggAuthFailedDialog();
-                    return;
-                }
-            }
-
-            _easterEggActive = true;
-            Plugin.EasterEggSessionActive = true;
-            SyncNavigationTabs();
-            ShowEasterEggDialog();
-        }
-        finally
-        {
-            _easterEggActivating = false;
-        }
-    }
-
-    /// <summary>
-    /// 女装开关状态变化处理（设置页里的开关只在彩蛋已触发时可见）。
-    /// 该状态不写回设置（不落盘），但同步到内存会话，页面重建后仍保留，重启宿主才复位。
-    /// </summary>
-    private void OnEasterEggToggled(object? sender, bool isEnabled)
-    {
-        if (isEnabled)
-        {
-            if (_easterEggActive) return;
-            _easterEggActive = true;
-            Plugin.EasterEggSessionActive = true;
-            SyncNavigationTabs();
-            return;
-        }
-
-        // 关闭彩蛋时同步重置检测器，保证再次开启后可重新累计点击触发
-        _easterEggDetector?.Reset();
-
-        if (_easterEggActive)
-        {
-            _easterEggActive = false;
-            Plugin.EasterEggSessionActive = false;
-            SyncNavigationTabs();
         }
     }
 
@@ -827,19 +327,13 @@ public class AboutPage : SettingsPageBase
         }
     }
 
-    /// <summary>「女装」标签页的 Tag（内容懒加载，与其它标签页一致）。</summary>
-    private const string EasterEggTabTag = "EasterEgg";
-
     /// <summary>受「小工具」开关控制的三个标签页的 Tag。</summary>
     private static readonly string[] UtilityTabTags = { "TimeConverter", "TimeCalculator", "Glossary" };
 
     /// <summary>
-    /// 按当前开关同步导航栏标签页：只增删受开关控制的标签页（「小工具」三个 + 「女装」一个）。
-    /// 【FA3 修复】原实现把整条导航栏 <c>Items.Clear()</c> 后重新添加：触发彩蛋是在点击事件里调用它的，
-    ///   此时清空并重建 TabControl 的 Items 会让内容演示器停留在失效状态，表现为
-    ///   "首次切到女装标签页一片空白，再切一次才正常"。改为按需增删即不会破坏演示器状态；
-    ///   同时新增的标签页一律懒加载（Content = null，选中时才由 LoadTabContent 创建内容），
-    ///   与「时间格式转换」等既有标签页走完全相同的加载路径。
+    /// 按当前开关同步导航栏标签页：只增删受「小工具」开关控制的三个标签页。
+    /// 按需增删而整体重建，避免破坏 TabControl 内容演示器状态；新增标签页一律懒加载
+    /// （Content = null，选中时才由 LoadTabContent 创建内容）。
     /// </summary>
     private void SyncNavigationTabs()
     {
@@ -847,7 +341,7 @@ public class AboutPage : SettingsPageBase
 
         var tabs = _tabControl.Items.OfType<TabItem>().ToList();
 
-        // ① 「小工具」：控制三个工具标签页（插在「关于」之后，保持 插件设置 / 关于 / 工具… / 女装 的顺序）
+        // 「小工具」：控制三个工具标签页（插在「关于」之后）
         var hasUtilityTabs = tabs.Any(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag));
         if (UtilitiesEnabled && !hasUtilityTabs)
         {
@@ -861,20 +355,6 @@ public class AboutPage : SettingsPageBase
         else if (!UtilitiesEnabled && hasUtilityTabs)
         {
             foreach (var tab in tabs.Where(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag)).ToList())
-            {
-                _tabControl.Items.Remove(tab);
-            }
-        }
-
-        // ② 「女装」：始终排在最后
-        var hasEasterEggTab = tabs.Any(tab => (tab.Tag as string) == EasterEggTabTag);
-        if (_easterEggActive && !hasEasterEggTab)
-        {
-            _tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
-        }
-        else if (!_easterEggActive && hasEasterEggTab)
-        {
-            foreach (var tab in tabs.Where(tab => (tab.Tag as string) == EasterEggTabTag).ToList())
             {
                 _tabControl.Items.Remove(tab);
             }
@@ -1142,7 +622,7 @@ public class AboutPage : SettingsPageBase
     private ChangelogErrorRecord? _lastChangelogError;
 
     /// <summary>
-    /// 构建加载失败 / 异常占位视图（照搬 EasterEggPage 错误面板模式）：
+    /// 构建加载失败 / 异常占位视图：
     /// 标题 + 错误详情文本 + 右键“另存为…”（MenuFlyout 挂 ContextFlyout——FA3 无 ContextMenu 样式），
     /// 把加载失败记录导出为文本日志，成功/失败均通过宿主右下角 Toast 提示。
     /// </summary>
@@ -1188,7 +668,7 @@ public class AboutPage : SettingsPageBase
             Margin = new Thickness(0, 12, 0, 0)
         });
 
-        // 右键“另存为…”错误日志（与 EasterEggPage 错误面板一致：MenuFlyout/ContextFlyout 在 FA2/FA3 行为一致）
+        // 右键“另存为…”错误日志（MenuFlyout/ContextFlyout 在 FA2/FA3 行为一致）
         var saveLogMenuItem = new MenuItem { Header = "另存为…" };
         saveLogMenuItem.Click += async (_, _) => await SaveChangelogErrorLogAsync(root);
         var menuFlyout = new MenuFlyout();
@@ -1203,7 +683,7 @@ public class AboutPage : SettingsPageBase
     /// <summary>
     /// “另存为错误日志”：弹出系统保存文件对话框（默认 .txt），把更新日志加载失败记录
     /// （含环境信息）写入用户选择的位置。对话框 await 异步等待，写盘在后台线程执行；
-    /// 成功/失败均通过宿主右下角 Toast 提示。交互照搬 EasterEggPage 的 SaveErrorLogAsAsync。
+    /// 成功/失败均通过宿主右下角 Toast 提示。
     /// </summary>
     private async Task SaveChangelogErrorLogAsync(Control anchor)
     {
@@ -1264,7 +744,7 @@ public class AboutPage : SettingsPageBase
         }
     }
 
-    /// <summary>组装更新日志错误日志文本：环境信息 + 失败记录（时间/异常类型/消息）。结构照搬 EasterEggPage。</summary>
+    /// <summary>组装更新日志错误日志文本：环境信息 + 失败记录（时间/异常类型/消息）。</summary>
     private string BuildChangelogErrorLogText()
     {
         var sb = new StringBuilder();
@@ -1284,7 +764,7 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 把保存失败异常翻译为用户可读的具体原因（照搬 EasterEggPage 的 DescribeSaveFailure）：
+    /// 把保存失败异常翻译为用户可读的具体原因：
     /// 磁盘空间不足 / 无写入权限 / 路径无效 / 文件被占用等。
     /// </summary>
     private static string DescribeSaveFailure(string targetPath, Exception ex)
@@ -1496,11 +976,6 @@ public class AboutPage : SettingsPageBase
             tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
         }
 
-        if (_easterEggActive)
-        {
-            tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
-        }
-
         return tabControl;
     }
 
@@ -1525,20 +1000,12 @@ public class AboutPage : SettingsPageBase
                     // 抽屉宿主在根页面上：本页只提供取值委托与抽屉内容，宿主在点击时才被取用
                     // （避免本页创建时宿主尚未创建而注入 null）
                     pluginSettings.FeatureDrawerHostProvider = () => _drawerHost;
-                    if (_easterEggActive)
-                    {
-                        pluginSettings.ShowEasterEggSetting();
-                    }
-                    pluginSettings.EasterEggToggled += OnEasterEggToggled;
                     // 【管理启用的功能】「小工具」变更后立即重建导航栏标签页（无需重启）
                     pluginSettings.UtilitiesToggled += OnUtilitiesToggled;
                     tabItem.Content = pluginSettings;
                     break;
                 case "Glossary":
                     tabItem.Content = new GlossaryPage(_pluginSettings);
-                    break;
-                case "EasterEgg":
-                    tabItem.Content = new EasterEggPage(_pluginSettings);
                     break;
                 default:
                     tabItem.Content = new TextBlock { Text = "内容加载中...", Foreground = ThemeHelper.GetTextBrush() };
@@ -1598,11 +1065,6 @@ public class AboutPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
-
-        // 女装彩蛋状态不落盘，但跨页面保留（见 Plugin.EasterEggSessionActive）：
-        // 离开设置页只清掉本页的连点检测计数，已触发/已开启状态保留，只有重启宿主才复位。
-        _easterEggActivating = false;
-        _easterEggDetector?.Reset();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

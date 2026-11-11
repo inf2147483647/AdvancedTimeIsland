@@ -1095,7 +1095,7 @@ public static class IntroAnimationHelper
         var host = new Border
         {
             Child = inner,
-            // 与内部控件初始可见性保持一致（如“女装”折叠栏默认隐藏）
+            // 与内部控件初始可见性保持一致
             IsVisible = inner.IsVisible
         };
 
@@ -1425,7 +1425,7 @@ public static class IntroAnimationHelper
 
         private void OnInnerPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs e)
         {
-            // 折叠栏整体被外部隐藏（如“女装”入口）时，宿主跟随
+            // 折叠栏整体被外部隐藏时，宿主跟随
             if (e.Property.Name == "IsVisible")
             {
                 _host.IsVisible = _inner.IsVisible;

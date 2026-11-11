@@ -37,18 +37,6 @@ public class Plugin : PluginBase
     public static Plugin Instance { get; private set; } = null!;
 
     /// <summary>
-    /// 「女装」彩蛋触发门槛的启动快照：仅当「实验性功能」开关在插件启动（应用重启）时已开启，
-    /// 主设置的「女装」彩蛋才可被连点触发。运行中改开关不刷新本快照（改完需重启应用才生效）。
-    /// </summary>
-    public static bool EasterEggGateEnabled { get; private set; }
-
-    /// <summary>
-    /// 「女装」彩蛋的本次运行会话状态（是否已触发/已开启）。
-    /// 只存在于内存中：设置页重建、切到别的设置页再回来都不会丢失，重启宿主（ClassIsland）后才复位为未触发。
-    /// </summary>
-    public static bool EasterEggSessionActive { get; set; }
-
-    /// <summary>
     /// 启动自检结果：插件包与宿主 FluentAvalonia 大版本不匹配时的提示文本（匹配时为 null）。
     /// net8 包只能跑在 FA2（Avalonia 11）宿主，net10 包只能跑在 FA3（Avalonia 12）宿主；
     /// 装错包时 FA2/FA3 的控件类型名不同（如 FontIcon → FAFontIcon），设置页会在初始化阶段报错。
@@ -128,10 +116,6 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
-
-        // 「女装」彩蛋触发门槛快照：只在插件启动（Initialize）时读一次，
-        // 运行中改「实验性功能」开关不影响本次会话，重启应用后才生效
-        EasterEggGateEnabled = Settings.EnableExperimentalFeatures;
     }
 
     private void SaveSettings()
@@ -508,10 +492,6 @@ public class Plugin : PluginBase
 
         // 加载已保存的设置
         LoadSettings();
-
-        // 女装页图片顺序：在宿主初始化阶段随机排列一次，本次 ClassIsland 运行期内保持固定（重启才重新随机），
-        // 而非每次打开女装页时重排
-        Views.Settings.EasterEggPage.PrimeWomenswearImageOrder();
 
         // 订阅设置变更事件，自动保存（LoadSettings 中已订阅，此处为双重保险）
         if (Settings != null)
@@ -1839,7 +1819,6 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
-        services.AddSettingsPage<Views.Settings.WomenswearPage>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
         // 【管理启用的功能】帧率折线图及其分析页面：需先开启「实验性功能」（帧率采集依赖实验性功能下的

@@ -1,5 +1,9 @@
 ## [2.0.6.3]
 
+### 破坏性变更
+
+- **删除「女装」彩蛋功能（仅 Avalonia 版）**：彻底移除女装彩蛋，包括「关于」页图标连点触发、54 题答题验证、集控凭据校验与受信设备白名单、主设置中的「女装」折叠栏与标签页、调试页「女装」入口与「显示女装使用须知」按钮、`WomenswearPage` / `EasterEggPage` / `WomenswearNoticeOverlay` / `WomenswearSkirtIcon` 页面与控件、`EasterEggDetector` 与 `CrossPluginHelper` 辅助类，以及 `Plugin.EasterEggGateEnabled` / `Plugin.EasterEggSessionActive` 与 `EasterEggDisclaimerAccepted` / `EasterEggInfoAccepted` / `WomenswearNoticeAccepted` 配置项。`manifest.yml` 中仅供女装 JK 制服页使用的可选依赖 `lrs2187.LibPinyin` 一并移除。旧 `settings.json` 中残留的相关字段会在反序列化时按未知成员忽略，不会导致插件加载失败。WPF 版按维护约定未同步此变更。
+
 ### 变更
 
 - **「时间范围间隔触发」系列触发器转正（仅 Avalonia 版）**：精确 / 每年 / 每月 / 每天 / 每小时 / 每分钟 / 绝对时间戳共 7 个基础间隔触发器不再受「实验性功能」开关控制，改为始终注册；地方时（6 个）、区时（5 个）、农历（3 个）间隔触发器同样转正，但仍由「管理启用的功能」中对应的「地方时」「区时」「农历」开关控制。未开启实验性功能的用户升级后可直接在自动化编辑器中使用这些触发器，已配置的自动化无需改动；「使用指南」中相关说明同步更新。WPF 版按维护约定未同步此变更。
