@@ -829,80 +829,119 @@ public static class FluentAvaloniaCompatibilityHelper
         if (control == null)
             return;
 
-        try
+        var container = Avalonia.Controls.TopLevel.GetTopLevel(control);
+
+        // Avalonia 12 的 NavigationPage 宿主（ClassIsland 2.1 设置窗口）：直接操作导航栈返回。
+        // 目标页在导航离开时被 Unmount（其 SettingsContentPage 的 Decorator.Child 被置空），
+        // 因此必须先反射调用其 Mount() 重新挂载，再 PopAsync，否则返回后只剩空壳。
+        if (container != null)
         {
-            // 尝试查找 FA 2.x 和 FA 3.0 的 Frame/NavigationView 类型
-            var frameTypes = new[]
-            {
-                ResolveFaType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
-                ResolveFaType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
-            };
-
-            var navigationViewTypes = new[]
-            {
-                ResolveFaType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
-                ResolveFaType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
-            };
-
             foreach (var ancestor in control.GetVisualAncestors())
             {
-                var ancestorType = ancestor.GetType();
-                
-                foreach (var frameType in frameTypes)
+                if (ancestor.GetType().GetProperty("NavigationStack", BindingFlags.Public | BindingFlags.Instance)?
+                        .GetValue(ancestor) is not System.Collections.IEnumerable stack)
                 {
-                    if (frameType != null && frameType.IsAssignableFrom(ancestorType))
-                    {
-                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                        if (goBackMethod != null)
-                        {
-                            goBackMethod.Invoke(ancestor, null);
-                            return;
-                        }
-                    }
+                    continue;
                 }
 
-                foreach (var navViewType in navigationViewTypes)
+                var pages = stack.Cast<object>().ToList();
+                if (pages.Count < 2)
                 {
-                    if (navViewType != null && navViewType.IsAssignableFrom(ancestorType))
+                    continue;
+                }
+
+                var destination = pages[^2];
+                destination.GetType().GetMethod("Mount", BindingFlags.Public | BindingFlags.Instance,
+                        null, Type.EmptyTypes, null)?
+                    .Invoke(destination, null);
+
+                var popAsync = ancestor.GetType().GetMethod("PopAsync", BindingFlags.Public | BindingFlags.Instance,
+                    null, Type.EmptyTypes, null);
+                if (popAsync != null)
+                {
+                    popAsync.Invoke(ancestor, null);
+                    return;
+                }
+            }
+        }
+
+        // 其他宿主（如 ViewHost）：走 ViewBase.TryGoBack，它会自行处理挂载与返回
+        if (container?.GetType().GetMethod("TryGoBack", BindingFlags.Public | BindingFlags.Instance,
+                null, Type.EmptyTypes, null) is { } tryGoBack
+            && tryGoBack.Invoke(container, null) is not false)
+        {
+            return;
+        }
+
+        // FA 2.x 与 FA 3.0 的 Frame / NavigationView 回退路径
+        var frameTypes = new[]
+        {
+            ResolveFaType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
+            ResolveFaType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
+        };
+
+        var navigationViewTypes = new[]
+        {
+            ResolveFaType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
+            ResolveFaType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
+        };
+
+        foreach (var ancestor in control.GetVisualAncestors())
+        {
+            var ancestorType = ancestor.GetType();
+
+            foreach (var frameType in frameTypes)
+            {
+                if (frameType != null && frameType.IsAssignableFrom(ancestorType))
+                {
+                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
+                    if (goBackMethod != null)
                     {
-                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                        if (goBackMethod != null)
-                        {
-                            goBackMethod.Invoke(ancestor, null);
-                            return;
-                        }
+                        goBackMethod.Invoke(ancestor, null);
+                        return;
                     }
                 }
             }
 
-            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(control);
-            if (topLevel != null)
+            foreach (var navViewType in navigationViewTypes)
             {
-                foreach (var frameType in frameTypes)
+                if (navViewType != null && navViewType.IsAssignableFrom(ancestorType))
                 {
-                    var frame = FindVisualChildOfType(topLevel, frameType);
-                    if (frame != null)
+                    var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
+                    if (goBackMethod != null)
                     {
-                        var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                        goBackMethod?.Invoke(frame, null);
-                        return;
-                    }
-                }
-
-                foreach (var navViewType in navigationViewTypes)
-                {
-                    var navView = FindVisualChildOfType(topLevel, navViewType);
-                    if (navView != null)
-                    {
-                        var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                        goBackMethod?.Invoke(navView, null);
+                        goBackMethod.Invoke(ancestor, null);
                         return;
                     }
                 }
             }
         }
-        catch
+
+        if (container == null)
         {
+            return;
+        }
+
+        foreach (var frameType in frameTypes)
+        {
+            var frame = FindVisualChildOfType(container, frameType);
+            if (frame != null)
+            {
+                var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                goBackMethod?.Invoke(frame, null);
+                return;
+            }
+        }
+
+        foreach (var navViewType in navigationViewTypes)
+        {
+            var navView = FindVisualChildOfType(container, navViewType);
+            if (navView != null)
+            {
+                var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
+                goBackMethod?.Invoke(navView, null);
+                return;
+            }
         }
     }
 

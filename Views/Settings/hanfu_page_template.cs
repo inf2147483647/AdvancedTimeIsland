@@ -3915,7 +3915,7 @@ InfoBar 语法格式：
     {
         var scrollViewer = new ScrollViewer
         {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
             Margin = new Thickness(0, 4, 0, 4)
         };
@@ -3928,10 +3928,8 @@ InfoBar 语法格式：
             Padding = new Thickness(1)
         };
 
-        var tablePanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical
-        };
+        // 整张表共用一套行列定义，保证各行的内部分割线严格对齐
+        var tableGrid = new Grid();
 
         var columnCount = 0;
         foreach (var row in table)
@@ -3942,77 +3940,88 @@ InfoBar 语法格式：
             }
         }
 
+        for (int i = 0; i < columnCount; i++)
+        {
+            tableGrid.ColumnDefinitions.Add(new ColumnDefinition
+            {
+                Width = new GridLength(1, GridUnitType.Star),
+                MinWidth = 72
+            });
+        }
+
+        var rowIndex = 0;
         foreach (var row in table)
         {
-            if (row is Markdig.Extensions.Tables.TableRow tableRow)
+            if (row is not Markdig.Extensions.Tables.TableRow tableRow)
             {
-                var rowGrid = new Grid();
-                
-                for (int i = 0; i < columnCount; i++)
+                continue;
+            }
+
+            tableGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+            if (tableRow.IsHeader)
+            {
+                var headerBackground = new Border
                 {
-                    rowGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+                    Background = ThemeHelper.GetLightBlueBrush(),
+                    CornerRadius = new CornerRadius(3, 3, 0, 0)
+                };
+                Grid.SetRow(headerBackground, rowIndex);
+                Grid.SetColumn(headerBackground, 0);
+                Grid.SetColumnSpan(headerBackground, columnCount);
+                tableGrid.Children.Add(headerBackground);
+            }
+
+            var cellIndex = 0;
+            foreach (var cell in tableRow)
+            {
+                if (cell is not Markdig.Extensions.Tables.TableCell tableCell)
+                {
+                    continue;
                 }
 
-                var cellIndex = 0;
-                foreach (var cell in tableRow)
+                var cellBorder = new Border
                 {
-                    if (cell is Markdig.Extensions.Tables.TableCell tableCell)
+                    BorderBrush = ThemeHelper.GetSeparatorBrush(),
+                    // 内部线只画左侧与顶部，避免相邻单元格叠出双线
+                    BorderThickness = new Thickness(cellIndex > 0 ? 1 : 0, rowIndex > 0 ? 1 : 0, 0, 0),
+                    Padding = new Thickness(8, 6)
+                };
+
+                var cellContentPanel = new StackPanel
+                {
+                    Orientation = Orientation.Vertical,
+                    Spacing = 2
+                };
+
+                foreach (var block in tableCell)
+                {
+                    var element = ConvertMarkdownBlock(block);
+                    if (element != null)
                     {
-                        var cellBorder = new Border
+                        if (element is TextBlock tb)
                         {
-                            BorderBrush = ThemeHelper.GetSeparatorBrush(),
-                            BorderThickness = new Thickness(0, 0, 1, 1),
-                            Padding = new Thickness(8, 6)
-                        };
-
-                        var cellContentPanel = new StackPanel
-                        {
-                            Orientation = Orientation.Vertical,
-                            Spacing = 2
-                        };
-
-                        foreach (var block in tableCell)
-                        {
-                            var element = ConvertMarkdownBlock(block);
-                            if (element != null)
+                            tb.TextWrapping = TextWrapping.Wrap;
+                            if (tableRow.IsHeader)
                             {
-                                if (element is TextBlock tb)
-                                {
-                                    tb.TextWrapping = TextWrapping.Wrap;
-                                    if (tableRow.IsHeader)
-                                    {
-                                        tb.Foreground = Brushes.White;
-                                    }
-                                }
-                                cellContentPanel.Children.Add(element);
+                                tb.Foreground = Brushes.White;
                             }
                         }
-
-                        cellBorder.Child = cellContentPanel;
-                        Grid.SetColumn(cellBorder, cellIndex);
-                        rowGrid.Children.Add(cellBorder);
-                        cellIndex++;
+                        cellContentPanel.Children.Add(element);
                     }
                 }
 
-                if (tableRow.IsHeader)
-                {
-                    var headerBorder = new Border
-                    {
-                        Background = ThemeHelper.GetLightBlueBrush(),
-                        CornerRadius = new CornerRadius(3, 3, 0, 0)
-                    };
-                    headerBorder.Child = rowGrid;
-                    tablePanel.Children.Add(headerBorder);
-                }
-                else
-                {
-                    tablePanel.Children.Add(rowGrid);
-                }
+                cellBorder.Child = cellContentPanel;
+                Grid.SetRow(cellBorder, rowIndex);
+                Grid.SetColumn(cellBorder, cellIndex);
+                tableGrid.Children.Add(cellBorder);
+                cellIndex++;
             }
+
+            rowIndex++;
         }
 
-        border.Child = tablePanel;
+        border.Child = tableGrid;
         scrollViewer.Content = border;
         return scrollViewer;
     }

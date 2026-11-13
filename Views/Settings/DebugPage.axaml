@@ -79,6 +79,21 @@
             </Grid>
             <Separator Margin="0,8" />
 
+            <!-- “女装”入口：原页面内容已删除，进入后显示 Ghost Page -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="女装"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="WomenswearButton"
+                        Grid.Column="1"
+                        Content="进入"
+                        Padding="16,8"
+                        Click="ButtonWomenswear_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
             <!-- 展示首次使用插件提示 -->
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0"

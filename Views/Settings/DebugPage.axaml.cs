@@ -81,6 +81,11 @@ public partial class DebugPage : SettingsPageBase
         NavigateSlideTo("AdvancedTimeIslandHanfuTemplate");
     }
 
+    private void ButtonWomenswear_OnClick(object? sender, RoutedEventArgs e)
+    {
+        NavigateSlideTo("AdvancedTimeIslandWomenswear");
+    }
+
     /// <summary>
     /// “调试页 → 子页面”的横滑转场：调试页各入口整体向左滑出，随后跳转；
     /// 目标页加载时从右侧错峰滑入（返回调试页时方向相反）。

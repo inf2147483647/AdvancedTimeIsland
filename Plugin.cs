@@ -37,6 +37,18 @@ public class Plugin : PluginBase
     public static Plugin Instance { get; private set; } = null!;
 
     /// <summary>
+    /// 「女装」彩蛋触发门槛的启动快照：仅当「实验性功能」开关在插件启动（应用重启）时已开启，
+    /// 主设置的「女装」彩蛋才可被连点触发。运行中改开关不刷新本快照（改完需重启应用才生效）。
+    /// </summary>
+    public static bool EasterEggGateEnabled { get; private set; }
+
+    /// <summary>
+    /// 「女装」彩蛋的本次运行会话状态（是否已触发/已开启）。
+    /// 只存在于内存中：设置页重建、切到别的设置页再回来都不会丢失，重启宿主（ClassIsland）后才复位为未触发。
+    /// </summary>
+    public static bool EasterEggSessionActive { get; set; }
+
+    /// <summary>
     /// 启动自检结果：插件包与宿主 FluentAvalonia 大版本不匹配时的提示文本（匹配时为 null）。
     /// net8 包只能跑在 FA2（Avalonia 11）宿主，net10 包只能跑在 FA3（Avalonia 12）宿主；
     /// 装错包时 FA2/FA3 的控件类型名不同（如 FontIcon → FAFontIcon），设置页会在初始化阶段报错。
@@ -116,6 +128,10 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged -= OnDebugSettingsPropertyChanged;
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
+
+        // 「女装」彩蛋触发门槛快照：只在插件启动（Initialize）时读一次，
+        // 运行中改「实验性功能」开关不影响本次会话，重启应用后才生效
+        EasterEggGateEnabled = Settings.EnableExperimentalFeatures;
     }
 
     private void SaveSettings()
@@ -1818,6 +1834,12 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
+        // 幽灵页面：不出现在导航列表（hideDefault），用于取代那些已被删除的页面。
+        services.AddSettingsPage<Views.Settings.GhostPage>();
+        // 已删除的「女装」页面：保留原页面 ID 占位，导航到该页时显示 Ghost Page。
+        services.AddSettingsPage<Views.Settings.WomenswearPage>();
+        // 已删除的「女装使用须知」页面：同样占位为 Ghost Page。
+        services.AddSettingsPage<Views.Settings.WomenswearNoticePage>();
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();

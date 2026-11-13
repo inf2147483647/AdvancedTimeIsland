@@ -346,32 +346,34 @@ public static class IntroAnimationHelper
     {
         var generation = ++_slideNavigateGeneration;
 
-        // 动画禁用或页面不可见：直接导航，避免留下空白的离场状态
-        if (!IsEnabled || !owner.IsEffectivelyVisible)
+        // 动画禁用、页面不可见，或宿主不是 FluentAvalonia 的 Frame（如 ClassIsland 2.1 的
+        // Avalonia NavigationPage 设置页宿主）：直接导航，避免离场后无人接手入场动画而整页空白
+        if (!IsEnabled || !owner.IsEffectivelyVisible || !TryFindHostFrame(owner, out var frame))
         {
             navigate();
             return;
         }
 
         var targets = outgoing.Where(x => x.IsVisible).ToList();
-        if (targets.Count > 0)
-        {
-            await PlaySlideOutAsync(targets, toLeft: forward);
-        }
-
-        // 离场期间又发生了新的转场：本次作废，不再导航
-        if (generation != _slideNavigateGeneration)
-        {
-            return;
-        }
-
-        _pendingSlideEnter = true;
-        _pendingSlideEnterFromRight = forward;
-        _slideEnterHandled = false;
-
-        ArmHostEntranceSuppression(owner);
         try
         {
+            if (targets.Count > 0)
+            {
+                await PlaySlideOutAsync(targets, toLeft: forward);
+            }
+
+            // 离场期间又发生了新的转场：本次作废，不再导航
+            if (generation != _slideNavigateGeneration)
+            {
+                return;
+            }
+
+            ArmHostEntranceSuppression(frame);
+
+            _pendingSlideEnter = true;
+            _pendingSlideEnterFromRight = forward;
+            _slideEnterHandled = false;
+
             navigate();
         }
         finally
@@ -430,9 +432,8 @@ public static class IntroAnimationHelper
     /// 在导航完成、入场动画尚未执行时取消它，避免「从下 100px 淡入」与横滑方向叠加，
     /// 也避免动画中途取消后残留的垂直位移在页面顶部留下空白。
     /// </summary>
-    private static void ArmHostEntranceSuppression(Control owner)
+    private static void ArmHostEntranceSuppression(Visual frame)
     {
-        var frame = FindHostFrame(owner);
         var navigated = GetNavigatedEvent(frame.GetType());
 
         // 上一次转场未等到 Navigated（例如导航被取消）：先摘掉旧订阅，避免重复挂接
@@ -448,12 +449,13 @@ public static class IntroAnimationHelper
         navigated.AddEventHandler(frame, handler);
     }
 
-    private static Visual FindHostFrame(Control page)
-        => page.GetVisualAncestors().FirstOrDefault(a =>
+    private static bool TryFindHostFrame(Control page, out Visual frame)
+    {
+        frame = page.GetVisualAncestors().FirstOrDefault(a =>
             (a.GetType().Name is "FAFrame" or "Frame")
-            && a.GetType().Namespace?.StartsWith("FluentAvalonia", StringComparison.Ordinal) == true)
-            ?? throw new InvalidOperationException(
-                $"页面 {page.GetType().FullName} 不在 FluentAvalonia 的 Frame 内，横滑入场无法抑制宿主过渡。");
+            && a.GetType().Namespace?.StartsWith("FluentAvalonia", StringComparison.Ordinal) == true)!;
+        return frame != null;
+    }
 
     private static System.Reflection.EventInfo GetNavigatedEvent(Type frameType)
         => frameType.GetEvent("Navigated", BindingFlags.Public | BindingFlags.Instance)

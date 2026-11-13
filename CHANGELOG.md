@@ -1,8 +1,25 @@
-## [2.0.6.3]
+## [2.0.6.4]
+
+### 新增
+
+- **新增「Ghost Page」幽灵占位页面（仅 Avalonia 版）**：用于取代那些已被删除的页面。布局对齐 ClassIsland 内置的「出错啦！」页——整页居中显示 Lucide 幽灵图标（U+E20E）、标题「Ghost Page」与正文「This page takes the place of pages that have been deleted. :ghost:」。该页面不显示设置页顶部标题栏，并以 `hideDefault` 注册，不出现在设置导航列表中。WPF 版按维护约定未同步此变更。
+
+- **恢复已删除的「女装」页面 ID 并以 Ghost Page 占位（仅 Avalonia 版）**：女装彩蛋功能删除后，原先指向 `AdvancedTimeIslandWomenswear` 的导航引用会落到宿主的「出错啦！」页。现重新注册同名页面（`WomenswearPage`，继承 Ghost Page，仍为隐藏的 Debug 页），导航到该 ID 时显示 Ghost Page 内容；不恢复任何女装业务逻辑。
+- **恢复「调试 → 女装」入口与「主设置 → 女装」标签页（仅 Avalonia 版）**：两处入口进入后均显示 Ghost Page。不恢复「女装」图片展示、图片版权须知等内容逻辑；调试页入口不再受「实验性功能」开关控制。
+- **恢复已删除的「女装使用须知」页面 ID 并以 Ghost Page 占位（仅 Avalonia 版）**：重新注册 `AdvancedTimeIslandWomenswearNotice`（`WomenswearNoticePage`，继承 Ghost Page，隐藏的 Debug 页），导航到该 ID 时显示 Ghost Page 内容；不恢复须知覆盖层与「已同意」标记逻辑。
+- **恢复「主设置」女装彩蛋的连点检测（仅 Avalonia 版）**：5 秒内点击插件图标 11 次触发（受启动时的「实验性功能」开关快照限制），触发后显示「女装」标签页并弹出「触发彩蛋成功~」提示；触发状态仅保留在内存会话中，重启宿主后复位。未恢复答题验证、集控验证与设置页内的女装开关。
 
 ### 破坏性变更
 
 - **删除「女装」彩蛋功能（仅 Avalonia 版）**：彻底移除女装彩蛋，包括「关于」页图标连点触发、54 题答题验证、集控凭据校验与受信设备白名单、主设置中的「女装」折叠栏与标签页、调试页「女装」入口与「显示女装使用须知」按钮、`WomenswearPage` / `EasterEggPage` / `WomenswearNoticeOverlay` / `WomenswearSkirtIcon` 页面与控件、`EasterEggDetector` 与 `CrossPluginHelper` 辅助类，以及 `Plugin.EasterEggGateEnabled` / `Plugin.EasterEggSessionActive` 与 `EasterEggDisclaimerAccepted` / `EasterEggInfoAccepted` / `WomenswearNoticeAccepted` 配置项。`manifest.yml` 中仅供女装 JK 制服页使用的可选依赖 `lrs2187.LibPinyin` 一并移除。旧 `settings.json` 中残留的相关字段会在反序列化时按未知成员忽略，不会导致插件加载失败。WPF 版按维护约定未同步此变更。
+
+### 修复
+
+- **修复「使用指南」等页面点击左上角返回无响应 / 整页变空白（仅 Avalonia 版）**：横滑转场会先给宿主 `Frame` 挂「抑制入场过渡」的订阅再执行导航，但 ClassIsland 2.1 的设置页宿主已换成 Avalonia 12 的 `NavigationPage`（不再有 FluentAvalonia `Frame`），查找宿主 Frame 时直接抛异常——异常发生在导航之前，返回既没执行，页面的离场动画（透明度 0 + 位移）也因跳过复位逻辑而残留，表现为整页空白。现改为：找不到 FA Frame 时直接导航，交给宿主自带的页面过渡；离场控件的透明度与 `RenderTransform` 复位放入 `finally`，任何情况下都会执行；移除相关 `try-catch`，让异常直接暴露。同时 `NavigateBack` 改为直接操作宿主 `NavigationPage.NavigationStack`：先反射调用目标 `SettingsContentPage.Mount()` 重新挂载（导航离开时已被 `Unmount`，直接 `PopAsync` 会返回空壳），再 `PopAsync`；并保留 `ViewBase.TryGoBack` 与 FA `Frame`/`NavigationView` 作为其他宿主的回退路径。WPF 版按维护约定未同步此变更。
+
+- **修复汉服页面 Markdown 表格分割线不对齐、单元格文字被截断（仅 Avalonia 版）**：表格此前每行单独建一个 `Grid`，各行的等分列宽互不相干，导致行与行之间的竖线错位；同时外层 `ScrollViewer` 允许横向滚动，表格按无限宽度测量，单元格里的 `TextBlock` 虽设置了换行却不会真正折行，长文本直接被裁掉。现改为整张表共用一套行列定义，并按单元格位置只绘制左侧/顶部内框线（避免相邻格叠出双线）；横向滚动改为禁用，列宽随可用宽度等分，单元格文本自动换行完整显示。WPF 版按维护约定未同步此变更。
+
+## [2.0.6.3]
 
 ### 变更
 

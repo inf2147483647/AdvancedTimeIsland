@@ -70,6 +70,12 @@ public class AboutPage : SettingsPageBase
     private DrawerHost? _drawerHost;
     private readonly PluginSettings? _pluginSettings;
 
+    /// <summary>「女装」彩蛋的连点检测器：5 秒内点击插件图标 11 次触发。</summary>
+    private EasterEggDetector _easterEggDetector = null!;
+
+    /// <summary>本次运行会话内「女装」彩蛋是否已触发（跨页面保存在 <see cref="Plugin.EasterEggSessionActive"/>）。</summary>
+    private bool _easterEggActive;
+
     /// <summary>
     /// 「管理启用的功能」- 小工具：关闭后主设置导航栏不显示「时间格式转换 / 时间计算器 / 专业名词解释」。
     /// 该选项无需重启，变更后立即重建导航栏标签页。
@@ -95,6 +101,12 @@ public class AboutPage : SettingsPageBase
     public AboutPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
+
+        // 女装彩蛋状态不落盘，但跨页面重建保留：状态放在 Plugin.EasterEggSessionActive（进程内静态字段），
+        // 页面重建（关闭设置窗口 / 切到别的设置页再回来）时从这里恢复，只有重启宿主（ClassIsland）才复位。
+        _easterEggActive = Plugin.EasterEggSessionActive;
+        _easterEggDetector = new EasterEggDetector(11, 5);
+        _easterEggDetector.OnActivated += OnEasterEggActivated;
 
         InitializeComponent();
         IntroAnimationHelper.EnableSmoothScroll(this);
@@ -160,7 +172,7 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 创建图标边框
+    /// 创建图标边框（带彩蛋连点检测）
     /// </summary>
     private Border CreateIconBorder()
     {
@@ -170,7 +182,8 @@ public class AboutPage : SettingsPageBase
             Height = 64,
             CornerRadius = new CornerRadius(8),
             VerticalAlignment = VerticalAlignment.Center,
-            Margin = new Thickness(0, 0, 16, 0)
+            Margin = new Thickness(0, 0, 16, 0),
+            Cursor = new Cursor(StandardCursorType.Hand)
         };
 
         var image = new Avalonia.Controls.Image
@@ -183,7 +196,60 @@ public class AboutPage : SettingsPageBase
         LoadIconImage(image);
         iconBorder.Child = image;
 
+        iconBorder.PointerPressed += OnIconClicked;
+
         return iconBorder;
+    }
+
+    /// <summary>
+    /// 图标点击事件：累计连点次数，满足条件时由 <see cref="EasterEggDetector"/> 触发彩蛋
+    /// </summary>
+    private void OnIconClicked(object? sender, PointerPressedEventArgs e)
+    {
+        _easterEggDetector.RecordClick();
+    }
+
+    /// <summary>
+    /// 彩蛋激活处理：点亮「女装」标签页（内容为 Ghost Page）。
+    /// 状态不写回设置（不落盘），只保留在内存会话中（<see cref="Plugin.EasterEggSessionActive"/>），
+    /// 页面重建会恢复，重启宿主才复位。
+    /// </summary>
+    private void OnEasterEggActivated(object? sender, EventArgs e)
+    {
+        if (_easterEggActive) return;
+
+        // 触发门槛：仅当「实验性功能」开关在插件启动（应用重启）时已开启才可触发（快照判定）。
+        // 未开启时静默重置检测器——彩蛋本就是隐藏性质，不做提示。
+        if (!Plugin.EasterEggGateEnabled)
+        {
+            _easterEggDetector.Reset();
+            return;
+        }
+
+        _easterEggActive = true;
+        Plugin.EasterEggSessionActive = true;
+        SyncNavigationTabs();
+        ShowEasterEggDialog();
+    }
+
+    /// <summary>
+    /// 显示彩蛋触发提示窗口
+    /// </summary>
+    private void ShowEasterEggDialog()
+    {
+        var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "提示");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", new TextBlock
+        {
+            Text = "触发彩蛋成功~",
+            FontSize = 16,
+            Foreground = ThemeHelper.GetTextBrush(),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap
+        });
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
     }
 
     private void LoadIconImage(Avalonia.Controls.Image imageControl)
@@ -327,6 +393,9 @@ public class AboutPage : SettingsPageBase
         }
     }
 
+    /// <summary>「女装」标签页的 Tag（内容懒加载，与其它标签页一致）。</summary>
+    private const string EasterEggTabTag = "EasterEgg";
+
     /// <summary>受「小工具」开关控制的三个标签页的 Tag。</summary>
     private static readonly string[] UtilityTabTags = { "TimeConverter", "TimeCalculator", "Glossary" };
 
@@ -355,6 +424,20 @@ public class AboutPage : SettingsPageBase
         else if (!UtilitiesEnabled && hasUtilityTabs)
         {
             foreach (var tab in tabs.Where(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag)).ToList())
+            {
+                _tabControl.Items.Remove(tab);
+            }
+        }
+
+        // 「女装」：彩蛋触发后显示，始终排在最后（懒加载，选中时才创建 Ghost Page）
+        var hasEasterEggTab = tabs.Any(tab => (tab.Tag as string) == EasterEggTabTag);
+        if (_easterEggActive && !hasEasterEggTab)
+        {
+            _tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
+        }
+        else if (!_easterEggActive && hasEasterEggTab)
+        {
+            foreach (var tab in tabs.Where(tab => (tab.Tag as string) == EasterEggTabTag).ToList())
             {
                 _tabControl.Items.Remove(tab);
             }
@@ -976,6 +1059,12 @@ public class AboutPage : SettingsPageBase
             tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
         }
 
+        // 「女装」入口：连点检测触发后显示，内容为 Ghost Page
+        if (_easterEggActive)
+        {
+            tabControl.Items.Add(new TabItem { Header = "女装", Content = null, Tag = EasterEggTabTag });
+        }
+
         return tabControl;
     }
 
@@ -1006,6 +1095,9 @@ public class AboutPage : SettingsPageBase
                     break;
                 case "Glossary":
                     tabItem.Content = new GlossaryPage(_pluginSettings);
+                    break;
+                case "EasterEgg":
+                    tabItem.Content = new GhostPage();
                     break;
                 default:
                     tabItem.Content = new TextBlock { Text = "内容加载中...", Foreground = ThemeHelper.GetTextBrush() };
@@ -1065,6 +1157,10 @@ public class AboutPage : SettingsPageBase
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
+
+        // 女装彩蛋状态不落盘，但跨页面保留（见 Plugin.EasterEggSessionActive）：
+        // 离开设置页只清掉本页的连点检测计数，已触发/已开启状态保留，只有重启宿主才复位。
+        _easterEggDetector?.Reset();
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

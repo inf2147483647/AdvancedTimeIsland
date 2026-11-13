@@ -1,0 +1,23 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.GhostPage"
+                     xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core"
+                     xmlns:controls="clr-namespace:ClassIsland.Core.Controls;assembly=ClassIsland.Core">
+    <!-- 布局对齐 ClassIsland 内置的「出错啦！」页：整体居中、图标 + 标题 + 正文 -->
+    <ScrollViewer HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
+        <StackPanel HorizontalAlignment="Center"
+                    VerticalAlignment="Center"
+                    Spacing="8">
+            <controls:LucideIcon Glyph="&#xE20E;"
+                                 FontSize="80"
+                                 HorizontalAlignment="Center" />
+            <TextBlock Text="Ghost Page"
+                       Theme="{StaticResource SubtitleTextBlockStyle}"
+                       HorizontalAlignment="Center" />
+            <TextBlock Text="This page takes the place of pages that have been deleted. :ghost:"
+                       FontSize="13"
+                       HorizontalAlignment="Center" />
+        </StackPanel>
+    </ScrollViewer>
+</ci:SettingsPageBase>
