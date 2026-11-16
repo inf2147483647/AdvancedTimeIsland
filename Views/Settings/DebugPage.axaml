@@ -94,6 +94,21 @@
             </Grid>
             <Separator Margin="0,8" />
 
+            <!-- 首次使用女装须知：原须知覆盖层已删除，重定向到 Ghost Page 占位页 -->
+            <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="首次使用女装须知"
+                           FontSize="16"
+                           FontWeight="SemiBold"
+                           VerticalAlignment="Center" />
+                <Button x:Name="WomenswearNoticeButton"
+                        Grid.Column="1"
+                        Content="显示"
+                        Padding="16,8"
+                        Click="ButtonShowWomenswearNotice_OnClick" />
+            </Grid>
+            <Separator Margin="0,8" />
+
             <!-- 展示首次使用插件提示 -->
             <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Grid.Column="0"

@@ -18,6 +18,11 @@
             <TextBlock Text="This page takes the place of pages that have been deleted. :ghost:"
                        FontSize="13"
                        HorizontalAlignment="Center" />
+            <Button Content="Return to homepage"
+                    HorizontalAlignment="Center"
+                    Margin="0,12,0,0"
+                    Padding="16,8"
+                    Click="ButtonReturnHomepage_OnClick" />
         </StackPanel>
     </ScrollViewer>
 </ci:SettingsPageBase>

@@ -81,7 +81,25 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = sp
         };
-        Content = scrollViewer;
+
+        var noticeBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Message", "该页面已完成使命，即将下线。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Margin", new Thickness(0, 0, 0, 8));
+
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        Grid.SetRow(noticeBar, 0);
+        rootGrid.Children.Add(noticeBar);
+
+        Grid.SetRow(scrollViewer, 1);
+        rootGrid.Children.Add(scrollViewer);
+
+        Content = rootGrid;
     }
 
     private void UpdateThemeColors()

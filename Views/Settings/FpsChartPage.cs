@@ -111,7 +111,17 @@ public class FpsChartPage : SettingsPageBase
 
         var rootGrid = new Grid();
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
         rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+
+        var noticeBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Message", "该页面已完成使命，即将下线。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(noticeBar, "Margin", new Thickness(16, 16, 16, 0));
+        Grid.SetRow(noticeBar, 0);
+        rootGrid.Children.Add(noticeBar);
 
         var warningBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
@@ -119,10 +129,10 @@ public class FpsChartPage : SettingsPageBase
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(16, 16, 16, 0));
-        Grid.SetRow(warningBar, 0);
+        Grid.SetRow(warningBar, 1);
         rootGrid.Children.Add(warningBar);
 
-        Grid.SetRow(scrollViewer, 1);
+        Grid.SetRow(scrollViewer, 2);
         rootGrid.Children.Add(scrollViewer);
 
         Content = rootGrid;
