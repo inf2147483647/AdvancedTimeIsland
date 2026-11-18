@@ -1,11 +1,12 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Models;
 
-public class CountdownItem : INotifyPropertyChanged
+public class CountdownItem : INotifyPropertyChanged, IJsonOnDeserialized
 {
     private Guid _id;
     private string _name = string.Empty;
@@ -17,6 +18,7 @@ public class CountdownItem : INotifyPropertyChanged
     private int _notificationOverlayDurationSeconds = 10;
     private bool _isCompleted;
     private bool _countOnlyInSchoolTime;
+    private bool? _chainContinuous;
 
     public Guid Id
     {
@@ -154,6 +156,29 @@ public class CountdownItem : INotifyPropertyChanged
         }
     }
 
+    /// <summary>
+    /// 倒计时首尾接续：开启后，本倒计时的起点沿用「前一个倒计时」的终点。
+    /// 「前一个倒计时」按结束时间从早到晚排序确定（不是列表拖拽顺序）。
+    /// 旧配置反序列化时缺少该字段，视为关闭；新增的倒计时默认开启。
+    /// </summary>
+    public bool ChainContinuous
+    {
+        get => _chainContinuous ?? true;
+        set
+        {
+            if ((_chainContinuous ?? true) != value)
+            {
+                _chainContinuous = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        _chainContinuous ??= false;
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -191,6 +216,7 @@ public class CountdownItem : INotifyPropertyChanged
             NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
             NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
             CountOnlyInSchoolTime = CountOnlyInSchoolTime,
+            ChainContinuous = ChainContinuous,
             IsCompleted = false
         };
     }

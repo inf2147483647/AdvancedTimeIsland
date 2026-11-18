@@ -432,10 +432,34 @@ public class PeriodicCountdownViewModel : INotifyPropertyChanged, IDisposable
         var periodSeconds = currentItem.Item.GetPeriodSeconds(now);
         if (periodSeconds > 0)
         {
+            // 默认起点为当前条目上一个周期的终点；开启「首尾接续」后，
+            // 起点改用「前一个倒计时」的终点（除自身外、结束时间早于当前条目且最近的一个）。
+            // 注意「前一个」按结束时间排序确定，与列表拖拽顺序无关。
             var lastTargetTimestamp = currentItem.Item.GetPreviousTargetTimestamp(now);
+            if (currentItem.Item.ChainContinuous)
+            {
+                long chainStart = 0;
+                foreach (var item in _settings.CountdownItems)
+                {
+                    if (ReferenceEquals(item, currentItem.Item)) continue;
+                    var end = item.GetPreviousTargetTimestamp(now);
+                    if (end > chainStart && end < currentItem.TargetTimestamp)
+                    {
+                        chainStart = end;
+                    }
+                }
+                if (chainStart > 0)
+                {
+                    lastTargetTimestamp = chainStart;
+                }
+            }
+
             var totalDuration = currentItem.TargetTimestamp - lastTargetTimestamp;
-            var elapsedSeconds = (long)unixNow - lastTargetTimestamp;
-            percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
+            if (totalDuration > 0)
+            {
+                var elapsedSeconds = (long)unixNow - lastTargetTimestamp;
+                percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
+            }
         }
 
         var simple = _settings.EnableSimpleMode;

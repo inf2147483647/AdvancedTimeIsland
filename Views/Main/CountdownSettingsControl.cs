@@ -1174,6 +1174,23 @@ public class CountdownSettingsControl : ComponentBase<CountdownSettings>
         panel.Children.Add(CountdownDetailFields.Toggle("仅计在校时长", item.CountOnlyInSchoolTime,
             v => item.CountOnlyInSchoolTime = v));
 
+        // ---------- 倒计时首尾接续 ----------
+        //  开启后，本倒计时的起点（进度/百分比的计算基准）沿用「前一个倒计时」的终点；
+        //  「前一个」按结束时间从早到晚排序确定，与列表拖拽顺序无关。
+        panel.Children.Add(CountdownDetailFields.Toggle("倒计时首尾接续", item.ChainContinuous, v =>
+        {
+            item.ChainContinuous = v;
+            _listEditor?.RefreshRow(item);
+        }));
+        panel.Children.Add(new TextBlock
+        {
+            Text = "开启后，当前倒计时的起点沿用前一个倒计时（按结束时间从早到晚排序，而非列表顺序）的终点。",
+            FontSize = 11,
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = ThemeHelper.GetGrayBrush(),
+            Margin = new Thickness(0, 0, 0, 4)
+        });
+
         panel.Children.Add(CountdownDetailFields.NotificationSection(
             item.EnableNotification,
             v => item.EnableNotification = v,

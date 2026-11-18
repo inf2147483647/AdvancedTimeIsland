@@ -1,6 +1,7 @@
 using System;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Text.Json.Serialization;
 
 namespace AdvancedTimeIsland.Models;
 
@@ -13,9 +14,10 @@ public enum PeriodType
     Yearly
 }
 
-public class PeriodicCountdownItem : INotifyPropertyChanged
+public class PeriodicCountdownItem : INotifyPropertyChanged, IJsonOnDeserialized
 {
     private Guid _id;
+    private bool? _chainContinuous;
     private string _name = "新周期性倒计时";
     private PeriodType _periodType = PeriodType.Daily;
     private int _hour = 0;
@@ -224,6 +226,29 @@ public class PeriodicCountdownItem : INotifyPropertyChanged
                 OnPropertyChanged();
             }
         }
+    }
+
+    /// <summary>
+    /// 倒计时首尾接续：开启后，本倒计时的起点沿用「前一个倒计时」的终点。
+    /// 「前一个倒计时」按结束时间从早到晚排序确定（不是列表拖拽顺序）。
+    /// 旧配置反序列化时缺少该字段，视为关闭；新增的倒计时默认开启。
+    /// </summary>
+    public bool ChainContinuous
+    {
+        get => _chainContinuous ?? true;
+        set
+        {
+            if ((_chainContinuous ?? true) != value)
+            {
+                _chainContinuous = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    void IJsonOnDeserialized.OnDeserialized()
+    {
+        _chainContinuous ??= false;
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -439,6 +464,7 @@ public class PeriodicCountdownItem : INotifyPropertyChanged
             NotificationContent = NotificationContent,
             NotificationMaskDurationSeconds = NotificationMaskDurationSeconds,
             NotificationOverlayDurationSeconds = NotificationOverlayDurationSeconds,
+            ChainContinuous = ChainContinuous,
             IsCompleted = false
         };
     }
