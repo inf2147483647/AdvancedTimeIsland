@@ -617,7 +617,6 @@ public class Plugin : PluginBase
         {
             services.AddComponent<SevenSegmentClockControl, SevenSegmentClockSettingsControl>();
             services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
-            services.AddHostedService<Services.FpsBackgroundCollectorService>();
         }
 
         services.AddSingleton<ExactTimeTrigger>();
@@ -1846,8 +1845,8 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
-        // 【管理启用的功能】帧率折线图及其分析页面：需先开启「实验性功能」（帧率采集依赖实验性功能下的
-        //   FpsMonitorControl / FpsBackgroundCollectorService），再由「帧率折线」开关控制是否注册（默认关闭）。
+        // 已删除的「帧率折线图」/「帧率折线图分析」页面：保留原页面 ID 占位，导航到该页时显示 Ghost Page。
+        //   仍需先开启「实验性功能」，并由「帧率折线」开关控制是否注册（默认关闭）。
         if (Settings.EnableExperimentalFeatures && Settings.EnableFpsChart)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
