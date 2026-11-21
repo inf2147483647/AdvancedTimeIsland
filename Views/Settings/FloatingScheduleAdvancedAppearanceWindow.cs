@@ -170,8 +170,22 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Margin", new Thickness(0, 0, 0, 8));
         p.Children.Add(glassWarn);
         p.Children.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃 (GraveYard)", "古卷 (Alpha)", "自定义图片" },
-            (int)_s.FloatingScheduleMaterial, i => _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i,
+            OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0, i => _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i,
             out var matCombo));
+        if (!OperatingSystem.IsWindows())
+        {
+            // 云母/亚克力依赖 Windows DWM 合成：非 Windows 禁用材质选择并锁定半透明（与真实悬浮窗一致）
+            matCombo.IsEnabled = false;
+            bool prevSuppress = _suppress;
+            _suppress = true;
+            matCombo.SelectedIndex = 0;
+            _suppress = prevSuppress;
+            p.Children.Add(new TextBlock
+            {
+                Text = "当前系统不支持窗口材质（云母 / 亚克力依赖 Windows 桌面窗口管理器），已锁定为半透明。",
+                FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap, Opacity = 0.8
+            });
+        }
         p.Children.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
         p.Children.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
         p.Children.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
@@ -419,7 +433,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         var model = BuildSampleModel();
         FloatScheduleRenderer.ApplyCardStyle(_previewCard, model);
         var (root, _) = FloatScheduleRenderer.Build(model);
-        int mat = (int)_s.FloatingScheduleMaterial;
+        // 非 Windows 无系统材质合成 → 预览锁定半透明（与真实悬浮窗 FloatingScheduleService.ResolveMaterialAv 一致）
+        int mat = OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0;
         if (!_s.EnableExperimentalFeatures && (mat == 3 || mat == 4 || mat == 5)) mat = 0;
         // 背景透卡：云母/亚克力/液态玻璃需要"背后内容"才成立。编辑器是不透明窗口，采不到真实桌面，
         // 故在卡片内裁出"卡片正下方的示例背景"这块，由材质层按材质施加不同模糊（云母轻 / 亚克力中 / 液态玻璃≈0）。

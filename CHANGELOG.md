@@ -1,5 +1,9 @@
 ## [2.0.6.4]
 
+### 变更
+
+- **非 Windows 系统下时间表悬浮窗材质锁定为半透明（仅 Avalonia 版）**：云母与亚克力依赖 Windows 桌面窗口管理器（DWM）的系统材质合成，Linux / macOS 上不可用。现「高级外观 → 窗口 → 窗口材质」下拉框在非 Windows 系统上禁用并固定显示「半透明」，下方补充说明文案；实时预览与真实悬浮窗的材质解析（`ResolveMaterialAv`）同样在非 Windows 系统下回退半透明，避免设置里残留的云母 / 亚克力在无 DWM 的环境下渲染异常。已有的材质设置值不会被改写，回到 Windows 后仍按原值生效。WPF 版按维护约定未同步此变更。
+
 ### 新增
 
 - **新增「Ghost Page」幽灵占位页面（仅 Avalonia 版）**：用于取代那些已被删除的页面。布局对齐 ClassIsland 内置的「出错啦！」页——整页居中显示 Lucide 幽灵图标（U+E20E）、标题「Ghost Page」与正文「This page takes the place of pages that have been deleted. :ghost:」。该页面不显示设置页顶部标题栏，并以 `hideDefault` 注册，不出现在设置导航列表中。WPF 版按维护约定未同步此变更。

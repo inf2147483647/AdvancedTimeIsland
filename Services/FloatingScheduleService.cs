@@ -4874,9 +4874,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
         return null;
     }
 
-    /// <summary>有效材质：未开启实验性功能时，液态玻璃(3)/古卷(4)/自定义图片(5) 回退半透明(0)。</summary>
+    /// <summary>有效材质：未开启实验性功能时，液态玻璃(3)/古卷(4)/自定义图片(5) 回退半透明(0)；
+    /// 非 Windows 系统无 DWM 系统材质合成（云母/亚克力），一律回退半透明(0)。</summary>
     private int ResolveMaterialAv()
     {
+        if (!OperatingSystem.IsWindows()) return 0;
         var m = (int)_settings.FloatingScheduleMaterial;
         if (!_settings.EnableExperimentalFeatures && (m == 3 || m == 4 || m == 5)) return 0;
         return m;
