@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Configuration;
 using ClassIsland.Core.Abstractions;
+using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
 using ClassIsland.Shared.Helpers;
@@ -616,7 +617,6 @@ public class Plugin : PluginBase
         {
             services.AddComponent<SevenSegmentClockControl, SevenSegmentClockSettingsControl>();
             services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
-            services.AddHostedService<Services.FpsBackgroundCollectorService>();
         }
 
         services.AddSingleton<ExactTimeTrigger>();
@@ -1759,6 +1759,8 @@ public class Plugin : PluginBase
         services.AddTrigger<HourlyTimeTrigger, HourlyTimeTriggerSettingsControl>();
         services.AddTrigger<MinutelyTimeTrigger, MinutelyTimeTriggerSettingsControl>();
         services.AddTrigger<UnixTimestampTrigger, UnixTimestampTriggerSettingsControl>();
+        services.AddTrigger<SunriseTimeTrigger, SunEventTriggerSettingsControl>();
+        services.AddTrigger<SunsetTimeTrigger, SunEventTriggerSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
@@ -1843,8 +1845,8 @@ public class Plugin : PluginBase
         services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
         services.AddSettingsPage<Views.Settings.UsingPointerPage>();
         services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
-        // 【管理启用的功能】帧率折线图及其分析页面：需先开启「实验性功能」（帧率采集依赖实验性功能下的
-        //   FpsMonitorControl / FpsBackgroundCollectorService），再由「帧率折线」开关控制是否注册（默认关闭）。
+        // 已删除的「帧率折线图」/「帧率折线图分析」页面：保留原页面 ID 占位，导航到该页时显示 Ghost Page。
+        //   仍需先开启「实验性功能」，并由「帧率折线」开关控制是否注册（默认关闭）。
         if (Settings.EnableExperimentalFeatures && Settings.EnableFpsChart)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
@@ -2122,6 +2124,16 @@ public class Plugin : PluginBase
                 }
             );
         }
+
+        // ========== 接管宿主内置「是否日出/日落」条件 ==========
+        // 沿用宿主规则 Id，使已有自动化配置无需迁移；时间改用主界面「日出日落」组件的经纬度与时区。
+        IRulesetService.Rules.Remove(SunDayNightRuleHandlerService.RuleId);
+        services.AddRule<SunDayNightRuleSettings, SunDayNightRuleSettingsControl>(
+            SunDayNightRuleHandlerService.RuleId,
+            "当前处于白昼/黑夜",
+            "\uE706",
+            SunDayNightRuleEvaluator.IsSatisfied);
+        services.AddHostedService<SunDayNightRuleHandlerService>();
 
         // ========== SuperAutoIsland Blockly 积木注册 ==========
         // 应用启动后（所有插件加载完毕）把本插件的行动与规则注册为 Blockly 积木。

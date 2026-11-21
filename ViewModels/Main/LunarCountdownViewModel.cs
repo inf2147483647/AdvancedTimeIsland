@@ -428,9 +428,32 @@ public class LunarCountdownViewModel : INotifyPropertyChanged, IDisposable
 
         double percent = 0;
         var targetTimestamp = currentItem.GetTargetTimestamp();
-        if (_settings.StartTime > 0 && targetTimestamp > _settings.StartTime)
+
+        // 【倒计时首尾接续】当前倒计时的起点沿用「前一个倒计时」的终点：
+        // 取除自身外、结束时间早于当前条目且最近的一个条目的终点；不存在时回退到开始时间。
+        // 注意「前一个」按结束时间排序确定，与列表拖拽顺序无关。
+        var progressStartTimestamp = _settings.StartTime;
+        if (currentItem.ChainContinuous)
         {
-            var totalDuration = targetTimestamp - _settings.StartTime;
+            long chainStart = 0;
+            foreach (var item in _settings.CountdownItems)
+            {
+                if (ReferenceEquals(item, currentItem)) continue;
+                var ts = item.GetTargetTimestamp();
+                if (ts > chainStart && ts < targetTimestamp)
+                {
+                    chainStart = ts;
+                }
+            }
+            if (chainStart > 0)
+            {
+                progressStartTimestamp = chainStart;
+            }
+        }
+
+        if (progressStartTimestamp > 0 && targetTimestamp > progressStartTimestamp)
+        {
+            var totalDuration = targetTimestamp - progressStartTimestamp;
             var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
             percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }

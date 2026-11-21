@@ -33,6 +33,31 @@ if ([string]::IsNullOrEmpty($ProjectRoot)) {
     $ProjectRoot = "C:\Users\Administrator\RiderProjects\AdvancedTimeIsland"
 }
 
+# 耗时统计：各阶段登记到 StageTimings，脚本总计由 TotalStopwatch 记录
+$script:StageTimings = New-Object System.Collections.Generic.List[object]
+$script:TotalStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+
+function Format-Elapsed {
+    param([TimeSpan]$Elapsed)
+
+    if ($Elapsed.TotalMinutes -ge 1) {
+        return ('{0}m{1:00}s' -f [int][math]::Floor($Elapsed.TotalMinutes), $Elapsed.Seconds)
+    }
+    return ('{0:N2}s' -f $Elapsed.TotalSeconds)
+}
+
+function Add-StageTime {
+    # 停止计时器，打印本阶段耗时并登记到汇总列表
+    param(
+        [string]$Name,
+        [System.Diagnostics.Stopwatch]$Timer
+    )
+
+    if ($Timer.IsRunning) { $Timer.Stop() }
+    $script:StageTimings.Add([pscustomobject]@{ Name = $Name; Elapsed = $Timer.Elapsed })
+    Write-Host ("    [time] {0}: {1}" -f $Name, (Format-Elapsed -Elapsed $Timer.Elapsed))
+}
+
 function Test-RestoreNeeded {
     param(
         [string]$ProjectFile,
@@ -153,6 +178,7 @@ function Add-TraceIdRecord {
         }
     }
 
+    $traceTimer = [System.Diagnostics.Stopwatch]::StartNew()
     $md5 = (Get-FileHash $dllPath -Algorithm MD5).Hash
     $timestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss'
     $record = "$Label-$version-$timestamp-$md5"
@@ -169,6 +195,7 @@ function Add-TraceIdRecord {
     [System.IO.File]::WriteAllText($tempPath, $content, (New-Object System.Text.UTF8Encoding $true))
     Move-Item $tempPath $tracePath -Force
 
+    Add-StageTime "trace record ($Label)" $traceTimer
     Write-Host "TraceID: $record"
 }
 
@@ -198,6 +225,7 @@ function Create-CipxPackage {
     $tempDir = Join-Path $env:TEMP "AdvancedTimeIsland_Package_$(Get-Date -Format 'yyyyMMddHHmmss')_$(Get-Random)"
     New-Item -ItemType Directory -Path $tempDir -Force | Out-Null
 
+    $packageTimer = [System.Diagnostics.Stopwatch]::StartNew()
     try {
         Write-Host "Copying files..."
         Copy-Item "$OutputDir\*" $tempDir -Recurse -Force
@@ -236,6 +264,7 @@ function Create-CipxPackage {
         if (Test-Path $tempDir) {
             Remove-Item $tempDir -Recurse -Force -ErrorAction SilentlyContinue
         }
+        Add-StageTime "package $PackageName" $packageTimer
     }
 }
 
@@ -300,10 +329,13 @@ function Build-Variant {
 
     $ProjectFile = Join-Path $ProjectRoot "AdvancedTimeIsland.csproj"
     $OutputDir = Join-Path $ProjectRoot "bin\Release\$TargetFramework\win-x64"
+    $variantTimer = [System.Diagnostics.Stopwatch]::StartNew()
 
     if ((Test-RestoreNeeded -ProjectFile $ProjectFile -TargetFramework $TargetFramework -RuntimeIdentifier "win-x64")) {
         Write-Host "`nRestoring packages ($TargetFramework / win-x64)..."
+        $restoreTimer = [System.Diagnostics.Stopwatch]::StartNew()
         dotnet restore $ProjectFile -p:TargetFramework=$TargetFramework --runtime win-x64
+        Add-StageTime "restore ($TargetFramework)" $restoreTimer
         if ($LASTEXITCODE -ne 0) {
             Write-Error "Restore failed for $Label ($TargetFramework)"
             return $false
@@ -314,7 +346,9 @@ function Build-Variant {
     }
 
     Write-Host "`nBuilding project (Release, win-x64)..."
+    $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
     dotnet build $ProjectFile --configuration Release --runtime win-x64 -p:TargetFramework=$TargetFramework --no-restore
+    Add-StageTime "build ($TargetFramework)" $buildTimer
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed for $Label ($TargetFramework)"
@@ -322,7 +356,9 @@ function Build-Variant {
     }
 
     # 按目标框架改写产物目录里的 manifest.yml 版本（net8 保持 2.0.x.x，net10 为 2.2.x.x）
+    $manifestTimer = [System.Diagnostics.Stopwatch]::StartNew()
     Set-ManifestVersion -OutputDir $OutputDir -TargetFramework $TargetFramework
+    Add-StageTime "manifest version ($TargetFramework)" $manifestTimer
 
 
     # Copy FloatSchedule child exe into plugin output dir -> Create-CipxPackage (full copy) picks it up
@@ -336,6 +372,7 @@ function Build-Variant {
         $traceLabel = if ($TargetFramework -eq "net10.0") { "FA3" } else { "FA2" }
         Add-TraceIdRecord -OutputDir $OutputDir -Label $traceLabel
     }
+    Add-StageTime "variant $Label (total)" $variantTimer
     return $packed
 }
 
@@ -346,9 +383,12 @@ function Build-WpfVariant {
 
     $ProjectPath = Join-Path $ProjectRoot "AdvancedTimeIslandWPF\AdvancedTimeIslandWPF.csproj"
     $OutputDir = Join-Path $ProjectRoot "AdvancedTimeIslandWPF\bin\Release\net8.0-windows"
+    $variantTimer = [System.Diagnostics.Stopwatch]::StartNew()
 
     Write-Host "`nBuilding project (Release)..."
+    $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
     dotnet build $ProjectPath --configuration Release
+    Add-StageTime "build (WPF)" $buildTimer
 
     if ($LASTEXITCODE -ne 0) {
         Write-Error "Build failed for WPF version"
@@ -365,6 +405,7 @@ function Build-WpfVariant {
     if ($packed) {
         Add-TraceIdRecord -OutputDir $OutputDir -Label "WPF"
     }
+    Add-StageTime "variant WPF (total)" $variantTimer
     return $packed
 }
 
@@ -385,9 +426,11 @@ function Publish-FloatExe {
     $pubDir = Join-Path $ProjectRoot "AdvancedTimeIslandFloatSchedule\bin\publish\$childTfm"
 
     Write-Host "`nPublishing FloatSchedule child exe ($childTfm, framework-dependent single-file)..."
+    $publishTimer = [System.Diagnostics.Stopwatch]::StartNew()
     dotnet publish $proj -c Release -f $childTfm -r win-x64 --self-contained false `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -o $pubDir
+    Add-StageTime "publish FloatSchedule ($childTfm)" $publishTimer
     if ($LASTEXITCODE -ne 0) {
         Write-Error "FloatSchedule publish failed for $childTfm"
         return $false
@@ -417,9 +460,11 @@ function Publish-WpfFloatExe {
     $pubDir = Join-Path $ProjectRoot "AdvancedTimeIslandWPFFloatSchedule\bin\publish\$childTfm"
 
     Write-Host "`nPublishing WPF FloatSchedule child exe ($childTfm, framework-dependent single-file)..."
+    $publishTimer = [System.Diagnostics.Stopwatch]::StartNew()
     dotnet publish $proj -c Release -f $childTfm -r win-x64 --self-contained false `
         -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
         -o $pubDir
+    Add-StageTime "publish WPF FloatSchedule ($childTfm)" $publishTimer
     if ($LASTEXITCODE -ne 0) {
         Write-Error "WPF FloatSchedule publish failed for $childTfm"
         return $false
@@ -518,7 +563,9 @@ try {
     }
 
     if ($packageNames.Count -gt 0) {
+        $checksumTimer = [System.Diagnostics.Stopwatch]::StartNew()
         New-ChecksumFile -OutputDir $cipxDir -PackageNames $packageNames
+        Add-StageTime "checksum" $checksumTimer
     }
 
     Write-Host "`n========================================"
@@ -527,6 +574,15 @@ try {
     foreach ($k in $results.Keys) {
         Write-Host "$k : $($results[$k])"
     }
+
+    if ($script:StageTimings.Count -gt 0) {
+        Write-Host "`nStage timings"
+        Write-Host "----------------------------------------"
+        foreach ($t in $script:StageTimings) {
+            Write-Host ("{0} : {1}" -f $t.Name, (Format-Elapsed -Elapsed $t.Elapsed))
+        }
+    }
+
     Write-Host "`nPackages output: $cipxDir"
 
     if ($results.Values -contains 'FAILED') { exit 1 } else { exit 0 }
@@ -535,4 +591,6 @@ finally {
     if (-not $NoServerShutdown) {
         dotnet build-server shutdown 2>$null
     }
+    $script:TotalStopwatch.Stop()
+    Write-Host ("`nTotal elapsed (incl. build-server shutdown): {0}" -f (Format-Elapsed -Elapsed $script:TotalStopwatch.Elapsed))
 }

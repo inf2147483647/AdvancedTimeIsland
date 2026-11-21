@@ -461,6 +461,28 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         var timeLeft = timeLeftSpan.TotalSeconds;
         var timeLeftMs = timeLeftSpan.TotalMilliseconds;
 
+        // 【倒计时首尾接续】当前倒计时的起点沿用「前一个倒计时」的终点：
+        // 取除自身外、结束时间早于当前条目且最近的一个条目的终点；不存在时回退到开始时间。
+        // 注意「前一个」按结束时间排序确定，与列表拖拽顺序无关。
+        var progressStartTimestamp = _settings.StartTime;
+        if (currentItem.ChainContinuous)
+        {
+            long chainStart = 0;
+            foreach (var item in _settings.CountdownItems)
+            {
+                if (ReferenceEquals(item, currentItem)) continue;
+                var ts = item.TargetTimestamp;
+                if (ts > chainStart && ts < currentItem.TargetTimestamp)
+                {
+                    chainStart = ts;
+                }
+            }
+            if (chainStart > 0)
+            {
+                progressStartTimestamp = chainStart;
+            }
+        }
+
         // 【仅计在校时长】开启时，显示的剩余时间改为 (now, 目标时刻] 之间的在校秒数
         //   （在校日 = 周末/节假日等排除规则之外的日子，在校时段 = 当天课表首课→末课）；
         //   到期判定与通知仍在真实时间到达目标时触发，仅替换显示值。
@@ -470,8 +492,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         double inSchoolTotalSeconds = 0;
         if (currentItem.CountOnlyInSchoolTime && _inSchoolCalc != null)
         {
-            var startLocal = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(_settings.StartTime).ToLocalTime();
-            var needProgressBase = _settings.StartTime > 0 && currentItem.TargetTimestamp > _settings.StartTime;
+            var startLocal = new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc).AddSeconds(progressStartTimestamp).ToLocalTime();
+            var needProgressBase = progressStartTimestamp > 0 && currentItem.TargetTimestamp > progressStartTimestamp;
             EnsureInSchoolCache(now, currentTargetDate, needProgressBase ? startLocal : null);
             inSchoolLeftSeconds = _inSchoolCalc.ComputeRemainingSeconds(now, currentTargetDate);
             if (needProgressBase)
@@ -483,10 +505,10 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
 
         var timeFormat = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天%h小时%m分钟%s秒" : _settings.TimeFormat;
-        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, _settings.StartTime, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
+        var timeText = FormatTime(timeFormat, (long)Math.Floor(timeLeft), timeLeftMs, now, currentTargetDate, progressStartTimestamp, currentItem.TargetTimestamp, _settings.EnableTimeCorrection);
 
         double percent = 0;
-        if (_settings.StartTime > 0 && currentItem.TargetTimestamp > _settings.StartTime)
+        if (progressStartTimestamp > 0 && currentItem.TargetTimestamp > progressStartTimestamp)
         {
             if (inSchoolLeftSeconds >= 0 && inSchoolTotalSeconds > 0)
             {
@@ -497,7 +519,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             }
             else
             {
-                var totalDuration = currentItem.TargetTimestamp - _settings.StartTime;
+                var totalDuration = currentItem.TargetTimestamp - progressStartTimestamp;
                 var elapsedSeconds = timeLeft > 0 ? totalDuration - (long)timeLeft : totalDuration;
                 percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
             }

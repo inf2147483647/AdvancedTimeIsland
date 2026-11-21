@@ -1,5 +1,7 @@
-﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedTimeIsland", "AdvancedTimeIsland.csproj", "{46C68B03-170E-40C1-A1C1-A6A3286FD4B8}"
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "AdvancedTimeIslandFloatSchedule", "AdvancedTimeIslandFloatSchedule\AdvancedTimeIslandFloatSchedule.csproj", "{924BC5C5-65CB-4CF9-9379-6B815C097BB1}"

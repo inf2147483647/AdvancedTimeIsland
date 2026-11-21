@@ -87,6 +87,14 @@ public partial class DebugPage : SettingsPageBase
     }
 
     /// <summary>
+    /// 首次使用女装须知：原须知覆盖层已删除，重定向到 Ghost Page 占位页。
+    /// </summary>
+    private void ButtonShowWomenswearNotice_OnClick(object? sender, RoutedEventArgs e)
+    {
+        NavigateSlideTo("AdvancedTimeIslandWomenswearNotice");
+    }
+
+    /// <summary>
     /// “调试页 → 子页面”的横滑转场：调试页各入口整体向左滑出，随后跳转；
     /// 目标页加载时从右侧错峰滑入（返回调试页时方向相反）。
     /// </summary>

@@ -1,3 +1,5 @@
+using AdvancedTimeIsland.Helpers;
+using Avalonia.Interactivity;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -14,5 +16,13 @@ public partial class GhostPage : SettingsPageBase
     public GhostPage()
     {
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// 返回 ClassIsland「应用设置 → 通用 → 基本」页。
+    /// </summary>
+    private void ButtonReturnHomepage_OnClick(object? sender, RoutedEventArgs e)
+    {
+        FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "general");
     }
 }
