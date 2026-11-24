@@ -2500,8 +2500,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         });
     }
 
-    // ==================================== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）====================================
-    //   开启：悬浮窗 Title 改为随机字符串；增强模式每 1s 重新随机。
+    // ==================================== 随机窗口名（FloatingScheduleRandomTitle，参考 ClassIslandHide）====================================    //   开启：悬浮窗 Title 改为随机字符串；增强模式每 1s 重新随机。
     //   关闭：恢复默认标题并停止定时器。仅改 Title，不碰 z-order / exStyle。
 
     /// <summary>生成随机字符串（字符集与长度随机，参考 ClassIslandHide.GetRandomString）。</summary>
