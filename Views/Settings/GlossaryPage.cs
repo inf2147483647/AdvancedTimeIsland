@@ -78,7 +78,7 @@ public class GlossaryPage : UserControl
 
         _mainPanel.Children.Add(new TextBlock
         {
-            Text = "专业名词解释",
+            Text = "注释",
             FontSize = 28,
             FontWeight = FontWeight.Bold,
             Foreground = GetAccentBrush(),

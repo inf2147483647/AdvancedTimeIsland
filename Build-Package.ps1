@@ -1,12 +1,11 @@
 ﻿# ClassIsland Plugin Packaging Script
-# Builds THREE versions of the plugin:
+# Builds TWO Avalonia versions of the plugin:
 #   1. .NET 8 compatible version (ClassIsland.PluginSdk 2.0.1.1) for CI2
 #   2. .NET 10 new version (Misha SDK 2.1.1) for CI2
-#   3. WPF version (ClassIsland 1.x, net8.0-windows) in AdvancedTimeIslandWPF\
 # 其中 Avalonia 两版的 manifest version 按目标框架区分：
 #   net8.0  -> 2.0.x.x（取自 manifest.yml）
 #   net10.0 -> 2.2.x.x（2.2 + manifest.yml 的后两段）
-# Usage: .\Build-Package.ps1 [-Target both|compat|new|wpf] [-NoServerShutdown]
+# Usage: .\Build-Package.ps1 [-Target both|compat|new] [-NoServerShutdown]
 # Supports: Windows x64
 #
 # 打包结束后会在 cipx\checksum.md 生成本次产出插件包的 MD5 校验值，
@@ -14,15 +13,15 @@
 #
 # 性能优化说明：
 #   - 去掉了脚本开头的 build-server shutdown（原本前后各一次，共两次）；
-#     只在 finally 中最后做一次，避免 compat/new/wpf 连续构建间冷启动 VBCSCompiler
+#     只在 finally 中最后做一次，避免 compat/new 连续构建间冷启动 VBCSCompiler
 #   - csproj 内 CreateCipxPackage Target 默认禁用（需 CreateCipxPackageEnabled=true），
 #     只在本脚本一处打包，避免每次构建 ZIP 压缩两遍
-#   - Build-WpfVariant 改用共享的 Create-CipxPackage 函数，三种变体输出文件名规则一致
+#   - 两个变体共用 Create-CipxPackage 函数，输出文件名规则一致
 #   - 对 assets 中已存在的 TFM+RID 目标跳过 restore（通常节省 1-2 秒）
 #   - 支持 -NoServerShutdown 开关，开发中频繁跑构建时彻底跳过 build-server shutdown
 
 param(
-    [ValidateSet("both", "compat", "new", "wpf")]
+    [ValidateSet("both", "compat", "new")]
     [string]$Target = "both",
     [switch]$NoServerShutdown
 )
@@ -151,52 +150,6 @@ function Test-PackageDependencies {
 
     Write-Host "Dependency check passed: $checked runtime asset(s) declared in deps.json are packaged."
     return $true
-}
-
-function Add-TraceIdRecord {
-    # 记录本次编译产物 AdvancedTimeIsland.dll 的 MD5，
-    # 追加写入 TraceIDlist.txt，格式：[WPF/FA2/FA3]-[版本号]-[构建时间]-[MD5]
-    param(
-        [string]$OutputDir,
-        [string]$Label
-    )
-
-    $dllPath = Join-Path $OutputDir "AdvancedTimeIsland.dll"
-    if (-not (Test-Path $dllPath)) {
-        Write-Warning "TraceID record skipped: AdvancedTimeIsland.dll not found in $OutputDir"
-        return
-    }
-
-    $manifestPath = Join-Path $OutputDir "manifest.yml"
-    $version = "unknown"
-    if (Test-Path $manifestPath) {
-        foreach ($line in Get-Content $manifestPath) {
-            if ($line -match '^\s*version\s*:\s*(\S+)') {
-                $version = $Matches[1]
-                break
-            }
-        }
-    }
-
-    $traceTimer = [System.Diagnostics.Stopwatch]::StartNew()
-    $md5 = (Get-FileHash $dllPath -Algorithm MD5).Hash
-    $timestamp = Get-Date -Format 'yyyy-MM-dd-HH-mm-ss'
-    $record = "$Label-$version-$timestamp-$md5"
-
-    $tracePath = Join-Path $ProjectRoot "TraceIDlist.txt"
-    $existing = if (Test-Path $tracePath) { [System.IO.File]::ReadAllText($tracePath) } else { "" }
-    if ($existing.Length -gt 0 -and -not $existing.EndsWith("`n")) {
-        $existing += "`r`n"
-    }
-    $content = $existing + $record + "`r`n"
-
-    # 原子写入：先写同目录临时文件，再替换目标文件
-    $tempPath = Join-Path $ProjectRoot "TraceIDlist.txt.tmp"
-    [System.IO.File]::WriteAllText($tempPath, $content, (New-Object System.Text.UTF8Encoding $true))
-    Move-Item $tempPath $tracePath -Force
-
-    Add-StageTime "trace record ($Label)" $traceTimer
-    Write-Host "TraceID: $record"
 }
 
 function Create-CipxPackage {
@@ -368,44 +321,7 @@ function Build-Variant {
     }
 
     $packed = Create-CipxPackage -OutputDir $OutputDir -PackageName "$PackageBaseName.cipx"
-    if ($packed) {
-        $traceLabel = if ($TargetFramework -eq "net10.0") { "FA3" } else { "FA2" }
-        Add-TraceIdRecord -OutputDir $OutputDir -Label $traceLabel
-    }
     Add-StageTime "variant $Label (total)" $variantTimer
-    return $packed
-}
-
-function Build-WpfVariant {
-    Write-Host "`n========================================"
-    Write-Host "Building WPF version (ClassIsland 1.x, net8.0-windows)..."
-    Write-Host "========================================"
-
-    $ProjectPath = Join-Path $ProjectRoot "AdvancedTimeIslandWPF\AdvancedTimeIslandWPF.csproj"
-    $OutputDir = Join-Path $ProjectRoot "AdvancedTimeIslandWPF\bin\Release\net8.0-windows"
-    $variantTimer = [System.Diagnostics.Stopwatch]::StartNew()
-
-    Write-Host "`nBuilding project (Release)..."
-    $buildTimer = [System.Diagnostics.Stopwatch]::StartNew()
-    dotnet build $ProjectPath --configuration Release
-    Add-StageTime "build (WPF)" $buildTimer
-
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "Build failed for WPF version"
-        return $false
-    }
-
-    # Copy WPF FloatSchedule child exe into plugin output dir -> Create-CipxPackage (full copy) picks it up
-    if (-not (Publish-WpfFloatExe -OutputDir $OutputDir)) {
-        Write-Error "WPF FloatSchedule child exe publish failed"
-        return $false
-    }
-
-    $packed = Create-CipxPackage -OutputDir $OutputDir -PackageName "AdvancedTimeIsland-wpf.cipx"
-    if ($packed) {
-        Add-TraceIdRecord -OutputDir $OutputDir -Label "WPF"
-    }
-    Add-StageTime "variant WPF (total)" $variantTimer
     return $packed
 }
 
@@ -443,40 +359,6 @@ function Publish-FloatExe {
     Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandFloatSchedule.exe") -Force
     $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
     Write-Host "FloatSchedule exe: $sizeKB KB -> $OutputDir"
-    return $true
-}
-
-
-function Publish-WpfFloatExe {
-    param(
-        [string]$OutputDir
-    )
-
-    # WPF 版悬浮窗"独立进程模式"子进程 exe（供 ClassIsland 1.x / AdvancedTimeIslandWPF 使用）。
-    # 框架依赖 + 单文件：运行时必须由机器全局的 .NET Desktop 运行时（Microsoft.WindowsDesktop.App）提供，
-    # 不从 ClassIsland 安装目录借任何 DLL，因此只需分发这一个 exe。
-    $childTfm = "net8.0-windows"
-    $proj = Join-Path $ProjectRoot "AdvancedTimeIslandWPFFloatSchedule\AdvancedTimeIslandWPFFloatSchedule.csproj"
-    $pubDir = Join-Path $ProjectRoot "AdvancedTimeIslandWPFFloatSchedule\bin\publish\$childTfm"
-
-    Write-Host "`nPublishing WPF FloatSchedule child exe ($childTfm, framework-dependent single-file)..."
-    $publishTimer = [System.Diagnostics.Stopwatch]::StartNew()
-    dotnet publish $proj -c Release -f $childTfm -r win-x64 --self-contained false `
-        -p:PublishSingleFile=true -p:IncludeNativeLibrariesForSelfExtract=true `
-        -o $pubDir
-    Add-StageTime "publish WPF FloatSchedule ($childTfm)" $publishTimer
-    if ($LASTEXITCODE -ne 0) {
-        Write-Error "WPF FloatSchedule publish failed for $childTfm"
-        return $false
-    }
-    $exe = Join-Path $pubDir "AdvancedTimeIslandWPFFloatSchedule.exe"
-    if (-not (Test-Path $exe)) {
-        Write-Error "WPF FloatSchedule exe not found: $exe"
-        return $false
-    }
-    Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandWPFFloatSchedule.exe") -Force
-    $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
-    Write-Host "WPF FloatSchedule exe: $sizeKB KB -> $OutputDir"
     return $true
 }
 
@@ -546,20 +428,6 @@ try {
             $packageNames += "AdvancedTimeIsland-net10.0.cipx"
         }
         $results["net10.0 new"] = $(if ($ok) { 'SUCCESS' } else { 'FAILED' })
-    }
-
-    if ($Target -eq "both" -or $Target -eq "wpf") {
-        $ok = Build-WpfVariant
-        if ($ok) {
-            $src = Join-Path (Join-Path $ProjectRoot "AdvancedTimeIslandWPF\bin\Release\net8.0-windows") "AdvancedTimeIsland-wpf.cipx"
-            if (Test-Path $src) {
-                Copy-Item $src (Join-Path $cipxDir "AdvancedTimeIsland-wpf.cipx") -Force
-                $packageNames += "AdvancedTimeIsland-wpf.cipx"
-            }
-            Write-Host "`nWPF packaging successful!"
-            Write-Host "Package location: $(Join-Path $cipxDir 'AdvancedTimeIsland-wpf.cipx')"
-        }
-        $results["wpf"] = $(if ($ok) { 'SUCCESS' } else { 'FAILED' })
     }
 
     if ($packageNames.Count -gt 0) {

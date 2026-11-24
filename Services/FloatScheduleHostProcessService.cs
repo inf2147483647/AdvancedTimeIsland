@@ -264,6 +264,9 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     //  只有先到者真正执行 StartCore。原因见 EnsureStartedFallback 注释（Win8.1 上实测的宿主启动中断）。
     private int _startInvoked;
 
+    /// <summary>宿主启动流程是否已调用过 StartAsync（含兜底启动），供启动兜底判定是否仍需救援。</summary>
+    public bool IsStarted => Volatile.Read(ref _startInvoked) == 1;
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         if (Interlocked.Exchange(ref _startInvoked, 1) == 1) return Task.CompletedTask;
@@ -485,6 +488,12 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     {
         lock (_stateLock) _cachedModel = model;
         WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Model, model));
+    }
+
+    /// <summary>是否已有可供 Init 补发的渲染模型缓存（启动阶段子进程连上后据此跳过重复全量刷新）。</summary>
+    public bool HasCachedModel
+    {
+        get { lock (_stateLock) return _cachedModel != null; }
     }
 
     public void SendSettings(FloatScheduleWindowSettings settings)

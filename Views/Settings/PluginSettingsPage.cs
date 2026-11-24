@@ -895,12 +895,6 @@ public class PluginSettingsPage : UserControl
         }
     }
 
-    /// <summary>
-    /// 「小工具」开关状态变化。关闭后主设置导航栏需立即移除「时间格式转换 / 时间计算器 / 专业名词解释」
-    /// 三个标签页（该选项无需重启即生效）。
-    /// </summary>
-    public event EventHandler<bool>? UtilitiesToggled;
-
     private void OnManageFeaturesClick(object? sender, RoutedEventArgs e)
     {
         SyncFeatureTogglesFromSettings();
@@ -952,22 +946,19 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 提交表格内全部勾选项。返回「小工具」是否发生变更（该选项无需重启，调用方据此立即刷新导航栏）。
+    /// 提交表格内全部勾选项。
     /// </summary>
-    private bool ApplyFeatureSettings()
+    private void ApplyFeatureSettings()
     {
         if (_settings == null)
         {
-            return false;
+            return;
         }
 
-        var utilitiesBefore = _settings.EnableUtilities;
         foreach (var item in _featureItems)
         {
             item.Set(_settings, item.IsEnabled);
         }
-
-        return utilitiesBefore != _settings.EnableUtilities;
     }
 
     /// <summary>
@@ -1064,14 +1055,9 @@ public class PluginSettingsPage : UserControl
             return;
         }
 
-        var utilitiesChanged = ApplyFeatureSettings();
+        ApplyFeatureSettings();
 
         RequestRestartAction?.Invoke();
-
-        if (utilitiesChanged)
-        {
-            UtilitiesToggled?.Invoke(this, _settings.EnableUtilities);
-        }
 
         CloseFeatureDrawer();
     }
@@ -1208,8 +1194,8 @@ public class PluginSettingsPage : UserControl
         AddFeature("汉服指南", "关闭后不再注册 170+ 汉服页面与“汉服指南”标签页，也不再下载汉服 Markdown。需先开启“实验性功能”。由关闭改为开启保存时需集控验证。",
             s => s.EnableHanfuGuide, (s, v) => s.EnableHanfuGuide = v, requiresVerification: true);
 
-        // 主设置导航栏的时间格式转换 / 时间计算器 / 专业名词解释，默认关闭；开启需集控验证
-        AddFeature("小工具", "关闭后主设置导航栏不再显示“时间格式转换”“时间计算器”“专业名词解释”。此项无需重启，提交后立即生效。由关闭改为开启保存时需集控验证。",
+        // 「小工具」页（时间格式转换 / 时间计算器 / 注释），默认关闭；开启需集控验证
+        AddFeature("小工具", "关闭后设置导航栏不再显示“小工具”页（内含“时间格式转换”“时间计算器”“注释”）。此项需重启 ClassIsland 后生效。由关闭改为开启保存时需集控验证。",
             s => s.EnableUtilities, (s, v) => s.EnableUtilities = v, requiresVerification: true);
     }
 

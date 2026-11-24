@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -209,7 +209,7 @@ public class PluginSettings : INotifyPropertyChanged
     // ===== 「管理启用的功能」新增开关 =====
     private bool _enableFpsChart = false;      // 帧率折线图及其分析页面（默认关闭；开启需集控验证）
     private bool _enableHanfuGuide = false;    // 汉服指南（170+ 汉服页面 + Markdown 下载，默认关闭；开启需集控验证）
-    private bool _enableUtilities = false;     // 小工具（时间格式转换 / 时间计算器 / 专业名词解释，默认关闭；开启需集控验证）
+    private bool _enableUtilities = false;     // 小工具（时间格式转换 / 时间计算器 / 注释，默认关闭；开启需集控验证）
     private string? _cachedVersion;
     private bool _enableFloatingSchedule = true;
     private FloatingScheduleWindowLayer _floatingScheduleWindowLayer = FloatingScheduleWindowLayer.Bottom;
@@ -470,8 +470,9 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     /// <summary>
-    /// 是否显示小工具（「管理启用的功能」，默认关闭）。
-    /// 关闭后主设置导航栏不再显示「时间格式转换」「时间计算器」「专业名词解释」三个标签页。
+    /// 是否显示「小工具」设置页（「管理启用的功能」，默认关闭）。
+    /// 关闭后设置导航栏不再显示「小工具」页（内含「时间格式转换」「时间计算器」「注释」）。
+    /// 该开关在插件加载时决定是否注册页面，修改后需重启 ClassIsland 才能生效。
     /// 由关到开保存时需集控验证；旧配置文件中已保存的值不受默认值影响。
     /// </summary>
     public bool EnableUtilities

@@ -8,6 +8,7 @@ using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Shared.FloatingSchedule;
+using AdvancedTimeIsland.Views.Controls;
 using ClassIsland.Shared;
 using Avalonia;
 using Avalonia.Controls;
@@ -31,6 +32,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     readonly Canvas _previewCanvas = new();
     // 背景透卡（预览专用）：透出"卡片正下方"那块示例背景并按材质施加不同模糊（云母/亚克力/液态玻璃差异的核心）。
     Border? _previewBackdropLayer;
+    // 液态玻璃实验性提示条：仅在该材质被选中时显示，切换材质时联动开合。
+    Control? _glassWarn;
     int _previewBackdropMaterial;   // 3=液态玻璃 → 背景层走"真实 SDF 折射"，其余走模糊
     double _bdLeft = double.NaN, _bdTop = double.NaN, _bdW = double.NaN, _bdH = double.NaN, _bdZoom = double.NaN;
     double _zoom = 1.0;
@@ -81,14 +84,23 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         root.Children.Add(nav);
 
         // ---- 中部设置区 ----
-        var centerScroll = new ScrollViewer { HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled, VerticalScrollBarVisibility = ScrollBarVisibility.Auto, Margin = new Thickness(0, 0, 12, 0) };
+        var centerScroll = new ScrollViewer
+        {
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Top,
+            Margin = new Thickness(0, 0, 12, 0),
+        };
+        // 内容宿主同样置顶 / 横向拉伸：否则折叠栏折叠后会被 ScrollViewer 垂直居中，悬在设置区中部。
+        _centerHost.HorizontalContentAlignment = HorizontalAlignment.Stretch;
+        _centerHost.VerticalContentAlignment = VerticalAlignment.Top;
         centerScroll.Content = _centerHost;
         Grid.SetColumn(centerScroll, 1);
         root.Children.Add(centerScroll);
 
         // ---- 右预览 ----
         var right = new Grid { RowDefinitions = RowDefinitions.Parse("Auto,*") };
-        right.Children.Add(new TextBlock { Text = "实时预览（1:1，滚轮缩放 / 拖动）· 玻璃为近似示意，真机使用系统亚克力", FontWeight = FontWeight.SemiBold, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(0, 0, 0, 8) });
         // 预览“桌面”示例背景（彩色 + 网格）：半透明玻璃卡片叠在其上，可看出“透出背后内容”的玻璃感。
         // 说明：编辑器是不透明窗口，系统亚克力（需采样真实桌面）在此不可用，故用示例背景做可视化近似。
         var previewHost = new Border { Background = BuildPreviewWallpaperBrush(), CornerRadius = new CornerRadius(8), ClipToBounds = true };
@@ -108,13 +120,13 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         root.Children.Add(right);
 
         var outer = new DockPanel();
-        // 顶端警告 InfoBar（FluentAvalonia，经兼容层屏蔽 FA2/FA3 类型名差异；警告级、不可关闭、深浅自适应）
+        // 顶端提示 InfoBar（FluentAvalonia，经兼容层屏蔽 FA2/FA3 类型名差异；警告级、可关闭、深浅自适应）
         var devWarn = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Title", "注意！");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Message", "正在开发中，部分功能有缺陷，欢迎提出 issue");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Title", "提示");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Message", "部分高级材质仍在完善中，遇到问题欢迎提出 issue");
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "IsOpen", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "IsClosable", false);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "IsClosable", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(devWarn, "Margin", new Thickness(12, 12, 12, 10));
         DockPanel.SetDock(devWarn, Dock.Top);
         outer.Children.Add(devWarn);
@@ -156,21 +168,35 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         };
     }
 
+    // 分区根容器：直接使用官方 SettingsExpander 样式（CompatSettingsExpander 转发 FA2/FA3 真实控件），
+    // 每个分区是一张带标题的官方折叠卡片，展开后条目按 SettingsExpanderItem 排行。
+    static CompatSettingsExpander NewExpander(string header) => new()
+    {
+        Header = header,
+        IsExpanded = true,
+    };
+
     // ===================== 各分区 UI =====================
     Control BuildWindowPanel()
     {
-        var p = NewPanel();
-        // 液态玻璃维护提醒：错误级、不可关闭（FA2/FA3 的 InfoBar 类型名不同，经兼容层创建）。
+        var p = NewExpander("窗口");
+        // 液态玻璃提示：仅在选用该材质时显示，警告级、可关闭；文案保持中性，不再使用劝退式措辞。
         var glassWarn = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError());
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Title", "注意");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Message", "请不要使用液态玻璃材质，作者已经没有经济来维护它了");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsOpen", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsClosable", false);
+        _glassWarn = glassWarn;
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Title", "实验性材质");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Message", "液态玻璃仍在实验阶段，性能开销较高、可能出现显示异常；如遇问题可随时切换回其他材质。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsOpen", _s.FloatingScheduleMaterial == FloatingScheduleMaterialType.LiquidGlass);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsClosable", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Margin", new Thickness(0, 0, 0, 8));
-        p.Children.Add(glassWarn);
-        p.Children.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃 (GraveYard)", "古卷 (Alpha)", "自定义图片" },
-            OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0, i => _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i,
+        p.Items.Add(glassWarn);
+        p.Items.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃（实验性）", "古卷（实验性）", "自定义图片" },
+            OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0, i =>
+            {
+                _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i;
+                if (_glassWarn != null)
+                    FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_glassWarn, "IsOpen", i == (int)FloatingScheduleMaterialType.LiquidGlass);
+            },
             out var matCombo));
         if (!OperatingSystem.IsWindows())
         {
@@ -180,28 +206,28 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             _suppress = true;
             matCombo.SelectedIndex = 0;
             _suppress = prevSuppress;
-            p.Children.Add(new TextBlock
+            p.Items.Add(new TextBlock
             {
                 Text = "当前系统不支持窗口材质（云母 / 亚克力依赖 Windows 桌面窗口管理器），已锁定为半透明。",
                 FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap, Opacity = 0.8
             });
         }
-        p.Children.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
-        p.Children.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
-        p.Children.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
+        p.Items.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
+        p.Items.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
+        p.Items.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
-        p.Children.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
+        p.Items.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
         // 采集方案（二选一，改动即时生效）：
         //   方案1 = DWM/WGC 采集（不排除自身 → 支持截图；资源占用高、适配性差）
         //   方案2 = cf78b44 经典采集（采样期间排除自身 → 不支持截图；占用低、流畅）
         int captureScheme = _s.FloatingScheduleGlassCaptureMode == FloatingScheduleGlassCaptureMode.WindowUnder ? 0 : 1;
-        p.Children.Add(RowCombo("采集方案", new[] { "方案1（DWM采集，支持截图，但资源占用高，适配不佳）", "方案2（资源占用低，流畅度高，但不支持截图）" },
+        p.Items.Add(RowCombo("采集方案", new[] { "方案1（DWM采集，支持截图，但资源占用高，适配不佳）", "方案2（资源占用低，流畅度高，但不支持截图）" },
             captureScheme, i => _s.FloatingScheduleGlassCaptureMode = i == 0
                 ? FloatingScheduleGlassCaptureMode.WindowUnder
                 : FloatingScheduleGlassCaptureMode.Dxgi, out _));
         // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
-        p.Children.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
-        p.Children.Add(RowButton("选择自定义背景图片…", async (_, _) =>
+        p.Items.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
+        p.Items.Add(RowButton("选择自定义背景图片…", async (_, _) =>
         {
             try
             {
@@ -222,45 +248,45 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             }
             catch { }
         }));
-        p.Children.Add(new TextBlock { Text = $"当前图片：{(string.IsNullOrWhiteSpace(_s.FloatingScheduleCustomBackgroundPath) ? "（未选择）" : _s.FloatingScheduleCustomBackgroundPath)}", FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
-        p.Children.Add(RowToggle("窗口边框", _s.FloatingScheduleBorderEnabled, v => _s.FloatingScheduleBorderEnabled = v));
-        p.Children.Add(RowCombo("边框样式", new[] { "画框", "黑板", "Windows 7", "Windows XP", "Windows 10", "Windows 11", "HarmonyOS" },
+        p.Items.Add(new TextBlock { Text = $"当前图片：{(string.IsNullOrWhiteSpace(_s.FloatingScheduleCustomBackgroundPath) ? "（未选择）" : _s.FloatingScheduleCustomBackgroundPath)}", FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
+        p.Items.Add(RowToggle("窗口边框", _s.FloatingScheduleBorderEnabled, v => _s.FloatingScheduleBorderEnabled = v));
+        p.Items.Add(RowCombo("边框样式", new[] { "画框", "黑板", "Windows 7", "Windows XP", "Windows 10", "Windows 11", "HarmonyOS" },
             (int)_s.FloatingScheduleBorderPreset, i => _s.FloatingScheduleBorderPreset = (FloatingScheduleBorderPreset)i, out _));
-        p.Children.Add(RowToggle("边框自定义颜色", _s.FloatingScheduleBorderColorEnabled, v => _s.FloatingScheduleBorderColorEnabled = v));
-        p.Children.Add(RowColor("边框颜色", _s.FloatingScheduleBorderColor, v => _s.FloatingScheduleBorderColor = v));
+        p.Items.Add(RowToggle("边框自定义颜色", _s.FloatingScheduleBorderColorEnabled, v => _s.FloatingScheduleBorderColorEnabled = v));
+        p.Items.Add(RowColor("边框颜色", _s.FloatingScheduleBorderColor, v => _s.FloatingScheduleBorderColor = v));
         return p;
     }
 
     Control BuildTextPanel()
     {
-        var p = NewPanel();
-        p.Children.Add(RowToggle("自定义字体", _s.FloatingScheduleFontEnabled, v => _s.FloatingScheduleFontEnabled = v));
+        var p = NewExpander("文本");
+        p.Items.Add(RowToggle("自定义字体", _s.FloatingScheduleFontEnabled, v => _s.FloatingScheduleFontEnabled = v));
         var fonts = new List<string> { "（跟随应用）" };
         try { fonts.AddRange(FontFamilyHelper.GetSystemFontFamilies()); } catch { }
         int fi = 0;
         if (_s.FloatingScheduleFontEnabled && !string.IsNullOrWhiteSpace(_s.FloatingScheduleTextFontFamily))
         { var k = fonts.IndexOf(_s.FloatingScheduleTextFontFamily!); if (k > 0) fi = k; }
-        p.Children.Add(RowCombo("字体", fonts.ToArray(), fi, i =>
+        p.Items.Add(RowCombo("字体", fonts.ToArray(), fi, i =>
         {
             if (i <= 0) { _s.FloatingScheduleFontEnabled = false; _s.FloatingScheduleTextFontFamily = null; }
             else { _s.FloatingScheduleFontEnabled = true; _s.FloatingScheduleTextFontFamily = fonts[i]; }
         }, out _));
-        p.Children.Add(new TextBlock { Text = "字号：请在「时间表悬浮窗 → 基础外观 → 课程名字号」设置（此处直接绑定）。", FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
-        p.Children.Add(RowToggle("自定义字重", _s.FloatingScheduleFontWeightEnabled, v => _s.FloatingScheduleFontWeightEnabled = v));
-        p.Children.Add(RowCombo("字重", new[] { "Thin(100)", "ExtraLight(200)", "Light(300)", "Normal(400)", "Medium(500)", "SemiBold(600)", "Bold(700)", "ExtraBold(800)", "Black(900)" },
+        p.Items.Add(new TextBlock { Text = "字号：请在「时间表悬浮窗 → 基础外观 → 课程名字号」设置（此处直接绑定）。", FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap });
+        p.Items.Add(RowToggle("自定义字重", _s.FloatingScheduleFontWeightEnabled, v => _s.FloatingScheduleFontWeightEnabled = v));
+        p.Items.Add(RowCombo("字重", new[] { "Thin(100)", "ExtraLight(200)", "Light(300)", "Normal(400)", "Medium(500)", "SemiBold(600)", "Bold(700)", "ExtraBold(800)", "Black(900)" },
             Math.Clamp(_s.FloatingScheduleTextFontWeight / 100 - 1, 0, 8), i => { _s.FloatingScheduleFontWeightEnabled = true; _s.FloatingScheduleTextFontWeight = (i + 1) * 100; }, out _));
-        p.Children.Add(RowToggle("自定义字体颜色", _s.FloatingScheduleTextColorEnabled, v => _s.FloatingScheduleTextColorEnabled = v));
-        p.Children.Add(RowColor("全局字体颜色", _s.FloatingScheduleTextColor, v => { _s.FloatingScheduleTextColorEnabled = true; _s.FloatingScheduleTextColor = v; }));
-        p.Children.Add(RowToggle("按学科分色", _s.FloatingScheduleSubjectColorEnabled, v => _s.FloatingScheduleSubjectColorEnabled = v));
+        p.Items.Add(RowToggle("自定义字体颜色", _s.FloatingScheduleTextColorEnabled, v => _s.FloatingScheduleTextColorEnabled = v));
+        p.Items.Add(RowColor("全局字体颜色", _s.FloatingScheduleTextColor, v => { _s.FloatingScheduleTextColorEnabled = true; _s.FloatingScheduleTextColor = v; }));
+        p.Items.Add(RowToggle("按学科分色", _s.FloatingScheduleSubjectColorEnabled, v => _s.FloatingScheduleSubjectColorEnabled = v));
 #if NET10_0_OR_GREATER
         // FA3（ClassIsland 2.1.1.1+）：学科主题色直接复用宿主档案 Subject.ColorHex，插件自有色表体系取消，
         // 此处仅保留开关与跳转宿主「档案 → 学科」编辑页的入口。
-        p.Children.Add(new TextBlock
+        p.Items.Add(new TextBlock
         {
             Text = "学科颜色直接使用 ClassIsland 档案中的学科主题色，请在 ClassIsland 档案设置中编辑。",
             FontSize = 12, Margin = new Thickness(0, 2, 0, 8), TextWrapping = TextWrapping.Wrap, Opacity = 0.8
         });
-        p.Children.Add(RowButton("前往 ClassIsland 编辑学科主题色", (_, _) => OpenClassIslandSubjectEditor()));
+        p.Items.Add(RowButton("前往 ClassIsland 编辑学科主题色", (_, _) => OpenClassIslandSubjectEditor()));
 #else
         // FA2（旧版 ClassIsland 无原生学科主题色）：保留插件端编辑，色表预置/恢复为官方默认学科色。
         // 添加学科：输入科目名 + 添加按钮
@@ -277,13 +303,13 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         };
         var addRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Margin = new Thickness(0, 2) };
         addRow.Children.Add(addName); addRow.Children.Add(addBtn);
-        p.Children.Add(addRow);
-        p.Children.Add(RowButton("从课表刷新学科", (_, _) => RefreshSubjects()));
-        p.Children.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap(); RebuildPreview(); SwitchPanel(1); PersistNow(); }));
+        p.Items.Add(addRow);
+        p.Items.Add(RowButton("从课表刷新学科", (_, _) => RefreshSubjects()));
+        p.Items.Add(RowButton("恢复学科默认色", (_, _) => { _s.FloatingScheduleSubjectColorMap = SubjectColorHelper.BuildDefaultSubjectColorMap(); RebuildPreview(); SwitchPanel(1); PersistNow(); }));
         foreach (var kv in _s.FloatingScheduleSubjectColorMap)
         {
             var name = kv.Key;
-            p.Children.Add(SubjectRow(name, kv.Value,
+            p.Items.Add(SubjectRow(name, kv.Value,
                 v => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap) { [name] = v }; _s.FloatingScheduleSubjectColorMap = map; },
                 () => { var map = new Dictionary<string, uint>(_s.FloatingScheduleSubjectColorMap); map.Remove(name); _s.FloatingScheduleSubjectColorMap = map; RebuildPreview(); SwitchPanel(1); PersistNow(); }));
         }
@@ -319,40 +345,40 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 
     Control BuildTablePanel()
     {
-        var p = NewPanel();
-        p.Children.Add(RowCombo("布局方向", new[] { "纵向排列（默认）", "横向排列（从左往右）", "横向排列（从右往左，推荐古卷）" },
+        var p = NewExpander("表格");
+        p.Items.Add(RowCombo("布局方向", new[] { "纵向排列（默认）", "横向排列（从左往右）", "横向排列（从右往左，推荐古卷）" },
             (int)_s.FloatingScheduleLayoutDirection, i => _s.FloatingScheduleLayoutDirection = (FloatingScheduleLayoutDir)i, out _));
-        p.Children.Add(RowToggle("间色（斑马底）", _s.FloatingScheduleZebraStriped, v => _s.FloatingScheduleZebraStriped = v));
-        p.Children.Add(RowSlider("行间距倍率 (0.5~2.0)", _s.FloatingScheduleRowSpacingFactor, 0.5, 2.0, 0.05, v => _s.FloatingScheduleRowSpacingFactor = v, out _));
-        p.Children.Add(RowCombo("列间距模式", new[] { "自动适配", "自定义" }, (int)_s.FloatingScheduleColumnSpacingMode, i => _s.FloatingScheduleColumnSpacingMode = (FloatingScheduleColumnSpacingMode)i, out _));
-        p.Children.Add(RowSlider("自定义列间距 (50~1000px)", _s.FloatingScheduleColumnSpacing, 50, 1000, 1, v => _s.FloatingScheduleColumnSpacing = v, out _));
-        p.Children.Add(RowSlider("上边距 (0~50px)", _s.FloatingScheduleMarginTop, 0, 50, 1, v => _s.FloatingScheduleMarginTop = v, out _));
-        p.Children.Add(RowSlider("下边距 (0~50px)", _s.FloatingScheduleMarginBottom, 0, 50, 1, v => _s.FloatingScheduleMarginBottom = v, out _));
-        p.Children.Add(RowSlider("左边距 (0~50px)", _s.FloatingScheduleMarginLeft, 0, 50, 1, v => _s.FloatingScheduleMarginLeft = v, out _));
-        p.Children.Add(RowSlider("右边距 (0~50px)", _s.FloatingScheduleMarginRight, 0, 50, 1, v => _s.FloatingScheduleMarginRight = v, out _));
+        p.Items.Add(RowToggle("间色（斑马底）", _s.FloatingScheduleZebraStriped, v => _s.FloatingScheduleZebraStriped = v));
+        p.Items.Add(RowSlider("行间距倍率 (0.5~2.0)", _s.FloatingScheduleRowSpacingFactor, 0.5, 2.0, 0.05, v => _s.FloatingScheduleRowSpacingFactor = v, out _));
+        p.Items.Add(RowCombo("列间距模式", new[] { "自动适配", "自定义" }, (int)_s.FloatingScheduleColumnSpacingMode, i => _s.FloatingScheduleColumnSpacingMode = (FloatingScheduleColumnSpacingMode)i, out _));
+        p.Items.Add(RowSlider("自定义列间距 (50~1000px)", _s.FloatingScheduleColumnSpacing, 50, 1000, 1, v => _s.FloatingScheduleColumnSpacing = v, out _));
+        p.Items.Add(RowSlider("上边距 (0~50px)", _s.FloatingScheduleMarginTop, 0, 50, 1, v => _s.FloatingScheduleMarginTop = v, out _));
+        p.Items.Add(RowSlider("下边距 (0~50px)", _s.FloatingScheduleMarginBottom, 0, 50, 1, v => _s.FloatingScheduleMarginBottom = v, out _));
+        p.Items.Add(RowSlider("左边距 (0~50px)", _s.FloatingScheduleMarginLeft, 0, 50, 1, v => _s.FloatingScheduleMarginLeft = v, out _));
+        p.Items.Add(RowSlider("右边距 (0~50px)", _s.FloatingScheduleMarginRight, 0, 50, 1, v => _s.FloatingScheduleMarginRight = v, out _));
         return p;
     }
 
     Control BuildThemePanel()
     {
-        var p = NewPanel();
-        p.Children.Add(RowCombo("主题色", new[] { "浅色", "深色", "跟随 ClassIsland", "跟随系统" },
+        var p = NewExpander("主题");
+        p.Items.Add(RowCombo("主题色", new[] { "浅色", "深色", "跟随 ClassIsland", "跟随系统" },
             (int)_s.FloatingScheduleThemeMode, i => _s.FloatingScheduleThemeMode = (FloatingScheduleThemeMode)i, out _));
-        p.Children.Add(RowToggle("自定义表格底色", _s.FloatingScheduleTableColorEnabled, v => _s.FloatingScheduleTableColorEnabled = v));
-        p.Children.Add(RowColor("表格底色", _s.FloatingScheduleTableColor, v => { _s.FloatingScheduleTableColorEnabled = true; _s.FloatingScheduleTableColor = v; }));
-        p.Children.Add(RowToggle("自定义强调色", _s.FloatingScheduleAccentColorEnabled, v => _s.FloatingScheduleAccentColorEnabled = v));
-        p.Children.Add(RowColor("强调色", _s.FloatingScheduleAccentColor, v => { _s.FloatingScheduleAccentColorEnabled = true; _s.FloatingScheduleAccentColor = v; }));
-        p.Children.Add(RowToggle("自定义分隔线颜色", _s.FloatingScheduleSeparatorColorEnabled, v => _s.FloatingScheduleSeparatorColorEnabled = v));
-        p.Children.Add(RowColor("分隔线颜色", _s.FloatingScheduleSeparatorColor, v => { _s.FloatingScheduleSeparatorColorEnabled = true; _s.FloatingScheduleSeparatorColor = v; }));
-        p.Children.Add(RowSlider("分隔线粗细 (0~10px)", _s.FloatingScheduleSeparatorThickness, 0, 10, 0.1, v => _s.FloatingScheduleSeparatorThickness = v, out _));
+        p.Items.Add(RowToggle("自定义表格底色", _s.FloatingScheduleTableColorEnabled, v => _s.FloatingScheduleTableColorEnabled = v));
+        p.Items.Add(RowColor("表格底色", _s.FloatingScheduleTableColor, v => { _s.FloatingScheduleTableColorEnabled = true; _s.FloatingScheduleTableColor = v; }));
+        p.Items.Add(RowToggle("自定义强调色", _s.FloatingScheduleAccentColorEnabled, v => _s.FloatingScheduleAccentColorEnabled = v));
+        p.Items.Add(RowColor("强调色", _s.FloatingScheduleAccentColor, v => { _s.FloatingScheduleAccentColorEnabled = true; _s.FloatingScheduleAccentColor = v; }));
+        p.Items.Add(RowToggle("自定义分隔线颜色", _s.FloatingScheduleSeparatorColorEnabled, v => _s.FloatingScheduleSeparatorColorEnabled = v));
+        p.Items.Add(RowColor("分隔线颜色", _s.FloatingScheduleSeparatorColor, v => { _s.FloatingScheduleSeparatorColorEnabled = true; _s.FloatingScheduleSeparatorColor = v; }));
+        p.Items.Add(RowSlider("分隔线粗细 (0~10px)", _s.FloatingScheduleSeparatorThickness, 0, 10, 0.1, v => _s.FloatingScheduleSeparatorThickness = v, out _));
         return p;
     }
 
     Control BuildDebugPanel()
     {
-        var p = NewPanel();
-        p.Children.Add(RowToggle("显示 FPS 角标", _s.FloatingScheduleShowFps, v => _s.FloatingScheduleShowFps = v));
-        p.Children.Add(new TextBlock { Text = "角标格式：渲染 FPS / 无等待 FPS", FontSize = 12, Margin = new Thickness(0, 0, 0, 8) });
+        var p = NewExpander("调试");
+        p.Items.Add(RowToggle("显示 FPS 角标", _s.FloatingScheduleShowFps, v => _s.FloatingScheduleShowFps = v));
+        p.Items.Add(new TextBlock { Text = "角标格式：渲染 FPS / 无等待 FPS", FontSize = 12, Margin = new Thickness(0, 0, 0, 8) });
         return p;
     }
 
@@ -573,29 +599,27 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 
     // ===================== 控件工厂 =====================
     PluginSettings _s => _settings!;
-    static StackPanel NewPanel() => new() { Spacing = 8, Margin = new Thickness(0, 0, 0, 0) };
 
-    Control Row(string label, Control editor)
+    // 单项设置：官方 SettingsExpanderItem（标题左、控件右、可选说明），由所属分区 Expander 承载。
+    static CompatSettingsExpanderItem Row(string label, Control editor, string? description = null) => new()
     {
-        var g = new Grid { ColumnDefinitions = ColumnDefinitions.Parse("*,Auto"), ColumnSpacing = 12, Margin = new Thickness(0, 2) };
-        var lt = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, TextWrapping = TextWrapping.Wrap };
-        Grid.SetColumn(lt, 0); g.Children.Add(lt);
-        editor.VerticalAlignment = VerticalAlignment.Center; Grid.SetColumn(editor, 1); g.Children.Add(editor);
-        return g;
-    }
+        Content = label,
+        Description = description ?? string.Empty,
+        Footer = editor,
+    };
 
-    Control RowToggle(string label, bool val, Action<bool> set)
+    CompatSettingsExpanderItem RowToggle(string label, bool val, Action<bool> set)
     {
         var t = new ToggleSwitch { IsChecked = val };
         t.IsCheckedChanged += (_, _) => { if (_suppress) return; set(t.IsChecked == true); RebuildPreview(); PersistNow(); };
         return Row(label, t);
     }
 
-    Control RowCombo(string label, string[] items, int sel, Action<int> set, out ComboBox combo)
+    CompatSettingsExpanderItem RowCombo(string label, string[] items, int sel, Action<int> set, out ComboBox combo)
     {
         // 先填充 Items 再设 SelectedIndex：空 Items 上设置 SelectedIndex 在新版 Avalonia（FA3/net10）
         // 中不会挂起待 Items 添加后补选，而是直接丢弃 → 重进窗口后下拉框文本丢失（配置本身未丢）。
-        var c = new ComboBox { MinWidth = 180 };
+        var c = new ComboBox { MinWidth = 200 };
         foreach (var it in items) c.Items.Add(it);
         c.SelectedIndex = Math.Clamp(sel, 0, items.Length - 1);
         c.SelectionChanged += (_, _) => { if (_suppress || c.SelectedIndex < 0) return; set(c.SelectedIndex); RebuildPreview(); PersistNow(); };
@@ -603,7 +627,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     }
 
     // 数值输入行（NumericUpDown）：范围/步长由参数给定，改动即时写回设置（主进程与子进程都热跟随）
-    Control RowNumeric(string label, double val, double min, double max, double step, Action<double> set)
+    CompatSettingsExpanderItem RowNumeric(string label, double val, double min, double max, double step, Action<double> set)
     {
         var n = new NumericUpDown
         {
@@ -625,7 +649,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         return Row(label, n);
     }
 
-    Control RowSlider(string label, double val, double min, double max, double step, Action<double> set, out Slider slider)
+    CompatSettingsExpanderItem RowSlider(string label, double val, double min, double max, double step, Action<double> set, out Slider slider)
     {
         var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, MinWidth = 220 };
         var s = new Slider { Minimum = min, Maximum = max, Value = val, Width = 160, TickFrequency = step };
@@ -638,29 +662,30 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         slider = s; return Row(label, sp);
     }
 
-    Control RowButton(string label, EventHandler<RoutedEventArgs> handler)
+    CompatSettingsExpanderItem RowButton(string label, EventHandler<RoutedEventArgs> handler)
     {
         var b = new Button { Content = label, Padding = new Thickness(12, 5), HorizontalAlignment = HorizontalAlignment.Left };
         b.Click += handler;
-        return b;
+        return Row(label, b);
     }
 
-    Control RowColor(string label, uint argb, Action<uint> set)
+    // 颜色行：使用 Avalonia 官方 ColorPicker（与插件其他设置页一致），支持取色盘 / 色值输入；
+    // 颜色变更即时写回设置、刷新预览并落盘。
+    CompatSettingsExpanderItem RowColor(string label, uint argb, Action<uint> set)
     {
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        var swatch = new Border { Width = 28, Height = 22, CornerRadius = new CornerRadius(4), Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(argb)), BorderBrush = new SolidColorBrush(Color.FromRgb(0x88, 0x88, 0x88)), BorderThickness = new Thickness(1) };
-        var box = new TextBox { Text = "#" + argb.ToString("X8"), Width = 100 };
-        box.LostFocus += (_, _) =>
+        var picker = new ColorPicker
         {
-            try
-            {
-                var t = box.Text?.Trim().TrimStart('#') ?? "";
-                if (t.Length == 8 && uint.TryParse(t, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var v)) { set(v); swatch.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(v)); RebuildPreview(); PersistNow(); }
-            }
-            catch { }
+            Width = 160,
+            Color = FloatScheduleRenderer.FromArgb(argb),
         };
-        sp.Children.Add(swatch); sp.Children.Add(box);
-        return Row(label, sp);
+        picker.ColorChanged += (_, _) =>
+        {
+            if (_suppress) return;
+            set(FloatScheduleRenderer.ToArgb(picker.Color));
+            RebuildPreview();
+            PersistNow();
+        };
+        return Row(label, picker);
     }
 
     // 设置项写回后立即原子落盘（后台线程执行，不阻塞 UI）：

@@ -730,6 +730,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  只有先到者真正执行 StartCoreAv。原因见 EnsureStartedFallbackAv 注释（Win8.1 上实测的"静默不显示"）。
     private int _startInvokedAv;
 
+    /// <summary>宿主启动流程是否已调用过 StartAsync（含兜底启动），供启动兜底判定是否仍需救援。</summary>
+    public bool IsStarted => Volatile.Read(ref _startInvokedAv) == 1;
+
     public Task StartAsync(CancellationToken cancellationToken)
     {
         if (System.Threading.Interlocked.Exchange(ref _startInvokedAv, 1) == 1) return Task.CompletedTask;
@@ -843,7 +846,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     private async Task TryStartWithRetryAsync(CancellationToken ct)
     {
-        for (int attempt = 0; attempt < 25; attempt++)
+        // 兜底路径可能在宿主异常慢启动时提前进入：拉长等待窗口（100 × 150ms ≈ 15s），
+        // 避免服务晚于 3.75s 就绪时被直接放弃（之后只能等下一次重启）。
+        for (int attempt = 0; attempt < 100; attempt++)
         {
             if (ct.IsCancellationRequested) return;
             if (IAppHost.Host != null)
@@ -864,6 +869,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                             _lessonsService = lessonsSvc;
                             _profileService = profileSvc;
                             _logger.LogInformation("FloatingScheduleService: LessonsService & ProfileService 获取成功");
+                            await WaitForHostMainWindowAsync(ct).ConfigureAwait(false);
                             StartInternal();
                             return;
                         }
@@ -886,6 +892,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
                                 _lessonsService = lessonsAny;
                                 _profileService = profileAny;
                                 _logger.LogInformation("FloatingScheduleService: ILessonsService & IProfileService 公开接口获取成功");
+                                await WaitForHostMainWindowAsync(ct).ConfigureAwait(false);
                                 StartInternal();
                                 return;
                             }
@@ -902,7 +909,34 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //   减少"服务已可用但仍在等待下一轮"的固定延迟。
             await Task.Delay(150, ct);
         }
-        _logger.LogWarning("FloatingScheduleService: 25次重试仍未能获取宿主服务");
+        _logger.LogWarning("FloatingScheduleService: 100次重试仍未能获取宿主服务");
+    }
+
+    /// <summary>
+    /// 等宿主主窗口创建完成（排除 SplashWindow），最多 5s；超时则照常启动，保证悬浮窗最终出现。
+    /// 目的是把悬浮窗建窗/刷新从宿主启动收尾的关键路径上挪到主界面就绪之后。
+    /// </summary>
+    private static async Task WaitForHostMainWindowAsync(CancellationToken ct)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(5);
+        while (!ct.IsCancellationRequested && DateTime.UtcNow < deadline)
+        {
+            try
+            {
+                var ready = await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    var w = AdvancedTimeIsland.Plugin.ResolveHostMainWindow();
+                    // 排除启动画面；其余窗口视为宿主主界面（不同 ClassIsland 版本窗口类型名可能不同）
+                    return w != null && !w.GetType().Name.Contains("Splash", StringComparison.OrdinalIgnoreCase);
+                });
+                if (ready) return;
+            }
+            catch (OperationCanceledException) { return; }
+            catch { /* 主窗口尚未创建：继续等待 */ }
+
+            try { await Task.Delay(100, ct).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+        }
     }
 
     private void StartInternal()
@@ -910,6 +944,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         // 所有 UI 相关操作必须切到 UI 线程（TryStartWithRetryAsync 运行在后台线程）。
         // 修复：当 EnableFloatingSchedule=true 插件初始化后悬浮窗不显示、直到重新 toggle 开关才出现的问题——
         // 原因为在非 UI 线程直接 new Window/Show，会导致操作静默失败（无可见窗口，未抛 catch 外）或窗口未真正激活显示。
+        // 【启动速度】降到 Background 优先级：让宿主主界面首帧/主题应用先完成，避免悬浮窗建窗与
+        //   RefreshSchedule 的控件构建抢在宿主启动收尾之前占用 UI 线程。
         Dispatcher.UIThread.Post(() =>
         {
             if (_settings == null) return;
@@ -918,6 +954,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 EnsureWindow();
                 ShowWindow();       // 内部含 ApplyWindowLayer（后置 Topmost/Bottom z-order，必须 Show 后 hwnd 存在才生效）
                 RefreshSchedule();  // 填 UI 内容：_containerBorder.Child 赋值；SizeToContent 决定窗口尺寸
+                // 独立进程模式下本次刷新已把模型写入缓存（未连接时由 Init 补发），
+                // 子进程随后连上时无需再全量 RefreshSchedule 一次。
+                if (IndependentRequested && _hostProcess is { IsChildConnected: false })
+                    _skipNextIndependentConnectedRefreshAv = true;
                 ApplyWindowLayer(); // 再次兜底：RefreshSchedule 会重建 _containerBorder 子树，确保 Win32 z-order 正确
                 StartOrStopTimer(); // _window.IsVisible==true 才会启动
                 // 【修复：调试时间不立刻刷新 - 即时事件监听】
@@ -929,13 +969,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 // 【随机窗口名】按设置启动 1s 增强随机定时器（EnsureWindow 已应用初始标题）
                 StartOrStopRandomTitleTimerAv();
             }
-        });
+        }, DispatcherPriority.Background);
     }
 
     // ===================== 窗口管理 =====================
     private void Stop()
     {
         _allowClose = true;
+        _skipNextIndependentConnectedRefreshAv = false;
         try { _timer?.Stop(); } catch { }
         _timer = null;
         try { _hoverFadeTimer?.Stop(); } catch { }
@@ -2316,6 +2357,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
 
     // ===================== 独立进程模式：子进程事件处理 =====================
 
+    /// <summary>启动阶段 StartInternal 已刷新过一次模型：子进程连上后跳过重复的全量刷新。</summary>
+    private bool _skipNextIndependentConnectedRefreshAv;
+
     /// <summary>子进程已连接：推送最新设置/模型/可见性完成接管（进程内窗口在模式开启瞬间即已关闭，无需再隐藏）。</summary>
     private void OnIndependentChildConnectedAv()
     {
@@ -2323,8 +2367,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             try
             {
+                // 启动时 RefreshSchedule 已把模型写入子进程缓存（Init 会补发）→ 连上后只需补推设置/可见性，
+                // 避免同一次启动里再构建一遍完整模型（含大量控件）。
+                var skipRefresh = _skipNextIndependentConnectedRefreshAv && _hostProcess?.HasCachedModel == true;
+                _skipNextIndependentConnectedRefreshAv = false;
                 PublishIndependentSettingsAv();
-                RefreshSchedule();
+                if (!skipRefresh) RefreshSchedule();
                 ApplyShouldHideAv();
             }
             catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentChildConnectedAv 异常（忽略）"); }
@@ -4743,11 +4791,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         // 离开液态玻璃（方案2 采样）→ 归还采样期间的排除捕获（对齐 cf78b44 的 RestoreAffinity）。
         if (ResolveMaterialAv() != 3) _glassAv.ReleaseCaptureExclusion();
-        // 独立进程模式优先：进程内窗口对象可能仍存活（Connected 后只 Hide 未销毁），不能再走进程内渲染
-        if (IndependentActive)
+        // 独立进程模式优先：进程内窗口对象可能仍存活（Connected 后只 Hide 未销毁），不能再走进程内渲染。
+        // 仅在 IndependentRequested（含子进程尚未连上的启动阶段）时缓存模型，连上后由 Init 补发；
+        // 子进程失败回退进程内时 IndependentRequested 为 false，仍走下方进程内渲染。
+        if (IndependentRequested)
         {
             _hostProcess?.SendModel(model);
-            _logger.LogDebug("独立进程模式：已推送渲染模型 rows={Rows} current={Cur} placeholder={Ph}",
+            _logger.LogDebug("独立进程模式：已缓存/推送渲染模型 rows={Rows} current={Cur} placeholder={Ph}",
                 model.Rows.Count, model.CurrentClassIndex, model.PlaceholderText != null);
             return;
         }

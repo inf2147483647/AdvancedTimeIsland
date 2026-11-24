@@ -1,0 +1,10 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.UtilitiesPage"
+                     xmlns="https://github.com/avaloniaui"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:ci="clr-namespace:ClassIsland.Core.Abstractions.Controls;assembly=ClassIsland.Core">
+    <!-- 「小工具」页：时间格式转换 / 时间计算器 / 注释。
+         三个工具页均自带 ScrollViewer，这里只提供一个标签导航容器。 -->
+    <TabControl x:Name="RootTabControl"
+                Background="Transparent"
+                Margin="0" />
+</ci:SettingsPageBase>

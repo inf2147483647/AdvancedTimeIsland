@@ -76,12 +76,6 @@ public class AboutPage : SettingsPageBase
     /// <summary>本次运行会话内「女装」彩蛋是否已触发（跨页面保存在 <see cref="Plugin.EasterEggSessionActive"/>）。</summary>
     private bool _easterEggActive;
 
-    /// <summary>
-    /// 「管理启用的功能」- 小工具：关闭后主设置导航栏不显示「时间格式转换 / 时间计算器 / 专业名词解释」。
-    /// 该选项无需重启，变更后立即重建导航栏标签页。
-    /// </summary>
-    private bool UtilitiesEnabled => _pluginSettings?.EnableUtilities ?? true;
-
     private TextBlock? _nameTextBlock;
     private TextBlock? _authorTextBlock;
     private List<TextBlock>? _aboutContentTextBlocks;
@@ -352,14 +346,6 @@ public class AboutPage : SettingsPageBase
     }
 
     /// <summary>
-    /// 「小工具」开关状态变化处理：立即增删工具栏标签页，无需重启。
-    /// </summary>
-    private void OnUtilitiesToggled(object? sender, bool isEnabled)
-    {
-        SyncNavigationTabs();
-    }
-
-    /// <summary>
     /// 只显示右上角"需要重启"按钮，不弹出原生对话框
     /// </summary>
     private void ShowRestartButton()
@@ -396,38 +382,15 @@ public class AboutPage : SettingsPageBase
     /// <summary>「女装」标签页的 Tag（内容懒加载，与其它标签页一致）。</summary>
     private const string EasterEggTabTag = "EasterEgg";
 
-    /// <summary>受「小工具」开关控制的三个标签页的 Tag。</summary>
-    private static readonly string[] UtilityTabTags = { "TimeConverter", "TimeCalculator", "Glossary" };
-
     /// <summary>
-    /// 按当前开关同步导航栏标签页：只增删受「小工具」开关控制的三个标签页。
-    /// 按需增删而整体重建，避免破坏 TabControl 内容演示器状态；新增标签页一律懒加载
-    /// （Content = null，选中时才由 LoadTabContent 创建内容）。
+    /// 按彩蛋状态同步导航栏标签页：「女装」标签页在触发后追加、取消后移除
+    /// （新增标签页懒加载，Content = null，选中时才由 LoadTabContent 创建内容）。
     /// </summary>
     private void SyncNavigationTabs()
     {
         if (_tabControl == null) return;
 
         var tabs = _tabControl.Items.OfType<TabItem>().ToList();
-
-        // 「小工具」：控制三个工具标签页（插在「关于」之后）
-        var hasUtilityTabs = tabs.Any(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag));
-        if (UtilitiesEnabled && !hasUtilityTabs)
-        {
-            var aboutIndex = tabs.FindIndex(tab => (tab.Tag as string) == "About");
-            var insertIndex = aboutIndex >= 0 ? aboutIndex + 1 : _tabControl.Items.Count;
-            foreach (var (header, tag) in new[] { ("时间格式转换", "TimeConverter"), ("时间计算器", "TimeCalculator"), ("专业名词解释", "Glossary") })
-            {
-                _tabControl.Items.Insert(insertIndex++, new TabItem { Header = header, Content = null, Tag = tag });
-            }
-        }
-        else if (!UtilitiesEnabled && hasUtilityTabs)
-        {
-            foreach (var tab in tabs.Where(tab => tab.Tag is string tag && UtilityTabTags.Contains(tag)).ToList())
-            {
-                _tabControl.Items.Remove(tab);
-            }
-        }
 
         // 「女装」：彩蛋触发后显示，始终排在最后（懒加载，选中时才创建 Ghost Page）
         var hasEasterEggTab = tabs.Any(tab => (tab.Tag as string) == EasterEggTabTag);
@@ -478,7 +441,7 @@ public class AboutPage : SettingsPageBase
 
         var descText = new TextBlock
         {
-            Text = "AdvancedTimeIsland是一款为ClassIsland打造的高级时间管理插件，旨在弥补原生功能的不足（比如判断是否在某段时间范围内）。它提供丰富的时间相关组件，包括高级日期显示、多例倒计时、正计时、周期性倒计时等核心功能。同时支持农历日历、节气、生肖、星座、节日等展示。该插件具备强大的时间自动化能力，支持精确时间、周期性时间（年/月/周/日/时/分）、地方时、区时、农历时间等多种触发条件与规则，满足复杂的时间调度需求。此外还提供时间格式转换工具，支持北京时间、Unix时间戳、农历、区时、地方时之间的相互转换，并附带专业名词解释帮助用户理解时间相关概念。插件界面支持主题自适应，为用户提供更完善的时间管理体验。更多功能开发中，敬请期待。",
+            Text = "AdvancedTimeIsland是一款为ClassIsland打造的高级时间管理插件，旨在弥补原生功能的不足（比如判断是否在某段时间范围内）。它提供丰富的时间相关组件，包括高级日期显示、多例倒计时、正计时、周期性倒计时等核心功能。同时支持农历日历、节气、生肖、星座、节日等展示。该插件具备强大的时间自动化能力，支持精确时间、周期性时间（年/月/周/日/时/分）、地方时、区时、农历时间等多种触发条件与规则，满足复杂的时间调度需求。此外还提供时间格式转换工具，支持北京时间、Unix时间戳、农历、区时、地方时之间的相互转换，并附带注释帮助用户理解时间相关概念。插件界面支持主题自适应，为用户提供更完善的时间管理体验。更多功能开发中，敬请期待。",
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap
@@ -1051,14 +1014,6 @@ public class AboutPage : SettingsPageBase
         tabControl.Items.Add(new TabItem { Header = "插件设置", Content = null, Tag = "PluginSettings" });
         tabControl.Items.Add(new TabItem { Header = "关于", Content = CreateAboutContent(), Tag = "About" });
 
-        // 【管理启用的功能】关闭「小工具」后不显示工具类标签页
-        if (UtilitiesEnabled)
-        {
-            tabControl.Items.Add(new TabItem { Header = "时间格式转换", Content = null, Tag = "TimeConverter" });
-            tabControl.Items.Add(new TabItem { Header = "时间计算器", Content = null, Tag = "TimeCalculator" });
-            tabControl.Items.Add(new TabItem { Header = "专业名词解释", Content = null, Tag = "Glossary" });
-        }
-
         // 「女装」入口：连点检测触发后显示，内容为 Ghost Page
         if (_easterEggActive)
         {
@@ -1077,24 +1032,13 @@ public class AboutPage : SettingsPageBase
         {
             switch (tabItem.Tag?.ToString())
             {
-                case "TimeConverter":
-                    tabItem.Content = new TimeConverterPage(_pluginSettings);
-                    break;
-                case "TimeCalculator":
-                    tabItem.Content = new TimeCalculatorPage(_pluginSettings);
-                    break;
                 case "PluginSettings":
                     var pluginSettings = new PluginSettingsPage(_pluginSettings);
                     pluginSettings.RequestRestartAction = ShowRestartButton;
                     // 抽屉宿主在根页面上：本页只提供取值委托与抽屉内容，宿主在点击时才被取用
                     // （避免本页创建时宿主尚未创建而注入 null）
                     pluginSettings.FeatureDrawerHostProvider = () => _drawerHost;
-                    // 【管理启用的功能】「小工具」变更后立即重建导航栏标签页（无需重启）
-                    pluginSettings.UtilitiesToggled += OnUtilitiesToggled;
                     tabItem.Content = pluginSettings;
-                    break;
-                case "Glossary":
-                    tabItem.Content = new GlossaryPage(_pluginSettings);
                     break;
                 case "EasterEgg":
                     tabItem.Content = new GhostPage();

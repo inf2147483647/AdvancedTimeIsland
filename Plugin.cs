@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Configuration;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Abstractions.Services;
@@ -227,13 +228,93 @@ public class Plugin : PluginBase
         {
             try
             {
-                // 等宿主 Build/启动流程走完（Host.StartAsync 是 fire-and-forget，正常路径通常远早于此时完成）
-                await System.Threading.Tasks.Task.Delay(TimeSpan.FromSeconds(8)).ConfigureAwait(false);
-                ClassIsland.Shared.IAppHost.TryGetService<Services.FloatScheduleHostProcessService>()?.EnsureStartedFallback();
-                ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>()?.EnsureStartedFallbackAv();
+                // 先确认宿主启动流程已"尘埃落定"，再检查两个服务是否真的没启动。
+                // 旧实现固定等 8s：宿主慢启动时会在 Host.StartAsync 尚未走到本服务前抢先兜底，
+                // 与宿主启动并发建窗/拉子进程，反而拖慢启动并造成日志中的"误兜底"。
+                await WaitForHostStartupSettledAsync().ConfigureAwait(false);
+
+                var hostProcess = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatScheduleHostProcessService>();
+                var floating = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>();
+                if (hostProcess == null && floating == null)
+                {
+                    ClassIsland.Shared.IAppHost.TryGetService<Microsoft.Extensions.Logging.ILogger<Plugin>>()
+                        ?.LogDebug("悬浮窗启动兜底：宿主服务不可解析，跳过");
+                    return;
+                }
+
+                var hostProcessStarted = hostProcess?.IsStarted == true;
+                var floatingStarted = floating?.IsStarted == true;
+                if (hostProcessStarted && floatingStarted)
+                {
+                    ClassIsland.Shared.IAppHost.TryGetService<Microsoft.Extensions.Logging.ILogger<Plugin>>()
+                        ?.LogDebug("悬浮窗服务已由宿主正常启动，跳过兜底");
+                    return;
+                }
+
+                // 顺序必须是 HostProcessService → FloatingScheduleService（管道监听先就绪）
+                if (!hostProcessStarted) hostProcess?.EnsureStartedFallback();
+                if (!floatingStarted) floating?.EnsureStartedFallbackAv();
             }
             catch { /* 兜底失败不影响其它功能（悬浮窗仍需设置开关开启） */ }
         });
+    }
+
+    /// <summary>
+    /// 等待宿主启动流程结束，尽量只在"确实需要兜底"时才返回：
+    ///  1) IHostApplicationLifetime.ApplicationStarted 已触发（宿主成功启动完成）；
+    ///  2) 失败场景下该令牌不会触发，退化为"主窗口出现后再宽限 5s"；
+    ///  3) 最长 20s，避免异常情况下无限等待。
+    /// </summary>
+    private static async Task WaitForHostStartupSettledAsync()
+    {
+        var deadline = TimeSpan.FromSeconds(20);
+        var grace = TimeSpan.FromSeconds(5);
+        var sw = System.Diagnostics.Stopwatch.StartNew();
+        TimeSpan? windowSeenAt = null;
+        while (sw.Elapsed < deadline)
+        {
+            if (IsHostApplicationStarted()) return;
+
+            // 两个服务都已由宿主启动 → 无需再等，直接返回让调用方跳过兜底。
+            var hp = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatScheduleHostProcessService>();
+            var fp = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>();
+            if (hp?.IsStarted == true && fp?.IsStarted == true) return;
+
+            if (windowSeenAt == null)
+            {
+                bool seen = false;
+                try
+                {
+                    seen = await Dispatcher.UIThread.InvokeAsync(() =>
+                    {
+                        var w = ResolveHostMainWindow();
+                        return w != null && !w.GetType().Name.Contains("Splash", StringComparison.OrdinalIgnoreCase);
+                    });
+                }
+                catch { /* UI 线程尚未就绪：继续等待 */ }
+                if (seen) windowSeenAt = sw.Elapsed;
+            }
+            else if (sw.Elapsed - windowSeenAt.Value >= grace)
+            {
+                // 主窗口已出现且宽限期已过：即使 Host.StartAsync 因其它插件异常中断，也不会再补启动本服务
+                return;
+            }
+
+            try { await System.Threading.Tasks.Task.Delay(250).ConfigureAwait(false); }
+            catch { return; }
+        }
+    }
+
+    /// <summary>宿主的 IHostApplicationLifetime 是否已通知启动完成（成功路径的最可靠信号）。</summary>
+    private static bool IsHostApplicationStarted()
+    {
+        try
+        {
+            if (ClassIsland.Shared.IAppHost.Host?.Services?.GetService(typeof(IHostApplicationLifetime)) is IHostApplicationLifetime lifetime)
+                return lifetime.ApplicationStarted.IsCancellationRequested;
+        }
+        catch { /* 忽略：宿主持久化实现差异 */ }
+        return false;
     }
 
     /// <summary>
@@ -445,7 +526,7 @@ public class Plugin : PluginBase
     }
 
     /// <summary>解析宿主主窗口：优先 ClassIsland.Core.AppBase.Current.MainWindow，其次桌面生命周期窗口。</summary>
-    private static Window? ResolveHostMainWindow()
+    internal static Window? ResolveHostMainWindow()
     {
         try
         {
@@ -1834,6 +1915,12 @@ public class Plugin : PluginBase
         // net8 兼容版 SDK 需 ≥ 2.0.1.1（该版本起 ClassIsland.Core 提供 AddSettingsPageGroup/GroupAttribute）。
         services.AddSettingsPageGroup("advancedtimeisland.main", "\uE06F", "AdvancedTimeIsland");
         services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
+        // 【管理启用的功能】「小工具」页（时间格式转换 / 时间计算器 / 注释），默认关闭。
+        //   是否注册在插件加载时决定，修改开关后需重启 ClassIsland 才能生效。
+        if (Settings.EnableUtilities)
+        {
+            services.AddSettingsPage<Views.Settings.UtilitiesPage>();
+        }
         services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
         // 幽灵页面：不出现在导航列表（hideDefault），用于取代那些已被删除的页面。
