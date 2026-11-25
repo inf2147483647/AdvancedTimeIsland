@@ -14,6 +14,14 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
 using ClassIsland.Core.Controls;
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
+// Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity
+#if NET10_0_OR_GREATER
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
+#else
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.InfoBarSeverity;
+#endif
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -358,7 +366,7 @@ public class TimeCalculatorPage : UserControl
         {
             if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
             {
-                ShowErrorDialog("请输入有效的日期和时间");
+                ShowErrorToast("请输入有效的日期和时间");
                 return;
             }
 
@@ -381,7 +389,7 @@ public class TimeCalculatorPage : UserControl
         }
         catch (Exception ex)
         {
-            ShowErrorDialog($"计算失败: {ex.Message}");
+            ShowErrorToast($"计算失败: {ex.Message}");
         }
     }
 
@@ -391,13 +399,13 @@ public class TimeCalculatorPage : UserControl
         {
             if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
             {
-                ShowErrorDialog("请输入有效的基准时间");
+                ShowErrorToast("请输入有效的基准时间");
                 return;
             }
 
             if (!TryGetDateTimeFromControls(_resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker, out var result))
             {
-                ShowErrorDialog("请输入有效的结果日期和时间");
+                ShowErrorToast("请输入有效的结果日期和时间");
                 return;
             }
 
@@ -413,7 +421,7 @@ public class TimeCalculatorPage : UserControl
         }
         catch (Exception ex)
         {
-            ShowErrorDialog($"计算失败: {ex.Message}");
+            ShowErrorToast($"计算失败: {ex.Message}");
         }
     }
 
@@ -643,51 +651,14 @@ public class TimeCalculatorPage : UserControl
         return later - earlier;
     }
 
-    private async void ShowErrorDialog(string message)
+    private void ShowErrorToast(string message)
     {
-        try
+        this.ShowToast(new ToastMessage(message)
         {
-            var dialog = new Window
-            {
-                Title = "错误",
-                Width = 380,
-                SizeToContent = SizeToContent.Height,
-                WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                CanResize = false
-            };
-
-            var okButton = new Button
-            {
-                Content = "确定",
-                Padding = new Thickness(16, 8),
-                HorizontalAlignment = HorizontalAlignment.Right
-            };
-
-            var stack = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Margin = new Thickness(16),
-                Spacing = 12
-            };
-            stack.Children.Add(new TextBlock
-            {
-                Text = message,
-                FontSize = 14,
-                TextWrapping = TextWrapping.Wrap,
-                Foreground = Brushes.Red
-            });
-            stack.Children.Add(okButton);
-
-            dialog.Content = stack;
-            okButton.Click += (s, e) => dialog.Close();
-
-            // 【FA3 兼容】不用 (Window)VisualRoot 强转：FA3/Avalonia 12 下 VisualRoot 可能是 TopLevelHost，
-            // 强转会抛 InvalidCastException（在 async void 处理器中会导致宿主判定插件异常并自动禁用插件）。
-            await FluentAvaloniaCompatibilityHelper.ShowDialogSafeAsync(dialog, this);
-        }
-        catch
-        {
-        }
+            Title = "错误",
+            Severity = FAInfoBarSeverity.Error,
+            AutoClose = true
+        });
     }
 
     private StackPanel CreateDatePickerRow(out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
