@@ -292,21 +292,12 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     private void StartCore(CancellationToken cancellationToken)
     {
         _cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        // 【独立程序更新提示】与独立进程模式开关无关：插件升级会随包重新分发子进程 exe，
-        //   很多用户并不知道它已更新、也不知道在哪里启用/管理 → 检测到变化就弹一条系统通知。
-        //   放到后台线程：读文件算哈希不阻塞宿主启动。
-        _ = Task.Run(CheckChildExeUpdatedAndNotify);
-        // 【修复：adopt 路径下旧子进程永不被淘汰】把"插件包内 exe 的内容指纹"提前算好：
+        // 【启动速度】插件包内 exe 的 28MB SHA256 改到后台线程计算，不再占用宿主 Host.StartAsync 链。
+        //   【修复：adopt 路径下旧子进程永不被淘汰】该指纹仍必须在子进程 Init 前就绪：
         //   走 adopt 时不会 spawn，原先该字段为空 → Init 里 ExeStamp 为空 → 子进程跳过版本自检
         //   → 插件更新后旧构建的子进程永久存活，用户始终看到旧悬浮窗行为。
-        //   现在无论 adopt 还是 spawn，Init 都带着当前包内 exe 的指纹；子进程比对不一致即主动退出，
-        //   由本服务用新构建重启（见 ChildExited 对 ExitCodeSelfUpdate 的处理）。
-        try
-        {
-            var packagedExe = GetPackagedExePath();
-            if (packagedExe != null) ChildExeStamp = ComputeFileHash(packagedExe) ?? ChildExeStamp;
-        }
-        catch (Exception ex) { _logger.LogDebug(ex, "启动时计算子进程 exe 指纹异常（忽略）"); }
+        //   现在由同一后台任务同时完成"算指纹"和"更新提示"，Init 发送前会 await 该任务（见管道握手处）。
+        _packagedStampTask = Task.Run(ComputePackagedStampAndNotify);
         if (ShouldUseIndependent())
         {
             EnsureAcceptLoopRunning();
@@ -335,24 +326,35 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         catch { return null; }
     }
 
-    private void CheckChildExeUpdatedAndNotify()
+    /// <summary>
+    /// 后台计算插件包内 exe 的内容指纹（供 adopt 路径淘汰旧子进程），顺带做"独立程序已更新"提示。
+    /// 返回指纹；exe 不存在或读取失败时返回空串（沿用"空指纹 = 跳过版本自检"的既有语义）。
+    /// </summary>
+    private string ComputePackagedStampAndNotify()
     {
         try
         {
             // 不含该 exe 的发行包（如 WPF 版）没有独立程序 → 不提示
             var exePath = GetPackagedExePath();
-            if (exePath == null) return;
+            if (exePath == null) return ChildExeStamp;
 
             var hash = ComputeFileHash(exePath);
-            if (string.IsNullOrEmpty(hash)) return;
-            if (string.Equals(_settings.FloatingScheduleChildExeHash, hash, StringComparison.Ordinal)) return;
+            if (string.IsNullOrEmpty(hash)) return ChildExeStamp;
+            SetChildExeStamp(hash);
+
+            if (string.Equals(_settings.FloatingScheduleChildExeHash, hash, StringComparison.Ordinal)) return hash;
 
             // 先落标记再发通知：通知被系统禁用/失败时，也不在下次启动重复提示
             _settings.FloatingScheduleChildExeHash = hash;
             _logger.LogInformation("FloatSchedule 独立程序已更新，发送系统通知提示");
             ShowChildExeUpdatedToast();
+            return hash;
         }
-        catch (Exception ex) { _logger.LogDebug(ex, "FloatSchedule 独立程序更新检查异常（忽略）"); }
+        catch (Exception ex)
+        {
+            _logger.LogDebug(ex, "启动时计算子进程 exe 指纹异常（忽略）");
+            return ChildExeStamp;
+        }
     }
 
     private static string? ComputeFileHash(string path)
@@ -768,7 +770,7 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
         // 记录本次运行副本的"版本指纹"（内容哈希）：下发给子进程做自我版本校验，
         //   插件更新后（exe 内容变化）旧子进程据此识别自身已被淘汰并主动退出，由本服务用新构建重启。
-        ChildExeStamp = ComputeFileHash(exePath) ?? "";
+        SetChildExeStamp(ComputeFileHash(exePath) ?? "");
 
         var psi = new ProcessStartInfo
         {
@@ -945,7 +947,17 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
     /// 用内容哈希而非"长度+写入时间"：同一构建的不同副本（插件目录原文件 vs 临时运行副本）写入时间必然不同，
     /// 用时间戳会把"同版本"误判为"已更新"→ 每次宿主重启都无谓重启子进程，adopt（冻结窗口跨宿主重启存活）失效。
     /// </summary>
-    public string ChildExeStamp { get; private set; } = "";
+    public string ChildExeStamp => Volatile.Read(ref _childExeStamp);
+
+    private string _childExeStamp = "";
+
+    private void SetChildExeStamp(string stamp) => Volatile.Write(ref _childExeStamp, stamp);
+
+    /// <summary>
+    /// 启动时在后台计算"插件包内 exe 指纹"的任务；管道 Init 前会 await 它，
+    /// 既避免 28MB SHA256 占用宿主启动链，又保证 adopt 路径拿到的 ExeStamp 不为空。
+    /// </summary>
+    private Task<string> _packagedStampTask = Task.FromResult("");
 
     /// <summary>独立模式开关关闭：终止子进程并回到 Off（进程内渲染由 FloatingScheduleService 恢复）。</summary>
     public void NotifyModeDisabled()
@@ -1217,10 +1229,20 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 SetStatus(ChildStatus.Connected);
 
                 // Init：一次性补发缓存（子进程渲染首帧 + 应用行为快照）
+                //   指纹在后台计算，这里等它完成再发 Init：避免 adopt 路径拿到空 ExeStamp 而跳过版本自检。
+                try { await _packagedStampTask.ConfigureAwait(false); } catch { }
                 FloatScheduleWindowSettings? settings;
                 FloatScheduleRenderModel? model;
                 bool visible;
-                lock (_stateLock) { settings = _cachedSettings; model = _cachedModel; visible = _cachedVisible; }
+                lock (_stateLock)
+                {
+                    settings = _cachedSettings;
+                    model = _cachedModel;
+                    visible = _cachedVisible;
+                    // 快照可能在指纹算完前就已生成（启动时先缓存设置），发送前用最新指纹补齐。
+                    if (settings != null && !string.IsNullOrEmpty(ChildExeStamp))
+                        settings.ExeStamp = ChildExeStamp;
+                }
                 WriteLine(FloatScheduleIpc.Encode(FloatScheduleIpcMsgType.Init,
                     new FloatScheduleInitPayload { Settings = settings, Model = model }));
                 // 【修复：窗口存在却不可见】连接建立后**总是**补发一次当前可见性（原先只在"隐藏"时补发）：

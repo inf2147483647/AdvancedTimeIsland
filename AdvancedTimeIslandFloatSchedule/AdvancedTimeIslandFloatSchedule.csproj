@@ -69,4 +69,23 @@
         <EmbeddedResource Include="Assets\app.ico" />
     </ItemGroup>
 
+    <!-- 包体优化：单文件发布会把 Vortice / SharpGen / System.Text.Json 等依赖整体嵌入 exe，
+         而主插件包（cipx）目录里本来就带有同一依赖图解析出的同版本 DLL，运行时子进程会从
+         exe 所在目录解析到它们。把它们标记为 ExcludeFromSingleFile 后，exe 只保留自身的
+         AdvancedTimeIslandFloatSchedule.dll，同一批 DLL 不再在 cipx 里被打包两遍
+         （实测 exe 从约 2.3MB/1.5MB 降到约 0.35MB）。
+         前提：主插件包内必须存在同版本 DLL——主项目对 Vortice 的引用未排除任何资产，
+         且两侧由同一次 restore 解析，版本天然一致；Build-Package.ps1 另做存在性校验。 -->
+    <PropertyGroup>
+        <_SharedDependencyNames>;Vortice.Direct3D11;Vortice.DirectX;Vortice.DXGI;Vortice.Mathematics;SharpGen.Runtime;SharpGen.Runtime.COM;System.Text.Json;System.IO.Pipelines;System.Text.Encodings.Web;</_SharedDependencyNames>
+    </PropertyGroup>
+
+    <Target Name="ExcludeSharedDependenciesFromSingleFileBundle" BeforeTargets="_ComputeFilesToBundle">
+        <ItemGroup>
+            <ResolvedFileToPublish Update="@(ResolvedFileToPublish)" Condition="$(_SharedDependencyNames.Contains(';%(Filename);'))" ExcludeFromSingleFile="true" />
+            <_ResolvedFileToPublishPreserveNewest Update="@(_ResolvedFileToPublishPreserveNewest)" Condition="$(_SharedDependencyNames.Contains(';%(Filename);'))" ExcludeFromSingleFile="true" />
+            <_ResolvedFileToPublishAlways Update="@(_ResolvedFileToPublishAlways)" Condition="$(_SharedDependencyNames.Contains(';%(Filename);'))" ExcludeFromSingleFile="true" />
+        </ItemGroup>
+    </Target>
+
 </Project>

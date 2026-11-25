@@ -152,6 +152,74 @@ function Test-PackageDependencies {
     return $true
 }
 
+function New-ZipPackage {
+    # 以最高压缩等级（deflate level 9）生成 .cipx。
+    # 背景：Windows PowerShell 5.1 跑在 .NET Framework 上，其 CompressionLevel 枚举只有
+    # Fastest / Optimal / NoCompression，没有 SmallestSize，所以 CreateFromDirectory 最高只能到
+    # Optimal。此处改用一个由 dotnet 运行的临时 file-based C# 程序调用 SmallestSize 打包；
+    # 若该方式不可用（旧 SDK / 运行失败）则回退到 .NET Framework 的 Optimal（体积约 +1.7%）。
+    # 输出先写临时文件再改名，保证打包目录里不会出现半截 zip。
+    param(
+        [string]$SourceDir,
+        [string]$DestinationFile
+    )
+
+    $tempZip = "$DestinationFile.tmp"
+    if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+
+    # 固定路径的辅助程序目录：.NET 的 file-based app 会按文件路径缓存编译产物，
+    # 路径固定后第一次打包需编译（约 20 秒），后续打包只需约 3 秒；
+    # 若用随机目录则每次都要重新编译，得不偿失。
+    $helperDir = Join-Path $env:TEMP "AdvancedTimeIsland.ZipHelper"
+    New-Item -ItemType Directory -Path $helperDir -Force | Out-Null
+    $helperPath = Join-Path $helperDir "ziphelper.cs"
+    $helperSource = @'
+using System;
+using System.IO;
+using System.IO.Compression;
+
+// ClassIsland 插件包（标准 zip）打包器：使用 SmallestSize（deflate level 9）压缩。
+var source = args[0];
+var destination = args[1];
+if (File.Exists(destination)) File.Delete(destination);
+ZipFile.CreateFromDirectory(source, destination, CompressionLevel.SmallestSize, false);
+'@
+    if (-not (Test-Path $helperPath) -or ([System.IO.File]::ReadAllText($helperPath) -ne $helperSource)) {
+        [System.IO.File]::WriteAllText($helperPath, $helperSource, (New-Object System.Text.UTF8Encoding $false))
+    }
+
+    $pressed = $false
+    try {
+        Push-Location $helperDir
+        $output = dotnet run --file $helperPath -- $SourceDir $tempZip 2>&1
+        $pressed = ($LASTEXITCODE -eq 0) -and (Test-Path $tempZip)
+        if (-not $pressed) {
+            Write-Warning "SmallestSize zip helper failed: $($output | Out-String)"
+        }
+    }
+    catch {
+        Write-Warning "SmallestSize zip helper failed: $($_.Exception.Message)"
+    }
+    finally {
+        Pop-Location
+    }
+
+    if (-not $pressed) {
+        Write-Host "Falling back to Optimal compression (no SmallestSize support available)."
+        if (Test-Path $tempZip) { Remove-Item $tempZip -Force }
+        Add-Type -AssemblyName System.IO.Compression.FileSystem
+        [System.IO.Compression.ZipFile]::CreateFromDirectory($SourceDir, $tempZip)
+    }
+
+    if (-not (Test-Path $tempZip)) {
+        return $false
+    }
+
+    if (Test-Path $DestinationFile) { Remove-Item $DestinationFile -Force }
+    Move-Item $tempZip $DestinationFile -Force
+    return $true
+}
+
 function Create-CipxPackage {
     param(
         [string]$OutputDir,
@@ -201,13 +269,10 @@ function Create-CipxPackage {
 
         Write-Host "Creating .cipx package..."
 
-        Add-Type -AssemblyName System.IO.Compression.FileSystem
-
-        if (Test-Path $PackagePath) {
-            Remove-Item $PackagePath -Force
+        if (-not (New-ZipPackage -SourceDir $tempDir -DestinationFile $PackagePath)) {
+            Write-Error "Error: failed to create the .cipx archive."
+            return $false
         }
-
-        [System.IO.Compression.ZipFile]::CreateFromDirectory($tempDir, $PackagePath)
 
         Write-Host "Packaging successful!"
         Write-Host "Package location: $PackagePath"
@@ -356,6 +421,38 @@ function Publish-FloatExe {
         Write-Error "FloatSchedule exe not found: $exe"
         return $false
     }
+
+    # 子进程 exe 为减小包体已把 Vortice / SharpGen / System.Text.Json 等从单文件包里排除
+    # （见 AdvancedTimeIslandFloatSchedule.csproj 的 ExcludeSharedDependenciesFromSingleFileBundle），
+    # 运行时从 exe 所在目录（即插件包目录）解析它们。此处校验这些 DLL 确实已在主插件输出目录里，
+    # 且程序集名称 / 版本一致（补丁版本差异不影响加载，故按 AssemblyName 而非文件哈希比对），
+    # 避免出现"子进程启动即缺 DLL / 版本不兼容"。
+    $sharedDeps = Get-ChildItem $pubDir -File | Where-Object {
+        $_.Name -ne "AdvancedTimeIslandFloatSchedule.exe" -and
+        $_.Name -ne "AdvancedTimeIslandFloatSchedule.dll" -and
+        $_.Extension -eq ".dll"
+    }
+    $missingDeps = New-Object System.Collections.Generic.List[string]
+    foreach ($dep in $sharedDeps) {
+        $inPackage = Join-Path $OutputDir $dep.Name
+        if (-not (Test-Path $inPackage)) {
+            $missingDeps.Add("$($dep.Name) (not in plugin output)")
+            continue
+        }
+
+        $childAsm = [System.Reflection.AssemblyName]::GetAssemblyName($dep.FullName)
+        $packageAsm = [System.Reflection.AssemblyName]::GetAssemblyName($inPackage)
+        if ($childAsm.Version -ne $packageAsm.Version) {
+            $missingDeps.Add("$($dep.Name) (assembly version mismatch: package $($packageAsm.Version) vs child $($childAsm.Version))")
+        }
+    }
+    if ($missingDeps.Count -gt 0) {
+        Write-Error "FloatSchedule shared dependency check FAILED: the child exe no longer bundles these assemblies, so they must ship in the plugin package with a compatible version:"
+        foreach ($m in $missingDeps) { Write-Error "  missing/mismatch: $m" }
+        return $false
+    }
+    Write-Host "FloatSchedule shared dependency check passed: $($sharedDeps.Count) extern assembly(ies) provided by the plugin package."
+
     Copy-Item $exe (Join-Path $OutputDir "AdvancedTimeIslandFloatSchedule.exe") -Force
     $sizeKB = [math]::Round((Get-Item $exe).Length / 1KB)
     Write-Host "FloatSchedule exe: $sizeKB KB -> $OutputDir"

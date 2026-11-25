@@ -13,6 +13,7 @@ using Avalonia.Interactivity;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -25,7 +26,6 @@ public class TimeCalculatorPage : UserControl
     private TextBlock? _subtrahendTitleTextBlock;
     private TextBlock? _resultTitleTextBlock;
 
-    private List<TextBlock>? _labelTextBlocks;
     private List<Border>? _sectionBorders;
 
     private NumericUpDown? _minuendYearTextBox;
@@ -34,7 +34,9 @@ public class TimeCalculatorPage : UserControl
     private TimePicker? _minuendTimePicker;
     private Button? _minuendNowButton;
 
-    private ComboBox? _subDirectionComboBox;
+    private TabStrip? _subDirectionTabStrip;
+    private AnimatedIconButton? _subForwardButton;
+    private AnimatedIconButton? _subBackwardButton;
     private TextBox? _subtrahendTextBox;
     private TextBlock? _subtrahendHint;
     private Button? _calculateButton;
@@ -60,14 +62,19 @@ public class TimeCalculatorPage : UserControl
 
     private void InitializeComponent()
     {
-        _labelTextBlocks = new List<TextBlock>();
         _sectionBorders = new List<Border>();
 
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Thickness(16),
-            Spacing = 16
+            Spacing = 12
+        };
+
+        var headerRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 12
         };
 
         _titleTextBlock = new TextBlock
@@ -75,22 +82,42 @@ public class TimeCalculatorPage : UserControl
             Text = "时间计算器",
             FontSize = 18,
             FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetTextBrush()
+            Foreground = ThemeHelper.GetTextBrush(),
+            VerticalAlignment = VerticalAlignment.Center
         };
-        mainPanel.Children.Add(_titleTextBlock);
+        headerRow.Children.Add(_titleTextBlock);
 
         _clearButton = new Button
         {
             Content = "清空",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(16, 6)
+            Padding = new Thickness(16, 6),
+            VerticalAlignment = VerticalAlignment.Center
         };
         _clearButton.Click += OnClearButtonClick;
-        mainPanel.Children.Add(_clearButton);
+        headerRow.Children.Add(_clearButton);
 
-        mainPanel.Children.Add(CreateMinuendSection());
-        mainPanel.Children.Add(CreateSubtrahendSection());
-        mainPanel.Children.Add(CreateResultSection());
+        mainPanel.Children.Add(headerRow);
+
+        var cardPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 10
+        };
+        cardPanel.Children.Add(CreateMinuendRow());
+        cardPanel.Children.Add(CreateSubtrahendRow());
+        cardPanel.Children.Add(CreateResultRow());
+
+        var card = new Border
+        {
+            Background = ThemeHelper.GetCardBackgroundBrush(),
+            Padding = new Thickness(12),
+            CornerRadius = new CornerRadius(8),
+            Child = cardPanel,
+            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderThickness = new Thickness(2)
+        };
+        _sectionBorders.Add(card);
+        mainPanel.Children.Add(card);
 
         var scrollViewer = new ScrollViewer
         {
@@ -103,164 +130,167 @@ public class TimeCalculatorPage : UserControl
         Content = scrollViewer;
     }
 
-    private Control CreateMinuendSection()
+    private TextBlock CreateRowTitle(string text)
     {
-        var panel = new StackPanel
+        return new TextBlock
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-
-        _minuendTitleTextBlock = new TextBlock
-        {
-            Text = "被减数",
-            FontSize = 18,
+            Text = text,
+            FontSize = 16,
+            Width = 76,
+            VerticalAlignment = VerticalAlignment.Center,
             Foreground = ThemeHelper.GetTextBrush()
         };
-        panel.Children.Add(_minuendTitleTextBlock);
-
-        var datePanel = CreateDatePickerRow("日期输入:", out _minuendYearTextBox, out _minuendMonthComboBox, out _minuendDayComboBox);
-        panel.Children.Add(datePanel);
-
-        var timePanel = CreateTimePickerRow("时间:", out _minuendTimePicker);
-        panel.Children.Add(timePanel);
-
-        _minuendNowButton = new Button
-        {
-            Content = "选取当前时间",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
-        };
-        _minuendNowButton.Click += OnMinuendNowButtonClick;
-        panel.Children.Add(_minuendNowButton);
-
-        var border = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(8),
-            Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
-        };
-        _sectionBorders.Add(border);
-        return border;
     }
 
-    private Control CreateSubtrahendSection()
+    private Control CreateMinuendRow()
     {
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-
-        _subtrahendTitleTextBlock = new TextBlock
-        {
-            Text = "减数",
-            FontSize = 18,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        panel.Children.Add(_subtrahendTitleTextBlock);
-
-        var inputRow = new StackPanel
+        var row = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8
         };
 
-        _subDirectionComboBox = new ComboBox { Width = 100, HorizontalAlignment = HorizontalAlignment.Left };
-        _subDirectionComboBox.Items.Add("往后");
-        _subDirectionComboBox.Items.Add("往前");
-        _subDirectionComboBox.SelectedIndex = 0;
-        inputRow.Children.Add(_subDirectionComboBox);
+        _minuendTitleTextBlock = CreateRowTitle("基准时间");
+        row.Children.Add(_minuendTitleTextBlock);
+
+        row.Children.Add(CreateDatePickerRow(out _minuendYearTextBox, out _minuendMonthComboBox, out _minuendDayComboBox));
+        row.Children.Add(CreateTimePicker(out _minuendTimePicker));
+
+        _minuendNowButton = new Button
+        {
+            Content = "选取当前时间",
+            Padding = new Thickness(12, 4),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _minuendNowButton.Click += OnMinuendNowButtonClick;
+        row.Children.Add(_minuendNowButton);
+
+        return row;
+    }
+
+    private Control CreateSubtrahendRow()
+    {
+        var container = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 6
+        };
+
+        var row = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+
+        _subtrahendTitleTextBlock = CreateRowTitle("变化量");
+        row.Children.Add(_subtrahendTitleTextBlock);
+
+        _subForwardButton = new AnimatedIconButton
+        {
+            Glyph = "\uE131",
+            Text = "往后"
+        };
+        _subForwardButton.Classes.Add("display-role");
+
+        _subBackwardButton = new AnimatedIconButton
+        {
+            Glyph = "\uE109",
+            Text = "往前"
+        };
+        _subBackwardButton.Classes.Add("display-role");
+
+        _subDirectionTabStrip = new TabStrip
+        {
+            Margin = new Thickness(0, 0, 1, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _subDirectionTabStrip.Classes.Add("compact");
+        _subDirectionTabStrip.Classes.Add("toggle");
+        _subDirectionTabStrip.Items.Add(new TabStripItem { Content = _subForwardButton });
+        _subDirectionTabStrip.Items.Add(new TabStripItem { Content = _subBackwardButton });
+        _subDirectionTabStrip.SelectedIndex = 0;
+        _subDirectionTabStrip.SelectionChanged += OnSubDirectionSelectionChanged;
+        _subDirectionTabStrip.Loaded += OnSubDirectionTabStripLoaded;
+        row.Children.Add(_subDirectionTabStrip);
 
         _subtrahendTextBox = new TextBox
         {
-            HorizontalAlignment = HorizontalAlignment.Stretch,
-            Watermark = "例如：1d2h3m4s",
-            MinWidth = 200
+            MinWidth = 220,
+            VerticalAlignment = VerticalAlignment.Center,
+            Watermark = "例如：1d2h3m4s"
         };
-        inputRow.Children.Add(_subtrahendTextBox);
+        row.Children.Add(_subtrahendTextBox);
 
-        panel.Children.Add(inputRow);
+        _calculateButton = new Button
+        {
+            Content = "是（计算）",
+            Padding = new Thickness(12, 4),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        _calculateButton.Click += OnCalculateButtonClick;
+        row.Children.Add(_calculateButton);
+
+        container.Children.Add(row);
 
         _subtrahendHint = new TextBlock
         {
             Text = "格式化规则：D总天数 H总小时 M总分钟 S总秒 X总毫秒 d天 h小时 m分钟 s秒 yy年 YY总年 mo月 MO总月\n大写小写不共存，大写规则互斥，不能出现3YY6mo的现象",
             FontSize = 11,
             Foreground = ThemeHelper.GetGrayBrush(),
-            TextWrapping = TextWrapping.Wrap
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(84, 0, 0, 0)
         };
-        panel.Children.Add(_subtrahendHint);
+        container.Children.Add(_subtrahendHint);
 
-        _calculateButton = new Button
-        {
-            Content = "是（计算）",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
-        };
-        _calculateButton.Click += OnCalculateButtonClick;
-        panel.Children.Add(_calculateButton);
-
-        var border = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(8),
-            Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
-        };
-        _sectionBorders.Add(border);
-        return border;
+        return container;
     }
 
-    private Control CreateResultSection()
+    private Control CreateResultRow()
     {
-        var panel = new StackPanel
+        var row = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 8,
-            HorizontalAlignment = HorizontalAlignment.Left
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
         };
 
-        _resultTitleTextBlock = new TextBlock
-        {
-            Text = "结果",
-            FontSize = 18,
-            Foreground = ThemeHelper.GetTextBrush()
-        };
-        panel.Children.Add(_resultTitleTextBlock);
+        _resultTitleTextBlock = CreateRowTitle("结果");
+        row.Children.Add(_resultTitleTextBlock);
 
-        var datePanel = CreateDatePickerRow("日期输出:", out _resultYearTextBox, out _resultMonthComboBox, out _resultDayComboBox);
-        panel.Children.Add(datePanel);
-
-        var timePanel = CreateTimePickerRow("时间:", out _resultTimePicker);
-        panel.Children.Add(timePanel);
+        row.Children.Add(CreateDatePickerRow(out _resultYearTextBox, out _resultMonthComboBox, out _resultDayComboBox));
+        row.Children.Add(CreateTimePicker(out _resultTimePicker));
 
         _diffButton = new Button
         {
             Content = "相差（计算）",
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
+            Padding = new Thickness(12, 4),
+            VerticalAlignment = VerticalAlignment.Center
         };
         _diffButton.Click += OnDiffButtonClick;
-        panel.Children.Add(_diffButton);
+        row.Children.Add(_diffButton);
 
-        var border = new Border
+        return row;
+    }
+
+    private void OnSubDirectionTabStripLoaded(object? sender, RoutedEventArgs e)
+    {
+        if (this.TryFindResource("TabStripStyle", out var theme) && theme is ControlTheme controlTheme)
         {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(8),
-            Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
-        };
-        _sectionBorders.Add(border);
-        return border;
+            _subDirectionTabStrip!.Theme = controlTheme;
+        }
+
+        UpdateSubDirectionExpansion();
+    }
+
+    private void OnSubDirectionSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        UpdateSubDirectionExpansion();
+    }
+
+    private void UpdateSubDirectionExpansion()
+    {
+        var isForward = _subDirectionTabStrip?.SelectedIndex == 0;
+        if (_subForwardButton != null) _subForwardButton.IsKeepingExpanded = isForward;
+        if (_subBackwardButton != null) _subBackwardButton.IsKeepingExpanded = !isForward;
     }
 
     private void OnClearButtonClick(object? sender, RoutedEventArgs e)
@@ -270,7 +300,7 @@ public class TimeCalculatorPage : UserControl
         if (_minuendDayComboBox != null) _minuendDayComboBox.SelectedIndex = -1;
         if (_minuendTimePicker != null) _minuendTimePicker.SelectedTime = null;
 
-        if (_subDirectionComboBox != null) _subDirectionComboBox.SelectedIndex = 0;
+        if (_subDirectionTabStrip != null) _subDirectionTabStrip.SelectedIndex = 0;
         if (_subtrahendTextBox != null) _subtrahendTextBox.Text = "";
 
         if (_resultYearTextBox != null) _resultYearTextBox.Value = null;
@@ -332,7 +362,7 @@ public class TimeCalculatorPage : UserControl
                 return;
             }
 
-            var isForward = _subDirectionComboBox?.SelectedIndex == 0;
+            var isForward = _subDirectionTabStrip?.SelectedIndex == 0;
             var formatStr = _subtrahendTextBox?.Text ?? "";
 
             var parsed = ParseTimeFormat(formatStr);
@@ -361,7 +391,7 @@ public class TimeCalculatorPage : UserControl
         {
             if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
             {
-                ShowErrorDialog("请输入有效的被减数日期和时间");
+                ShowErrorDialog("请输入有效的基准时间");
                 return;
             }
 
@@ -375,8 +405,8 @@ public class TimeCalculatorPage : UserControl
 
             var formatStr = FormatTimeDiffLowercase(minuend, result);
 
-            if (_subDirectionComboBox != null)
-                _subDirectionComboBox.SelectedIndex = isForward ? 0 : 1;
+            if (_subDirectionTabStrip != null)
+                _subDirectionTabStrip.SelectedIndex = isForward ? 0 : 1;
 
             if (_subtrahendTextBox != null)
                 _subtrahendTextBox.Text = formatStr;
@@ -660,48 +690,34 @@ public class TimeCalculatorPage : UserControl
         }
     }
 
-    private StackPanel CreateDatePickerRow(string label, out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    private StackPanel CreateDatePickerRow(out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
     {
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
-        };
-
-        var labelTextBlock = new TextBlock
-        {
-            Text = label,
-            FontSize = 13,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _labelTextBlocks.Add(labelTextBlock);
-        panel.Children.Add(labelTextBlock);
-
         var datePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 6
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var ytb = new NumericUpDown
         {
-            Width = 155,
+            Width = 120,
             CornerRadius = new CornerRadius(4),
             Minimum = 1,
             Maximum = 9999,
             Increment = 1,
-            Value = DateTime.Now.Year
+            Value = DateTime.Now.Year,
+            VerticalAlignment = VerticalAlignment.Center
         };
         yearTextBox = ytb;
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(ytb, OnYearTextBoxLostFocus);
 
         var mcb = new ComboBox
         {
-            Width = 80,
+            Width = 72,
             CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
+            SelectedIndex = -1,
+            VerticalAlignment = VerticalAlignment.Center
         };
         for (int i = 1; i <= 12; i++)
         {
@@ -711,9 +727,10 @@ public class TimeCalculatorPage : UserControl
 
         var dcb = new ComboBox
         {
-            Width = 80,
+            Width = 72,
             CornerRadius = new CornerRadius(4),
-            SelectedIndex = -1
+            SelectedIndex = -1,
+            VerticalAlignment = VerticalAlignment.Center
         };
         for (int i = 1; i <= 31; i++)
         {
@@ -728,41 +745,20 @@ public class TimeCalculatorPage : UserControl
         datePanel.Children.Add(mcb);
         datePanel.Children.Add(dcb);
 
-        panel.Children.Add(datePanel);
-
-        return panel;
+        return datePanel;
     }
 
-    private StackPanel CreateTimePickerRow(string label, out TimePicker timePicker)
+    private static TimePicker CreateTimePicker(out TimePicker timePicker)
     {
-        var panel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
-        };
-
-        var labelTextBlock = new TextBlock
-        {
-            Text = label,
-            FontSize = 13,
-            Foreground = ThemeHelper.GetTextBrush(),
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        _labelTextBlocks.Add(labelTextBlock);
-        panel.Children.Add(labelTextBlock);
-
         timePicker = new TimePicker
         {
-            Width = 250,
+            Width = 190,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
-            HorizontalAlignment = HorizontalAlignment.Left
+            VerticalAlignment = VerticalAlignment.Center
         };
 
-        panel.Children.Add(timePicker);
-
-        return panel;
+        return timePicker;
     }
 
     private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
@@ -872,14 +868,6 @@ public class TimeCalculatorPage : UserControl
 
         if (_subtrahendHint != null)
             _subtrahendHint.Foreground = ThemeHelper.GetGrayBrush();
-
-        if (_labelTextBlocks != null)
-        {
-            foreach (var tb in _labelTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetTextBrush();
-            }
-        }
 
         if (_sectionBorders != null)
         {
