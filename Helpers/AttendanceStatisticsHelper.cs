@@ -81,10 +81,10 @@ public sealed class AttendanceStatistics
     public bool Finished => Today.Date > EndDate.Date;
 
     /// <summary>按周分段的统计结果。</summary>
-    public List<PeriodStatistics> Weekly { get; } = new();
+    public List<PeriodStatistics> Weekly { get; set; } = new();
 
     /// <summary>按月分段的统计结果。</summary>
-    public List<PeriodStatistics> Monthly { get; } = new();
+    public List<PeriodStatistics> Monthly { get; set; } = new();
 }
 
 /// <summary>

@@ -336,11 +336,10 @@ public class AboutPage : SettingsPageBase
         {
             return await managementService.AuthorizeByLevel(AuthorizeLevel.User);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
             // 集控已启用却无法完成验证（服务异常 / 凭据数据损坏）时按失败处理：
             // 宁可让受保护功能无法开启，也不要让被集控管理的设备绕开管理员设置。
-            System.Diagnostics.Debug.WriteLine($"[集控验证] 异常：{ex}");
             return false;
         }
     }

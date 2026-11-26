@@ -67,13 +67,13 @@ public partial class DebugPage : SettingsPageBase
         // async void 事件处理器：任何异常都会冒泡到 TaskScheduler 并被宿主判定为"插件异常"而自动禁用插件，
         // 故此处统一兜底（对话框内部逻辑不应影响插件整体可用性）。
         try { await ShowForceCrashDialog(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonForceCrash_OnClick 异常：{ex}"); }
+        catch { }
     }
 
     private async void ButtonSelfDestruct_OnClick(object? sender, RoutedEventArgs e)
     {
         try { await ShowSelfDestructDialog(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonSelfDestruct_OnClick 异常：{ex}"); }
+        catch { }
     }
 
     private void ButtonHanfuTemplate_OnClick(object? sender, RoutedEventArgs e)
@@ -125,19 +125,19 @@ public partial class DebugPage : SettingsPageBase
     private async void ButtonShowFestivalList_OnClick(object? sender, RoutedEventArgs e)
     {
         try { await ShowFestivalListDialogAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonShowFestivalList_OnClick 异常：{ex}"); }
+        catch { }
     }
 
     private async void ButtonEmpty_OnClick(object? sender, RoutedEventArgs e)
     {
         try { await ShowEmptyDialogAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonEmpty_OnClick 异常：{ex}"); }
+        catch { }
     }
 
     private async void ButtonLoading_OnClick(object? sender, RoutedEventArgs e)
     {
         try { await ShowLoadingDialogAsync(); }
-        catch (Exception ex) { System.Diagnostics.Debug.WriteLine($"ButtonLoading_OnClick 异常：{ex}"); }
+        catch { }
     }
 
     /// <summary>

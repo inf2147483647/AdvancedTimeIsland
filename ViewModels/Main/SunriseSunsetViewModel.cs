@@ -171,15 +171,12 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = _timeBaseService.GetCurrentTime();
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimes - current time: {now}, latitude: {_settings.Latitude}, longitude: {_settings.Longitude}, timeZoneId: {_settings.TimeZoneId}");
             var times = CalculateSunriseSunset(now);
             SunriseTime = times.Sunrise.ToString(@"hh\:mm");
             SunsetTime = times.Sunset.ToString(@"hh\:mm");
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimes - result: sunrise={SunriseTime}, sunset={SunsetTime}");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimes error: {ex.Message}\n{ex.StackTrace}");
             SunriseTime = "--:--";
             SunsetTime = "--:--";
         }
@@ -190,7 +187,6 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimesAsync - current time: {now}, latitude: {_settings.Latitude}, longitude: {_settings.Longitude}, timeZoneId: {_settings.TimeZoneId}");
             var times = CalculateSunriseSunset(now);
             var sunriseStr = times.Sunrise.ToString(@"hh\:mm");
             var sunsetStr = times.Sunset.ToString(@"hh\:mm");
@@ -200,11 +196,9 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
                 SunriseTime = sunriseStr;
                 SunsetTime = sunsetStr;
             });
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimesAsync - result: sunrise={SunriseTime}, sunset={SunsetTime}");
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] UpdateTimesAsync error: {ex.Message}\n{ex.StackTrace}");
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 SunriseTime = "--:--";
@@ -224,21 +218,12 @@ public class SunriseSunsetViewModel : INotifyPropertyChanged, IDisposable
         {
             timeZone = TimeZoneInfo.FindSystemTimeZoneById(timeZoneId);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] TimeZoneInfo.FindSystemTimeZoneById failed: {ex.Message}, falling back to local time zone");
             timeZone = TimeZoneInfo.Local;
         }
 
-        try
-        {
-            return SunriseSunsetCalculator.Calculate(dateTime, _settings.Latitude, _settings.Longitude, timeZone);
-        }
-        catch (Exception ex)
-        {
-            System.Diagnostics.Debug.WriteLine($"[SunriseSunsetViewModel] SunriseSunsetCalculator.Calculate failed: {ex.Message}");
-            throw;
-        }
+        return SunriseSunsetCalculator.Calculate(dateTime, _settings.Latitude, _settings.Longitude, timeZone);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

@@ -64,6 +64,7 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
         _calendar = calendar;
 
         AttendanceCalendarService.DataChanged += OnExternalChanged;
+        AttendanceCalendarService.StatisticsUpdated += OnExternalChanged;
         SemesterStartService.SemesterStartDateChanged += OnExternalChanged;
         _settings.PropertyChanged += OnSettingsChanged;
 
@@ -126,21 +127,29 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
                 return;
             }
 
-            var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
-            // 每日在校时长与"启用时间表为空"的日期由服务结合宿主课表解析后传入统计算法。
-            var stats = _calendar.ComputeStatistics(start.Value, end, now);
-            Statistics = stats;
             _lastRefreshedDate = now.Date;
 
-            IsProgressAvailable = stats.TotalInSchoolDays > 0;
-            Progress = stats.ProgressPercent;
-            ApplyStatistics(stats);
+            // 统计由服务在后台线程计算并缓存，这里只读缓存渲染；
+            // 缓存缺失或过期时发起后台计算，完成后经 StatisticsUpdated 回调再次进入本方法。
+            var stats = _calendar.CachedStatistics;
+            if (stats != null)
+            {
+                Statistics = stats;
+                IsProgressAvailable = stats.TotalInSchoolDays > 0;
+                Progress = stats.ProgressPercent;
+                ApplyStatistics(stats);
+            }
+            else if (!_segmentVisibility[(int)AttendanceTextSegment.Summary])
+            {
+                ApplySegments("正在统计在校时间…", null, null, null, null);
+            }
+
+            _ = _calendar.GetStatisticsAsync(now);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            // 计算过程中的异常不影响组件渲染，保留上一次的结果，但记录原因便于排查。
+            // 计算过程中的异常不影响组件渲染，保留上一次的结果。
             _lastRefreshedDate = now.Date;
-            System.Diagnostics.Debug.WriteLine($"[AttendanceViewModel] 刷新在校统计失败：{ex}");
 
             // 首次刷新即失败时组件会完全没有内容，给一句可辨认的提示而不是空白。
             if (!_segmentVisibility[(int)AttendanceTextSegment.Summary])
@@ -241,6 +250,7 @@ public class AttendanceViewModel : INotifyPropertyChanged, IDisposable
         _clockSubscription?.Dispose();
         _clockSubscription = null;
         AttendanceCalendarService.DataChanged -= OnExternalChanged;
+        AttendanceCalendarService.StatisticsUpdated -= OnExternalChanged;
         SemesterStartService.SemesterStartDateChanged -= OnExternalChanged;
         _settings.PropertyChanged -= OnSettingsChanged;
     }

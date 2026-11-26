@@ -1037,9 +1037,8 @@ public class PluginSettingsPage : UserControl
         {
             await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, topLevel);
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"[PluginSettings] 验证提示对话框异常：{ex}");
         }
     }
 

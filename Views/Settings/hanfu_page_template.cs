@@ -153,7 +153,6 @@ public class HanfuPageTemplate : SettingsPageBase
         }
         catch (Exception ex)
         {
-            System.Diagnostics.Debug.WriteLine($"BuildContent failed: {ex}");
             panel.Children.Add(new TextBlock
             {
                 Text = $"页面内容加载失败: {ex.Message}",
@@ -878,9 +877,8 @@ InfoBar 语法格式：
                 return path;
             }
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"ResolveMarkdownPath failed for {fileName}: {ex.Message}");
         }
 
         return null;
@@ -901,9 +899,8 @@ InfoBar 语法格式：
         {
             return new FileInfo(path).Length;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"GetMarkdownFileSize failed for {fileName}: {ex.Message}");
             return 0;
         }
     }
@@ -916,7 +913,6 @@ InfoBar 语法格式：
         var path = ResolveMarkdownPath(fileName);
         if (path == null)
         {
-            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile: Markdown/{fileName} not found.");
             return "";
         }
 
@@ -924,9 +920,8 @@ InfoBar 语法格式：
         {
             return File.ReadAllText(path);
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile failed for {fileName}: {ex.Message}");
             return "";
         }
     }
@@ -2192,7 +2187,6 @@ InfoBar 语法格式：
         else
         {
             string localPath = ResolveLocalPath(url);
-            System.Diagnostics.Debug.WriteLine($"CreateImageControl: url={url}, resolvedPath={localPath ?? "null"}");
 
             // avares 资源依赖 UI 线程的 AssetLoader，保持在 UI 线程；失败则展示错误占位。
             void TryAvaresOrShowError()
@@ -2201,16 +2195,13 @@ InfoBar 语法格式：
                 try
                 {
                     var avaresUri = BuildAvaresUri(url);
-                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: trying avares {avaresUri}");
                     using var assetStream = Avalonia.Platform.AssetLoader.Open(new Uri(avaresUri));
                     var bitmap = new Avalonia.Media.Imaging.Bitmap(assetStream);
                     image.Source = bitmap;
                     loaded = true;
-                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from avares {avaresUri}");
                 }
-                catch (Exception ex)
+                catch
                 {
-                    System.Diagnostics.Debug.WriteLine($"CreateImageControl avares load failed: {ex.Message}");
                 }
 
                 if (!loaded)
@@ -2320,9 +2311,8 @@ InfoBar 语法格式：
                 return new Avalonia.Media.Imaging.Bitmap(stream);
             }).ConfigureAwait(false);
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"LoadLocalImageThenFallbackAsync file decode failed: {ex.Message}");
         }
 
         if (bitmap != null)
@@ -2791,9 +2781,8 @@ InfoBar 语法格式：
                 System.Diagnostics.Process.Start(psi);
             }
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"HanfuPageTemplate.OpenLink failed for url: {url}, error: {ex.Message}");
         }
     }
 
@@ -3604,9 +3593,8 @@ InfoBar 语法格式：
                 errorPanel.IsVisible = true;
             }
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"ResolveAndLoadImage failed: {ex.Message}");
             imageControl.Source = null;
             errorPanel.IsVisible = true;
         }
@@ -3653,9 +3641,8 @@ InfoBar 语法格式：
                 }
             });
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"LoadRemoteImgOnly failed: {ex.Message}");
             imageControl.Source = null;
             errorPanel.IsVisible = true;
         }

@@ -1022,9 +1022,8 @@ public static class FluentAvaloniaCompatibilityHelper
             }
             dialog.Show();
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"ShowDialogSafeAsync 失败：{ex}");
         }
     }
 }

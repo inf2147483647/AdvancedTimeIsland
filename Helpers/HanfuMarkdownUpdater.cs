@@ -93,7 +93,6 @@ public static class HanfuMarkdownUpdater
 
             // 无论本地版本是否最新，每次启动都强制重新下载-解压-覆盖，
             // 用远端权威内容覆盖本地可能被篡改过的文件。
-            DebugLog("开始拉取汉服内容。");
 
             var stagingRoot = Path.Combine(pluginRoot, StagingFolderName);
             TryDelete(stagingRoot);
@@ -117,19 +116,11 @@ public static class HanfuMarkdownUpdater
 
             await ApplyContentAsync(contentDir, finalDir);
             TryDelete(stagingRoot);
-
-            DebugLog($"汉服内容已更新（来源 {usedSource}）。");
         }
-        catch (Exception ex)
+        catch
         {
             // 下载/校验/解压/覆盖任一环节失败，都尽量不破坏现有 Markdown 目录，
             // 页面继续从本地缓存源加载（此时内容可能已被篡改，防篡改可能失效）。
-            var cacheDir = Path.Combine(ResolvePluginRoot(), MarkdownFolderName);
-            var hasCache = Directory.Exists(cacheDir) &&
-                Directory.GetFiles(cacheDir, "*.md", SearchOption.TopDirectoryOnly).Length > 0;
-            DebugLog(hasCache
-                ? $"汉服内容拉取失败，已回退到本地缓存（防篡改可能失效）：{ex.Message}"
-                : $"汉服内容拉取失败，且本地无缓存：{ex.Message}");
         }
         finally
         {
@@ -160,7 +151,6 @@ public static class HanfuMarkdownUpdater
                 await DownloadFileAsync(url, destinationPath);
                 if (IsValidZip(destinationPath))
                 {
-                    DebugLog($"从来源 {name} 下载成功。");
                     return name;
                 }
                 errors.Add($"{name}：返回内容不是 zip");
@@ -348,9 +338,8 @@ public static class HanfuMarkdownUpdater
                 Directory.Delete(path, true);
             }
         }
-        catch (Exception ex)
+        catch
         {
-            DebugLog($"清理目录失败：{path}，{ex.Message}");
         }
     }
 
@@ -363,15 +352,8 @@ public static class HanfuMarkdownUpdater
                 File.Delete(path);
             }
         }
-        catch (Exception ex)
+        catch
         {
-            DebugLog($"清理文件失败：{path}，{ex.Message}");
         }
-    }
-
-    private static void DebugLog(string message)
-    {
-        System.Diagnostics.Debug.WriteLine($"[HanfuMarkdownUpdater] {message}");
-        Console.WriteLine($"[HanfuMarkdownUpdater] {message}");
     }
 }

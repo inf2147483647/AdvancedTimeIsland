@@ -4,6 +4,8 @@
 - **新增「小工具」设置页（仅 Avalonia 版）**：将原位于「主设置」内的「时间格式转换」「时间计算器」「注释」三个标签页迁移至独立的「小工具」页，该页与「主设置」「时间表悬浮窗」等同属 AdvancedTimeIsland 导航分组。
 
 ### 优化
+- **「在校时间统计」设置页卡顿优化（仅 Avalonia 版）**：① 表格画刷改为按主题缓存，单元格不再逐个新建画刷；② 取消每次重建表格后的全量可视树遍历，主题仅在页面加载与切换主题时应用；③ 统计概览/分段表格按「结果对象 + 分段方式」去重，同一结果不再重复重建，`RefreshHost`（强制测量）也仅在内容变化时调用；④ 「法定节假日与调休」上百行改为按 40 行一批在 Background 优先级追加，重建时自动作废旧批次，避免一次性建上千控件掉帧；⑤ 「每日在校时长」提示的宿主课表读取改到后台线程并按天缓存，页面加载/切换选项不再阻塞 UI；⑥ 「刷新统计」按钮只刷新统计，不再连带重建全部表格。
+- **在校时间统计改为后台统计（仅 Avalonia 版）**：整学期在校统计不再在进入「在校时间统计」设置页时同步扫描课表，改由新增的 `AttendanceStatisticsBackgroundService` 在插件初始化后于后台线程统计一次并缓存；之后设置页与「总在校时间统计」组件在未强制刷新时都只读取缓存结果（进入页面不再触发统计），缓存缺失时先显示「正在后台统计…」，计算完成后自动回填。统计结果会落盘到 `attendance_statistics_cache.json`，插件重启后进入页面立即显示上次结果（随后由后台重算刷新）。缓存作废/重算期间界面继续显示上一次结果，不再反复出现「正在统计」。仅在点击「刷新统计」、统计数据/统计口径变化或跨天时于后台重算一次。同时页面初始化期间不再写入配置，避免控件初值回填误触配置保存与统计重算。WPF 版未同步此变更。
 - **优化插件包体积**：减小插件包到约1.9MB，缩短了网络限速场景下下载插件的时间
 - **「时间计算器」错误提示改为 Toast（仅 Avalonia 版）**：日期 / 时间无效或计算异常时不再弹独立模态窗口，改为在宿主右下角显示 `Error` 级别的非阻塞 Toast（标题「错误」，5 秒后自动关闭），不再打断操作。
 - **「时间计算器」方向选择改为标签页（仅 Avalonia 版）**：「变化量」行的「往后 / 往前」下拉框改为与自动化条件「当前处于白昼/黑夜」相同的 `TabStrip` + `AnimatedIconButton` 紧凑切换标签（选中项展开图标与文字，未选中项仅显示图标），依赖同一 `TabStripStyle` 主题资源。
@@ -21,6 +23,7 @@
 - **修复 `Build-Package.ps1` 开头重复 BOM 导致 PowerShell 5 无法识别参数（仅构建脚本）**：移除脚本首部多余的 UTF-8 BOM，恢复 `-Target both|compat|new` 参数解析。
 - **打包脚本移除 WPF 版构建打包（仅构建脚本）**：删除 `Build-Package.ps1` 中的 `Build-WpfVariant`、`Publish-WpfFloatExe` 函数与主流程 WPF 分支，`-Target` 仅保留 `both / compat / new`（`both` 现指两个 Avalonia 变体）。WPF 版源码与项目文件未改动，仍可单独编译。
 - **打包脚本移除 TraceID 记录（仅构建脚本）**：JK 制服页面生命周期已到达，TraceID 记录不再适用，删除 `Build-Package.ps1` 中 `Add-TraceIdRecord` 函数及三处调用（compat / new / wpf 变体），打包后不再生成或追加 `TraceIDlist.txt`。不影响插件运行时行为，也未改动 WPF 版代码。
+- **清理项目内残留的诊断日志（仅 Avalonia 版）**：移除 `HanfuMarkdownUpdater` 的 `DebugLog`（Debug/Console 双写）及各处 `System.Diagnostics.Debug.WriteLine` 调试输出（`AttendanceCalendarService`、`SunriseSunsetViewModel`、`AttendanceViewModel`、`hanfu_page_template`、`DebugPage`、`AboutPage`、`PluginSettingsPage`、`FluentAvaloniaCompatibilityHelper`），不再产生这些诊断日志；异常兜底分支保持原有回退行为不变。WPF 版按维护约定未改动。
 
 ### 破坏性变更
 - **删除「帧率折线图」功能（仅 Avalonia 版）**：「帧率折线图」「帧率折线图分析」两个设置页保留原页面 ID、内容替换为 Ghost Page；「实时主界面刷新率（调试）」组件内容固定为文本 `Ghost`，其组件设置页替换为 Ghost Page；移除后台帧率采集服务与相关图表/视图模型代码（「帧率折线」开关与「实验性功能」门槛保留，仍控制这两个页面是否注册）。WPF 版未改动。

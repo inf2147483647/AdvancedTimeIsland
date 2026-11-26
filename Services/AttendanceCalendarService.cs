@@ -75,6 +75,9 @@ public class AttendanceCalendarService
 {
     private const string DataFileName = "attendance_calendar.json";
 
+    /// <summary>统计结果缓存文件名（用于重启后立即展示）。</summary>
+    private const string StatisticsCacheFileName = "attendance_statistics_cache.json";
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         WriteIndented = true,
@@ -152,14 +155,16 @@ public class AttendanceCalendarService
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 加载失败：{ex.Message}");
         }
 
         Normalize();
         _data.Config.PropertyChanged -= OnConfigPropertyChanged;
         _data.Config.PropertyChanged += OnConfigPropertyChanged;
+        InvalidateStatistics();
+        // 先用上次落盘的统计结果填充缓存，进入页面可立即显示；随后由后台服务重算刷新。
+        LoadStatisticsCache();
         NotifyDataChanged();
     }
 
@@ -192,12 +197,12 @@ public class AttendanceCalendarService
                     File.Move(tempPath, filePath);
                 }
             }
-            catch (Exception ex)
+            catch
             {
-                System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 保存失败：{ex.Message}");
             }
         }
 
+        InvalidateStatistics();
         NotifyDataChanged();
     }
 
@@ -267,7 +272,6 @@ public class AttendanceCalendarService
         catch (Exception ex)
         {
             LastScheduleReadError = "读取异常：" + ex.Message;
-            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 读取当天课表时长失败：{ex.Message}");
             return false;
         }
     }
@@ -329,9 +333,8 @@ public class AttendanceCalendarService
                 }
             }
         }
-        catch (Exception ex)
+        catch
         {
-            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 收集空课表日期失败：{ex.Message}");
         }
 
         return result;
@@ -348,6 +351,184 @@ public class AttendanceCalendarService
         return AttendanceStatisticsHelper.Compute(semesterStart, semesterEnd, today,
             _data.Config, _data, dailyHours, emptyScheduleDates);
     }
+
+    #region 后台统计缓存
+
+    private readonly object _statisticsLock = new();
+    private AttendanceStatistics? _cachedStatistics;
+    private bool _hasStatisticsCache;
+    private DateTime _cachedToday = DateTime.MinValue;
+    private Task<AttendanceStatistics?>? _statisticsTask;
+
+    /// <summary>后台统计完成时触发（已切换到 UI 线程），供页面/组件读取最新缓存。</summary>
+    public static event EventHandler? StatisticsUpdated;
+
+    /// <summary>
+    /// 最近一次统计结果（含已作废但仍在等待后台重算的旧结果）。
+    /// 旧结果只用于界面即时显示，不会阻止后台重算；完全没有结果时才为 null。
+    /// </summary>
+    public AttendanceStatistics? CachedStatistics
+    {
+        get
+        {
+            lock (_statisticsLock)
+            {
+                return _cachedStatistics;
+            }
+        }
+    }
+
+    /// <summary>
+    /// 获取统计结果：缓存有效时立即返回；否则在后台线程整学期计算（同一时刻只跑一次）。
+    /// 缓存只按日期失效，不会随时间自行过期；只有强制刷新、跨天或数据/配置变化（显式
+    /// <see cref="InvalidateStatistics"/>）才会重算。
+    /// 计算结果通过 <see cref="StatisticsUpdated"/> 广播，调用方无需阻塞等待。
+    /// </summary>
+    /// <param name="today">参与统计的当前日期。</param>
+    /// <param name="forceRefresh">忽略缓存强制重算（用户点击「刷新统计」时使用）。</param>
+    public Task<AttendanceStatistics?> GetStatisticsAsync(DateTime today, bool forceRefresh = false)
+    {
+        var date = today.Date;
+        lock (_statisticsLock)
+        {
+            if (!forceRefresh && _hasStatisticsCache && _cachedToday == date)
+            {
+                return Task.FromResult(_cachedStatistics);
+            }
+
+            if (_statisticsTask is { IsCompleted: false })
+            {
+                return _statisticsTask;
+            }
+
+            var task = Task.Run(() => ComputeStatisticsCore(date));
+            _statisticsTask = task;
+            return task;
+        }
+    }
+
+    /// <summary>使统计缓存失效：数据/配置变化后调用，下一次 <see cref="GetStatisticsAsync"/> 会重算。</summary>
+    public void InvalidateStatistics()
+    {
+        lock (_statisticsLock)
+        {
+            _hasStatisticsCache = false;
+        }
+    }
+
+    private AttendanceStatistics? ComputeStatisticsCore(DateTime today)
+    {
+        AttendanceStatistics? stats = null;
+        try
+        {
+            var config = _data.Config;
+            var start = AttendanceStatisticsHelper.ResolveSemesterStart(config);
+            if (start != null)
+            {
+                var end = AttendanceStatisticsHelper.ResolveSemesterEnd(start.Value, config);
+                stats = ComputeStatistics(start.Value, end, today);
+            }
+        }
+        catch
+        {
+        }
+
+        lock (_statisticsLock)
+        {
+            _cachedStatistics = stats;
+            _hasStatisticsCache = true;
+            _cachedToday = today;
+            _statisticsTask = null;
+        }
+
+        if (stats != null)
+        {
+            SaveStatisticsCache(stats);
+        }
+
+        NotifyStatisticsUpdated();
+        return stats;
+    }
+
+    /// <summary>
+    /// 统计缓存落盘路径：与日历数据同目录，用于插件重启后立即展示上次结果，
+    /// 避免刚启动进入页面时长时间显示「正在统计」。
+    /// </summary>
+    private static string StatisticsCacheFilePath =>
+        Path.Combine(ResolveConfigFolder(), StatisticsCacheFileName);
+
+    private void SaveStatisticsCache(AttendanceStatistics stats)
+    {
+        lock (_saveLock)
+        {
+            try
+            {
+                var filePath = StatisticsCacheFilePath;
+                var directory = Path.GetDirectoryName(filePath);
+                if (!string.IsNullOrEmpty(directory) && !Directory.Exists(directory))
+                {
+                    Directory.CreateDirectory(directory);
+                }
+
+                var tempPath = filePath + ".tmp";
+                File.WriteAllText(tempPath, JsonSerializer.Serialize(stats, JsonOptions));
+                if (File.Exists(filePath))
+                {
+                    File.Replace(tempPath, filePath, null);
+                }
+                else
+                {
+                    File.Move(tempPath, filePath);
+                }
+            }
+            catch
+            {
+            }
+        }
+    }
+
+    private void LoadStatisticsCache()
+    {
+        try
+        {
+            var filePath = StatisticsCacheFilePath;
+            if (!File.Exists(filePath))
+            {
+                return;
+            }
+
+            var stats = JsonSerializer.Deserialize<AttendanceStatistics>(File.ReadAllText(filePath), JsonOptions);
+            if (stats == null)
+            {
+                return;
+            }
+
+            lock (_statisticsLock)
+            {
+                _cachedStatistics = stats;
+                _hasStatisticsCache = true;
+                // 保留落盘时的日期：下一次 GetStatisticsAsync 会因日期不一致在后台重算。
+                _cachedToday = stats.Today;
+            }
+        }
+        catch
+        {
+        }
+    }
+
+    private static void NotifyStatisticsUpdated()
+    {
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            StatisticsUpdated?.Invoke(null, EventArgs.Empty);
+        }
+        else
+        {
+            Dispatcher.UIThread.Post(() => StatisticsUpdated?.Invoke(null, EventArgs.Empty));
+        }
+    }
+
+    #endregion
 
     /// <summary>
     /// 解析指定日期生效的课表对象；解析失败返回 null。
@@ -460,9 +641,8 @@ public class AttendanceCalendarService
 
             return null;
         }
-        catch (Exception ex)
+        catch (Exception)
         {
-            System.Diagnostics.Debug.WriteLine($"[AttendanceCalendarService] 获取 LessonsService 失败：{ex.Message}");
             return null;
         }
     }
@@ -666,6 +846,8 @@ public class AttendanceCalendarService
 
     private void OnConfigPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
+        // 配置一改统计口径就变，立即作废缓存（写盘仍防抖），避免页面/组件在防抖窗口内读到旧统计。
+        InvalidateStatistics();
         // 防抖：连续修改（如数值框、文本框逐字输入）只在停顿后全量写盘一次；Save 内部仍会广播 DataChanged。
         _configSaveDebounceTimer.Change(ConfigSaveDebounceMs, Timeout.Infinite);
     }

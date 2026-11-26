@@ -636,6 +636,8 @@ public class Plugin : PluginBase
         services.AddHostedService<StartupDelayService>();
         services.AddHostedService<Services.FontSizeSyncService>();
         services.AddHostedService<Services.SemesterStartService>();
+        // 在校统计后台计算：设置页与组件读取缓存，避免进入页面时同步扫描整学期课表。
+        services.AddHostedService<Services.AttendanceStatisticsBackgroundService>();
 
         RegisterButtonPointerCursorStyle();
 
