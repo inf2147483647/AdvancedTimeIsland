@@ -22,6 +22,11 @@ internal static class Program
     /// <summary>跟随启停（初始值来自 --follow-lifetime；运行中以 settings 消息热更新，看门狗触发时读最新值）。</summary>
     public static volatile bool FollowHostLifetime = true;
     public static bool SingleInstance { get; private set; } = true;
+    /// <summary>云母/亚克力背板的圆角裁剪半径（来自 --corner-radius）。该值只在创建窗口渲染目标时读取一次，
+    /// 必须与卡片圆角一致，否则系统模糊背板按直角绘制，卡片圆角外会露出方形底色。</summary>
+    public static double BackdropCornerRadius { get; private set; } = 8;
+    /// <summary>已注册到 Avalonia 的 Win32 平台选项（窗口显示后按实际缩放把圆角换算成物理像素更新它）。</summary>
+    public static Win32PlatformOptions? Win32Options { get; set; }
 
     /// <summary>
     /// 本 exe 编译期对应的 Avalonia 大版本（与 csproj 的 AvaloniaVersion 一一对应）。
@@ -195,6 +200,14 @@ internal static class Program
             var builder = AppBuilder.Configure<FloatScheduleApp>()
                 .UseWin32()
                 .UseSkia();
+            // 云母/亚克力背板由 WinUI 合成器绘制，不经过应用的圆角 Border；
+            // 必须在这里给出卡片圆角，合成背板才会按圆角裁剪（否则角上是方形底色）。
+            // 保留实例引用：窗口显示后按实际 DPI 缩放把它换算成物理像素再更新一次。
+            Win32Options = new Win32PlatformOptions
+            {
+                WinUICompositionBackdropCornerRadius = (float)BackdropCornerRadius
+            };
+            builder = builder.With(Win32Options);
 #if NET10_0_OR_GREATER
             // 【修复：FA3（Avalonia 12）上独立进程必然启动失败】Avalonia 12 把"文本整形"拆成独立包
             //   Avalonia.HarfBuzz，必须显式注册；否则 AppBuilder.Setup() 直接抛
@@ -236,6 +249,10 @@ internal static class Program
                 case "--parent-pid" when i + 1 < args.Length && int.TryParse(args[i + 1], out var pid): ParentPid = pid; i++; break;
                 case "--follow-lifetime" when i + 1 < args.Length: FollowHostLifetime = args[++i] == "1"; break;
                 case "--single-instance" when i + 1 < args.Length: SingleInstance = args[++i] == "1"; break;
+                case "--corner-radius" when i + 1 < args.Length &&
+                    double.TryParse(args[i + 1], System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var cr):
+                    BackdropCornerRadius = Math.Clamp(cr, 0, 100); i++; break;
                 // 宿主下传的"期望 Avalonia 大版本"（宿主插件的编译目标）。仅在自校验**读不到**宿主
                 // Avalonia 文件版本、或与自身编译目标冲突时用于加严判定，正常时以自身编译目标为准。
                 case "--avalonia-major" when i + 1 < args.Length && int.TryParse(args[i + 1], out var avm): HostExpectedAvaloniaMajor = avm; i++; break;

@@ -273,6 +273,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     private PixelPoint _edgeDockedPosAv;            // 贴边前的原始位置（滑回目标）
     private PixelPoint _edgeHiddenPosAv;            // 滑出隐藏后的目标位置
     private CancellationTokenSource? _edgeEvalCtsAv;    // 取消防抖中的延迟评估
+    private CancellationTokenSource? _backdropCornerRebuildCtsAv;   // 圆角变化 → 重建窗口/子进程的防抖
+    private double _windowBackdropCornerRadiusAv = -1;   // 当前进程内窗口创建时使用的背板裁剪半径
     // 【贴边滑移动画·帧率优化】原 async Task.Delay(16) 循环：Task.Delay 受系统时钟分辨率（~15.6ms）影响，
     //  实际帧距 ≈ 16+15.6 ≈ 32ms → 仅 ~30fps 且续体调度有抖动。改用 DispatcherPriority.Render 的
     //  DispatcherTimer（Avalonia 官方动画同款模式）：每个渲染帧 Tick 一次，与 DWM 合成节拍对齐 → 满帧率平滑滑动。
@@ -798,6 +800,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             Dispatcher.UIThread.Post(() =>
             {
                 try { RefreshSchedule(); } catch { }
+                // 宿主主题切换（跟随 ClassIsland/跟随系统）会改变悬浮窗有效主题 → 云母变体 MicaLight/MicaDark
+                // 必须随设置快照下发，否则独立进程会继续使用旧变体（表现为材质亮暗与卡片配色错位）。
+                try { if (IndependentRequested) PublishIndependentSettingsAv(); } catch { }
             });
         };
         Avalonia.Application.Current!.ActualThemeVariantChanged += _themeChangedHandler;
@@ -993,6 +998,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         CancelHideShowAv();
         StopRenderKeepAliveAv();   // 停止渲染帧保温（窗口即将销毁）
         try { _edgeEvalCtsAv?.Cancel(); } catch { }
+        try { _backdropCornerRebuildCtsAv?.Cancel(); } catch { }
         // 【h4】悬浮窗层级重设频率 Detach：先解 Win32 子类（hwnd 仍有效）+ 停 Timer + 退订宿主事件，防止宿主 singleton 强引用泄漏
         DetachTopmostRefreshAv();
         // 【修复：调试时间不立刻刷新 - 退订宿主 Settings PropertyChanged 防止内存泄漏】
@@ -1010,6 +1016,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _fpsTickSubAv = null;
         _currentFpsTextAv = null;
         _lastTransparencyModeAv = -1;   // 窗口销毁 → 透明级别缓存失效，下次重建重新应用
+        _windowBackdropCornerRadiusAv = -1;   // 窗口销毁 → 背板裁剪半径需在重建时重新应用
         _containerBorder = null;
         _currentProgressIndicator = null;
         _currentProgressHost = null;
@@ -1583,6 +1590,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_window != null) return;
         // 【独立进程模式】开关开启（含子进程尚未连接的启动窗口期）即不创建进程内窗口
         if (IndependentRequested) return;
+        // 云母/亚克力的系统模糊背板不经过应用的圆角 Border：必须让 Avalonia 在创建窗口渲染目标前
+        // 知道裁剪半径，否则背板按直角窗口绘制，会在卡片圆角外侧露出一块方形底色。
+        ApplyWin32BackdropCornerRadiusAv(_settings.FloatingScheduleCornerRadius);
+        _windowBackdropCornerRadiusAv = _settings.FloatingScheduleCornerRadius;
         _window = new Window
         {
             Title = "AdvancedTimeIsland FloatingSchedule",
@@ -2051,8 +2062,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 【拖动不出屏】把拖拽目标位置 clamp 到窗口所在屏幕的工作区，保证时间表完整显示在屏幕内。
-    /// 贴边隐藏不受影响：clamp 后窗口贴在工作区边缘（距离=0 < 1px 阈值）→ 拖完仍正常触发贴边滑出。
+    /// 【拖动不出屏（多屏版）】把拖拽目标位置 clamp 到"所有显示器工作区的并集包围盒"，
+    /// 而不是窗口当前所在那台显示器的工作区——旧写法会把窗口死死夹在当前屏边缘，永远拖不到另一台显示器。
+    /// 贴边隐藏不受影响：窗口仍可停到某台显示器的外缘（距离=0）→ 拖完正常触发贴边滑出；
+    /// 显示器之间的内部分界线由 <see cref="IsEdgeFacingAnotherScreenAv"/> 判定并跳过（不触发贴边隐藏）。
     /// 取不到屏幕/尺寸信息时原样返回（功能降级但不阻塞拖动）。
     /// </summary>
     private PixelPoint ClampDragTargetToScreenAv(PixelPoint target)
@@ -2060,18 +2073,68 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try
         {
             if (_window == null) return target;
-            var screen = _window.Screens?.ScreenFromWindow(_window);
-            if (screen == null) return target;
-            RefreshDragFrameIntervalAv(screen.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
+            var screens = _window.Screens;
+            var current = screens?.ScreenFromWindow(_window);
+            if (screens == null || current == null) return target;
+            RefreshDragFrameIntervalAv(current.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return target;
-            var wa = screen.WorkingArea;
-            int maxX = wa.X + Math.Max(0, wa.Width - w);
-            int maxY = wa.Y + Math.Max(0, wa.Height - h);
+            int minX = int.MaxValue, minY = int.MaxValue, maxRight = int.MinValue, maxBottom = int.MinValue;
+            foreach (var s in screens.All)
+            {
+                var wa = s.WorkingArea;
+                minX = Math.Min(minX, wa.X);
+                minY = Math.Min(minY, wa.Y);
+                maxRight = Math.Max(maxRight, wa.X + wa.Width);
+                maxBottom = Math.Max(maxBottom, wa.Y + wa.Height);
+            }
+            if (minX == int.MaxValue) return target;
+            // Math.Clamp 要求 min<=max：窗口比并集还大时退化为贴左上角，避免抛 ArgumentException
+            int maxX = Math.Max(minX, maxRight - w);
+            int maxY = Math.Max(minY, maxBottom - h);
             return new PixelPoint(
-                Math.Clamp(target.X, wa.X, maxX),
-                Math.Clamp(target.Y, wa.Y, maxY));
+                Math.Clamp(target.X, minX, maxX),
+                Math.Clamp(target.Y, minY, maxY));
         }
         catch { return target; }
+    }
+
+    /// <summary>
+    /// 该边是否"朝向另一台显示器"（显示器之间的内部分界线）。
+    /// 是 → 不允许在此贴边隐藏：否则窗口会沿着分界线滑出，表现为卡在屏幕边缘/闪到另一块屏上。
+    /// 用显示器物理边界（Bounds）判定（工作区会被任务栏内缩），容忍 1px 取整误差；
+    /// 只有"另一台显示器在该方向上的投影与窗口有重叠"才算相邻（斜向摆放的另一台屏不影响本边）。
+    /// </summary>
+    private bool IsEdgeFacingAnotherScreenAv(string side, PixelRect wa, PixelPoint pos, int w, int h)
+    {
+        try
+        {
+            var all = _window?.Screens?.All;
+            if (all == null || all.Count <= 1) return false;
+            const int tol = 1;
+            foreach (var s in all)
+            {
+                var b = s.Bounds;
+                bool yOverlap = b.Y < pos.Y + h && b.Y + b.Height > pos.Y;
+                bool xOverlap = b.X < pos.X + w && b.X + b.Width > pos.X;
+                switch (side)
+                {
+                    case "left":
+                        if (yOverlap && b.X + b.Width <= wa.X + tol) return true;
+                        break;
+                    case "right":
+                        if (yOverlap && b.X >= wa.X + wa.Width - tol) return true;
+                        break;
+                    case "top":
+                        if (xOverlap && b.Y + b.Height <= wa.Y + tol) return true;
+                        break;
+                    case "bottom":
+                        if (xOverlap && b.Y >= wa.Y + wa.Height - tol) return true;
+                        break;
+                }
+            }
+        }
+        catch { }
+        return false;
     }
 
     /// <summary>
@@ -2239,7 +2302,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // ===== 高级外观：内容/材质/边框/主题类变化 → 重建（RefreshSchedule 内含材质应用器 + 卡片几何）=====
             case nameof(PluginSettings.FloatingScheduleMaterial):
             case nameof(PluginSettings.FloatingScheduleMaterialIntensity):
-            case nameof(PluginSettings.FloatingScheduleCornerRadius):
             case nameof(PluginSettings.FloatingScheduleCustomBackgroundPath):
             case nameof(PluginSettings.FloatingScheduleJellyEnabled):
             case nameof(PluginSettings.FloatingScheduleBorderEnabled):
@@ -2273,6 +2335,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             case nameof(PluginSettings.FloatingScheduleSeparatorThickness):
             case nameof(PluginSettings.FloatingScheduleShowFps):
                 Dispatcher.UIThread.Post(RefreshSchedule);
+                break;
+            case nameof(PluginSettings.FloatingScheduleCornerRadius):
+                // 圆角还想联动云母/亚克力背板的裁剪半径；该半径由 Avalonia 在窗口渲染目标创建时固定
+                // （Win32PlatformOptions.WinUICompositionBackdropCornerRadius），运行中改值必须重建窗口/子进程。
+                Dispatcher.UIThread.Post(RefreshSchedule);
+                ScheduleBackdropCornerRebuildAv();
                 break;
             case nameof(PluginSettings.EnableExperimentalFeatures):
                 // 实验性功能开关变化：若正在用实验材质且被关闭 → 回退半透明（RefreshSchedule 内 ResolveMaterialAv 已处理）
@@ -2422,6 +2490,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         _fpsTickSubAv = null;
         _currentFpsTextAv = null;
         _lastTransparencyModeAv = -1;   // 窗口销毁 → 透明级别缓存失效，下次重建重新应用
+        _windowBackdropCornerRadiusAv = -1;   // 窗口销毁 → 背板裁剪半径需在重建时重新应用
         _containerBorder = null;
             _rootContent = null;
             _lastAppliedClickThrough = false;
@@ -2890,17 +2959,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 已处于隐藏态且位置就是隐藏目标 → 无需处理
             if (_edgeHiddenAv && pos == _edgeHiddenPosAv) return;
 
-            // 与四边的距离（可为负=已越过边缘）；取 <阈值 中最小的边
+            // 与四边的距离（可为负=已越过边缘）；取 <阈值 中最小的边。
             int dLeft = pos.X - wa.X;
             int dRight = (wa.X + wa.Width) - (pos.X + w);
             int dTop = pos.Y - wa.Y;
             int dBottom = (wa.Y + wa.Height) - (pos.Y + h);
+            // 多屏：与另一台显示器相邻的内部分界线不算贴边（否则跨屏时会被误判贴边而滑出隐藏）。
             string? side = null;
             int best = EdgeHideThresholdAv;
-            if (dLeft < best) { best = dLeft; side = "left"; }
-            if (dRight < best) { best = dRight; side = "right"; }
-            if (dTop < best) { best = dTop; side = "top"; }
-            if (dBottom < best) { best = dBottom; side = "bottom"; }
+            if (dLeft < best && !IsEdgeFacingAnotherScreenAv("left", wa, pos, w, h)) { best = dLeft; side = "left"; }
+            if (dRight < best && !IsEdgeFacingAnotherScreenAv("right", wa, pos, w, h)) { best = dRight; side = "right"; }
+            if (dTop < best && !IsEdgeFacingAnotherScreenAv("top", wa, pos, w, h)) { best = dTop; side = "top"; }
+            if (dBottom < best && !IsEdgeFacingAnotherScreenAv("bottom", wa, pos, w, h)) { best = dBottom; side = "bottom"; }
 
             if (side == null)
             {
@@ -5139,7 +5209,20 @@ public class FloatingScheduleService : IHostedService, IDisposable
         try
         {
             if (_window == null) return;
+            // 云母背板的亮/暗变体（MicaLight/MicaDark）跟随窗口主题，先对齐主题再设透明级别：
+            // 否则强制深色/浅色的悬浮窗会套上错误变体的云母，表现为整块发灰的浅色板（深色卡片尤为明显）。
+            var theme = ResolveFloatingDarkThemeAv() ? ThemeVariant.Dark : ThemeVariant.Light;
+            if (_window.RequestedThemeVariant != theme) _window.RequestedThemeVariant = theme;
             int m = ResolveMaterialAv();
+            // 合成背板几何使用物理像素：按窗口缩放把 DIP 圆角换算后写入（须早于首帧渲染读取）。
+            if (m == 1 || m == 2)
+                ApplyWin32BackdropCornerRadiusAv(
+                    Math.Clamp(_settings.FloatingScheduleCornerRadius, 0, 10) * Math.Max(0.1, _window.RenderScaling));
+            // 圆角设置变了但窗口是旧半径创建的（例如先在半透明下调圆角、再切到云母/亚克力）→ 需要重建窗口，
+            // 让合成背板按新半径重新裁剪；否则切换材质时仍会露出方形底色。
+            if ((m == 1 || m == 2) && _windowBackdropCornerRadiusAv >= 0 &&
+                Math.Abs(_windowBackdropCornerRadiusAv - Math.Clamp(_settings.FloatingScheduleCornerRadius, 0, 10)) > 0.01)
+                ScheduleBackdropCornerRebuildAv();
             int mode = (m == 1 || m == 2) ? m : 0;   // 1=云母(Mica) 2=亚克力(AcrylicBlur) 0=纯透明
             if (mode == _lastTransparencyModeAv) return;   // 透明级别未变则跳过（该属性会触发平台调用）
             _lastTransparencyModeAv = mode;
@@ -5239,7 +5322,84 @@ public class FloatingScheduleService : IHostedService, IDisposable
             GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
             GlassVSync = _settings.FloatingScheduleGlassVSync,
             TintArgb = tintArgb,
+            DarkTheme = ResolveFloatingDarkThemeAv(),
         };
+    }
+
+    /// <summary>
+    /// 悬浮窗有效深色主题（与渲染配色同一判定）：强制深/浅优先，否则跟随宿主主题。
+    /// 云母背板的 MicaDark/MicaLight 必须按此设置窗口主题，否则材质变体与卡片配色错位。
+    /// </summary>
+    private bool ResolveFloatingDarkThemeAv()
+    {
+        if (_settings.FloatingScheduleThemeMode == FloatingScheduleThemeMode.Dark) return true;
+        if (_settings.FloatingScheduleThemeMode == FloatingScheduleThemeMode.Light) return false;
+        return ThemeHelper.IsDarkTheme();
+    }
+
+    /// <summary>
+    /// 把卡片圆角写入 Avalonia 的 WinUI 合成背板裁剪半径
+    /// （Win32PlatformOptions.WinUICompositionBackdropCornerRadius）。
+    /// 云母/亚克力的模糊背板由系统合成器直接绘制在窗口背后，不经过应用的圆角 Border；
+    /// 不设置该值时背板按直角窗口裁剪，卡片圆角外侧会露出一块方形底色（即云母/亚克力圆角异常）。
+    /// 该值只在窗口渲染目标创建时读取一次，运行中改圆角不会生效 → 见 ScheduleBackdropCornerRebuildAv。
+    /// </summary>
+    private static void ApplyWin32BackdropCornerRadiusAv(double radius)
+    {
+        try
+        {
+            if (!OperatingSystem.IsWindows()) return;
+            // AvaloniaLocator 标了 [PrivateApi]，编译用参考程序集里没有 Current（直接引用会 CS0117），
+            // 但运行时实现程序集里有 → 用反射取平台选项。
+            var locatorType = Type.GetType("Avalonia.AvaloniaLocator, Avalonia.Base");
+            var current = locatorType?.GetProperty("Current", BindingFlags.Public | BindingFlags.Static)
+                ?.GetValue(null);
+            if (current == null) return;
+            var getService = current.GetType().GetMethod("GetService", new[] { typeof(Type) });
+            if (getService?.Invoke(current, new object[] { typeof(Win32PlatformOptions) }) is Win32PlatformOptions opt)
+                opt.WinUICompositionBackdropCornerRadius = (float)Math.Clamp(radius, 0, 100);
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// 圆角变化后按新半径重新创建承载云母/亚克力背板的进程内窗口。
+    /// 独立进程由子进程自检半径后以 ExitCodeSelfUpdate 退出，宿主统一用 --corner-radius 新值重启，无需在此处理。
+    /// 拖动滑块会连续触发，这里 450ms 防抖，只执行最后一次。
+    /// </summary>
+    private void ScheduleBackdropCornerRebuildAv()
+    {
+        _backdropCornerRebuildCtsAv?.Cancel();
+        _backdropCornerRebuildCtsAv?.Dispose();
+        var cts = new CancellationTokenSource();
+        _backdropCornerRebuildCtsAv = cts;
+        _ = Task.Run(async () =>
+        {
+            try { await Task.Delay(450, cts.Token).ConfigureAwait(false); }
+            catch (OperationCanceledException) { return; }
+            catch { return; }
+            if (cts.IsCancellationRequested) return;
+            try
+            {
+                if (!_settings.EnableFloatingSchedule) return;
+                int m = ResolveMaterialAv();
+                if (m != 1 && m != 2) return;   // 只有云母/亚克力使用系统模糊背板
+                // 独立进程由子进程自检半径并主动以 ExitCodeSelfUpdate 退出，宿主统一用新半径重启；
+                // 这里只处理进程内窗口（重建窗口才能让合成背板按新半径重新裁剪）。
+                if (IndependentRequested) return;
+                Dispatcher.UIThread.Post(() =>
+                {
+                    try
+                    {
+                        if (IndependentRequested || _window == null) return;
+                        CloseInProcessWindowAv();
+                        RestoreInProcessWindowAv();
+                    }
+                    catch { }
+                });
+            }
+            catch { }
+        });
     }
 
     /// <summary>悬浮窗行为类设置变化 → 独立进程模式下重推设置快照（即时生效，无需重启 ClassIsland）。

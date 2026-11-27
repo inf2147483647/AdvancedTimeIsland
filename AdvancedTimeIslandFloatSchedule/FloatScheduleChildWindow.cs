@@ -16,6 +16,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Styling;
 using Avalonia.Threading;
 
 namespace AdvancedTimeIsland.FloatScheduleChild;
@@ -339,6 +340,15 @@ internal sealed class FloatScheduleChildWindow : Window
             try { FloatScheduleNative.SetProcessDpiAwarenessContext(FloatScheduleNative.DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2); } catch { }
         }
         ApplyExStylesSafe();
+        // 合成背板的圆角裁剪使用物理像素：窗口显示后拿到真实 DPI，把 DIP 圆角换算后再写回平台选项
+        // （OnOpened 早于首帧渲染，此时更新仍能作用到即将创建的模糊背板几何）。
+        try
+        {
+            if (Program.Win32Options != null)
+                Program.Win32Options.WinUICompositionBackdropCornerRadius =
+                    (float)Math.Max(0, _snap.CornerRadius * Math.Max(0.1, RenderScaling));
+        }
+        catch { }
         ApplyPreventCapture();
         ApplyWindowLayer();
         ApplyClickThrough(force: true);
@@ -634,7 +644,19 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         try
         {
+            // 云母背板的亮/暗变体（MicaLight/MicaDark）跟随窗口主题：子进程应用主题此前写死 Light，
+            // 导致强制深色的悬浮窗始终套浅色云母（整块发灰的浅色板）。此处按宿主下发的有效主题对齐。
+            var theme = _snap.DarkTheme ? ThemeVariant.Dark : ThemeVariant.Light;
+            if (RequestedThemeVariant != theme) RequestedThemeVariant = theme;
             int m = _snap.Material;
+            // 云母/亚克力背板的裁剪半径在子进程启动时由 --corner-radius 固定（合成背板只在创建时读取一次），
+            // 运行中无法热改。半径设置变化（或 adopt 到旧进程）→ 主动退出，让宿主用新半径重启子进程。
+            if ((m == 1 || m == 2) &&
+                Math.Abs(_snap.CornerRadius - Program.BackdropCornerRadius) > 0.01)
+            {
+                CloseAndExit(FloatScheduleIpc.ExitCodeSelfUpdate);
+                return;
+            }
             TransparencyLevelHint = m switch
             {
                 // 云母：优先系统云母背板；Win11 以下无云母 → 回退亚克力模糊保底观感
@@ -1227,22 +1249,76 @@ internal sealed class FloatScheduleChildWindow : Window
         catch { }
     }
 
+    /// <summary>
+    /// 【拖动不出屏（多屏版）】clamp 到"所有显示器工作区的并集包围盒"，而不是当前所在那台显示器的工作区
+    /// ——旧写法会把窗口夹在当前屏边缘，永远拖不到另一台显示器。
+    /// 内部分界线是否允许贴边隐藏由 <see cref="IsEdgeFacingAnotherScreen"/> 单独判定。
+    /// </summary>
     PixelPoint ClampDragTargetToScreen(PixelPoint target)
     {
         try
         {
-            var screen = Screens?.ScreenFromWindow(this);
-            if (screen == null) return target;
-            RefreshDragFrameInterval(screen.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
+            var screens = Screens;
+            var current = screens?.ScreenFromWindow(this);
+            if (screens == null || current == null) return target;
+            RefreshDragFrameInterval(current.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
             if (!TryGetWindowDeviceSize(out int w, out int h)) return target;
-            var wa = screen.WorkingArea;
-            int maxX = wa.X + Math.Max(0, wa.Width - w);
-            int maxY = wa.Y + Math.Max(0, wa.Height - h);
+            int minX = int.MaxValue, minY = int.MaxValue, maxRight = int.MinValue, maxBottom = int.MinValue;
+            foreach (var s in screens.All)
+            {
+                var wa = s.WorkingArea;
+                minX = Math.Min(minX, wa.X);
+                minY = Math.Min(minY, wa.Y);
+                maxRight = Math.Max(maxRight, wa.X + wa.Width);
+                maxBottom = Math.Max(maxBottom, wa.Y + wa.Height);
+            }
+            if (minX == int.MaxValue) return target;
+            // Math.Clamp 要求 min<=max：窗口比并集还大时退化为贴左上角，避免抛 ArgumentException
+            int maxX = Math.Max(minX, maxRight - w);
+            int maxY = Math.Max(minY, maxBottom - h);
             return new PixelPoint(
-                Math.Clamp(target.X, wa.X, maxX),
-                Math.Clamp(target.Y, wa.Y, maxY));
+                Math.Clamp(target.X, minX, maxX),
+                Math.Clamp(target.Y, minY, maxY));
         }
         catch { return target; }
+    }
+
+    /// <summary>
+    /// 该边是否"朝向另一台显示器"（显示器之间的内部分界线）：是 → 不触发贴边隐藏，
+    /// 否则跨屏拖动会被误判为贴边而沿分界线滑出（表现为卡在边缘/闪到另一块屏）。
+    /// 用显示器物理边界（Bounds）判定，1px 容差；要求另一台屏在该方向的投影与窗口有重叠。
+    /// </summary>
+    bool IsEdgeFacingAnotherScreen(string side, PixelRect wa, PixelPoint pos, int w, int h)
+    {
+        try
+        {
+            var all = Screens?.All;
+            if (all == null || all.Count <= 1) return false;
+            const int tol = 1;
+            foreach (var s in all)
+            {
+                var b = s.Bounds;
+                bool yOverlap = b.Y < pos.Y + h && b.Y + b.Height > pos.Y;
+                bool xOverlap = b.X < pos.X + w && b.X + b.Width > pos.X;
+                switch (side)
+                {
+                    case "left":
+                        if (yOverlap && b.X + b.Width <= wa.X + tol) return true;
+                        break;
+                    case "right":
+                        if (yOverlap && b.X >= wa.X + wa.Width - tol) return true;
+                        break;
+                    case "top":
+                        if (xOverlap && b.Y + b.Height <= wa.Y + tol) return true;
+                        break;
+                    case "bottom":
+                        if (xOverlap && b.Y >= wa.Y + wa.Height - tol) return true;
+                        break;
+                }
+            }
+        }
+        catch { }
+        return false;
     }
 
     /// <summary>
@@ -1386,12 +1462,13 @@ internal sealed class FloatScheduleChildWindow : Window
             int dRight = (wa.X + wa.Width) - (pos.X + w);
             int dTop = pos.Y - wa.Y;
             int dBottom = (wa.Y + wa.Height) - (pos.Y + h);
+            // 多屏：与另一台显示器相邻的内部分界线不算贴边（否则跨屏时会被误判贴边而滑出隐藏）。
             string? side = null;
             int best = EdgeHideThreshold;
-            if (dLeft < best) { best = dLeft; side = "left"; }
-            if (dRight < best) { best = dRight; side = "right"; }
-            if (dTop < best) { best = dTop; side = "top"; }
-            if (dBottom < best) { best = dBottom; side = "bottom"; }
+            if (dLeft < best && !IsEdgeFacingAnotherScreen("left", wa, pos, w, h)) { best = dLeft; side = "left"; }
+            if (dRight < best && !IsEdgeFacingAnotherScreen("right", wa, pos, w, h)) { best = dRight; side = "right"; }
+            if (dTop < best && !IsEdgeFacingAnotherScreen("top", wa, pos, w, h)) { best = dTop; side = "top"; }
+            if (dBottom < best && !IsEdgeFacingAnotherScreen("bottom", wa, pos, w, h)) { best = dBottom; side = "bottom"; }
 
             if (side == null)
             {

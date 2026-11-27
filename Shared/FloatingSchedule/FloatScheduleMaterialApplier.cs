@@ -67,19 +67,21 @@ public static class FloatScheduleMaterialApplier
         switch (material)
         {
             case 1: // 云母（窗口级系统云母背板 + 卡片着色膜）
-                card.Background = null;
+                // 用全透明画刷而不是 null：null 的 Border 不参与命中测试，空白区域会直接把指针漏给窗口，
+                // 导致「按在没有文字的地方拖不动」以及悬停进出失效；透明画刷不影响材质透出。
+                card.Background = Brushes.Transparent;
                 card.Child = osBackdrop
                     ? BuildOsMica(inner, cr, tint, intensity)
                     : BuildMica(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 1, intensity));
                 break;
             case 2: // 亚克力（Win11 五层配方）
-                card.Background = null;
+                card.Background = Brushes.Transparent;
                 card.Child = osBackdrop
                     ? BuildOsAcrylic(inner, cr, tint, intensity)
                     : BuildAcrylic(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 2, intensity));
                 break;
             case 3: // 液态玻璃（Apple 折射取向，始终自绘）
-                card.Background = null;
+                card.Background = Brushes.Transparent;
                 card.Child = BuildLiquidGlass(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 3, intensity), backdropIsRefracted);
                 break;
             case 4: // 古卷（竹简）

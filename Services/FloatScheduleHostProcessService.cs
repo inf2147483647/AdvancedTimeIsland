@@ -1080,6 +1080,11 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
         sb.Append(" --parent-pid ").Append(Environment.ProcessId);
         sb.Append(_settings.FloatingScheduleFollowHostLifetime ? " --follow-lifetime 1" : " --follow-lifetime 0");
         sb.Append(_settings.FloatingScheduleSingleInstanceProtection ? " --single-instance 1" : " --single-instance 0");
+        // 云母/亚克力背板的圆角裁剪半径只在子进程创建窗口渲染目标时读取一次
+        // （Win32PlatformOptions.WinUICompositionBackdropCornerRadius），必须随启动参数下发；
+        // 圆角运行中变化时由宿主重启子进程带上新值。
+        sb.Append(" --corner-radius ").Append(
+            _settings.FloatingScheduleCornerRadius.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture));
         // 下传"期望的 Avalonia 大版本"：子进程据此对自己的宿主导向做二次校验（双保险，见 Program.cs ②b）
         sb.Append(" --avalonia-major ").Append(ExpectedChildAvaloniaMajor);
         return sb.ToString();

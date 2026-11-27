@@ -220,10 +220,22 @@ public static class FloatScheduleRenderer
             grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
             var rIdx = grid.RowDefinitions.Count - 1;
 
-            IBrush rowBg = Brushes.Transparent;
-            if (m.ZebraStriped && !isCurrent && i % 2 == 1) rowBg = zebraBrush;
-            if (isCurrent) rowBg = highlightBg;
             double rowMarginV = 2 * rowSpacingFactor;
+            bool hasRowBg = isCurrent || (m.ZebraStriped && i % 2 == 1);
+            // ---- 着色层（位于底板/材质层之上、文本层之下）----
+            // 高亮与斑马底统一画在这一层：整行跨"课程 + 时间"两列铺满，且覆盖完整行高；
+            // 文本控件自身不再携带背景（旧实现各自的 Background 只能覆盖 Auto 列宽的文字，断成两块）。
+            // 先于文本加入同一 Grid → 天然位于文本下方，同时与行高/列宽严格对齐。
+            if (hasRowBg)
+            {
+                var rowTint = new Border
+                {
+                    Background = isCurrent ? highlightBg : zebraBrush,
+                };
+                Grid.SetColumnSpan(rowTint, 2);
+                Grid.SetRow(rowTint, rIdx);
+                grid.Children.Add(rowTint);
+            }
 
             // ---- 课程列（左课程名 * / 右教师名 Auto）----
             var coursePanel = new Grid
@@ -231,7 +243,6 @@ public static class FloatScheduleRenderer
                 ColumnDefinitions = ColumnDefinitions.Parse("*, Auto"),
                 RowDefinitions = RowDefinitions.Parse("Auto"),
                 VerticalAlignment = VerticalAlignment.Center,
-                Background = rowBg,
                 Margin = new Thickness(0, rowMarginV, 0, rowMarginV)
             };
             Grid.SetColumn(coursePanel, 0);
@@ -298,7 +309,6 @@ public static class FloatScheduleRenderer
                 Foreground = textFg,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center,
-                Background = rowBg,
                 Margin = new Thickness(0, rowMarginV, 0, rowMarginV)
             };
             SetFamily(timeTb);
@@ -312,6 +322,15 @@ public static class FloatScheduleRenderer
                 grid.RowDefinitions.Add(new RowDefinition(GridLength.Auto));
                 var brIdx = grid.RowDefinitions.Count - 1;
                 IBrush breakBg = new SolidColorBrush(FromArgb(m.BreakRowBackgroundArgb));
+                // 课间行同样走独立着色层：跨两列铺满，避免在列间距处断成左右两块。
+                var breakTint = new Border
+                {
+                    Background = breakBg,
+                    IsHitTestVisible = false,
+                };
+                Grid.SetColumnSpan(breakTint, 2);
+                Grid.SetRow(breakTint, brIdx);
+                grid.Children.Add(breakTint);
                 var breakTb = new TextBlock
                 {
                     Text = currentBreak.Name,
@@ -321,7 +340,7 @@ public static class FloatScheduleRenderer
                     Margin = new Thickness(0, 3 * rowSpacingFactor, 0, 3 * rowSpacingFactor)
                 };
                 SetFamily(breakTb);
-                var breakCellL = new Border { Background = breakBg, Child = breakTb };
+                var breakCellL = new Border { Child = breakTb };
                 Grid.SetColumn(breakCellL, 0);
                 Grid.SetRow(breakCellL, brIdx);
                 grid.Children.Add(breakCellL);
@@ -336,7 +355,7 @@ public static class FloatScheduleRenderer
                     Margin = new Thickness(0, 3 * rowSpacingFactor, 0, 3 * rowSpacingFactor)
                 };
                 SetFamily(breakTimeTb);
-                var breakCellR = new Border { Background = breakBg, Child = breakTimeTb };
+                var breakCellR = new Border { Child = breakTimeTb };
                 Grid.SetColumn(breakCellR, 1);
                 Grid.SetRow(breakCellR, brIdx);
                 grid.Children.Add(breakCellR);

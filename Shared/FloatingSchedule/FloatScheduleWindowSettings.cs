@@ -75,4 +75,9 @@ public sealed class FloatScheduleWindowSettings
     public bool GlassVSync { get; set; } = true;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
     public uint TintArgb { get; set; } = 0xCC2D2D30;
+    /// <summary>
+    /// 悬浮窗有效主题（true=深色）。云母背板由 Avalonia 按窗口主题选择 MicaDark/MicaLight，
+    /// 必须与卡片配色（文字/底色）使用同一判定，否则深色卡片会套浅色云母，表现为整块发灰的浅色板。
+    /// </summary>
+    public bool DarkTheme { get; set; }
 }
