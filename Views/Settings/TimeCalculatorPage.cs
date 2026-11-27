@@ -723,7 +723,7 @@ public class TimeCalculatorPage : UserControl
     {
         timePicker = new TimePicker
         {
-            Width = 190,
+            Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
             VerticalAlignment = VerticalAlignment.Center

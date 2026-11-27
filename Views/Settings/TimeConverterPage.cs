@@ -1,18 +1,29 @@
 using System;
 using System.Collections.Generic;
 using System.ComponentModel;
+using System.Diagnostics;
 using System.Globalization;
 using System.Numerics;
+using System.Threading.Tasks;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Input;
 using Avalonia.Interactivity;
 using Avalonia.Input.Platform;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Styling;
+// Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity
+#if NET10_0_OR_GREATER
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
+#else
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.InfoBarSeverity;
+#endif
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -58,11 +69,9 @@ public class TimeConverterPage : UserControl
     private ComboBox? _beijingMonthComboBox;
     private ComboBox? _beijingDayComboBox;
     private TimePicker? _beijingTimePicker;
-    private TextBlock? _beijingResultTextBlock;
 
     // 时间戳转换模块控件
     private NumericUpDown? _unixInputTextBox;
-    private TextBlock? _unixResultTextBlock;
 
     // 农历转换模块控件
     private ComboBox? _lunarYearRangeComboBox;
@@ -71,7 +80,6 @@ public class TimeConverterPage : UserControl
     private ComboBox? _lunarMonthComboBox;
     private ComboBox? _lunarDayComboBox;
     private TimePicker? _lunarTimePicker;
-    private TextBlock? _lunarResultTextBlock;
 
     // 区时转换模块控件
     private NumericUpDown? _zoneYearTextBox;
@@ -79,7 +87,6 @@ public class TimeConverterPage : UserControl
     private ComboBox? _zoneDayComboBox;
     private TimePicker? _zoneTimePicker;
     private ComboBox? _zoneComboBox;
-    private TextBlock? _zoneResultTextBlock;
 
     // 地方时转换模块控件
     private NumericUpDown? _localYearTextBox;
@@ -92,10 +99,7 @@ public class TimeConverterPage : UserControl
     private NumericUpDown? _localLongitudeDmsSecondsTextBox;
     private ComboBox? _localLongitudeDmsDirectionComboBox;
     private Panel? _localLongitudeDmsPanel;
-    private TextBlock? _localResultTextBlock;
 
-    // 提示文本定时器（用于自动清除提示）
-    private readonly Dictionary<TextBlock, System.Timers.Timer> _resultTimers = new();
 
     // 夏令时开关
     private CheckBox? _zoneDstCheckBox;
@@ -108,8 +112,19 @@ public class TimeConverterPage : UserControl
     private List<TextBlock>? _whiteTextBlocks;
     private List<TextBlock>? _lightGrayTextBlocks;
     private List<TextBlock>? _orangeTextBlocks;
-    private List<TextBlock>? _lightGreenTextBlocks;
     private List<Border>? _moduleBorders;
+    private ScrollViewer? _scrollViewer;
+    private Border? _beijingModule;
+    private Border? _unixModule;
+    private Border? _lunarModule;
+    private Border? _zoneModule;
+    private Border? _localModule;
+    private Border? _highlightedModule;
+    private bool _isAutoScrolling;
+    private bool _cancelAutoScroll;
+    private int _scrollOperationId;
+    private int _highlightOperationId;
+    private bool _lastToastWasError;
     private Button? _clearButton;
     private Button? _copyButton;
     private Button? _beijingCurrentButton;
@@ -185,7 +200,6 @@ public class TimeConverterPage : UserControl
         _whiteTextBlocks = new List<TextBlock>();
         _lightGrayTextBlocks = new List<TextBlock>();
         _orangeTextBlocks = new List<TextBlock>();
-        _lightGreenTextBlocks = new List<TextBlock>();
         _moduleBorders = new List<Border>();
 
         var scrollViewer = new ScrollViewer
@@ -193,19 +207,24 @@ public class TimeConverterPage : UserControl
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             BringIntoViewOnFocusChange = false
         };
+        _scrollViewer = scrollViewer;
+
+        // 用户主动滚轮 / 按下（含拖动滚动条）即视为打断自动滚动
+        scrollViewer.PointerWheelChanged += (_, _) =>
+        {
+            if (_isAutoScrolling) _cancelAutoScroll = true;
+        };
+        scrollViewer.AddHandler(InputElement.PointerPressedEvent,
+            (_, _) =>
+            {
+                if (_isAutoScrolling) _cancelAutoScroll = true;
+            }, RoutingStrategies.Tunnel);
 
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Avalonia.Thickness(16),
-            Spacing = 24
-        };
-
-        // 第一行：清空按钮
-        var headerPanel = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            HorizontalAlignment = HorizontalAlignment.Right
+            Spacing = 12
         };
 
         _clearButton = new Button
@@ -214,15 +233,21 @@ public class TimeConverterPage : UserControl
             Padding = new Avalonia.Thickness(16, 8),
             Background = ThemeHelper.GetGrayBrush(),
             Foreground = ThemeHelper.GetTextBrush(),
-            CornerRadius = new CornerRadius(6)
+            CornerRadius = new CornerRadius(6),
+            VerticalAlignment = VerticalAlignment.Top
         };
         _clearButton.Click += OnClearAllClick;
 
+        // 注意事项与「清空」按钮并排，避免额外占用一行高度
+        var headerPanel = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("*,Auto")
+        };
+        headerPanel.Children.Add(CreateNotesPanel());
+        Grid.SetColumn(_clearButton, 1);
+        _clearButton.Margin = new Avalonia.Thickness(12, 0, 0, 0);
         headerPanel.Children.Add(_clearButton);
         mainPanel.Children.Add(headerPanel);
-
-        // 注意事项（放在导航栏下方，转换模块上方）
-        mainPanel.Children.Add(CreateNotesPanel());
 
         // 1. 北京时间转换模块
         mainPanel.Children.Add(CreateBeijingModule());
@@ -249,35 +274,38 @@ public class TimeConverterPage : UserControl
     private Border CreateBeijingModule()
     {
         var module = CreateModulePanel("北京时间转换模块", "北京时间");
+        _beijingModule = module;
         var content = GetModuleContent(module);
 
-        // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _beijingYearTextBox, out _beijingMonthComboBox, out _beijingDayComboBox);
-        content.Children.Add(datePanel);
+        // 日期 + 时间 + 选取当前时间合并为一行
+        var inputRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+        inputRow.Children.Add(CreateDatePickerRow("日期输入:", out _beijingYearTextBox, out _beijingMonthComboBox, out _beijingDayComboBox));
+        inputRow.Children.Add(CreateTimePickerRow("时间:", out _beijingTimePicker));
 
-        // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _beijingTimePicker);
-        content.Children.Add(timePanel);
-
-        // 选取当前时间按钮
         _beijingCurrentButton = new Button
         {
             Content = "选取当前时间",
             Padding = new Avalonia.Thickness(12, 6),
             Background = ThemeHelper.GetYiBrush(),
             Foreground = ThemeHelper.GetTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(6)
         };
         _beijingCurrentButton.Click += OnBeijingCurrentTimeClick;
-        content.Children.Add(_beijingCurrentButton);
+        inputRow.Children.Add(_beijingCurrentButton);
+
+        content.Children.Add(inputRow);
 
         // 转换按钮组
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            Margin = new Avalonia.Thickness(0, 4, 0, 0)
         };
 
         AddConvertButton(buttonPanel, "转为时间戳", OnBeijingToUnix);
@@ -286,10 +314,6 @@ public class TimeConverterPage : UserControl
         AddConvertButton(buttonPanel, "转为地方时", OnBeijingToLocal);
 
         content.Children.Add(buttonPanel);
-
-        // 结果显示
-        _beijingResultTextBlock = CreateResultTextBlock();
-        content.Children.Add(_beijingResultTextBlock);
 
         return module;
     }
@@ -300,14 +324,14 @@ public class TimeConverterPage : UserControl
     private Border CreateUnixModule()
     {
         var module = CreateModulePanel("时间戳转换模块", "时间戳");
+        _unixModule = module;
         var content = GetModuleContent(module);
 
         // 输入框（BigInteger）
         var inputPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Spacing = 8
         };
 
         var labelTextBlock = new TextBlock
@@ -331,27 +355,27 @@ public class TimeConverterPage : UserControl
         };
         inputPanel.Children.Add(_unixInputTextBox);
 
-        content.Children.Add(inputPanel);
-
-        // 复制按钮
+        // 复制按钮与输入框同行
         _copyButton = new Button
         {
             Content = "复制",
             Padding = new Avalonia.Thickness(12, 6),
             Background = ThemeHelper.GetGrayBrush(),
             Foreground = ThemeHelper.GetTextBrush(),
-            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
             CornerRadius = new CornerRadius(6)
         };
         _copyButton.Click += OnUnixCopyClick;
-        content.Children.Add(_copyButton);
+        inputPanel.Children.Add(_copyButton);
+
+        content.Children.Add(inputPanel);
 
         // 转换按钮组
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            Margin = new Avalonia.Thickness(0, 4, 0, 0)
         };
 
         AddConvertButton(buttonPanel, "转为北京时间", OnUnixToBeijing);
@@ -360,10 +384,6 @@ public class TimeConverterPage : UserControl
         AddConvertButton(buttonPanel, "转为地方时", OnUnixToLocal);
 
         content.Children.Add(buttonPanel);
-
-        // 结果显示
-        _unixResultTextBlock = CreateResultTextBlock();
-        content.Children.Add(_unixResultTextBlock);
 
         return module;
     }
@@ -374,6 +394,7 @@ public class TimeConverterPage : UserControl
     private Border CreateLunarModule()
     {
         var module = CreateModulePanel("农历转换模块", "农历");
+        _lunarModule = module;
         var content = GetModuleContent(module);
 
         // 年份范围
@@ -381,7 +402,7 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var yearRangeLabel = new TextBlock
@@ -409,7 +430,8 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Avalonia.Thickness(16, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         _lunarTianganComboBox = new ComboBox { Width = 70 };
@@ -430,14 +452,15 @@ public class TimeConverterPage : UserControl
         _whiteTextBlocks.Add(yearLabel);
         tgdzPanel.Children.Add(yearLabel);
 
-        content.Children.Add(tgdzPanel);
+        // 年份范围与天干地支合并为一行
+        yearRangePanel.Children.Add(tgdzPanel);
 
         // 月份
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var monthLabel = new TextBlock
@@ -465,7 +488,8 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Avalonia.Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var dayLabel = new TextBlock
@@ -485,18 +509,16 @@ public class TimeConverterPage : UserControl
         }
         dayPanel.Children.Add(_lunarDayComboBox);
 
-        content.Children.Add(dayPanel);
-
-        // 时间
-        var lunarTimePanel = CreateTimePickerRow("时间:", out _lunarTimePicker);
-        content.Children.Add(lunarTimePanel);
+        // 月份、日期、时间合并为一行
+        monthPanel.Children.Add(dayPanel);
+        monthPanel.Children.Add(CreateTimePickerRow("时间:", out _lunarTimePicker));
 
         // 转换按钮组
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            Margin = new Avalonia.Thickness(0, 4, 0, 0)
         };
 
         AddConvertButton(buttonPanel, "转为北京时间", OnLunarToBeijing);
@@ -505,10 +527,6 @@ public class TimeConverterPage : UserControl
         AddConvertButton(buttonPanel, "转为地方时", OnLunarToLocal);
 
         content.Children.Add(buttonPanel);
-
-        // 结果显示
-        _lunarResultTextBlock = CreateResultTextBlock();
-        content.Children.Add(_lunarResultTextBlock);
 
         return module;
     }
@@ -519,22 +537,24 @@ public class TimeConverterPage : UserControl
     private Border CreateZoneModule()
     {
         var module = CreateModulePanel("区时转换模块", "区时");
+        _zoneModule = module;
         var content = GetModuleContent(module);
 
-        // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _zoneYearTextBox, out _zoneMonthComboBox, out _zoneDayComboBox);
-        content.Children.Add(datePanel);
-
-        // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _zoneTimePicker);
-        content.Children.Add(timePanel);
+        // 日期 + 时间合并为一行
+        var inputRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+        inputRow.Children.Add(CreateDatePickerRow("日期输入:", out _zoneYearTextBox, out _zoneMonthComboBox, out _zoneDayComboBox));
+        inputRow.Children.Add(CreateTimePickerRow("时间:", out _zoneTimePicker));
+        content.Children.Add(inputRow);
 
         // 时区选择
         var zonePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Spacing = 8
         };
 
         var zoneLabel = new TextBlock
@@ -581,7 +601,7 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            Margin = new Avalonia.Thickness(0, 4, 0, 0)
         };
 
         AddConvertButton(buttonPanel, "转为北京时间", OnZoneToBeijing);
@@ -590,10 +610,6 @@ public class TimeConverterPage : UserControl
         AddConvertButton(buttonPanel, "转为地方时", OnZoneToLocal);
 
         content.Children.Add(buttonPanel);
-
-        // 结果显示
-        _zoneResultTextBlock = CreateResultTextBlock();
-        content.Children.Add(_zoneResultTextBlock);
 
         return module;
     }
@@ -604,18 +620,26 @@ public class TimeConverterPage : UserControl
     private Border CreateLocalModule()
     {
         var module = CreateModulePanel("地方时转换模块", "地方时");
+        _localModule = module;
         var content = GetModuleContent(module);
 
-        // 日期输入
-        var datePanel = CreateDatePickerRow("日期输入:", out _localYearTextBox, out _localMonthComboBox, out _localDayComboBox);
-        content.Children.Add(datePanel);
-
-        // 时间选择
-        var timePanel = CreateTimePickerRow("时间:", out _localTimePicker);
-        content.Children.Add(timePanel);
+        // 日期 + 时间合并为一行
+        var inputRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8
+        };
+        inputRow.Children.Add(CreateDatePickerRow("日期输入:", out _localYearTextBox, out _localMonthComboBox, out _localDayComboBox));
+        inputRow.Children.Add(CreateTimePickerRow("时间:", out _localTimePicker));
+        content.Children.Add(inputRow);
 
         // 经度输入
-        var lonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var lonPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            VerticalAlignment = VerticalAlignment.Center
+        };
         var longitudeLabel = new TextBlock
         {
             Text = "经度:",
@@ -630,7 +654,7 @@ public class TimeConverterPage : UserControl
         
         _localLongitudeTextBox = new NumericUpDown 
         { 
-            Width = 175, 
+            Width = 130, 
             Minimum = -180, 
             Maximum = 180, 
             Increment = 0.1m,
@@ -673,7 +697,8 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Avalonia.Thickness(16, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var localDstLabel = new TextBlock
@@ -694,14 +719,15 @@ public class TimeConverterPage : UserControl
         };
         dstPanel.Children.Add(_localDstCheckBox);
 
-        content.Children.Add(dstPanel);
+        // 经度与夏令时合并为一行
+        lonPanel.Children.Add(dstPanel);
 
         // 转换按钮组
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
+            Margin = new Avalonia.Thickness(0, 4, 0, 0)
         };
 
         AddConvertButton(buttonPanel, "转为北京时间", OnLocalToBeijing);
@@ -710,10 +736,6 @@ public class TimeConverterPage : UserControl
         AddConvertButton(buttonPanel, "转为区时", OnLocalToZone);
 
         content.Children.Add(buttonPanel);
-
-        // 结果显示
-        _localResultTextBlock = CreateResultTextBlock();
-        content.Children.Add(_localResultTextBlock);
 
         return module;
     }
@@ -725,8 +747,8 @@ public class TimeConverterPage : UserControl
         var panel = new Border
         {
             Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(16),
-            Margin = new Thickness(0, 0, 0, 16),
+            Padding = new Thickness(12),
+            Margin = new Thickness(0, 0, 0, 8),
             CornerRadius = new CornerRadius(8),
             ClipToBounds = true,
             BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
@@ -737,7 +759,7 @@ public class TimeConverterPage : UserControl
         var content = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8
+            Spacing = 6
         };
 
         // 模块标题
@@ -745,7 +767,7 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Avalonia.Thickness(0, 0, 0, 4)
         };
 
         titlePanel.Children.Add(new TextBlock
@@ -812,7 +834,7 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var labelTextBlock = new TextBlock
@@ -833,7 +855,7 @@ public class TimeConverterPage : UserControl
 
         var ytb = new NumericUpDown
         {
-            Width = 155,
+            Width = 120,
             CornerRadius = new CornerRadius(4),
             Minimum = 1,
             Maximum = 9999,
@@ -844,7 +866,7 @@ public class TimeConverterPage : UserControl
 
         var mcb = new ComboBox
         {
-            Width = 80,
+            Width = 72,
             CornerRadius = new CornerRadius(4),
             SelectedIndex = -1
         };
@@ -856,7 +878,7 @@ public class TimeConverterPage : UserControl
 
         var dcb = new ComboBox
         {
-            Width = 80,
+            Width = 72,
             CornerRadius = new CornerRadius(4),
             SelectedIndex = -1
         };
@@ -884,7 +906,7 @@ public class TimeConverterPage : UserControl
         {
             Orientation = Orientation.Horizontal,
             Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         var labelTextBlock = new TextBlock
@@ -902,7 +924,8 @@ public class TimeConverterPage : UserControl
             Width = 250,
             ClockIdentifier = "24HourClock",
             UseSeconds = true,
-            HorizontalAlignment = HorizontalAlignment.Left
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center
         };
 
         panel.Children.Add(timePicker);
@@ -921,57 +944,191 @@ public class TimeConverterPage : UserControl
             Foreground = GetAccentTextBrush(accentBrush),
             CornerRadius = new CornerRadius(6)
         };
-        button.Click += handler;
+        button.Click += (sender, e) =>
+        {
+            _lastToastWasError = false;
+            handler(sender, e);
+            // 转换成功（未产生错误提示）时滚动到结果卡片并高亮
+            if (!_lastToastWasError)
+            {
+                ScrollToModule(ResolveTargetModule(text));
+            }
+        };
         panel.Children.Add(button);
         return button;
     }
 
-    private TextBlock CreateResultTextBlock()
+    /// <summary>
+    /// 把「转为 XX」按钮映射到对应的结果模块卡片。
+    /// </summary>
+    private Border? ResolveTargetModule(string buttonText)
     {
-        var textBlock = new TextBlock
-        {
-            Text = "",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = ThemeHelper.GetYiBrush(),
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Margin = new Avalonia.Thickness(0, 8, 0, 0)
-        };
-        _lightGreenTextBlocks.Add(textBlock);
-
-        // 为每个TextBlock创建定时器
-        var timer = new System.Timers.Timer(5000); // 5秒后自动清除
-        timer.Elapsed += (s, e) =>
-        {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
-            {
-                textBlock.Text = "";
-            });
-            timer.Stop();
-        };
-        timer.AutoReset = false;
-        _resultTimers[textBlock] = timer;
-
-        return textBlock;
+        if (buttonText.Contains("北京时间")) return _beijingModule;
+        if (buttonText.Contains("时间戳")) return _unixModule;
+        if (buttonText.Contains("农历")) return _lunarModule;
+        if (buttonText.Contains("区时")) return _zoneModule;
+        if (buttonText.Contains("地方时")) return _localModule;
+        return null;
     }
 
-    private void SetResultText(TextBlock? textBlock, string message)
+    /// <summary>
+    /// 平滑滚动到目标模块，到达后高亮卡片；滚动被用户打断时不再高亮。
+    /// </summary>
+    private async void ScrollToModule(Border? module)
     {
-        if (textBlock == null) return;
-
-        // 先停止之前的定时器
-        if (_resultTimers.TryGetValue(textBlock, out var existingTimer))
+        if (_scrollViewer == null || module == null || _scrollViewer.Content is not Visual content)
         {
-            existingTimer.Stop();
+            return;
         }
 
-        textBlock.Text = message;
+        var operationId = ++_scrollOperationId;
 
-        // 启动新的定时器，5秒后清除提示
-        if (_resultTimers.TryGetValue(textBlock, out var timer))
+        var moduleTop = module.TranslatePoint(new Point(0, 0), content)?.Y ?? 0;
+        var maxOffset = Math.Max(0, _scrollViewer.Extent.Height - _scrollViewer.Viewport.Height);
+        var targetOffset = Math.Clamp(moduleTop - 12, 0, maxOffset);
+
+        var completed = await AnimateScrollAsync(targetOffset, operationId);
+        if (!completed || operationId != _scrollOperationId)
         {
-            timer.Start();
+            return;
         }
+
+        await HighlightModuleAsync(module);
+    }
+
+    /// <summary>
+    /// 0.5s 缓出滚动动画，返回是否完整播放（被打断返回 false）。
+    /// </summary>
+    private async Task<bool> AnimateScrollAsync(double targetOffset, int operationId)
+    {
+        var scrollViewer = _scrollViewer!;
+        var startOffset = scrollViewer.Offset.Y;
+        var distance = targetOffset - startOffset;
+        if (Math.Abs(distance) < 0.5)
+        {
+            return true;
+        }
+
+        _isAutoScrolling = true;
+        _cancelAutoScroll = false;
+        const double durationSeconds = 0.5;
+        var startTime = Stopwatch.GetTimestamp();
+        var lastSetOffset = startOffset;
+
+        try
+        {
+            while (true)
+            {
+                if (_cancelAutoScroll || operationId != _scrollOperationId
+                    || Math.Abs(scrollViewer.Offset.Y - lastSetOffset) > 2)
+                {
+                    return false;
+                }
+
+                var elapsed = (Stopwatch.GetTimestamp() - startTime) / (double)Stopwatch.Frequency;
+                var progress = Math.Min(1, elapsed / durationSeconds);
+                // 不平滑开始、平滑结束：缓出曲线
+                var eased = 1 - Math.Pow(1 - progress, 3);
+
+                lastSetOffset = startOffset + distance * eased;
+                scrollViewer.Offset = new global::Avalonia.Vector(scrollViewer.Offset.X, lastSetOffset);
+
+                if (progress >= 1)
+                {
+                    return true;
+                }
+
+                await Task.Delay(16);
+            }
+        }
+        finally
+        {
+            _isAutoScrolling = false;
+        }
+    }
+
+    /// <summary>
+    /// 0.7s 缓入缓出的边框高亮过渡，高亮保持 2s 后平滑复原。
+    /// </summary>
+    private async Task HighlightModuleAsync(Border module)
+    {
+        var operationId = ++_highlightOperationId;
+
+        if (_highlightedModule != null && _highlightedModule != module)
+        {
+            var previous = _highlightedModule;
+            _ = AnimateBorderColorAsync(previous, GetNormalModuleBorderColor());
+        }
+
+        _highlightedModule = module;
+        await AnimateBorderColorAsync(module, GetAccentBrush().Color);
+
+        // 高亮只保持 2s，随后平滑复原
+        await Task.Delay(2000);
+        if (operationId != _highlightOperationId)
+        {
+            return;
+        }
+
+        await AnimateBorderColorAsync(module, GetNormalModuleBorderColor());
+        if (operationId == _highlightOperationId)
+        {
+            _highlightedModule = null;
+        }
+    }
+
+    private static Color GetNormalModuleBorderColor() => Color.Parse("#BBBBBB");
+
+    private static async Task AnimateBorderColorAsync(Border border, Color targetColor)
+    {
+        var fromColor = (border.BorderBrush as ISolidColorBrush)?.Color ?? GetNormalModuleBorderColor();
+        if (fromColor == targetColor)
+        {
+            border.BorderBrush = new SolidColorBrush(targetColor);
+            return;
+        }
+
+        var brush = new SolidColorBrush(fromColor);
+        border.BorderBrush = brush;
+
+        const double durationSeconds = 0.7;
+        var startTime = Stopwatch.GetTimestamp();
+
+        while (true)
+        {
+            var elapsed = (Stopwatch.GetTimestamp() - startTime) / (double)Stopwatch.Frequency;
+            var progress = Math.Min(1, elapsed / durationSeconds);
+            // 平稳开始、平稳结束：缓入缓出曲线
+            var eased = progress < 0.5
+                ? 4 * progress * progress * progress
+                : 1 - Math.Pow(-2 * progress + 2, 3) / 2;
+
+            brush.Color = LerpColor(fromColor, targetColor, eased);
+
+            if (progress >= 1)
+            {
+                return;
+            }
+
+            await Task.Delay(16);
+        }
+    }
+
+    private static Color LerpColor(Color from, Color to, double amount)
+    {
+        byte Lerp(byte a, byte b) => (byte)Math.Round(a + (b - a) * amount);
+        return Color.FromArgb(Lerp(from.A, to.A), Lerp(from.R, to.R), Lerp(from.G, to.G), Lerp(from.B, to.B));
+    }
+
+    private void ShowResultToast(string message)
+    {
+        _lastToastWasError = !message.StartsWith("农历: ");
+        this.ShowToast(new ToastMessage(message)
+        {
+            Title = "时间格式转换",
+            Severity = _lastToastWasError ? FAInfoBarSeverity.Error : FAInfoBarSeverity.Success,
+            AutoClose = true
+        });
     }
 
     private StackPanel CreateNotesPanel()
@@ -979,14 +1136,13 @@ public class TimeConverterPage : UserControl
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 4,
-            Margin = new Avalonia.Thickness(0, 16, 0, 0)
+            Spacing = 2
         };
 
         var notesTitle = new TextBlock
         {
             Text = "注意事项：",
-            FontSize = 14,
+            FontSize = 13,
             FontWeight = FontWeight.Bold,
             Foreground = ThemeHelper.GetOrangeBrush()
         };
@@ -1028,31 +1184,26 @@ public class TimeConverterPage : UserControl
         if (_beijingMonthComboBox != null) _beijingMonthComboBox.SelectedIndex = -1;
         if (_beijingDayComboBox != null) _beijingDayComboBox.SelectedIndex = -1;
         if (_beijingTimePicker != null) _beijingTimePicker.SelectedTime = null;
-        if (_beijingResultTextBlock != null) _beijingResultTextBlock.Text = "";
 
         if (_unixInputTextBox != null) _unixInputTextBox.Value = null;
-        if (_unixResultTextBlock != null) _unixResultTextBlock.Text = "";
 
         if (_lunarTianganComboBox != null) _lunarTianganComboBox.SelectedIndex = -1;
         if (_lunarDizhiComboBox != null) _lunarDizhiComboBox.SelectedIndex = -1;
         if (_lunarMonthComboBox != null) _lunarMonthComboBox.SelectedIndex = -1;
         if (_lunarDayComboBox != null) _lunarDayComboBox.SelectedIndex = -1;
         if (_lunarTimePicker != null) _lunarTimePicker.SelectedTime = null;
-        if (_lunarResultTextBlock != null) _lunarResultTextBlock.Text = "";
 
         if (_zoneYearTextBox != null) _zoneYearTextBox.Value = null;
         if (_zoneMonthComboBox != null) _zoneMonthComboBox.SelectedIndex = -1;
         if (_zoneDayComboBox != null) _zoneDayComboBox.SelectedIndex = -1;
         if (_zoneTimePicker != null) _zoneTimePicker.SelectedTime = null;
         if (_zoneComboBox != null) _zoneComboBox.SelectedIndex = -1;
-        if (_zoneResultTextBlock != null) _zoneResultTextBlock.Text = "";
 
         if (_localYearTextBox != null) _localYearTextBox.Value = null;
         if (_localMonthComboBox != null) _localMonthComboBox.SelectedIndex = -1;
         if (_localDayComboBox != null) _localDayComboBox.SelectedIndex = -1;
         if (_localTimePicker != null) _localTimePicker.SelectedTime = null;
         if (_localLongitudeTextBox != null) _localLongitudeTextBox.Value = null;
-        if (_localResultTextBlock != null) _localResultTextBlock.Text = "";
     }
 
     /// <summary>
@@ -1106,13 +1257,13 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
+            ShowResultToast("请输入有效的日期和时间");
             return;
         }
 
         if (UnixTimeHelper.IsNonExistentDate1582October(dt))
         {
-            SetResultText(_beijingResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            ShowResultToast("1582年10月5日至14日在历史上不存在，无法转换");
             return;
         }
 
@@ -1130,7 +1281,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentException ex)
         {
-            SetResultText(_beijingResultTextBlock, ex.Message);
+            ShowResultToast(ex.Message);
         }
     }
 
@@ -1138,16 +1289,16 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
+            ShowResultToast("请输入有效的日期和时间");
             return;
         }
         if (!LunarCalendarHelper.IsDateSupported(dt))
         {
-            SetResultText(_beijingResultTextBlock, "农历不支持此日期范围(1901-02-19 ~ 2101-01-28)");
+            ShowResultToast("农历不支持此日期范围(1901-02-19 ~ 2101-01-28)");
             return;
         }
         var lunar = LunarCalendarHelper.SolarToLunar(dt);
-        SetResultText(_beijingResultTextBlock, $"农历: {lunar}");
+        ShowResultToast($"农历: {lunar}");
         FillLunarComboBoxes(dt);
     }
 
@@ -1161,7 +1312,7 @@ public class TimeConverterPage : UserControl
         // 如果农历年份为0，说明超出支持范围
         if (lunarYear == 0)
         {
-            SetResultText(_lunarResultTextBlock, "转换结果超出有效范围(1901-02-19 ~ 2101-01-28)");
+            ShowResultToast("转换结果超出有效范围(1901-02-19 ~ 2101-01-28)");
             return;
         }
 
@@ -1212,12 +1363,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
+            ShowResultToast("请输入有效的日期和时间");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            SetResultText(_beijingResultTextBlock, "请先选择时区");
+            ShowResultToast("请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
@@ -1230,7 +1381,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_beijingResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
@@ -1245,12 +1396,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseBeijingDateTime(out var dt))
         {
-            SetResultText(_beijingResultTextBlock, "请输入有效的日期和时间");
+            ShowResultToast("请输入有效的日期和时间");
             return;
         }
         if (!TryParseLongitude(out var longitude))
         {
-            SetResultText(_beijingResultTextBlock, "请输入有效的经度");
+            ShowResultToast("请输入有效的经度");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1262,7 +1413,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_beijingResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
@@ -1298,7 +1449,7 @@ public class TimeConverterPage : UserControl
     {
         if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
+            ShowResultToast("请输入有效的时间戳");
             return;
         }
         var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
@@ -1309,7 +1460,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            ShowResultToast("时间戳超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
@@ -1324,7 +1475,7 @@ public class TimeConverterPage : UserControl
     {
         if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
+            ShowResultToast("请输入有效的时间戳");
             return;
         }
         var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
@@ -1335,11 +1486,11 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            ShowResultToast("时间戳超出表示范围");
             return;
         }
         var lunar = LunarCalendarHelper.SolarToLunar(dt);
-        SetResultText(_unixResultTextBlock, $"农历: {lunar}");
+        ShowResultToast($"农历: {lunar}");
         FillLunarComboBoxes(dt);
     }
 
@@ -1347,13 +1498,13 @@ public class TimeConverterPage : UserControl
     {
         if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
+            ShowResultToast("请输入有效的时间戳");
             return;
         }
         var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            SetResultText(_unixResultTextBlock, "请先选择时区");
+            ShowResultToast("请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
@@ -1366,7 +1517,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            ShowResultToast("时间戳超出表示范围");
             return;
         }
         DateTime zoneTime;
@@ -1376,7 +1527,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
@@ -1391,13 +1542,13 @@ public class TimeConverterPage : UserControl
     {
         if (_unixInputTextBox?.Value == null)
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的时间戳");
+            ShowResultToast("请输入有效的时间戳");
             return;
         }
         var timestamp = (BigInteger)Math.Round(_unixInputTextBox.Value.Value * 1000m);
         if (!TryParseLongitude(out var longitude))
         {
-            SetResultText(_unixResultTextBlock, "请输入有效的经度");
+            ShowResultToast("请输入有效的经度");
             return;
         }
         DateTime dt;
@@ -1407,7 +1558,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "时间戳超出表示范围");
+            ShowResultToast("时间戳超出表示范围");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1419,7 +1570,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_unixResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
@@ -1434,7 +1585,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
+            ShowResultToast("请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(dt.DayOfWeek);
@@ -1449,13 +1600,13 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
+            ShowResultToast("请输入有效的农历日期和时间或超出转换范围");
             return;
         }
 
         if (UnixTimeHelper.IsNonExistentDate1582October(dt))
         {
-            SetResultText(_lunarResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            ShowResultToast("1582年10月5日至14日在历史上不存在，无法转换");
             return;
         }
 
@@ -1473,7 +1624,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentException ex)
         {
-            SetResultText(_lunarResultTextBlock, ex.Message);
+            ShowResultToast(ex.Message);
         }
     }
 
@@ -1481,12 +1632,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
+            ShowResultToast("请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            SetResultText(_lunarResultTextBlock, "请先选择时区");
+            ShowResultToast("请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
@@ -1499,7 +1650,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_lunarResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
@@ -1514,12 +1665,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLunarDateTime(out var dt))
         {
-            SetResultText(_lunarResultTextBlock, "请输入有效的农历日期和时间或超出转换范围");
+            ShowResultToast("请输入有效的农历日期和时间或超出转换范围");
             return;
         }
         if (!TryParseLongitude(out var longitude))
         {
-            SetResultText(_lunarResultTextBlock, "请输入有效的经度");
+            ShowResultToast("请输入有效的经度");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1531,7 +1682,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_lunarResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
@@ -1546,7 +1697,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
+            ShowResultToast("请输入有效的日期、时间和时区");
             return;
         }
         // 验证结果年份在有效范围内
@@ -1558,12 +1709,12 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         if (beijingTime.Year < 1 || beijingTime.Year > 9999)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出有效范围(1-9999年)");
+            ShowResultToast("转换结果超出有效范围(1-9999年)");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
@@ -1578,7 +1729,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
+            ShowResultToast("请输入有效的日期、时间和时区");
             return;
         }
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
@@ -1589,12 +1740,12 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         if (UnixTimeHelper.IsNonExistentDate1582October(utcTime))
         {
-            SetResultText(_zoneResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            ShowResultToast("1582年10月5日至14日在历史上不存在，无法转换");
             return;
         }
 
@@ -1612,7 +1763,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentException ex)
         {
-            SetResultText(_zoneResultTextBlock, ex.Message);
+            ShowResultToast(ex.Message);
         }
     }
 
@@ -1620,7 +1771,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
+            ShowResultToast("请输入有效的日期、时间和时区");
             return;
         }
         var dstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
@@ -1631,11 +1782,11 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var lunar = LunarCalendarHelper.SolarToLunar(beijingTime);
-        SetResultText(_zoneResultTextBlock, $"农历: {lunar}");
+        ShowResultToast($"农历: {lunar}");
         FillLunarComboBoxes(beijingTime);
     }
 
@@ -1643,12 +1794,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseZoneDateTime(out var dt, out var offset))
         {
-            SetResultText(_zoneResultTextBlock, "请输入有效的日期、时间和时区");
+            ShowResultToast("请输入有效的日期、时间和时区");
             return;
         }
         if (!TryParseLongitude())
         {
-            SetResultText(_zoneResultTextBlock, "请输入有效的经度");
+            ShowResultToast("请输入有效的经度");
             return;
         }
         var zoneDstOffset = (_zoneDstCheckBox?.IsChecked == true) ? 1 : 0;
@@ -1659,7 +1810,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var longitude = (double)(_localLongitudeTextBox!.Value ?? 0);
@@ -1672,13 +1823,13 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         // 验证结果年份在有效范围内
         if (localTime.Year < 1 || localTime.Year > 9999)
         {
-            SetResultText(_zoneResultTextBlock, "转换结果超出有效范围(1-9999年)");
+            ShowResultToast("转换结果超出有效范围(1-9999年)");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(localTime.DayOfWeek);
@@ -1693,7 +1844,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
+            ShowResultToast("请输入有效的日期、时间和经度");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1705,7 +1856,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(beijingTime.DayOfWeek);
@@ -1720,7 +1871,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
+            ShowResultToast("请输入有效的日期、时间和经度");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1732,12 +1883,12 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         if (UnixTimeHelper.IsNonExistentDate1582October(beijingTime))
         {
-            SetResultText(_localResultTextBlock, "1582年10月5日至14日在历史上不存在，无法转换");
+            ShowResultToast("1582年10月5日至14日在历史上不存在，无法转换");
             return;
         }
 
@@ -1755,7 +1906,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentException ex)
         {
-            SetResultText(_localResultTextBlock, ex.Message);
+            ShowResultToast(ex.Message);
         }
     }
 
@@ -1763,7 +1914,7 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
+            ShowResultToast("请输入有效的日期、时间和经度");
             return;
         }
         var offsetSeconds = (longitude - 120) * 240;
@@ -1775,11 +1926,11 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var lunar = LunarCalendarHelper.SolarToLunar(beijingTime);
-        SetResultText(_localResultTextBlock, $"农历: {lunar}");
+        ShowResultToast($"农历: {lunar}");
         FillLunarComboBoxes(beijingTime);
     }
 
@@ -1787,12 +1938,12 @@ public class TimeConverterPage : UserControl
     {
         if (!TryParseLocalDateTime(out var dt, out var longitude))
         {
-            SetResultText(_localResultTextBlock, "请输入有效的日期、时间和经度");
+            ShowResultToast("请输入有效的日期、时间和经度");
             return;
         }
         if (_zoneComboBox == null || _zoneComboBox.SelectedItem == null)
         {
-            SetResultText(_localResultTextBlock, "请先选择时区");
+            ShowResultToast("请先选择时区");
             return;
         }
         var zoneName = _zoneComboBox.SelectedItem.ToString();
@@ -1807,7 +1958,7 @@ public class TimeConverterPage : UserControl
         }
         catch (ArgumentOutOfRangeException)
         {
-            SetResultText(_localResultTextBlock, "转换结果超出表示范围");
+            ShowResultToast("转换结果超出表示范围");
             return;
         }
         var dayOfWeek = CultureInfo.GetCultureInfo("zh-CN").DateTimeFormat.GetDayName(zoneTime.DayOfWeek);
@@ -2248,12 +2399,6 @@ public class TimeConverterPage : UserControl
     protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
     {
         base.OnDetachedFromVisualTree(e);
-        foreach (var timer in _resultTimers.Values)
-        {
-            timer.Stop();
-            timer.Dispose();
-        }
-        _resultTimers.Clear();
         if (Application.Current != null)
         {
             Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
@@ -2291,19 +2436,14 @@ public class TimeConverterPage : UserControl
             }
         }
 
-        if (_lightGreenTextBlocks != null)
-        {
-            foreach (var tb in _lightGreenTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetYiBrush();
-            }
-        }
-
         if (_moduleBorders != null)
         {
             foreach (var border in _moduleBorders)
             {
                 border.Background = ThemeHelper.GetCardBackgroundBrush();
+                border.BorderBrush = border == _highlightedModule
+                    ? GetAccentBrush()
+                    : new SolidColorBrush(GetNormalModuleBorderColor());
             }
         }
 
