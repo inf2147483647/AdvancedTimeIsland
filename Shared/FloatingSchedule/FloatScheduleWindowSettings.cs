@@ -65,7 +65,7 @@ public sealed class FloatScheduleWindowSettings
     /// <summary>是否显示 FPS 角标（子进程本地统计渲染/无等待 FPS）。</summary>
     public bool ShowFps { get; set; } = false;
 
-    // 液态玻璃：真折射背景的采样率（Hz，1~60，默认 30）——子进程按此节流"抓屏 + 折射"
+    // 液态玻璃：真折射背景的采样率（Hz，1~240，默认 30）——子进程按此节流"抓屏 + 折射"
     public double GlassSampleRateHz { get; set; } = 30.0;
     public bool GlassVSync { get; set; } = true;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>

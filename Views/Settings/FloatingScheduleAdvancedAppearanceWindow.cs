@@ -216,7 +216,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Items.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
         p.Items.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
-        p.Items.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
+        p.Items.Add(RowNumeric("液态玻璃采样率 (1~240Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 240, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
         // 采集方案已归中为唯一的 GDI 整屏采集，界面上不再提供切换项。
         // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
         p.Items.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));

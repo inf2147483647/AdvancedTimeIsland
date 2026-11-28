@@ -58,14 +58,29 @@ public static class FloatScheduleRefraction
         double ang = highlightAngleDeg * Math.PI / 180.0;
         double cA = Math.Cos(ang), sA = Math.Sin(ang);
         double invHalf = 1.0 / Math.Max(1e-6, halfW * halfH);
+        // 【性能】transparentCenter 时中部输出全透明，且边缘带的位移采样只朝外法线方向（不会读中部），
+        // 因此中部像素无需做"圆角 SDF + 梯度 + 7 抽样色散"这套昂贵计算 —— 直接写 0 跳过。
+        // 跳过区的内边界取 折射带 + 最大位移量 + 2px 余量，确保不会误跳任何一个带内像素。
+        int centerSkip = transparentCenter ? (int)Math.Ceiling(rh + refractionAmount + 2) : 0;
+        bool RowInCenter(int yy) => centerSkip > 0 && yy >= centerSkip && yy < h - centerSkip;
 
         for (int y = 0; y < h; y++)
         {
             double cy = y + 0.5 - centerY;
+            // 整行都属于"中部"时：整行置透明，连 x 循环里的边界比较都省掉
+            bool rowInCenter = RowInCenter(y);
+            if (rowInCenter)
+            {
+                int rowStart = (y * w + centerSkip) * 4;
+                int rowEnd = (y * w + (w - centerSkip)) * 4;
+                if (rowEnd > rowStart) Array.Clear(dst, rowStart, rowEnd - rowStart);
+            }
             for (int x = 0; x < w; x++)
             {
                 double cx = x + 0.5 - centerX;
                 int o = (y * w + x) * 4;
+                if (rowInCenter && x >= centerSkip && x < w - centerSkip)
+                    continue;   // 中部像素：上面已整段置 0
 
                 double sd = SdRoundedRect(cx, cy, halfW, halfH, r);
                 if (sd > 0)

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -244,7 +244,7 @@ public class PluginSettings : INotifyPropertyChanged
     private bool _floatingScheduleJellyEnabled = false;
     private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
     private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（云母着色膜浓度、亚克力模糊度、液态玻璃折射度）
-    private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
+    private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~240）
     private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.GdiBitBlt;
     private bool _floatingScheduleGlassVSync = true;            // 液态玻璃拖动位移与渲染帧同步（位移与背景在同一渲染帧提交）
     private string _floatingScheduleCustomBackgroundPath = "";
@@ -1152,13 +1152,13 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】真折射背景的采样率（Hz，1~60，默认 30）：越高越跟手，抓屏 + 折射的 CPU 开销随之线性上升。</summary>
+    /// <summary>【液态玻璃】真折射背景的采样率（Hz，1~240，默认 30）：越高越跟手，抓屏 + 折射的 CPU 开销随之线性上升。</summary>
     public double FloatingScheduleGlassSampleRateHz
     {
         get => _floatingScheduleGlassSampleRateHz;
         set
         {
-            var v = Math.Clamp(value, 1, 60);
+            var v = Math.Clamp(value, 1, 240);
             if (Math.Abs(_floatingScheduleGlassSampleRateHz - v) > 0.001)
             {
                 _floatingScheduleGlassSampleRateHz = v;

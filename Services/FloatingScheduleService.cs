@@ -258,6 +258,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   结束拖拽（EndDragAv）再恢复重设一次。系统移动窗口自身会保持其所在层，拖动这短暂时间不重设 z-order 无副作用。
     private bool _suppressTopmostRefreshAv;
 
+    // ========== 果冻效果（拖动横向拉伸 + 松手弹簧回弹） ==========
+    //  数学复用 Shared/FloatingSchedule/FloatScheduleJelly（与独立子进程同一份实现）；
+    //  这里只负责 Avalonia 侧的 RenderTransform 与回弹定时器，变换挂在 _containerBorder 上
+    //  （该 Border 是窗口根内容，全文件仅课间行控件用过 TranslateTransform，根内容变换未被占用）。
+    private readonly FloatScheduleJelly _jelly = new();
+    private readonly ScaleTransform _jellyScale = new(1, 1);
+    private DispatcherTimer? _jellyTimer;    // 松手回弹的 144Hz 步进定时器（Render 优先级，赶在渲染前写入比例）
+    private long _jellyLastTs;               // 上一次 OnDrag 的 Stopwatch 时间戳（0=本次拖动首个移动帧）
+
     // ========== 贴边自动隐藏（FloatingScheduleEdgeHide） ==========
     //  窗口贴近任一屏幕边缘 <1px → 沿该边滑出屏幕，只保留约 6px 可见条（需真正贴到边才隐藏）；
     //  光标进入可见条 → 200ms 平移滑回原位；光标离开且仍贴边 → 再滑回隐藏。
@@ -1946,6 +1955,22 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   Down 时 Capture 指针并记录"按下瞬间指针屏幕像素位 + 窗口像素位"，Move 时按指针屏幕位移写 Window.Position，
     //   Up / CaptureLost 收尾。坐标全程用物理像素（PointToScreen 与 Window.Position 同单位），DPI/跨屏天然正确。
 
+    /// <summary>
+    /// 果冻效果是否生效：开关打开 且 当前有效材质为液态玻璃。
+    /// 为什么限定液态玻璃：果冻靠"内容形变"做视觉反馈，其它材质（半透明/云母/亚克力/古卷/图片）
+    /// 形变时会露出卡片边缘的空隙，只有实时抓帧的液态玻璃背景能自然跟随。
+    /// </summary>
+    private bool IsJellyEnabledAv() => _settings.FloatingScheduleJellyEnabled && ResolveMaterialAv() == 3;
+
+    /// <summary>复位果冻形变并停掉回弹定时器（关闭开关 / 材质切走液态玻璃 时调用）。</summary>
+    private void ResetJellyAv()
+    {
+        _jelly.Reset();
+        _jellyTimer?.Stop();
+        _jellyScale.ScaleX = 1;
+        _jellyScale.ScaleY = 1;
+    }
+
     private void ContainerBorder_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_window == null) return;
@@ -1983,6 +2008,18 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _edgeSlideOutPendingAv = false;
             _lastDragMoveTsAv = 0;      // 【拖动 CPU 节流】首个 Moved 事件立即应用
             _dragPendingValidAv = false;
+            // 【果冻效果】拖动开始：先把变换挂到根 Border 上并复位（以中心为缩放原点，避免向一侧偏移），
+            //   同时清空时间基准与残留弹簧，保证本次拖动从"无形变"起算。
+            if (IsJellyEnabledAv() && _containerBorder != null)
+            {
+                _containerBorder.RenderTransformOrigin = RelativePoint.Center;
+                _containerBorder.RenderTransform = _jellyScale;
+                _jelly.Reset();
+                _jellyLastTs = 0;
+                _jellyTimer?.Stop();
+                _jellyScale.ScaleX = 1;
+                _jellyScale.ScaleY = 1;
+            }
             // 【高刷适配】按窗口所在显示器的刷新率取位置提交阈值（60Hz 保持约 60fps，120/144/240Hz 相应提高）。
             _dragThrottleMsAv = FloatScheduleDisplayRefresh.GetDragThrottleMs(
                 _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero);
@@ -2023,6 +2060,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             PingRenderKeepAliveAv();   // 拖动：位置在变，保持渲染帧热
             var curScreenPx = _window.PointToScreen(e.GetPosition(_window));
+            // 【果冻效果】必须放在下面所有提前 return（帧同步/节流丢弃本帧）之前：形变按指针速度累积，
+            //   与窗口位置是否在本帧提交无关，漏采样会让速度估计失真。
+            //   注意：这里只喂数学、不写 ScaleTransform —— 指针事件可达 240Hz，而位置只在提交帧落一次，
+            //   逐事件改变换会让窗口原地"抽搐"（见 FloatScheduleJelly 顶部约定）。
+            if (IsJellyEnabledAv())
+            {
+                long jellyNow = System.Diagnostics.Stopwatch.GetTimestamp();
+                double dtMs = _jellyLastTs != 0
+                    ? (jellyNow - _jellyLastTs) * 1000.0 / System.Diagnostics.Stopwatch.Frequency
+                    : 0;
+                _jelly.OnDrag(curScreenPx.X, curScreenPx.Y, dtMs);
+                _jellyLastTs = jellyNow;
+            }
             var target = new PixelPoint(
                 _dragStartWindowPxAv.X + (curScreenPx.X - _dragStartScreenPxAv.X),
                 _dragStartWindowPxAv.Y + (curScreenPx.Y - _dragStartScreenPxAv.Y));
@@ -2062,8 +2112,10 @@ public class FloatingScheduleService : IHostedService, IDisposable
     }
 
     /// <summary>
-    /// 【拖动不出屏（多屏版）】把拖拽目标位置 clamp 到"所有显示器工作区的并集包围盒"，
+    /// 【拖动不出屏（多屏版）】把拖拽目标位置 clamp 到"所有显示器可用区域的并集包围盒"，
     /// 而不是窗口当前所在那台显示器的工作区——旧写法会把窗口死死夹在当前屏边缘，永远拖不到另一台显示器。
+    /// 可用区域按层级取：置顶窗口在任务栏之上，用显示器物理边界（含任务栏条带），可拖到屏幕物理边缘；
+    /// 置底窗口在任务栏之下，仍用工作区，否则底部会被任务栏永久遮住。
     /// 贴边隐藏不受影响：窗口仍可停到某台显示器的外缘（距离=0）→ 拖完正常触发贴边滑出；
     /// 显示器之间的内部分界线由 <see cref="IsEdgeFacingAnotherScreenAv"/> 判定并跳过（不触发贴边隐藏）。
     /// 取不到屏幕/尺寸信息时原样返回（功能降级但不阻塞拖动）。
@@ -2078,10 +2130,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (screens == null || current == null) return target;
             RefreshDragFrameIntervalAv(current.Bounds);   // 跨屏拖动：切到不同刷新率的屏幕时随屏调整提交间隔
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return target;
+            // 【置顶可压任务栏】置顶窗口的 z 序在任务栏之上，可用整个显示器物理区域
+            bool allowOverTaskbar = _settings.FloatingScheduleWindowLayer == FloatingScheduleWindowLayer.Topmost;
             int minX = int.MaxValue, minY = int.MaxValue, maxRight = int.MinValue, maxBottom = int.MinValue;
             foreach (var s in screens.All)
             {
-                var wa = s.WorkingArea;
+                var wa = allowOverTaskbar ? s.Bounds : s.WorkingArea;
                 minX = Math.Min(minX, wa.X);
                 minY = Math.Min(minY, wa.Y);
                 maxRight = Math.Max(maxRight, wa.X + wa.Width);
@@ -2169,6 +2223,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
         StopGlassVSyncAv();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
         PingRenderKeepAliveAv();   // 松手：让落位与收尾绘制走完再睡
         if (_glassCommitPendingAv) { _glassCommitPendingAv = false; _glassAv.Commit(); }   // 未提交的采样帧直接落地
+
+        // 【果冻效果】松手收尾（放在 _window 判空之前：即便窗口已销毁也要把形变复位，避免下次显示带着拉伸）。
+        //   启用且确有形变 → 交给 144Hz 定时器跑欠阻尼弹簧；未启用 / 本来就没形变 → 直接复位成 1:1。
+        if (!IsJellyEnabledAv())
+        {
+            _jelly.Reset();
+            _jellyScale.ScaleX = 1;
+            _jellyScale.ScaleY = 1;
+            _jellyTimer?.Stop();
+        }
+        else if (_jelly.BeginRelease())
+        {
+            // 定时器只创建一次（复用）；Render 优先级保证比例在渲染前写入，回弹不会慢一帧。
+            _jellyTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(1000.0 / 144.0), DispatcherPriority.Render,
+                (_, _) =>
+                {
+                    bool run = _jelly.Step(1.0 / 144.0);
+                    _jellyScale.ScaleX = _jelly.ScaleX;
+                    _jellyScale.ScaleY = _jelly.ScaleY;
+                    if (!run) _jellyTimer?.Stop();   // 收敛即停，避免空转占 CPU
+                });
+            _jellyTimer.Start();
+        }
 
         if (_window == null) return;
         try
@@ -2266,7 +2343,13 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 }
                 break;
             case nameof(PluginSettings.FloatingScheduleWindowLayer):
-                Dispatcher.UIThread.Post(ApplyWindowLayer);
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ApplyWindowLayer();
+                    // 【置顶/置底切换】两条基准矩形相差一条任务栏厚度：重新锚定贴边位置，避免
+                    //  置底→置顶后不再贴边、置顶→置底后窗口（含 6px 可见条）被任务栏永久遮住。
+                    ReanchorEdgeOnLayerChangeAv();
+                });
                 break;
             case nameof(PluginSettings.FloatingScheduleTopmostRefreshMode):
                 // 模式切换：先 Detach 旧模式全部触发源 → ReAttach 新模式（窗口存在时） → 再 Apply 一次立即生效
@@ -2299,11 +2382,19 @@ public class FloatingScheduleService : IHostedService, IDisposable
             case nameof(PluginSettings.FloatingScheduleTomorrowShowMode):
             case nameof(PluginSettings.FloatingScheduleTomorrowPlaceholderText):
             case nameof(PluginSettings.FloatingScheduleTodayPlaceholderText):
-            // ===== 高级外观：内容/材质/边框/主题类变化 → 重建（RefreshSchedule 内含材质应用器 + 卡片几何）=====
+            // 【果冻效果】果冻开关或材质变化 → 先复位形变并停掉回弹定时器，再重建：
+            //   材质切走液态玻璃后若还留着拉伸比例，卡片会长期停在形变态。
             case nameof(PluginSettings.FloatingScheduleMaterial):
+            case nameof(PluginSettings.FloatingScheduleJellyEnabled):
+                Dispatcher.UIThread.Post(() =>
+                {
+                    ResetJellyAv();
+                    RefreshSchedule();
+                });
+                break;
+            // ===== 高级外观：内容/边框/主题类变化 → 重建（RefreshSchedule 内含材质应用器 + 卡片几何）=====
             case nameof(PluginSettings.FloatingScheduleMaterialIntensity):
             case nameof(PluginSettings.FloatingScheduleCustomBackgroundPath):
-            case nameof(PluginSettings.FloatingScheduleJellyEnabled):
             case nameof(PluginSettings.FloatingScheduleBorderEnabled):
             case nameof(PluginSettings.FloatingScheduleBorderPreset):
             case nameof(PluginSettings.FloatingScheduleBorderColorEnabled):
@@ -3053,6 +3144,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     ///   （窗口矩形与任何显示器都不相交）。而"内容变矮需要重算隐藏位"恰恰发生在这种离屏状态下，
     ///   若此刻才去查屏幕 → null → 算不出隐藏位 → 窗口永久停在屏幕外（连 6px 可见条都没有）。
     ///   故：能查到屏幕（窗口在屏上时）就用实时值并刷新缓存；查不到就用"贴边时记录的"工作区兜底。
+    /// 【置顶可压任务栏】置顶窗口在任务栏之上，贴边基准改用显示器物理边界（Bounds），
+    ///   否则底部只能贴到任务栏上沿、任务栏收起后还会留下一条无法贴靠的空带。
     /// </summary>
     private PixelRect? ResolveEdgeWorkAreaAv()
     {
@@ -3062,7 +3155,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             var screen = _window.Screens?.ScreenFromWindow(_window);
             if (screen != null)
             {
-                _edgeWorkAreaAv = screen.WorkingArea;
+                _edgeWorkAreaAv = _settings.FloatingScheduleWindowLayer == FloatingScheduleWindowLayer.Topmost
+                    ? screen.Bounds
+                    : screen.WorkingArea;
                 return _edgeWorkAreaAv;
             }
         }
@@ -3116,6 +3211,75 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _edgeAnimTargetAv = hidden;
         }
         return true;
+    }
+
+    /// <summary>
+    /// 【置顶/置底切换】按新层级的定位基准重新锚定窗口位置（仅在切换层级那一刻调用）。
+    /// 置顶以显示器物理边界定位、置底以工作区定位，两条基准矩形在任务栏所在边相差一条任务栏厚度，于是：
+    ///   · 置底 → 置顶：停靠位/隐藏位仍贴着工作区底边 → 距新基准（物理底边）差一条任务栏，
+    ///     贴边评估会判定"已不贴边"而解除停靠，窗口从此不再自动隐藏；
+    ///   · 置顶 → 置底：窗口（隐藏态下只剩 6px 可见条）落进任务栏条带 → 被任务栏永久遮住，光标也够不着可见条。
+    /// 故切换后把停靠位重新贴到同一条边上，并保持"隐藏/显示"状态不变（写死位置、不播滑移动画）。
+    /// 旧基准下的隐藏位与挂起的滑出计划必须一并作废，否则会按旧基准把窗口滑到错误位置。
+    /// 未贴边时把窗口夹回新基准范围（置顶→置底后窗口可能压在任务栏条带上）。
+    /// </summary>
+    private void ReanchorEdgeOnLayerChangeAv()
+    {
+        if (_window == null || _dragActiveAv) return;   // 拖动中位置归拖动所有，松手后由 EndDragAv 重新评估
+        try
+        {
+            if (_edgeDockedAv && _edgeSideAv is { } side
+                && TryGetWindowDeviceSizeAv(out int w, out int h)
+                && ResolveEdgeWorkAreaAv() is { } rect)
+            {
+                try { _edgeEvalCtsAv?.Cancel(); } catch { }
+                try { _edgeSlideOutDelayCtsAv?.Cancel(); } catch { }
+                _edgeSlideOutPendingAv = false;
+                StopEdgeSlideTimerAv();   // 滑移中途中止：下面直接落到新位置，不再逐帧补间
+                _edgeAnimatingAv = false;
+
+                var docked = _edgeDockedPosAv;
+                switch (side)
+                {
+                    case "left": docked = new PixelPoint(rect.X, docked.Y); break;
+                    case "right": docked = new PixelPoint(rect.X + rect.Width - w, docked.Y); break;
+                    case "top": docked = new PixelPoint(docked.X, rect.Y); break;
+                    case "bottom": docked = new PixelPoint(docked.X, rect.Y + rect.Height - h); break;
+                }
+                if (!TryComputeEdgeHiddenPosAv(side, docked, w, h, rect, out var hidden)) return;
+                _edgeDockedPosAv = docked;
+                _edgeHiddenPosAv = hidden;
+                _edgeLastSizeWAv = w;
+                _edgeLastSizeHAv = h;
+                _edgeHoverTicksAv = 0;
+                _edgeHoverLastInAv = !_edgeHiddenAv;
+                _settings.FloatingSchedulePositionX = docked.X;
+                _settings.FloatingSchedulePositionY = docked.Y;
+                if (_hideAnimActiveAv && _hideAnimBasePosAv is not null)
+                {
+                    // 隐藏/显示过渡按"基准位 + 位移量"逐帧落位：基准要换成新停靠位，位移量按新基准重算，
+                    //  否则动画结束复位到旧基准，窗口又回到任务栏条带里。
+                    _hideAnimBasePosAv = docked;
+                    _hideAnimDeltaAv = new Vector(0, rect.Y - h - HideShowDistanceExtraAv - docked.Y);
+                }
+                else
+                {
+                    try { _window.Position = _edgeHiddenAv ? hidden : docked; } catch { }
+                    PingRenderKeepAliveAv();
+                    if (!_edgeHiddenAv) ScheduleEdgeSlideOutAv();   // 保持原有"贴边后再延迟滑出"的节奏
+                }
+                return;
+            }
+
+            // 未贴边：夹回新基准（置顶窗口压在任务栏条带上时，切到置底会被任务栏遮住下半截）
+            var clamped = ClampDragTargetToScreenAv(_window.Position);
+            if (clamped != _window.Position)
+            {
+                _window.Position = clamped;
+                PingRenderKeepAliveAv();
+            }
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "层级切换后重锚贴边位置异常，忽略。"); }
     }
 
     /// <summary>发起一次滑入/滑出平移动画（200ms，CubicEaseOut 风格插值；不阻塞 UI 线程）。</summary>
@@ -3202,7 +3366,11 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 if (!GetCursorPos(out var pt)) return false;
                 var screen = _window.Screens?.ScreenFromWindow(_window);
                 if (screen == null) return false;
-                var wa = screen.WorkingArea;
+                // 置顶窗口在任务栏之上：可见区域按显示器物理边界算，否则贴到屏幕底边的可见条
+                // 会落在工作区之外被判成"指针不在可见条内"，滑出后永远滑不回来。
+                var wa = _settings.FloatingScheduleWindowLayer == FloatingScheduleWindowLayer.Topmost
+                    ? screen.Bounds
+                    : screen.WorkingArea;
                 if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return false;
                 var pos = _window.Position;
                 // 窗口矩形与工作区交集 = 用户实际可见部分（隐藏态下即约 6px 可见条）
@@ -5009,26 +5177,29 @@ public class FloatingScheduleService : IHostedService, IDisposable
     // 【关键】刷新路径**只换背景画笔，绝不重建内容树**——早先每次刷新都 PublishModelAv 重套材质，
     //   等于每 tick 推倒重建整棵可视树，正是"整表看起来只有 2fps"的根因。
     readonly FloatScheduleGlassBackdrop _glassAv = new();
-    bool _glassBusyAv;
-    DispatcherTimer? _glassTimerAv;
+    int _glassWorkerBusyAv;
+    FloatScheduleHighResTicker? _glassTickerAv;
     FloatScheduleRenderModel? _lastModelAv;
 
     void StartGlassTimerAv()
     {
-        if (_glassTimerAv != null) return;
-        _glassTimerAv = new DispatcherTimer { Interval = GlassIntervalAv() };
-        _glassTimerAv.Tick += (_, _) =>
-        {
-            _glassTimerAv.Interval = GlassIntervalAv();   // 采样率设置变更后热跟随（无需重启）
-            if (ResolveMaterialAv() == 3 && _window != null && _window.IsVisible)
-                _ = RefreshGlassBackdropAvAsync();
-        };
-        _glassTimerAv.Start();
+        if (_glassTickerAv != null) return;
+        // 高精度节拍器替代 DispatcherTimer：后者 Windows 后端粒度约 15.6ms，240Hz 会被硬卡到 60Hz 上下。
+        // 采样仍在 UI 线程发起、抓帧折射仍在后台线程（见 RefreshGlassBackdropAvAsync）。
+        _glassTickerAv = new FloatScheduleHighResTicker(
+            () =>
+            {
+                double hz = _settings.FloatingScheduleGlassSampleRateHz;
+                // 【拖动时自动提速】拖动中窗口在快速移动，30Hz（33ms 间隔）会直接变成肉眼可见的滞后；
+                // 这里在拖动期间兜底到 120Hz（用户本就设得更高则保持更高）。
+                return IsGlassVSyncActiveAv() ? Math.Max(hz, 120.0) : hz;
+            },
+            () => SampleGlassBackdropAv());   // 【后台线程直接采样】拖动时 UI 线程被拖动循环占满，
+                                              // 若采样还要先 Post 回 UI 排队，背景就会明显滞后于窗口位置。
+        _ = RefreshGlassBackdropAvAsync();    // 先把采样参数（句柄/尺寸/DPI）填进缓存
     }
 
-    // 采样率 → 定时器间隔（Hz 1~60）
-    TimeSpan GlassIntervalAv()
-        => TimeSpan.FromMilliseconds(1000.0 / Math.Clamp(_settings.FloatingScheduleGlassSampleRateHz, 1, 60));
+    // 采样率 → 定时器间隔（Hz 1~240）—— 调度由 FloatScheduleHighResTicker 负责，此处不再需要
 
     // ===== 【拖动位移帧 ↔ 渲染帧同步】把"窗口位置 + 玻璃背景"的提交挂到 Avalonia 的渲染帧上 =====
     //   背景抖动根因：位置由 Win32 SetWindowPos 即时提交、背景由 Avalonia 渲染管线提交 —— 两者提交时刻毫无关系，
@@ -5104,12 +5275,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         if (session != _glassFrameSyncSessionAv) return;
         try { if (_window != null) _window.Position = target; } catch { }
+        // 【果冻效果】位置真正提交的这一帧才写形变：与窗口位移同帧上屏，避免指针事件与位置提交不同步导致抽搐。
+        if (IsJellyEnabledAv())
+        {
+            _jellyScale.ScaleX = _jelly.ScaleX;
+            _jellyScale.ScaleY = _jelly.ScaleY;
+        }
     }
 
     // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrameAv(PixelPoint target)
     {
         _window!.Position = target;
+        // 【果冻效果】同上：形变与位置在同一提交点落地。
+        if (IsJellyEnabledAv())
+        {
+            _jellyScale.ScaleX = _jelly.ScaleX;
+            _jellyScale.ScaleY = _jelly.ScaleY;
+        }
         if (_glassCommitPendingAv)
         {
             _glassCommitPendingAv = false;
@@ -5160,39 +5343,71 @@ public class FloatingScheduleService : IHostedService, IDisposable
     Border? GlassBackdropLayerAv()
         => ResolveMaterialAv() == 3 ? _glassAv.TakeLayer(_settings.FloatingScheduleCornerRadius) : null;
 
-    async Task RefreshGlassBackdropAvAsync()
+    Task RefreshGlassBackdropAvAsync()
     {
-        if (_glassBusyAv || _window == null || _containerBorder == null) return;
-        if (ResolveMaterialAv() != 3 || !_window.IsVisible) return;
+        if (_window == null || _containerBorder == null) return Task.CompletedTask;
+        if (ResolveMaterialAv() != 3 || !_window.IsVisible) return Task.CompletedTask;
         IntPtr hwnd;
-        try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return; }
-        if (hwnd == IntPtr.Zero) return;
+        try { hwnd = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero; } catch { return Task.CompletedTask; }
+        if (hwnd == IntPtr.Zero) return Task.CompletedTask;
         var size = _containerBorder.Bounds.Size;
-        if (size.Width < 4 || size.Height < 4) return;
+        if (size.Width < 4 || size.Height < 4) return Task.CompletedTask;
         double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
-        int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
-        double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
-        // 采集方式已归中为唯一的 GDI 整屏采集（设置里的历史取值不再影响采样）
-        _glassAv.PreventCapture = _settings.FloatingSchedulePreventCapture;
-        _glassBusyAv = true;
+        // 【缓存采样参数】尺寸/句柄/DPI 只能在 UI 线程读；采样线程直接用缓存值，
+        // 这样拖动时就算 UI 线程被拖动循环占满，采样也不会跟着停摆。
+        _glassHwndAv = hwnd;
+        _glassPxWAv = (int)Math.Round(size.Width * sc);
+        _glassPxHAv = (int)Math.Round(size.Height * sc);
+        _glassCornerPxAv = _settings.FloatingScheduleCornerRadius * sc;
+        _glassPreventCaptureAv = _settings.FloatingSchedulePreventCapture;
+        SampleGlassBackdropAv();   // 尺寸/材质刚变化时立即采一帧，不必等下一个节拍
+        return Task.CompletedTask;
+    }
+
+    // 采样参数缓存（UI 线程写、采样线程读）
+    IntPtr _glassHwndAv;
+    int _glassPxWAv, _glassPxHAv;
+    double _glassCornerPxAv;
+    bool _glassPreventCaptureAv;
+
+    /// <summary>
+    /// 【任意线程】抓帧 + 折射（纯计算，不碰 UI 对象）；完成后把"换图"投递回 UI 线程。
+    /// 关键：本方法由高精度节拍器在**后台线程**直接调用，不经过 UI 线程调度 ——
+    /// 拖动窗口时 UI 线程被拖动循环占满，若采样还要先 Post 回 UI 排队，
+    /// 抓到的画面就会一直落后于窗口实际位置（静止时 UI 空闲所以看不出问题）。
+    /// </summary>
+    void SampleGlassBackdropAv()
+    {
+        if (Interlocked.Exchange(ref _glassWorkerBusyAv, 1) == 1) return;   // 上一帧还没算完，跳过本拍
         try
         {
-            // 抓帧 + 逐像素折射放后台线程（纯计算，不碰 UI 对象）；抓帧不再改动窗口捕获亲和性。
-            // 每次都抓窗口**当前**所占区域 → 折射边缘与窗口位置严格对齐（不再有外扩取材/GPU 平移）。
-            await Task.Run(() => _glassAv.CaptureAndRefract(hwnd, w, h, cornerPx));
-            // 只原位更新位图并就地换背景；绝不 PublishModelAv（那会重建整棵可视树）
-            // 【垂直同步】拖动中：换图交给节拍器，与"窗口位置"落在同一合成帧（否则换图那一帧仍会错位一帧）。
-            //   首次就绪（还没有内容）仍直接提交：它需要立即触发 NeedsApply → 重套一次材质。
-            if (IsGlassVSyncActiveAv() && _glassAv.HasContent) { _glassCommitPendingAv = true; PingRenderKeepAliveAv(); }
-            else { _glassAv.Commit(); PingRenderKeepAliveAv(); }
+            IntPtr hwnd = _glassHwndAv;
+            int w = _glassPxWAv, h = _glassPxHAv;
+            if (hwnd == IntPtr.Zero || w < 4 || h < 4) return;
+            _glassAv.PreventCapture = _glassPreventCaptureAv;
+            if (!_glassAv.CaptureAndRefract(hwnd, w, h, _glassCornerPxAv)) return;
+            Dispatcher.UIThread.Post(CommitGlassBackdropAv, DispatcherPriority.Render);
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景采样异常（已忽略，回退近似边缘光）"); }
+        finally { Interlocked.Exchange(ref _glassWorkerBusyAv, 0); }
+    }
+
+    /// <summary>【UI 线程】只做换图：原位更新位图并就地换背景，绝不 PublishModelAv（那会重建整棵可视树）。</summary>
+    void CommitGlassBackdropAv()
+    {
+        try
+        {
+            // 【直接换图，不再排队等渲染帧】采样已在后台线程完成，本回调又是以 Render 优先级投递的
+            // （会在当前渲染帧之前执行）→ 本帧就会被采纳。再丢给 pacer 排队只会平白多等一整帧
+            // （16.7~33ms），用户实测到的 50~70ms 滞后里就有这一份。
+            _glassAv.Commit(); PingRenderKeepAliveAv();
             if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
             {
                 _glassAv.ClearNeedsApply();
                 PublishModelAv(_lastModelAv);
             }
         }
-        catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景采样异常（已忽略，回退近似边缘光）"); }
-        finally { _glassBusyAv = false; }
+        catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景提交异常（已忽略）"); }
     }
 
     /// <summary>
