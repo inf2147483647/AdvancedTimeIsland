@@ -1,0 +1,12 @@
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\bin\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.exe
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\bin\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.deps.json
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\bin\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.runtimeconfig.json
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\bin\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.dll
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.GeneratedMSBuildEditorConfig.editorconfig
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.AssemblyInfoInputs.cache
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.AssemblyInfo.cs
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.csproj.CoreCompileInputs.cache
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.dll
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\refint\AdvancedTimeIslandWPFFloatSchedule.dll
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\AdvancedTimeIslandWPFFloatSchedule.genruntimeconfig.cache
+C:\Users\seewo\RiderProjects\AdvancedTimeIsland\AdvancedTimeIslandWPFFloatSchedule\obj\Release\net8.0-windows\win-x64\ref\AdvancedTimeIslandWPFFloatSchedule.dll

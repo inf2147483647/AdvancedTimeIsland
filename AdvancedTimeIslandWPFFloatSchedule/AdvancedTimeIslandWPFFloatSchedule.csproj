@@ -1,0 +1,40 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+    <!-- 时间表悬浮窗"独立进程模式"子进程（WPF 版，供 ClassIsland 1.x / AdvancedTimeIslandWPF 使用）。
+         与 Avalonia 版子进程（..\AdvancedTimeIslandFloatSchedule）同构，差别：
+         1. WPF 走框架依赖的 Microsoft.WindowsDesktop.App（不借宿主目录的 Avalonia/Skia DLL），
+            故只引用 .NET 自带的 System.Text.Json / System.IO.Pipes + WPF；
+         2. 管道名/单实例 Mutex 名加 ".wpf" 后缀（见 Program.WpfNameSuffix），与 Avalonia 版互不抢占；
+         3. 共享层只链接 Ipc / RenderModel / WindowSettings 三个纯 .NET 文件：
+            Shared\FloatingSchedule\FloatScheduleRenderer.cs 是 Avalonia 渲染器（依赖 Avalonia 程序集），
+            严禁编入本 WPF 子进程，因此这里逐个文件链接，不用 **\*.cs 通配。 -->
+
+    <PropertyGroup>
+        <TargetFramework>net8.0-windows</TargetFramework>
+        <OutputType>WinExe</OutputType>
+        <UseWPF>true</UseWPF>
+        <Nullable>enable</Nullable>
+        <ImplicitUsings>enable</ImplicitUsings>
+        <AssemblyName>AdvancedTimeIslandWPFFloatSchedule</AssemblyName>
+        <RootNamespace>AdvancedTimeIsland.FloatScheduleWpfChild</RootNamespace>
+        <ApplicationManifest>app.manifest</ApplicationManifest>
+        <ApplicationIcon>Assets\app.ico</ApplicationIcon>
+        <!-- 宿主只装了更高版本 .NET（如 .NET 9/10）时也能启动 net8 产物 -->
+        <SelfContained>false</SelfContained>
+        <RollForward>LatestMajor</RollForward>
+        <SatelliteResourceLanguages>en</SatelliteResourceLanguages>
+    </PropertyGroup>
+
+    <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+        <DebugType>none</DebugType>
+        <DebugSymbols>false</DebugSymbols>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <!-- 与插件主项目共享的纯 .NET 协议/模型/设置（同一份源码编入两侧，防渲染漂移） -->
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleIpc.cs" LinkBase="Shared" />
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleRenderModel.cs" LinkBase="Shared" />
+        <Compile Include="..\Shared\FloatingSchedule\FloatScheduleWindowSettings.cs" LinkBase="Shared" />
+    </ItemGroup>
+
+</Project>
