@@ -1003,12 +1003,26 @@ internal sealed class FloatScheduleChildWindow : Window
     /// <summary>取消过渡动画并让窗口立即回到用户放置位的"完全可见"状态（用户开始拖动）。幂等。</summary>
     void CancelHideShow()
     {
+        // 【根因修复：拖动按下瞬间瞬移】旧实现无条件 `Position = _hideAnimBasePos`。
+        //   而 _hideAnimBasePos 只在"开始一次过渡"时记录（用户放置位），此后用户拖动窗口**不会**更新它，
+        //   于是下一次按下会把窗口整块搬回"上一次过渡前的旧位置"——诊断日志完全吻合：
+        //   按下后 15ms 内 left 1458→2121、top 15→0，窗口宽高不变、光标一动没动。
+        //   而拖动入口本身已排除动画中（_hideAnimActive 时按下直接 return），
+        //   所以"还原基准位"只有在动画确实在跑时才该发生；没动画时只把基准位同步到当前位置（不移动窗口）。
+        bool animating = _hideAnimActive;
         StopHideShowTimer();
         _hiddenByAnim = false;
         _hideAnimProgress = 0;
         try
         {
-            if (_hideAnimBasePos is { } basePos) Position = basePos;
+            if (animating)
+            {
+                if (_hideAnimBasePos is { } basePos) Position = basePos;
+            }
+            else
+            {
+                _hideAnimBasePos = Position;   // 只更新记录，不移动窗口
+            }
         }
         catch { }
         try { _card.Opacity = 1; } catch { }
@@ -1271,8 +1285,12 @@ internal sealed class FloatScheduleChildWindow : Window
             _dragStartScreenPx = this.PointToScreen(e.GetPosition(this));
             ResetJellyForDrag();   // 果冻：拖动开始清掉上一次回弹残留，形变从 1 起算
             BeginJellySizing();    // 果冻：记录基准尺寸/位置并冻结内容尺寸（窗口尺寸随后跟随形变）
-            // 取"形变复位之后"的真实窗口位：否则上一次回弹留下的中心补偿偏移会被算进拖动基准
-            _dragStartWindowPx = Position;
+            // 取"形变复位之后"的真实窗口位：否则上一次回弹留下的中心补偿偏移会被算进拖动基准。
+            // 【硬化】基准取 Win32 真实窗口矩形（权威值）而非托管 Position 缓存：
+            //   这样即使按下流程里还有别的地方写过 Position，位移起点也永远是"窗口此刻真实所在位置"。
+            _dragStartWindowPx = FloatScheduleNative.TryGetWindowTopLeft(Hwnd, out var trueTopLeft)
+                ? trueTopLeft
+                : Position;
             try { e.Pointer.Capture(_card); } catch { }
             try { e.Handled = true; } catch { }
         }
@@ -1346,6 +1364,11 @@ internal sealed class FloatScheduleChildWindow : Window
         _jellyTimer?.Stop();
         _jelly.Reset();
         _jellyLastTs = 0;
+        // 【修复"按下瞬间瞬移"的真正元凶】上一次回弹还没收敛就再次按下时，
+        // EndJellySizing() 会把窗口位置强制写回**上一次拖动留下的锚点** `_jellyAnchorPx`，
+        // 于是按下瞬间窗口被整块搬走（诊断日志：按下 15ms 内 left 1017→511 / 1017→0，光标一动没动）。
+        // 这里先把锚点贴到当前实际位置，还原尺寸/缩放时位置就不再变化。
+        if (_jellySizing) _jellyAnchorPx = Position;
         EndJellySizing();   // 上次回弹未收敛就被再次按下：先把尺寸/位置还原，避免基准错乱
     }
 
@@ -1482,6 +1505,15 @@ internal sealed class FloatScheduleChildWindow : Window
     void SampleJellyDrag(int screenX, int screenY)
     {
         if (!_jellyEnabled) return;
+        // 【起拖抑制（修复"按下瞬间瞬移"）】按下后的极短位移内不产生形变：
+        //   原先鼠标/手指刚动几像素就按速度把窗口拉长 20~30px，叠加中心锚定会让窗口左上角
+        //   瞬间上移 40px 以上（诊断日志：top 409→365、h 520→546），观感就是按下即瞬移。
+        //   等真正拖起来（累计位移 ≥10px）再启用果冻，起拖阶段位置严格等于「按下窗口位 + 光标位移」。
+        if (Math.Abs(screenX - _dragStartScreenPx.X) + Math.Abs(screenY - _dragStartScreenPx.Y) < 10)
+        {
+            _jellyLastTs = System.Diagnostics.Stopwatch.GetTimestamp();   // 重置时间基准，避免一次性大 dt 造成首帧大形变
+            return;
+        }
         long now = System.Diagnostics.Stopwatch.GetTimestamp();
         double dtMs = _jellyLastTs != 0
             ? (now - _jellyLastTs) * 1000.0 / System.Diagnostics.Stopwatch.Frequency
@@ -1531,6 +1563,9 @@ internal sealed class FloatScheduleChildWindow : Window
             if (_dragPendingValid) { Position = _dragPendingPos; _dragPendingValid = false; }
             // 形变未收敛时不得恢复 Manual 尺寸模式：交给 EndJellySizing 统一还原，避免回弹途中尺寸跳变
             if (!_jellySizing && SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
+            // 拖动结束：把"过渡动画基准位"同步成用户实际放置位，
+            // 避免它长期停留在"上一次隐藏/显示过渡前"的旧位置（见 CancelHideShow 的根因说明）。
+            _hideAnimBasePos = _jellySizing ? _jellyAnchorPx : Position;
             ApplyWindowLayer();
             // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
             if (_snap.Material == 3 && _hostVisible) _ = RefreshGlassBackdropAsync();

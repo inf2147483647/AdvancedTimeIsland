@@ -34,8 +34,6 @@ public class IssueFeedbackPage : HanfuPageTemplate
 
     protected override void BuildContent(StackPanel panel)
     {
-        AddDevPaceNotice(panel);
-
         // 顶部说明（会被模板统一记录，主题切换时自动重设配色）
         AddParagraph(panel, "在使用过程中遇到问题或有改进建议？请通过以下任一渠道提交 issue，帮助我们做得更好：");
 
@@ -50,10 +48,13 @@ public class IssueFeedbackPage : HanfuPageTemplate
         AddFeedbackButton(buttonPanel, "GitCode提交issue", GitCodeIssueUrl);
 
         panel.Children.Add(buttonPanel);
+
+        // 公告置于两个提交入口下方
+        AddDevPaceNotice(panel);
     }
 
     /// <summary>
-    /// 顶部公告：以 FA InfoBar（Informational 级别、可关闭）呈现当前开发节奏，
+    /// 页面底部公告：以 FA InfoBar（Informational 级别、可关闭）呈现当前开发节奏，
     /// 配色与关闭按钮由 FluentAvalonia 官方控件提供，随主题深浅自适应。
     /// </summary>
     private static void AddDevPaceNotice(StackPanel panel)
@@ -67,10 +68,10 @@ public class IssueFeedbackPage : HanfuPageTemplate
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity",
             FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message",
-            "当前开发节奏以 UI/UX 优化为主，欢迎 issue 反馈。");
+            "当前开发节奏以 UI/UX 优化为主，在今后会持续完善。欢迎 issue 反馈。");
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
         FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 0, 0, 12));
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 16, 0, 0));
         FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(infoBar, (_, _) => _devPaceNoticeDismissed = true);
 
         panel.Children.Add(infoBar);

@@ -352,7 +352,7 @@ public partial class FloatingScheduleSettingsPage : SettingsPageBase
         _ => FloatingScheduleHideMode.FollowHost
     };
 
-    // ==================== 4. 随机窗口名 ====================
+    // ==================== 4. 规避拦截（随机窗口名 / 增强随机 / 阻止截图） ====================
     private void RandomTitleToggle_Changed(object? sender, RoutedEventArgs e)
     {
         if (_settings == null) return;

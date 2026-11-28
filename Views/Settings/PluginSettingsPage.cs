@@ -566,7 +566,7 @@ public class PluginSettingsPage : UserControl
             // 反馈问题（原在「关于」标签页顶部，现移入通用设置）
             var feedbackButton = new Button
             {
-                Content = "提交反馈...",
+                Content = "提交反馈",
                 Width = 120
             };
             feedbackButton.Click += (s, e) =>

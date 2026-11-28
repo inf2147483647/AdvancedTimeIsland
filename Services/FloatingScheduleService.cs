@@ -2181,6 +2181,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 JellyScaleAv.ScaleX = 1;
                 JellyScaleAv.ScaleY = 1;
                 // 上一次回弹未收敛：先还原窗口尺寸/位置，否则会把形变后的尺寸记成新基准
+                // 【修复"按下瞬间瞬移"】还原前把锚点对齐当前实际位置：
+                //   EndJellySizingAv 会把窗口写回 _jellyAnchorPxAv，而那是上一次拖动留下的旧锚点 → 一按下就整块搬走。
+                if (_jellySizingAv) _jellyAnchorPxAv = _window.Position;
                 EndJellySizingAv();
                 // 记录基准尺寸/位置并冻结内容尺寸：此后窗口尺寸跟随形变（整块玻璃一起弹性变形）
                 BeginJellySizingAv();
@@ -2191,7 +2194,12 @@ public class FloatingScheduleService : IHostedService, IDisposable
             _dragScreenBoundsAv = null;   // 让首次 Moved 按实际屏幕记录（跨屏后重算）
             // 按下瞬间：指针真实屏幕像素位置 + 窗口像素位置（作为绝对位移基准）
             _dragStartScreenPxAv = _window.PointToScreen(e.GetPosition(_window));
-            _dragStartWindowPxAv = _window.Position;
+            // 【硬化】位移基准取 Win32 真实窗口矩形（权威值）而非托管 Position 缓存：
+            //   即使按下流程里还有别处写过 Position，位移起点也永远是"窗口此刻真实所在位置"，结构上不再可能瞬移。
+            var dragHwndAv = _window.TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
+            _dragStartWindowPxAv = dragHwndAv != IntPtr.Zero && GetWindowRect(dragHwndAv, out var dragStartRectAv)
+                ? new PixelPoint(dragStartRectAv.Left, dragStartRectAv.Top)
+                : _window.Position;
             StartGlassVSyncAv();              // 位移帧同步：拖动开始时启动渲染帧节拍（位置与背景在同一渲染帧提交）
             _glassFrameSyncSessionAv++;       // 新一次拖动：作废上一次拖动遗留的异步"位置提交"任务
 
@@ -2439,6 +2447,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (ResolveMaterialAv() == 3 && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
             // 形变中窗口位置带中心补偿偏移 → 落库"基准锚点"（回弹收敛后窗口就停在该位置）
             var finalPos = _jellySizingAv ? _jellyAnchorPxAv : _window.Position;
+            // 拖动结束：把"过渡动画基准位"同步成用户实际放置位，
+            // 避免它停留在"上一次隐藏/显示过渡前"的旧位置（见 CancelHideShowAv 的根因说明）。
+            _hideAnimBasePosAv = finalPos;
             _settings.FloatingSchedulePositionX = finalPos.X;
             _settings.FloatingSchedulePositionY = finalPos.Y;
             ScheduleEdgeEvalAv();
@@ -4232,15 +4243,28 @@ public class FloatingScheduleService : IHostedService, IDisposable
     /// <summary>
     /// 取消过渡动画并让窗口立即回到用户放置位的"完全可见"状态（用户开始拖动 / 关闭开关 / Stop 时）。
     /// 幂等。
+    /// 【根因修复：拖动按下瞬间瞬移】旧实现无条件 `Position = _hideAnimBasePosAv`。
+    ///   而 _hideAnimBasePosAv 只在"开始一次过渡"时记录（用户放置位），此后用户拖动窗口**不会**更新它，
+    ///   于是下一次按下会把窗口整块搬回"上一次过渡前的旧位置"（诊断日志：按下后 15ms 内位置跳变、
+    ///   窗口宽高不变、光标一动没动）。拖动入口本身已排除动画中（_hideAnimActiveAv 时按下直接 return），
+    ///   故"还原基准位"只在动画确实在跑时执行；没动画时只把基准位同步到当前位置（不移动窗口）。
     /// </summary>
     private void CancelHideShowAv()
     {
+        bool animating = _hideAnimActiveAv;
         StopHideShowTimerAv();
         _hiddenByAnimAv = false;
         _hideAnimProgressAv = 0;
         try
         {
-            if (_window != null && _hideAnimBasePosAv is { } basePos) _window.Position = basePos;
+            if (animating)
+            {
+                if (_window != null && _hideAnimBasePosAv is { } basePos) _window.Position = basePos;
+            }
+            else
+            {
+                if (_window != null) _hideAnimBasePosAv = _window.Position;   // 只更新记录，不移动窗口
+            }
         }
         catch { }
         try { if (_containerBorder != null) _containerBorder.Opacity = 1; } catch { }

@@ -4,6 +4,7 @@
 using System;
 using System.Runtime.InteropServices;
 using System.Text;
+using Avalonia;
 
 namespace AdvancedTimeIsland.FloatScheduleChild;
 
@@ -70,6 +71,25 @@ internal static class FloatScheduleNative
 
     [DllImport("user32.dll", CharSet = CharSet.Auto)]
     public static extern int GetClassName(IntPtr hWnd, StringBuilder lpClassName, int nMaxCount);
+
+    [DllImport("user32.dll")]
+    public static extern bool GetWindowRect(IntPtr hWnd, out RECT lpRect);
+    [StructLayout(LayoutKind.Sequential)]
+    public struct RECT { public int Left, Top, Right, Bottom; }
+
+    /// <summary>
+    /// 取窗口左上角（物理像素）。拖动基准必须用这个"窗口此刻真实所在位置"，
+    /// 而不是托管的 <c>Window.Position</c> 缓存值——后者一旦被某处写成旧值，
+    /// 位移基准就会带上该偏差，按下瞬间表现为整窗瞬移。
+    /// </summary>
+    public static bool TryGetWindowTopLeft(IntPtr hwnd, out PixelPoint topLeft)
+    {
+        topLeft = default;
+        if (hwnd == IntPtr.Zero) return false;
+        if (!GetWindowRect(hwnd, out var r)) return false;
+        topLeft = new PixelPoint(r.Left, r.Top);
+        return true;
+    }
 
     /// <summary>期望扩展样式位（唯一事实源，对齐主项目 ComputeDesiredExStyleAv；不设 WS_EX_COMPOSITED——
     /// 该位与 WS_EX_TRANSPARENT 同写会被系统静默丢弃，导致点击穿透失效）。</summary>

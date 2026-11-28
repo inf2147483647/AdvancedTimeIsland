@@ -331,27 +331,22 @@ public class TimeCalculatorPage : UserControl
         if (timePicker != null) timePicker.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
-    private static bool TryGetDateTimeFromControls(NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result)
+    private static bool TryGetDateTimeFromControls(NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result, out List<(Control? Control, string Reason)> invalidFields)
     {
         result = DateTime.MinValue;
-
-        if (yearTextBox?.Value == null ||
-            monthComboBox?.SelectedItem == null ||
-            dayComboBox?.SelectedItem == null ||
-            timePicker?.SelectedTime == null)
+        invalidFields = InvalidInputHighlighter.ValidateDateTimeInput(yearTextBox, monthComboBox, dayComboBox, timePicker);
+        if (invalidFields.Count > 0)
             return false;
 
-        var year = (int)yearTextBox.Value.Value;
-        if (!int.TryParse(monthComboBox.SelectedItem.ToString()?.Replace("月", ""), out var month))
-            return false;
-        if (!int.TryParse(dayComboBox.SelectedItem.ToString()?.Replace("日", ""), out var day))
+        if (!int.TryParse(monthComboBox!.SelectedItem?.ToString()?.Replace("月", ""), out var month) ||
+            !int.TryParse(dayComboBox!.SelectedItem?.ToString()?.Replace("日", ""), out var day))
             return false;
 
-        var time = timePicker.SelectedTime.Value;
+        var time = timePicker!.SelectedTime!.Value;
 
         try
         {
-            result = LunarHelper.CreateSafeDateTime(year, month, day, time.Hours, time.Minutes, time.Seconds);
+            result = LunarHelper.CreateSafeDateTime((int)yearTextBox!.Value!.Value, month, day, time.Hours, time.Minutes, time.Seconds);
             return true;
         }
         catch
@@ -364,9 +359,9 @@ public class TimeCalculatorPage : UserControl
     {
         try
         {
-            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
+            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend, out var invalidFields))
             {
-                ShowErrorToast("请输入有效的日期和时间");
+                ShowInvalidInputToast("请输入有效的日期和时间", invalidFields);
                 return;
             }
 
@@ -397,15 +392,15 @@ public class TimeCalculatorPage : UserControl
     {
         try
         {
-            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend))
+            if (!TryGetDateTimeFromControls(_minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker, out var minuend, out var invalidFields))
             {
-                ShowErrorToast("请输入有效的基准时间");
+                ShowInvalidInputToast("请输入有效的基准时间", invalidFields);
                 return;
             }
 
-            if (!TryGetDateTimeFromControls(_resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker, out var result))
+            if (!TryGetDateTimeFromControls(_resultYearTextBox, _resultMonthComboBox, _resultDayComboBox, _resultTimePicker, out var result, out var resultInvalidFields))
             {
-                ShowErrorToast("请输入有效的结果日期和时间");
+                ShowInvalidInputToast("请输入有效的结果日期和时间", resultInvalidFields);
                 return;
             }
 
@@ -659,6 +654,25 @@ public class TimeCalculatorPage : UserControl
             Severity = FAInfoBarSeverity.Error,
             AutoClose = true
         });
+    }
+
+    /// <summary>
+    /// 输入不合法时提示并把所有出错的控件标红 1.2 秒，指出具体错在哪里。
+    /// </summary>
+    private void ShowInvalidInputToast(string message, List<(Control? Control, string Reason)> invalidFields)
+    {
+        if (invalidFields.Count == 0)
+        {
+            ShowErrorToast(message);
+            return;
+        }
+
+        ShowErrorToast($"{message}（{string.Join("；", invalidFields.ConvertAll(field => field.Reason))}）");
+
+        foreach (var field in invalidFields)
+        {
+            InvalidInputHighlighter.Flash(field.Control);
+        }
     }
 
     private StackPanel CreateDatePickerRow(out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)

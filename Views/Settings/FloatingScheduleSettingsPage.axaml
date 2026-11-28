@@ -259,13 +259,16 @@
                 </compat:CompatSettingsExpanderItem>
             </compat:CompatSettingsExpander>
 
-            <!-- 4. 随机窗口名（Footer 为主开关，与官方“实验性功能”开关样式一致） -->
-            <compat:CompatSettingsExpander Header="随机窗口名"
-                                           Description="为了防止弹窗拦截工具把时间表悬浮窗拦截，建议开启此项">
-                <compat:CompatSettingsExpander.Footer>
-                    <ToggleSwitch x:Name="RandomTitleToggle"
-                                  IsCheckedChanged="RandomTitleToggle_Changed" />
-                </compat:CompatSettingsExpander.Footer>
+            <!-- 4. 规避拦截（主开关已移入展开部分第一项，折叠栏头只作分组标题） -->
+            <compat:CompatSettingsExpander Header="规避拦截（AdvancedTimeIslandFloatScheduleHide）"
+                                           Description="随机窗口名、增强随机与阻止截图等规避弹窗拦截工具的设置">
+                <compat:CompatSettingsExpanderItem Content="随机窗口名"
+                                                   Description="为了防止弹窗拦截工具把时间表悬浮窗拦截，建议开启此项。">
+                    <compat:CompatSettingsExpanderItem.Footer>
+                        <ToggleSwitch x:Name="RandomTitleToggle"
+                                      IsCheckedChanged="RandomTitleToggle_Changed" />
+                    </compat:CompatSettingsExpanderItem.Footer>
+                </compat:CompatSettingsExpanderItem>
                 <compat:CompatSettingsExpanderItem x:Name="EnhancedItem"
                                                    Content="增强随机模式"
                                                    Description="仅在上一项启用时生效：开启后每 1 秒重新设置一次随机窗口标题，防止拦截工具按标题缓存识别。">

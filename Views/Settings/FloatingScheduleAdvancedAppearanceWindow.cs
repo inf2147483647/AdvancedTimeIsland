@@ -4,6 +4,7 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.Linq;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
@@ -19,6 +20,7 @@ using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Platform.Storage;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -41,14 +43,15 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     double _dragStartX, _dragStartY, _cardStartX, _cardStartY;
     IPointer? _dragPointer;
 
-    // ===== 自制标题栏（宿主禁用「使用系统标题栏」时跟随宿主样式）=====
+    // ===== 自制标题栏（宿主禁用「使用系统标题栏」时与宿主窗口完全一致）=====
     const double TitleBarHeight = 32;
-    const double CaptionButtonWidth = 46;
     // 宿主是否处于自制标题栏模式：宿主该设置需重启生效，故构造期读取一次即可。
     readonly bool _customChrome = UseCustomTitleBar();
-    readonly List<(Border Button, TextBlock Glyph, bool IsClose)> _captionButtons = new();
+    Panel? _titleBarPanel;
     TextBlock? _titleBarTitle;
-    TextBlock? _maximizeGlyph;
+    TextBlock? _titleBarVersion;
+    IDisposable? _titleBarBackgroundBinding;
+    IDisposable? _titleBarForegroundBinding;
 
     public static void ShowWindow(PluginSettings? settings, Window? owner)
     {
@@ -58,6 +61,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             return;
         }
         var w = new FloatingScheduleAdvancedAppearanceWindow(settings) { Owner = owner };
+        // 同步宿主的云母材质（宿主设置窗口在 Win11 21H2+ 且启用 WinUI 合成时使用 Mica）。
+        w.SyncHostWindowMaterial(owner);
         _instance = w;
         w.Closed += (_, _) => _instance = null;
         w.Show();
@@ -73,14 +78,14 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
         Opened += OnEditorOpened;
-        // 宿主禁用系统标题栏时，本窗口同步改为"无系统标题栏 + 自制标题栏"，样式与宿主窗口一致。
+        // 宿主禁用系统标题栏时：与宿主 FAAppWindow 一致，把内容延伸到标题栏区域，
+        // 系统仍绘制右上角最小化/最大化/关闭按钮，自绘标题栏（图标 + 标题）与宿主保持一致。
         if (_customChrome)
         {
-#if NET10_0_OR_GREATER
-            // Avalonia 12：SystemDecorations 换为 WindowDecorations
-            WindowDecorations = WindowDecorations.BorderOnly;
-#else
-            SystemDecorations = SystemDecorations.BorderOnly;
+            ExtendClientAreaToDecorationsHint = true;
+#if !NET10_0_OR_GREATER
+            // Avalonia 11 / FA2：显式要求保留系统标题栏按钮；Avalonia 12 已移除该属性。
+            ExtendClientAreaChromeHints = Avalonia.Platform.ExtendClientAreaChromeHints.PreferSystemChrome;
 #endif
         }
 
@@ -151,7 +156,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 
         if (_customChrome)
         {
-            // 自制标题栏（与宿主同名/同高 32px、右侧 WinUI 风格最小化/最大化/关闭）+ 原有内容
+            // 顶部 32px 标题栏（与宿主 FAAppWindow 的 DefaultTitleBar 同高同内容）+ 原有设置内容
             var shell = new Grid { RowDefinitions = RowDefinitions.Parse("Auto,*") };
             var titleBar = BuildCustomTitleBar();
             Grid.SetRow(titleBar, 0);
@@ -159,17 +164,6 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             Grid.SetRow(outer, 1);
             shell.Children.Add(outer);
             Content = shell;
-            UpdateCaptionGlyph();
-            PropertyChanged += (_, e) =>
-            {
-                if (e.Property == WindowStateProperty) UpdateCaptionGlyph();
-            };
-            // 标题栏配色随深浅主题自适应（ThemeHelper.ThemeChanged 未初始化，直接跟随应用主题变体）
-            if (Application.Current != null)
-            {
-                Application.Current.ActualThemeVariantChanged += OnTitleBarThemeChanged;
-                Closed += (_, _) => Application.Current.ActualThemeVariantChanged -= OnTitleBarThemeChanged;
-            }
         }
         else
         {
@@ -182,6 +176,23 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     }
 
     // ===================== 自制标题栏（宿主「使用系统标题栏」关闭时） =====================
+    /// <summary>
+    /// 同步宿主窗口的云母（Mica）材质：宿主设置窗口经 <c>MyWindow.EnableMicaWindow</c> 只在
+    /// Windows 11 21H2+ 且 Avalonia 使用 WinUI 合成时启用 Mica（Win10 及以下不启用）。
+    /// 这里读取宿主窗口实际的透明级别 / 请求级别来判断，做到与宿主同开同关：
+    /// 宿主窗口开启 Mica 时本窗口同样启用（背景透明 + Mica 背板），否则保持原不透明外观。
+    /// 必须在 <see cref="Window.Show"/> 之前调用，避免窗口先以不透明背景显示后再切换造成闪烁。
+    /// </summary>
+    internal void SyncHostWindowMaterial(Window? owner)
+    {
+        if (owner == null) return;
+        bool hostUsesMica = owner.ActualTransparencyLevel == WindowTransparencyLevel.Mica
+            || owner.TransparencyLevelHint?.Contains(WindowTransparencyLevel.Mica) == true;
+        if (!hostUsesMica) return;
+        TransparencyLevelHint = new[] { WindowTransparencyLevel.Mica };
+        Background = Brushes.Transparent;
+    }
+
     /// <summary>宿主是否处于自制标题栏模式：读取 ClassIsland 的 <c>IThemeService.UseNativeTitlebar</c>（反射以兼容各宿主版本）。</summary>
     static bool UseCustomTitleBar()
     {
@@ -190,127 +201,131 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         return pi?.GetValue(null) is bool useNative && !useNative;
     }
 
+    // 标题栏版本号：与「关于」页同源（插件目录 manifest.yml 的 version），读取失败回退程序集版本。
+    static string FormatVersionText()
+    {
+        var v = AboutPage.TryReadVersionFromManifest();
+        if (string.IsNullOrWhiteSpace(v))
+            v = typeof(FloatingScheduleAdvancedAppearanceWindow).Assembly.GetName().Version?.ToString();
+        return string.IsNullOrWhiteSpace(v) ? "AdvancedTimeIsland" : $"AdvancedTimeIsland: {v}";
+    }
+
     Control BuildCustomTitleBar()
     {
-        var bar = new Grid
+        // 与宿主 FAAppWindow 的 DefaultTitleBar（FluentAvalonia AppWindowStyles.axaml）完全一致：
+        // 高 32、背景 TitleBarBackground、前景 TitleBarForeground（窗口失焦用 *Inactive 资源）、
+        // 左侧 16×16 图标（左距 8）、标题字号 12（有图标时左距 32）；
+        // 右上角最小化/最大化/关闭由系统标题栏按钮绘制（与宿主相同的扩展客户区方案）。
+        _titleBarPanel = new Panel
         {
             Height = TitleBarHeight,
             Background = Brushes.Transparent,
-            ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,*,Auto"),
+            VerticalAlignment = VerticalAlignment.Top,
         };
-        // 左侧图标（复用插件根图标，与宿主标题栏图标位一致）
         var icon = new Image
         {
             Width = 16,
             Height = 16,
-            Margin = new Thickness(12, 0, 0, 0),
+            Margin = new Thickness(8, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             Source = PluginIconHelper.LoadIconBitmap(),
             IsHitTestVisible = false,
         };
-        Grid.SetColumn(icon, 0);
-        bar.Children.Add(icon);
-        // 标题文字（字号与宿主标题栏一致）
+        _titleBarPanel.Children.Add(icon);
         _titleBarTitle = new TextBlock
         {
             Text = Title,
             FontSize = 12,
-            Margin = new Thickness(10, 0, 0, 0),
+            Margin = new Thickness(32, 0, 0, 0),
+            HorizontalAlignment = HorizontalAlignment.Left,
             VerticalAlignment = VerticalAlignment.Center,
             IsHitTestVisible = false,
         };
-        Grid.SetColumn(_titleBarTitle, 1);
-        bar.Children.Add(_titleBarTitle);
-        // 右侧窗口按钮：最小化 / 最大化（还原）/ 关闭
-        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
-        buttons.Children.Add(CreateCaptionButton("\uE921", false, () => WindowState = WindowState.Minimized).Button);
-        var (maxButton, maxGlyph) = CreateCaptionButton("\uE922", false, ToggleMaximize);
-        _maximizeGlyph = maxGlyph;
-        buttons.Children.Add(maxButton);
-        buttons.Children.Add(CreateCaptionButton("\uE8BB", true, Close).Button);
-        Grid.SetColumn(buttons, 3);
-        bar.Children.Add(buttons);
-
-        ApplyTitleBarTheme();
-        bar.PointerPressed += TitleBar_PointerPressed;
-        return bar;
-    }
-
-    (Border Button, TextBlock Glyph) CreateCaptionButton(string glyph, bool isClose, Action onClick)
-    {
-        var text = new TextBlock
+        _titleBarPanel.Children.Add(_titleBarTitle);
+        // 版本号：放在宿主标题栏原先显示 AppVersion 的位置（宿主那里是「版本号 + 更多按钮」，
+        // 本窗口不提供「更多」，故保留其空位）。右侧让出最小化/最大化/关闭三个按钮（FA 模板每个 46px）
+        // 与宿主「更多」按钮的宽度，避免被窗口按钮遮挡。
+        _titleBarVersion = new TextBlock
         {
-            Text = glyph,
-            FontSize = 10,
-            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
-            HorizontalAlignment = HorizontalAlignment.Center,
+            Text = FormatVersionText(),
+            FontSize = 12,
+            Margin = new Thickness(0, 0, 178, 0),
+            HorizontalAlignment = HorizontalAlignment.Right,
             VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
         };
-        var btn = new Border
-        {
-            Width = CaptionButtonWidth,
-            Height = TitleBarHeight,
-            Background = Brushes.Transparent,
-            Child = text,
-        };
-        _captionButtons.Add((btn, text, isClose));
-        bool pressed = false;
-        btn.PointerEntered += (_, _) =>
-        {
-            btn.Background = isClose ? CloseHoverBrush() : CaptionHoverBrush();
-            if (isClose) text.Foreground = Brushes.White;
-        };
-        btn.PointerExited += (_, _) => { pressed = false; ResetCaptionButton(btn, text, isClose); };
-        btn.PointerPressed += (_, e) =>
-        {
-            if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
-            pressed = true;
-            btn.Background = isClose ? CloseHoverBrush() : CaptionPressedBrush();
-            e.Handled = true;
-        };
-        btn.PointerReleased += (_, e) =>
-        {
-            var click = pressed && e.InitialPressMouseButton == MouseButton.Left;
-            pressed = false;
-            ResetCaptionButton(btn, text, isClose);
-            if (!click) return;
-            e.Handled = true;
-            onClick();
-        };
-        return (btn, text);
+        _titleBarVersion.Bind(TextBlock.ForegroundProperty,
+            _titleBarVersion.GetResourceObservable("TextFillColorSecondaryBrush"));
+        _titleBarPanel.Children.Add(_titleBarVersion);
+
+        ApplyTitleBarColors();
+        Activated += (_, _) => ApplyTitleBarColors();
+        Deactivated += (_, _) => ApplyTitleBarColors();
+#if NET10_0_OR_GREATER
+        // Avalonia 12：与 FA3 模板使用同一标题栏元素角色，交系统处理拖动 / 双击最大化 / 右键系统菜单
+        Avalonia.Controls.Chrome.WindowDecorationProperties.SetElementRole(
+            _titleBarPanel, WindowDecorationsElementRole.TitleBar);
+#else
+        // Avalonia 11 无标题栏角色 API：自行处理拖动与双击最大化
+        _titleBarPanel.PointerPressed += TitleBar_PointerPressed;
+#endif
+        return _titleBarPanel;
     }
 
-    void ResetCaptionButton(Border btn, TextBlock glyph, bool isClose)
+    /// <summary>标题栏配色直接取宿主同名主题资源，窗口失焦时切到 Inactive 资源（与 FA 模板行为一致）。</summary>
+    void ApplyTitleBarColors()
     {
-        btn.Background = Brushes.Transparent;
-        if (isClose) glyph.Foreground = ThemeHelper.GetTextBrush();
+        if (_titleBarPanel == null) return;
+        var suffix = IsActive ? "" : "Inactive";
+        _titleBarBackgroundBinding?.Dispose();
+        _titleBarBackgroundBinding = _titleBarPanel.Bind(
+            Panel.BackgroundProperty, _titleBarPanel.GetResourceObservable("TitleBarBackground" + suffix));
+        _titleBarForegroundBinding?.Dispose();
+        _titleBarForegroundBinding = _titleBarTitle?.Bind(
+            TextBlock.ForegroundProperty, _titleBarTitle.GetResourceObservable("TitleBarForeground" + suffix));
     }
 
-    void ApplyTitleBarTheme()
+#if NET10_0_OR_GREATER
+    // Avalonia 12 在「扩展客户区」模式下由系统自绘标题栏（FA 的 WindowDrawnDecorations 模板），默认含
+    // 「全屏」按钮与模板标题文字。宿主 FAAppWindow 通过 :noFullScreen 伪类和专属样式把两者隐藏，
+    // 由自己的 DefaultTitleBar 绘制图标 + 标题。插件窗口是普通 Window，命中不了这些类型限定样式，
+    // 因此在这里按宿主相同的处理方式直接改控件：全屏按钮 Width=0 / Opacity=0 / 不可命中（保留占位，
+    // 避免如 FA GH#740 所述的布局问题），模板标题文字隐藏，改由自制标题栏绘制。
+    void HideDrawnDecorationsExtras()
     {
-        var fg = ThemeHelper.GetTextBrush();
-        if (_titleBarTitle != null) _titleBarTitle.Foreground = fg;
-        foreach (var (_, glyph, _) in _captionButtons) glyph.Foreground = fg;
+        var host = typeof(TopLevel)
+            .GetProperty("TopLevelHost", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+            .GetValue(this);
+        var decorations = host?.GetType()
+            .GetProperty("Decorations", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)?
+            .GetValue(host);
+        if (decorations?.GetType().GetProperty("Content")?.GetValue(decorations) is not { } content) return;
+        if (content.GetType().GetProperty("Overlay")?.GetValue(content) is not Control overlay) return;
+        foreach (var visual in overlay.GetVisualDescendants())
+        {
+            if (visual is Button btn && btn.Name == "PART_FullScreenButton")
+            {
+                btn.Width = 0;
+                btn.Opacity = 0;
+                btn.IsHitTestVisible = false;
+            }
+            else if (visual is TextBlock tb && tb.FindAncestorOfType<Button>() == null)
+            {
+                // 模板标题文字（FA 模板名为 TitleTextBlock，Avalonia 自带模板无名）；不含按钮内的字形文本
+                tb.IsVisible = false;
+            }
+        }
     }
+#endif
 
-    void OnTitleBarThemeChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(ApplyTitleBarTheme);
-
-    static IBrush CaptionHoverBrush() => ThemeHelper.IsDarkTheme()
-        ? new SolidColorBrush(Color.Parse("#18FFFFFF"))
-        : new SolidColorBrush(Color.Parse("#10000000"));
-
-    static IBrush CaptionPressedBrush() => ThemeHelper.IsDarkTheme()
-        ? new SolidColorBrush(Color.Parse("#24FFFFFF"))
-        : new SolidColorBrush(Color.Parse("#18000000"));
-
-    static IBrush CloseHoverBrush() => new SolidColorBrush(Color.Parse("#C42B1C"));
-
+#if !NET10_0_OR_GREATER
     void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
         if (e.ClickCount == 2 && CanMaximize)
         {
-            ToggleMaximize();
+            WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
             e.Handled = true;
             return;
         }
@@ -319,18 +334,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         BeginMoveDrag(e);
         e.Handled = true;
     }
-
-    void ToggleMaximize()
-    {
-        if (!CanMaximize) return;
-        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
-    }
-
-    void UpdateCaptionGlyph()
-    {
-        if (_maximizeGlyph != null)
-            _maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
-    }
+#endif
 
     // 窗口显示后按所在屏幕工作区校准尺寸：高 = 工作区高 × 0.615（旧版 0.82 降低 25%；给标题栏/任务栏留安全余量），
     // 宽同理；夹到最小/最大区间。避免固定尺寸在小屏或 125%/150% DPI 下标题栏溢出屏幕。
@@ -347,6 +351,10 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             Width = w; Height = h;
         }
         catch { }
+#if NET10_0_OR_GREATER
+        // 自绘装饰层在窗口显示后才建立：延后到布局完成再隐藏「全屏」按钮与模板标题文字。
+        if (_customChrome) Dispatcher.UIThread.Post(HideDrawnDecorationsExtras, DispatcherPriority.Loaded);
+#endif
     }
 
     void SwitchPanel(int idx)
@@ -394,7 +402,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
                 FontSize = 12, Margin = new Thickness(0, 0, 0, 8), TextWrapping = TextWrapping.Wrap, Opacity = 0.8
             });
         }
-        p.Items.Add(RowToggle("果冻效果（仅液态玻璃）", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
+        p.Items.Add(RowToggle("果冻效果", _s.FloatingScheduleJellyEnabled, v => _s.FloatingScheduleJellyEnabled = v));
         p.Items.Add(RowSlider("圆角程度 (0~10px)", _s.FloatingScheduleCornerRadius, 0, 10, 0.5, v => _s.FloatingScheduleCornerRadius = v, out _));
         p.Items.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）

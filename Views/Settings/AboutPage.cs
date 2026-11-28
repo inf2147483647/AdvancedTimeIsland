@@ -275,7 +275,8 @@ public class AboutPage : SettingsPageBase
         return "未知版本";
     }
 
-    private static string? TryReadVersionFromManifest()
+    /// <summary>读取插件目录下 manifest.yml 的 version（供「关于」页与标题栏版本号共用），失败返回 null。</summary>
+    internal static string? TryReadVersionFromManifest()
     {
         try
         {
