@@ -8,9 +8,10 @@
 //   文字/进度条/分隔线等全部保持全帧率渲染。
 // 注意：采样式折射的固有属性是"玻璃里的桌面画面按采样率步进"，这部分无法做到 60fps。
 //
-// 【采样来源】默认采集**完整桌面**（所有下方窗口 + 壁纸）：采样瞬间把悬浮窗临时排除出捕获
-//   （WDA_EXCLUDEFROMCAPTURE，抓完立即恢复），因此不会拍到自己；远程会话自动退回"仅下方窗口"
-//   （Win11 WGC / Win10 PrintWindow），避免远端看不到悬浮窗。
+// 【采样来源】只有一种：GDI BitBlt 抓**整屏**（所有下方窗口 + 壁纸）。采样期间持续把悬浮窗
+//   排除出捕获（WDA_EXCLUDEFROMCAPTURE），因此抓到的就是自己正下方的合成画面，不会拍到自己。
+//   DXGI Desktop Duplication / 仅下方窗口（WGC / PrintWindow）/ 完整桌面等方案已按需求删除，
+//   连同 Vortice 依赖一起去掉。
 //
 // 【不再有"拖动位移补偿"】此前为了拖动跟手，会抓"卡片外扩一圈"的缓冲、拖动期间只做 GPU 取样矩形平移，
 //   仅在累计位移超阈值时后台重烘焙。外扩取材导致**折射边缘不跟随窗口移动**（边缘按旧烘焙基准走），
@@ -29,16 +30,11 @@ namespace AdvancedTimeIsland.Shared.FloatingSchedule;
 
 public sealed class FloatScheduleGlassBackdrop
 {
-    /// <summary>DXGI 连续失败达到该次数后进入冷却（改走 GDI），冷却期结束再重试 DXGI。</summary>
-    const int DxgiFailThreshold = 3;
-    /// <summary>DXGI 冷却时长（毫秒）：被 OBS 等独占 / 桌面复制暂不可用时定期重试恢复。</summary>
-    const long DxgiRetryIntervalMs = 10_000;
-
     readonly object _lock = new();
-    /// <summary>抓帧串行化锁：同一时刻只允许一个抓帧进入后端（DXGI/GDI）。</summary>
+    /// <summary>抓帧串行化锁：同一时刻只允许一个抓帧进入 GDI。</summary>
     readonly object _captureLock = new();
 
-    // ===== 完整桌面采样的"持续排除自身"状态 =====
+    // ===== 采样期间的"持续排除自身"状态 =====
     // 逐帧"排除→抓→恢复"会让 DWM 来不及合成，必须每帧 DwmFlush（16~60ms），这是延迟主因。
     // 改为采样期间持续排除：只在开始采样时 flush 一次；停止采样（无调用）400ms 后自动恢复。
     readonly object _affinityLock = new();
@@ -48,28 +44,19 @@ public sealed class FloatScheduleGlassBackdrop
     // ===== 抓帧 / 折射缓冲 =====
     byte[]? _src;                    // 采样抓帧缓冲（尺寸 = 卡片）
     int _srcW, _srcH;                // _src 的尺寸
-    bool _srcValid;                  // _src 是否已装填过可用内容
     byte[]? _dst;                    // 前台折射结果（尺寸 = 卡片）—— 供 Commit 上传位图
     int _dstW, _dstH;
     WriteableBitmap? _bmp;           // 卡片背景位图（按尺寸缓存复用，不逐帧新建）
     ImageBrush? _brush;              // 背景画笔（整幅位图直接铺满卡片）
     Border? _layer;                  // 最近一次 Apply 挂进可视树的那个 Border（刷新时就地换 Background）
     int _w = -1, _h = -1;            // 卡片物理像素尺寸
-    bool _lastNewFrame;              // 本次抓帧是否拿到了新帧（DXGI 明确告知"桌面无变化"时为 false）
-    int _capX = int.MinValue, _capY, _capW, _capH;   // 上次成功抓取的屏幕区域
     bool _dirty;
 
-    // ===== 捕获方式（0=完整桌面 1=DXGI 屏幕 2=GDI 屏幕 3=仅下方窗口）与 DXGI 回退状态 =====
-    int _captureMode;
+    // ===== 采集方式：已归中为唯一的 GDI BitBlt 整屏采集 =====
     bool _preventCapture;
-    FloatScheduleDxgiCapture? _dxgi;
-    FloatScheduleWindowCapture? _windowCapture;
-    long _dxgiRetryAfterTicks;
-    int _dxgiFailStreak;
 
     /// <summary>用户"阻止截图"是否开启（由宿主 / 子进程在每次采样前同步）。
-    /// 开启时悬浮窗被 WDA_EXCLUDEFROMCAPTURE 永久排除出捕获，截图工具重新配置捕获会话后 DWM 可能把
-    /// 窗口所占区域返回为纯黑 —— 纯黑不是桌面内容，必须丢弃（见 CaptureAndRefract）。</summary>
+    /// GDI 抓屏只保留该状态供宿主查询；采样本身不再因此切换采集方式（GDI 抓到的一直是自己背后的画面）。</summary>
     public bool PreventCapture
     {
         get { lock (_lock) return _preventCapture; }
@@ -78,41 +65,6 @@ public sealed class FloatScheduleGlassBackdrop
             // UI 线程写入；采样线程可能正持有 _lock 抓帧 → 拿不到就跳过，宿主下一 tick 会重试。
             if (!Monitor.TryEnter(_lock)) return;
             try { _preventCapture = value; }
-            finally { Monitor.Exit(_lock); }
-        }
-    }
-
-    /// <summary>采集模式：0=经典采集 DXGI（cf78b44：保持排除捕获，抓窗口区域，DXGI 优先 / GDI 回退）；
-    /// 1=经典采集 GDI BitBlt（同上，强制 GDI）；2=完整桌面（所有下方窗口 + 壁纸）；
-    /// 3=仅采集下方窗口（Win11 WGC / Win10 PrintWindow）。运行期可切。</summary>
-    public int CaptureMode
-    {
-        get { lock (_lock) return _captureMode; }
-        set
-        {
-            // UI 线程写入；采样线程可能正持有 _lock 抓帧 → 拿不到就跳过，宿主下一 tick 会重试。
-            if (!Monitor.TryEnter(_lock)) return;
-            try
-            {
-                if (_captureMode == value) return;
-                _captureMode = value;
-                if (_captureMode == 3) ReleaseCaptureExclusion();
-                if (_captureMode != 3)
-                {
-                    try { _windowCapture?.Dispose(); } catch { }
-                    _windowCapture = null;
-                }
-                if (_captureMode == 1)   // 经典 GDI 模式不用 DXGI → 释放后端（下次切回再惰性重建）
-                {
-                    lock (_captureLock)
-                    {
-                        try { _dxgi?.Dispose(); } catch { }
-                        _dxgi = null;
-                        _dxgiFailStreak = 0;
-                        _dxgiRetryAfterTicks = 0;
-                    }
-                }
-            }
             finally { Monitor.Exit(_lock); }
         }
     }
@@ -186,27 +138,18 @@ public sealed class FloatScheduleGlassBackdrop
     }
 
     /// <summary>
-    /// 【后台线程】按当前捕获方式采样卡片背后的画面 → 折射，结果留在内部缓冲。
-    /// 默认采集完整桌面（所有下方窗口 + 壁纸）：采样期间持续把悬浮窗排除出捕获，
-    /// 停止采样 400ms 后自动恢复；远程会话退回"仅下方窗口"。
-    /// 桌面内容与上次相同则直接返回 false（常态几乎零开销）。
+    /// 【后台线程】用 GDI BitBlt 抓卡片背后的整屏画面 → 折射，结果留在内部缓冲。
+    /// 采样期间持续把悬浮窗排除出捕获，停止采样 400ms 后自动恢复。
     /// </summary>
     public bool CaptureAndRefract(IntPtr hwnd, int w, int h, double cornerPx)
     {
         if (w < 4 || h < 4) return false;
         if (!FloatScheduleScreenCapture.TryGetWindowOrigin(hwnd, out int ox, out int oy)) return false;
 
-        // 完整桌面模式：确保自身已排除出捕获（首次会等 DWM 合成一帧，之后持续复用）。
-        // 【必须在 _lock 之外】首次 DwmFlush 会阻塞 ~16ms；若持 _lock，UI 线程的 Commit 会被卡住。
-        int mode = _captureMode;
-        // 自身已被排除出捕获（用户开了"阻止截图"，或外部设置了 WDA_*）时，屏幕采集会把
-        // 悬浮窗所占区域返回为纯黑（非分层窗口），折射后背景就变黑。此时直接改采"下方窗口"。
-        bool preventCapture = PreventCapture || FloatScheduleScreenCapture.IsProtectedFromCapture(hwnd);
-        bool forceWindowUnder = preventCapture && mode != 3;
-        bool tempExcluded = false;
-        if (mode != 3 && !forceWindowUnder && !FloatScheduleScreenCapture.IsRemoteSession())
-            tempExcluded = EnsureCaptureExclusion(hwnd);
-        bool wasExcluded = tempExcluded;
+        // GDI 抓屏前确保自身已排除出捕获：BitBlt 抓到的就是"自己正下方的合成画面"。
+        // 【必须在 _lock 之外】首次设置排除后要等 DWM 合成一帧，持锁会把 UI 线程的 Commit 卡住。
+        // 远程会话同样排除：不排除会把自己（含上一帧玻璃内容）一起抓进来，形成自我递归。
+        EnsureCaptureExclusion(hwnd);
 
         lock (_lock)
         {
@@ -215,7 +158,6 @@ public sealed class FloatScheduleGlassBackdrop
                 {
                     _src = new byte[w * h * 4];
                     _srcW = w; _srcH = h;
-                    _srcValid = false;   // 缓冲被重建 → 里面的内容不再可信
                 }
                 if (_dst == null || _dstW != w || _dstH != h)
                 {
@@ -223,120 +165,19 @@ public sealed class FloatScheduleGlassBackdrop
                     _dstW = w; _dstH = h;
                 }
 
-                bool capOk = false, newFrame = false;
-                if (mode == 2 && !forceWindowUnder)
-                {
-                    if (tempExcluded)
-                    {
-                        // 完整桌面：所有下方窗口 + 壁纸。排除状态在采样期间持续保持（见 EnsureCaptureExclusion）。
-                        lock (_captureLock)
-                        {
-                            capOk = TryCaptureRegionAuto(ox, oy, w, h, _src, ref _capX, ref _capY, ref _capW, ref _capH, ref _srcValid);
-                            newFrame = _lastNewFrame;
-                        }
-                    }
-                    else
-                    {
-                        // 远程会话 / 排除失败：退回"仅下方窗口"，保证远端仍能看到悬浮窗。
-                        var target = FloatScheduleWindowCapture.FindWindowBelow(hwnd, ox, oy, w, h);
-                        _windowCapture ??= new FloatScheduleWindowCapture();
-                        capOk = target != IntPtr.Zero && _windowCapture.TryCapture(target, ox, oy, w, h, _src);
-                        newFrame = capOk;
-                        if (capOk) { _srcValid = true; _capX = int.MinValue; }
-                    }
-                    if (!capOk && !wasExcluded)
-                    {
-                        // 未排除自身时的最后兜底：普通屏幕采集（远程会话下这是唯一可用路径）。
-                        lock (_captureLock)
-                        {
-                            capOk = TryCaptureRegionAuto(ox, oy, w, h, _src, ref _capX, ref _capY, ref _capW, ref _capH, ref _srcValid);
-                            newFrame = _lastNewFrame;
-                        }
-                    }
-                }
-                else if (mode == 3 || forceWindowUnder)
-                {
-                    // 仅采集悬浮窗下方的单个窗口（Win11 WGC / Win10 PrintWindow）。
-                    var target = FloatScheduleWindowCapture.FindWindowBelow(hwnd, ox, oy, w, h);
-                    _windowCapture ??= new FloatScheduleWindowCapture();
-                    capOk = target != IntPtr.Zero && _windowCapture.TryCapture(target, ox, oy, w, h, _src);
-                    newFrame = capOk;
-                    if (capOk)
-                    {
-                        _srcValid = true;
-                        _capX = int.MinValue;   // 区域跟踪失效，回退屏幕采集时强制重抓
-                    }
-                    else if (!forceWindowUnder)
-                    {
-                        // 用户显式选择"仅下方窗口"时才回退屏幕采集；防截图强制路径不能回退（会采到黑块）。
-                        lock (_captureLock)
-                        {
-                            capOk = TryCaptureRegionAuto(ox, oy, w, h, _src, ref _capX, ref _capY, ref _capW, ref _capH, ref _srcValid);
-                            newFrame = _lastNewFrame;
-                        }
-                    }
-                }
-                else
-                {
-                    // 经典采集（cf78b44）：窗口保持"排除捕获"，抓窗口区域。
-                    // 分层窗口在 WDA 排除后，BitBlt 拿到的是窗口背后的桌面；DXGI 优先（模式 0），
-                    // 模式 1 强制 GDI（见 TryCaptureRegionAuto）。
-                    if (tempExcluded)
-                    {
-                        lock (_captureLock)
-                        {
-                            capOk = TryCaptureRegionAuto(ox, oy, w, h, _src, ref _capX, ref _capY, ref _capW, ref _capH, ref _srcValid);
-                            newFrame = _lastNewFrame;
-                        }
-                    }
-                    else
-                    {
-                        // 远程会话 / 拿不到排除态：退回"仅下方窗口"，避免拍到自己。
-                        var target = FloatScheduleWindowCapture.FindWindowBelow(hwnd, ox, oy, w, h);
-                        _windowCapture ??= new FloatScheduleWindowCapture();
-                        capOk = target != IntPtr.Zero && _windowCapture.TryCapture(target, ox, oy, w, h, _src);
-                        newFrame = capOk;
-                        if (capOk) { _srcValid = true; _capX = int.MinValue; }
-                    }
-                }
-                if (forceWindowUnder && capOk && IsNearlyAllBlack(_src!, w, h))
-                {
-                    // 下方窗口也采不到（典型：Win10 下 PrintWindow 抓桌面壁纸会返回黑帧）。
-                    // 宁可保留上一帧/不显示玻璃，也绝不把纯黑提交上去。
-                    capOk = false;
-                }
+                bool capOk;
+                lock (_captureLock)
+                    capOk = FloatScheduleScreenCapture.TryCaptureScreenRegion(ox, oy, w, h, _src!);
                 if (!capOk) return false;
 
-                // 【阻止截图 → 屏幕采集可能整块纯黑】用户开启"阻止截图"后，悬浮窗被 WDA_EXCLUDEFROMCAPTURE
-                // 永久排除出捕获；截图工具重新配置系统捕获会话后，DWM 可能把悬浮窗所占区域返回为纯黑。
-                // 纯黑不是真实桌面内容：烘焙后玻璃背景会突然变黑，且桌面静止时没有新帧来纠正（表现为"永久变黑"）。
-                // 处理：完整桌面模式改采"仅下方窗口"（WGC / PrintWindow，不受自身捕获亲和性影响）；
-                //       其余屏幕采集模式直接丢弃本帧、保留上一帧内容。
-                if (!forceWindowUnder && preventCapture && mode != 3 && IsNearlyAllBlack(_src!, w, h))
-                {
-                    bool recovered = false;
-                    if (mode == 0)
-                    {
-                        var below = FloatScheduleWindowCapture.FindWindowBelow(hwnd, ox, oy, w, h);
-                        _windowCapture ??= new FloatScheduleWindowCapture();
-                        recovered = below != IntPtr.Zero && _windowCapture.TryCapture(below, ox, oy, w, h, _src!);
-                        if (recovered)
-                        {
-                            _srcValid = true;
-                            _capX = int.MinValue;   // 区域跟踪失效
-                            newFrame = true;
-                        }
-                    }
-                    if (!recovered) return false;
-                }
-
-                // 抓帧后端给出的**权威信号**：只有屏幕采集（DXGI）明确告知"桌面无新帧"时才跳过折射上传；
-                // GDI 抓到即视为新帧，窗口采集每次都要重折射（卡片位置变化会改变裁剪区域）。
-                if (!newFrame && _brush != null) return false;
+                // 【纯黑防御】自身被排除出捕获时，DWM 有时会把窗口区域返回为纯黑（截图工具重配捕获会话后）。
+                // 纯黑不是桌面内容：丢弃本帧、保留上一帧，绝不把黑块提交上去。
+                if (IsNearlyAllBlack(_src!, w, h)) return false;
 
                 // cf78b44：pad=0、卡片铺满整幅；keepOutsidePixels=true 让圆角外的像素保持抓到的桌面
                 // （圆角裁剪由承载 Border 的 CornerRadius 负责）。
-                FloatScheduleScreenCapture.RefractForCard(_src!, _dst!, w, h, cornerPx, 0, 0, w, h, true);
+                // transparentCenter=true：鸿蒙风格 —— 只有贴边一带折射，中部全透明，直接露出真实桌面。
+                FloatScheduleScreenCapture.RefractForCard(_src!, _dst!, w, h, cornerPx, 0, 0, w, h, true, transparentCenter: true);
                 _dirty = true;
                 return true;
         }
@@ -392,67 +233,5 @@ public sealed class FloatScheduleGlassBackdrop
         _brush = new ImageBrush(_bmp) { Stretch = Stretch.Fill };
         if (_layer != null) _layer.Background = _brush;   // 就地换背景
         else NeedsApply = true;                            // 还没有挂载的层 → 让宿主重套一次材质
-    }
-
-    // ===================== 内部实现 =====================
-
-    /// <summary>
-    /// 抓屏幕上 (x,y,w,h) 到 dst：DXGI 优先，不可用/失败时回退 GDI BitBlt。
-    /// 返回 true 表示 dst 现在持有该区域的**有效**内容（可能是刚抓到的新帧，也可能是"桌面无变化"时沿用的上一帧）。
-    /// 区域跟踪与"dst 是否有内容"由调用方通过 ref 传入。
-    /// 须在 _captureLock 内调用。
-    /// </summary>
-    bool TryCaptureRegionAuto(int x, int y, int w, int h, byte[] dst,
-        ref int capX, ref int capY, ref int capW, ref int capH, ref bool dstValid)
-    {
-        // 目标区域是否发生变化：区域变了就必须重新渲染（哪怕桌面本身没变），
-        // 否则"桌面无新帧"时沿用旧缓冲会渲染出**错位**内容。
-        bool regionChanged = x != capX || y != capY || w != capW || h != capH;
-        if (_captureMode != 1)
-        {
-            long now = Environment.TickCount64;
-            if (now >= _dxgiRetryAfterTicks)   // 冷却期内直接走 GDI，避免每次采样都在失败的 DXGI 上白花时间
-            {
-                _dxgi ??= new FloatScheduleDxgiCapture();
-                if (_dxgi.TryCapture(x, y, w, h, dst))
-                {
-                    _dxgiFailStreak = 0;
-                    dstValid = true;
-                    _lastNewFrame = true;
-                    capX = x; capY = y; capW = w; capH = h;
-                    return true;
-                }
-                // 桌面无变化（AcquireNextFrame 超时）但上一帧仍代表这块区域 → 沿用缓冲里已有内容。
-                // 注意：只有**区域没变**时才允许沿用；区域变了则必须当作"有新内容"重新渲染，
-                //   否则会把旧区域的像素按新位置渲染出来（错位）。
-                if (_dxgi.LastFrameValid && dstValid)
-                {
-                    _dxgiFailStreak = 0;
-                    _lastNewFrame = regionChanged;
-                    return true;
-                }
-                if (!_dxgi.LastAcquireTimedOut)
-                {
-                    // 硬失败（初始化失败 / 被其他进程独占 / AccessLost / 旋转输出等）→ 连续失败到阈值即冷却
-                    if (++_dxgiFailStreak >= DxgiFailThreshold)
-                    {
-                        try { _dxgi.Dispose(); } catch { }
-                        _dxgi = null;
-                        _dxgiFailStreak = 0;
-                        _dxgiRetryAfterTicks = now + DxgiRetryIntervalMs;
-                    }
-                }
-            }
-        }
-
-        // GDI 回退：单次固定 ~24ms，但保证"一定能拿到内容"
-        if (FloatScheduleScreenCapture.TryCaptureScreenRegion(x, y, w, h, dst))
-        {
-            dstValid = true;
-            _lastNewFrame = true;   // GDI 每次都是实抓，视为新帧
-            capX = x; capY = y; capW = w; capH = h;
-            return true;
-        }
-        return false;
     }
 }

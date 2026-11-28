@@ -217,14 +217,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         p.Items.Add(RowSlider("效果强度 (0~100%)", _s.FloatingScheduleMaterialIntensity * 100, 0, 100, 1, v => _s.FloatingScheduleMaterialIntensity = v / 100.0, out _));
         // 液态玻璃真折射背景的采样率（直接绑定设置，改动即时生效；见设置项 XML 注释）
         p.Items.Add(RowNumeric("液态玻璃采样率 (1~60Hz)", _s.FloatingScheduleGlassSampleRateHz, 1, 60, 0.1, v => _s.FloatingScheduleGlassSampleRateHz = v));
-        // 采集方案（二选一，改动即时生效）：
-        //   方案1 = DWM/WGC 采集（不排除自身 → 支持截图；资源占用高、适配性差）
-        //   方案2 = cf78b44 经典采集（采样期间排除自身 → 不支持截图；占用低、流畅）
-        int captureScheme = _s.FloatingScheduleGlassCaptureMode == FloatingScheduleGlassCaptureMode.WindowUnder ? 0 : 1;
-        p.Items.Add(RowCombo("采集方案", new[] { "方案1（DWM采集，支持截图，但资源占用高，适配不佳）", "方案2（资源占用低，流畅度高，但不支持截图）" },
-            captureScheme, i => _s.FloatingScheduleGlassCaptureMode = i == 0
-                ? FloatingScheduleGlassCaptureMode.WindowUnder
-                : FloatingScheduleGlassCaptureMode.Dxgi, out _));
+        // 采集方案已归中为唯一的 GDI 整屏采集，界面上不再提供切换项。
         // 拖动位移与渲染帧同步：把"窗口位置 + 玻璃背景"放在同一个 Avalonia 渲染帧内提交，消除背景 ±1 帧抖动（代价：固定 1 帧延迟）
         p.Items.Add(RowToggle("拖动位移与渲染帧同步", _s.FloatingScheduleGlassVSync, v => _s.FloatingScheduleGlassVSync = v));
         p.Items.Add(RowButton("选择自定义背景图片…", async (_, _) =>
@@ -794,8 +787,10 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         double band = Math.Clamp(Math.Min(w, h) * 0.14, 8.0, 20.0);   // 折射带高度（设计经验：UI 控件玻璃厚度 ≤20）
         double amount = Math.Min(w, h) * 0.10;                        // 最大位移量（≈10% 卡片尺寸）
         FloatScheduleRefraction.Refract(src, dst, w, h, corner, band, amount,
-            // 与真机抓帧侧同源：depthEffect=false，位移仅取 SDF 梯度（边缘法线），避免"放射状"星芒
-            depthEffect: false, chromaticAberration: 0.10, highlightStrength: 0.35, highlightAngleDeg: 45, highlightFalloff: 4.0);
+            // 与真机抓帧侧同源：depthEffect=false，位移仅取 SDF 梯度（边缘法线），避免"放射状"星芒。
+            // transparentCenter=true：与真机一致 —— 只有贴边一带折射，中部透明（露出示例背景）。
+            depthEffect: false, chromaticAberration: 0.10, highlightStrength: 0.35, highlightAngleDeg: 45, highlightFalloff: 4.0,
+            transparentCenter: true);
         var bmp = FloatScheduleRefraction.ToBitmap(dst, w, h);
         return bmp == null ? null : new ImageBrush(bmp) { Stretch = Stretch.Fill };
     }

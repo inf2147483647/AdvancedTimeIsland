@@ -422,7 +422,7 @@ function Publish-FloatExe {
         return $false
     }
 
-    # 子进程 exe 为减小包体已把 Vortice / SharpGen / System.Text.Json 等从单文件包里排除
+    # 子进程 exe 为减小包体已把 System.Text.Json 等从单文件包里排除
     # （见 AdvancedTimeIslandFloatSchedule.csproj 的 ExcludeSharedDependenciesFromSingleFileBundle），
     # 运行时从 exe 所在目录（即插件包目录）解析它们。此处校验这些 DLL 确实已在主插件输出目录里，
     # 且程序集名称 / 版本一致（补丁版本差异不影响加载，故按 AssemblyName 而非文件哈希比对），

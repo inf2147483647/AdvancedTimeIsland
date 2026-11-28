@@ -181,7 +181,8 @@ public static class FloatScheduleScreenCapture
     /// 默认重载即 offset=0、card=w×h、keepOutsidePixels=false（与旧行为逐字节一致）。
     /// </summary>
     public static void RefractForCard(byte[] src, byte[] dst, int w, int h, double cornerPx,
-        int cardOffsetX, int cardOffsetY, int cardW, int cardH, bool keepOutsidePixels)
+        int cardOffsetX, int cardOffsetY, int cardW, int cardH, bool keepOutsidePixels,
+        bool transparentCenter = false)
     {
         double band = Math.Clamp(Math.Min(cardW, cardH) * 0.14, 8.0, 20.0);
         double amount = Math.Min(cardW, cardH) * 0.10;
@@ -191,6 +192,6 @@ public static class FloatScheduleScreenCapture
             // 卡片中部不变形、四角沿圆角弧心呈扇形发散（上游 Kyant 通用 lens() 的默认值也是 false）。
             depthEffect: false, chromaticAberration: 0.10, highlightStrength: 0.35, highlightAngleDeg: 45, highlightFalloff: 4.0,
             cardOffsetX: cardOffsetX, cardOffsetY: cardOffsetY, cardW: cardW, cardH: cardH,
-            keepOutsidePixels: keepOutsidePixels);
+            keepOutsidePixels: keepOutsidePixels, transparentCenter: transparentCenter);
     }
 }

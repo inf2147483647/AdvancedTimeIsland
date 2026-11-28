@@ -40,7 +40,7 @@ public static class FloatScheduleRefraction
         double chromaticAberration = 0.0, double highlightStrength = 0.0,
         double highlightAngleDeg = 45.0, double highlightFalloff = 1.0,
         int cardOffsetX = 0, int cardOffsetY = 0, int cardW = 0, int cardH = 0,
-        bool keepOutsidePixels = false)
+        bool keepOutsidePixels = false, bool transparentCenter = false)
     {
         if (w <= 0 || h <= 0) return;
         int len = Math.Min(src.Length, dst.Length);
@@ -75,7 +75,17 @@ public static class FloatScheduleRefraction
                     continue;
                 }
                 double depth = -sd;
-                if (depth >= rh) continue;                                                                 // 带外 → 直通
+                if (depth >= rh)
+                {
+                    // 带外（离边缘超过折射带）：默认原样直通。
+                    // transparentCenter=true 时改为全透明 —— 鸿蒙风格液态玻璃只有贴边一带折射，
+                    // 中部不做任何处理、直接露出真实桌面，因此不需要把中部像素画上去。
+                    if (transparentCenter)
+                    {
+                        dst[o] = 0; dst[o + 1] = 0; dst[o + 2] = 0; dst[o + 3] = 0;
+                    }
+                    continue;
+                }
 
                 double d = -CircleMap(1.0 - depth / rh) * refractionAmount;
                 GradSdRoundedRect(cx, cy, halfW, halfH, gradRadius, out double gx, out double gy);

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -164,18 +164,17 @@ public enum FloatingScheduleThemeMode
     FollowSystem = 3
 }
 
-/// <summary>悬浮窗"液态玻璃"背景捕获方式（采集模式）。</summary>
+/// <summary>悬浮窗"液态玻璃"背景捕获方式。采集已归中为唯一的 GDI 整屏采集：
+/// 保留旧成员只为让历史配置文件能正常反序列化，读写一律收敛到 <see cref="GdiBitBlt"/>。</summary>
 public enum FloatingScheduleGlassCaptureMode
 {
-    /// <summary>0 - 经典采集 · DXGI（cf78b44 默认）：采样期间保持窗口"排除捕获"，抓窗口区域；
-    /// DXGI Desktop Duplication 优先，失败回退 GDI。</summary>
+    /// <summary>历史取值（DXGI 优先）—— 已删除，读到后收敛为 GdiBitBlt。</summary>
     Dxgi = 0,
-    /// <summary>1 - 经典采集 · GDI BitBlt：同上，强制 GDI（单次固定 ~24ms 同步）。</summary>
+    /// <summary>当前唯一实现：GDI BitBlt 整屏采集（采样期间把自身排除出捕获）。</summary>
     GdiBitBlt = 1,
-    /// <summary>2 - 完整桌面：所有下方窗口 + 壁纸（后续新增；采样时临时排除悬浮窗自身）。</summary>
+    /// <summary>历史取值（完整桌面）—— 已删除，读到后收敛为 GdiBitBlt。</summary>
     FullDesktop = 2,
-    /// <summary>3 - 仅采集悬浮窗下方的单个窗口：Win11 WGC/DWM（可关黄色捕获边框），
-    /// Win10 PrintWindow。不会拍到自己，但只包含一个窗口、不含壁纸。</summary>
+    /// <summary>历史取值（仅下方窗口 WGC/PrintWindow）—— 已删除，读到后收敛为 GdiBitBlt。</summary>
     WindowUnder = 3
 }
 
@@ -246,7 +245,7 @@ public class PluginSettings : INotifyPropertyChanged
     private double _floatingScheduleCornerRadius = 8.0;      // 用户决议 Q-A：默认 8px，保持现状观感
     private double _floatingScheduleMaterialIntensity = 0.5; // 效果强度 0~1（云母着色膜浓度、亚克力模糊度、液态玻璃折射度）
     private double _floatingScheduleGlassSampleRateHz = 30.0; // 液态玻璃真折射背景的采样率（Hz，1~60）
-    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.Dxgi; // 液态玻璃采集模式（默认经典 DXGI，与 cf78b44 一致）
+    private FloatingScheduleGlassCaptureMode _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.GdiBitBlt;
     private bool _floatingScheduleGlassVSync = true;            // 液态玻璃拖动位移与渲染帧同步（位移与背景在同一渲染帧提交）
     private string _floatingScheduleCustomBackgroundPath = "";
     // 边框
@@ -1168,22 +1167,16 @@ public class PluginSettings : INotifyPropertyChanged
         }
     }
 
-    /// <summary>【液态玻璃】采集方案（只有两个）：0=方案2（cf78b44 经典采集，低占用/流畅，采样期间排除自身 → 不支持截图）；
-    /// 3=方案1（DWM/WGC 采集，不排除自身 → 支持截图，资源占用高、适配性差）。
-    /// GDI / 完整桌面为内部保留取值，写入时会收敛到方案2。</summary>
+    /// <summary>【液态玻璃】采集方案（已归中为 GDI 整屏一种）：保留该属性只为兼容旧配置文件，
+    /// 读到的任何历史取值（DXGI / 完整桌面 / 仅下方窗口）都会被收敛为 GDI。</summary>
     public FloatingScheduleGlassCaptureMode FloatingScheduleGlassCaptureMode
     {
         get => _floatingScheduleGlassCaptureMode;
         set
         {
-            // 高级外观只暴露两个方案：0=方案2（cf78b44 经典采集）、3=方案1（DWM/WGC）。
-            // 旧的 GDI / 完整桌面取值统一收敛到方案2，避免界面显示与后端不一致。
-            var v = value == FloatingScheduleGlassCaptureMode.WindowUnder
-                ? FloatingScheduleGlassCaptureMode.WindowUnder
-                : FloatingScheduleGlassCaptureMode.Dxgi;
-            if (_floatingScheduleGlassCaptureMode != v)
+            if (_floatingScheduleGlassCaptureMode != FloatingScheduleGlassCaptureMode.GdiBitBlt)
             {
-                _floatingScheduleGlassCaptureMode = v;
+                _floatingScheduleGlassCaptureMode = FloatingScheduleGlassCaptureMode.GdiBitBlt;
                 OnPropertyChanged();
             }
         }

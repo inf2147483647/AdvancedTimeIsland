@@ -38,7 +38,7 @@ public static class FloatScheduleMaterialApplier
         {
             1 => 8.0 + 10.0 * it,    // 云母 8~18（壁纸轻模糊）
             2 => 8.0 + 14.0 * it,    // 亚克力 8~22
-            3 => 0.0 + 2.5 * it,     // 液态玻璃 0~2.5（近似"无模糊、纯折射"）
+            3 => 0.0,                // 液态玻璃：不做模糊（鸿蒙风格只有边缘折射，中部直接透明）
             _ => 0.0,
         };
     }
@@ -226,7 +226,16 @@ public static class FloatScheduleMaterialApplier
             });
         }
         grid.Children.Add(Ring(cr, 1, refracted ? (byte)0x2E : (byte)(0x66 + 0x33 * it), 0xFF, 0xFF, 0xFF));   // ⑤ 1px 镜面 rim（折射路径 α=0x2E 对齐 Apple CSS 的 border rgba(255,255,255,0.18)）
-        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Height = 2.5, VerticalAlignment = VerticalAlignment.Top, Background = MakeTopHighlightBrush(refracted ? 0.30 : 0.6 + 0.4 * it) });   // ⑥ 顶部镜面高光带（折射路径 α≈0.25 对齐 inset 0 1px 0 rgba(255,255,255,0.25)）
+        // ⑥ 顶部镜面高光：必须**沿圆角弧线**走，不能用"顶部对齐 + 固定高度 2.5px 的色条"——
+        //    条本身高度远小于圆角半径，Border 只能把圆角压成扁椭圆，两端于是露出一段不跟弧线的直线（用户反馈的"白线不契合圆角"）。
+        //    改为 1px 边框 + 自上而下快速衰减的白色渐变：高光只落在顶边与左右上圆角，随弧线自然弯折。
+        grid.Children.Add(new Border
+        {
+            CornerRadius = cr,
+            IsHitTestVisible = false,
+            BorderThickness = new Thickness(1),
+            BorderBrush = MakeTopEdgeHighlightBrush(refracted ? 0.30 : 0.6 + 0.4 * it),
+        });   // ⑥ 顶部镜面高光（折射路径 α≈0.25 对齐 inset 0 1px 0 rgba(255,255,255,0.25)）
         if (!refracted) // 真折射路径已由折射核心烘焙对角高光，不再叠 sheen
             grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = MakeSheenBrush(0.75 + 0.25 * it) });
         grid.Children.Add(content);                                              // ⑧ 内容置顶
@@ -306,8 +315,9 @@ public static class FloatScheduleMaterialApplier
             BorderBrush = new SolidColorBrush(Color.FromArgb(a, r, g, b)),
         };
 
-    // 顶部镜面高光带：顶部 2.5px 亮 → 透明（液态玻璃"最关键的一行"）。
-    private static LinearGradientBrush MakeTopHighlightBrush(double strength)
+    // 顶部镜面高光（贴在 1px 边框上，沿圆角走）：顶边最亮，向下约 18% 高度内快速衰减到全透明，
+    // 因此只有顶边与左右上圆角会亮，左右两侧中下段与底边不会出现多余亮线。
+    private static LinearGradientBrush MakeTopEdgeHighlightBrush(double strength)
     {
         byte a0 = (byte)Math.Clamp((int)(255 * 0.82 * Math.Clamp(strength, 0, 1)), 0, 255);
         return new LinearGradientBrush
@@ -317,7 +327,8 @@ public static class FloatScheduleMaterialApplier
             GradientStops =
             {
                 new GradientStop(Color.FromArgb(a0, 0xFF, 0xFF, 0xFF), 0),
-                new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 1),
+                new GradientStop(Color.FromArgb((byte)(a0 * 0.55), 0xFF, 0xFF, 0xFF), 0.06),
+                new GradientStop(Color.FromArgb(0x00, 0xFF, 0xFF, 0xFF), 0.18),
             }
         };
     }

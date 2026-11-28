@@ -67,11 +67,6 @@ public sealed class FloatScheduleWindowSettings
 
     // 液态玻璃：真折射背景的采样率（Hz，1~60，默认 30）——子进程按此节流"抓屏 + 折射"
     public double GlassSampleRateHz { get; set; } = 30.0;
-    /// <summary>液态玻璃采集方案（子进程 FLOATING 采样后端）：
-    /// 0=方案2（cf78b44 经典采集：排除自身后抓窗口区域，低占用/流畅，不支持截图）；
-    /// 3=方案1（DWM/WGC 仅下方窗口，支持截图，资源占用高）。1/2 为内部保留模式。
-    /// 与设置枚举 FloatingScheduleGlassCaptureMode 取值一一对应（以 int 传输避免跨程序集类型依赖）。</summary>
-    public int GlassCaptureMode { get; set; } = 0;
     public bool GlassVSync { get; set; } = true;
     /// <summary>材质/背景 tint 基色（0xAARRGGBB，= 模型 CardBackgroundArgb 语义，供子进程材质层使用）。</summary>
     public uint TintArgb { get; set; } = 0xCC2D2D30;

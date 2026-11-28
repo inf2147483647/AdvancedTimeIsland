@@ -9,6 +9,7 @@
 - **修复云母（Mica）材质在深色悬浮窗上显示成浅灰板的问题（仅 Avalonia 版）**：云母背板的亮/暗变体由窗口主题决定（MicaLight/MicaDark），此前独立进程子窗口的应用主题被写死为浅色、进程内窗口也未跟随「表格主题色」设置，导致白字深色卡片套上浅色云母，整块呈不透的浅灰。现在按与卡片配色相同的有效主题判定（强制深/浅优先，否则跟随宿主）设置窗口 `RequestedThemeVariant`，云母变体与配色保持一致；独立进程模式通过新增的 `DarkTheme` 设置快照下发。WPF 版按维护约定未同步此变更。
 - **修复云母 / 亚克力 / 液态玻璃材质下按住卡片空白处拖不动（仅 Avalonia 版）**：这三种材质把卡片背景置为 `null` 以透出背板，但 Avalonia 中无背景的 `Border` 不参与命中测试，空白区域的指针会直接漏给窗口，挂在卡片上的拖动 / 悬停处理器收不到事件。现改用 `Brushes.Transparent`（视觉不变、材质照常透出），整张卡片均可命中，空白处也能拖动和触发悬停。
 - **修复云母 / 亚克力材质卡片四角露出方形底色（仅 Avalonia 版）**：这两种材质的模糊背板由 WinUI 合成器直接绘制在窗口背后，不经过应用层的圆角 `Border`，默认按直角窗口裁剪，因此卡片圆角外会露出一块方形底层。现在把卡片圆角写入 `Win32PlatformOptions.WinUICompositionBackdropCornerRadius`（按窗口 DPI 换算为物理像素），合成背板随卡片圆角裁剪；进程内模式在创建窗口前写入、圆角变化后防抖重建窗口，独立进程通过新增的 `--corner-radius` 启动参数下发，运行中发现半径不一致会主动退出并由宿主以新半径重启。WPF 版按维护约定未同步此变更。
+- **修复液态玻璃"排除自身捕获"被误判成用户防截图、导致整屏采集退化（共享采样层）**：`FloatScheduleGlassBackdrop` 在采样期间会**持续**给悬浮窗设置 `WDA_EXCLUDEFROMCAPTURE` 把自己排除出捕获，但判断"用户是否开了阻止截图"时又直接读窗口的当前亲和性 —— 于是从第二次采样起就把自己设的排除当成了用户设置，`forceWindowUnder` 恒为真，采集方式 0 / 1 / 2 全部放弃整屏采集、退化成"仅采集下方窗口"，玻璃里透出的是某个下层窗口或壁纸，而不是自己正下方的合成画面（表现为采集层级错乱、内容对不上）。现在改用 `IsCaptureExclusionActive` 区分排除来源，只有"不是本次采样自己设的排除"才判定为用户防截图；修复后模式 0/1 恢复整屏抓取（抓帧耗时由约 4.5ms 升至约 10ms，即不再走窗口抓取路径）。
 
 ### 优化
 - **「在校时间统计」设置页卡顿优化（仅 Avalonia 版）**：① 表格画刷改为按主题缓存，单元格不再逐个新建画刷；② 取消每次重建表格后的全量可视树遍历，主题仅在页面加载与切换主题时应用；③ 统计概览/分段表格按「结果对象 + 分段方式」去重，同一结果不再重复重建，`RefreshHost`（强制测量）也仅在内容变化时调用；④ 「法定节假日与调休」上百行改为按 40 行一批在 Background 优先级追加，重建时自动作废旧批次，避免一次性建上千控件掉帧；⑤ 「每日在校时长」提示的宿主课表读取改到后台线程并按天缓存，页面加载/切换选项不再阻塞 UI；⑥ 「刷新统计」按钮只刷新统计，不再连带重建全部表格。
@@ -34,8 +35,12 @@
 - **打包脚本移除 WPF 版构建打包（仅构建脚本）**：删除 `Build-Package.ps1` 中的 `Build-WpfVariant`、`Publish-WpfFloatExe` 函数与主流程 WPF 分支，`-Target` 仅保留 `both / compat / new`（`both` 现指两个 Avalonia 变体）。WPF 版源码与项目文件未改动，仍可单独编译。
 - **打包脚本移除 TraceID 记录（仅构建脚本）**：JK 制服页面生命周期已到达，TraceID 记录不再适用，删除 `Build-Package.ps1` 中 `Add-TraceIdRecord` 函数及三处调用（compat / new / wpf 变体），打包后不再生成或追加 `TraceIDlist.txt`。不影响插件运行时行为，也未改动 WPF 版代码。
 - **清理项目内残留的诊断日志（仅 Avalonia 版）**：移除 `HanfuMarkdownUpdater` 的 `DebugLog`（Debug/Console 双写）及各处 `System.Diagnostics.Debug.WriteLine` 调试输出（`AttendanceCalendarService`、`SunriseSunsetViewModel`、`AttendanceViewModel`、`hanfu_page_template`、`DebugPage`、`AboutPage`、`PluginSettingsPage`、`FluentAvaloniaCompatibilityHelper`），不再产生这些诊断日志；异常兜底分支保持原有回退行为不变。WPF 版按维护约定未改动。
+- **删除液态玻璃采集方案验证工具 `GlassBench`（仅开发用）**：采集方案已归中为 GDI 一种，用于横向比较 4 种方案的临时验证工具随之删除（同时移除主项目 csproj 中对 `GlassBench\**` 的编译排除项）。
+- **修复液态玻璃顶部高光细线不跟随圆角**：原先顶部高光是「顶对齐 + 固定高度 2.5px 的白色渐变条」，条高（2.5px）远小于圆角半径（默认 18px），Border 只能把圆角压成扁椭圆，于是左右上角露出一段不贴弧线的直线。现改为挂在 **1px 边框**上的垂直渐变（顶边最亮，约 18% 高度内衰减到全透明），高光随圆角自然弯折，左右两侧中下段与底边不再出现多余亮线；编辑器实时预览的折射路径同步（真机与预览一致）。
+- **液态玻璃改为"仅边缘折射、中部透明"（鸿蒙风格，仅 Avalonia 版）**：`FloatScheduleRefraction.Refract` 新增 `transparentCenter` 参数，折射带（离边缘约 8~20px）之外的像素一律置全透明，卡片中部不再绘制折射位图 —— 由于真实折射路径本来就不叠 tint，中部会直接露出真实桌面（无需把中部像素画上去）；同时把液态玻璃的背景模糊半径由 0~2.5px 固定为 0，不再做任何模糊。采集仍是 GDI 整屏抓取（BitBlt 单次开销与面积基本无关，拆成四条边分别抓反而更慢），只是上屏时只保留贴边一带的折射与高光。WPF 版按维护约定未改动。
 
 ### 破坏性变更
+- **液态玻璃采集方案归中为 GDI，删除其余 3 种方案**：原先的 4 种采集方式（0 = DXGI 优先 / GDI 回退、1 = 强制 GDI、2 = 完整桌面、3 = 仅下方窗口 WGC/PrintWindow）统一收敛为唯一的 **GDI BitBlt 整屏采集**，删除 `FloatScheduleDxgiCapture`、`FloatScheduleWindowCapture` 两个采集后端与 `FloatScheduleGlassBackdrop.CaptureMode` 属性。影响：①「高级外观 → 液态玻璃 → 采集方案」下拉框已移除，旧配置中保存的方案值会被自动收敛为 GDI（枚举成员保留仅为兼容历史配置的反序列化，运行时不再生效）；② 子进程 IPC 的 `FloatScheduleWindowSettings.GlassCaptureMode` 字段删除；③ 依赖清理：主项目与浮窗子进程不再引用 `Vortice.Direct3D11`（连带 SharpGen 运行时），插件包里不再有这些 DLL。行为差异：不再有"仅下方窗口"回退路径，远程会话下悬浮窗同样被排除出捕获（避免玻璃里拍到自己的递归画面）。WPF 版按维护约定未改动。
 - **删除「帧率折线图」功能（仅 Avalonia 版）**：「帧率折线图」「帧率折线图分析」两个设置页保留原页面 ID、内容替换为 Ghost Page；「实时主界面刷新率（调试）」组件内容固定为文本 `Ghost`，其组件设置页替换为 Ghost Page；移除后台帧率采集服务与相关图表/视图模型代码（「帧率折线」开关与「实验性功能」门槛保留，仍控制这两个页面是否注册）。WPF 版未改动。
 
 ## [2.0.6.4]

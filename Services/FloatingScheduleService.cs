@@ -5172,8 +5172,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
         int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
         double cornerPx = _settings.FloatingScheduleCornerRadius * sc;
-        // 捕获方式设置热跟随（直接读 PluginSettings，改动即时生效）
-        _glassAv.CaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode;
+        // 采集方式已归中为唯一的 GDI 整屏采集（设置里的历史取值不再影响采样）
         _glassAv.PreventCapture = _settings.FloatingSchedulePreventCapture;
         _glassBusyAv = true;
         try
@@ -5319,7 +5318,6 @@ public class FloatingScheduleService : IHostedService, IDisposable
             BorderColor = _settings.FloatingScheduleBorderColor,
             ShowFps = _settings.FloatingScheduleShowFps,
             GlassSampleRateHz = _settings.FloatingScheduleGlassSampleRateHz,
-            GlassCaptureMode = (int)_settings.FloatingScheduleGlassCaptureMode,
             GlassVSync = _settings.FloatingScheduleGlassVSync,
             TintArgb = tintArgb,
             DarkTheme = ResolveFloatingDarkThemeAv(),

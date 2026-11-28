@@ -287,8 +287,7 @@ internal sealed class FloatScheduleChildWindow : Window
         double sc = RenderScaling <= 0 ? 1.0 : RenderScaling;
         int w = (int)Math.Round(size.Width * sc), h = (int)Math.Round(size.Height * sc);
         double cornerPx = _snap.CornerRadius * sc;
-        // 捕获方式设置热跟随（子进程经 settings 消息热下发）
-        _glass.CaptureMode = _snap.GlassCaptureMode;
+        // 采集方式已归中为唯一的 GDI 整屏采集，不再随设置下发
         _glass.PreventCapture = _snap.PreventCapture;
         _glassBusy = true;
         try
