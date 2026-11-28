@@ -1,19 +1,15 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
 public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTimeRangeRuleSettings>
 {
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
 
     public DailyTimeRangeRuleSettingsControl()
     {
@@ -33,7 +29,6 @@ public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTi
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -53,7 +48,6 @@ public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTi
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -64,7 +58,7 @@ public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTi
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -95,21 +89,32 @@ public class DailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<DailyTi
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.exact_time_interval", "精确时间范围间隔触发", "\uecd7")]
+[TriggerInfo("advancedtimeisland.exact_time_interval", "精确时间范围间隔触发", PackIconKind.TimerSync)]
 public class ExactTimeIntervalTrigger : TimeTriggerBase<ExactTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

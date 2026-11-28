@@ -1,11 +1,8 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -18,7 +15,7 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMonthlyRuleSettings>
 {
     private ComboBox _lunarDayComboBox = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public LunarMonthlyRuleSettingsControl()
     {
@@ -38,14 +35,12 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -83,7 +78,6 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -94,7 +88,7 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -115,26 +109,37 @@ public class LunarMonthlyRuleSettingsControl : RuleSettingsControlBase<LunarMont
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+        _isLoading = true;
+        try
         {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
+
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarDay = _lunarDayComboBox.SelectedIndex + 1;

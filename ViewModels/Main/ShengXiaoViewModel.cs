@@ -5,7 +5,8 @@ using System.Timers;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 using Lunar;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
@@ -60,7 +61,7 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ShengXiaoSettings.LabelFontWeight) ||
                  e.PropertyName == nameof(ShengXiaoSettings.LabelEnableCustomFontWeight))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(ShengXiaoSettings.ValueFontColor) ||
                  e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontColor) ||
@@ -76,7 +77,7 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ShengXiaoSettings.ValueFontWeight) ||
                  e.PropertyName == nameof(ShengXiaoSettings.ValueEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 
@@ -134,7 +135,7 @@ public class ShengXiaoViewModel : INotifyPropertyChanged, IDisposable
             var shengXiao = LunarHelper.GetCurrentShengXiao(now);
             var dateRange = GetShengXiaoDateRange(now, shengXiao);
             
-            await Dispatcher.UIThread.InvokeAsync(() => 
+            await UIThread.Dispatcher.InvokeAsync(() => 
             {
                 LabelText = "当前生肖：";
                 ValueText = $"{shengXiao} ({dateRange})";

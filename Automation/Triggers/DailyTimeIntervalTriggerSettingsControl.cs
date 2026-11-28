@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -14,9 +12,9 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 
 public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBase<DailyTimeIntervalTriggerSettings>
 {
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
-    private NumericUpDown _intervalNumericUpDown = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private WpfNumericUpDown _intervalNumericUpDown = null!;
     private ComboBox _intervalUnitComboBox = null!;
     private bool _isLoading = false;
 
@@ -38,7 +36,6 @@ public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBas
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -59,7 +56,6 @@ public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -70,7 +66,7 @@ public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBas
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -94,7 +90,6 @@ public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -108,11 +103,10 @@ public class DailyTimeIntervalTriggerSettingsControl : TriggerSettingsControlBas
         var intervalPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _intervalNumericUpDown = new NumericUpDown
+        _intervalNumericUpDown = new WpfNumericUpDown
         {
             Width = 225,
             Minimum = 0.001m,

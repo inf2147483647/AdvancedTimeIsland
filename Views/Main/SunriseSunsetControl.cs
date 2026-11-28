@@ -1,13 +1,12 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -16,12 +15,13 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "33445566-7788-9900-1122-334455667788",
     "日出日落（ATI）",
-    "\uE121",
+    PackIconKind.WeatherSunset,
     "显示日出日落时间"
 )]
 public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 {
     private SunriseSunsetViewModel vm;
+    private bool _initCompleted;
     private TextBlock _sunriseLabel;
     private TextBlock _sunriseTime;
     private TextBlock _sunsetLabel;
@@ -44,7 +44,7 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        var sp = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var sp = new StackPanel { Orientation = Orientation.Horizontal };
 
         _sunriseLabel = new TextBlock { Text = "日出：", VerticalAlignment = VerticalAlignment.Center };
         sp.Children.Add(_sunriseLabel);
@@ -98,16 +98,28 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         switch (elementName)
         {
             case "sunriseLabel":
-                _sunriseLabel.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunriseLabel.FontSize = fontSize;
+                else
+                    _sunriseLabel.FontSize = FontFamilyHelper.GetBodyFontSize(_sunriseLabel);
                 break;
             case "sunriseTime":
-                _sunriseTime.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunriseTime.FontSize = fontSize;
+                else
+                    _sunriseTime.FontSize = FontFamilyHelper.GetBodyFontSize(_sunriseTime);
                 break;
             case "sunsetLabel":
-                _sunsetLabel.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunsetLabel.FontSize = fontSize;
+                else
+                    _sunsetLabel.FontSize = FontFamilyHelper.GetBodyFontSize(_sunsetLabel);
                 break;
             case "sunsetTime":
-                _sunsetTime.FontSize = fontSize;
+                if (fontSize > 0)
+                    _sunsetTime.FontSize = fontSize;
+                else
+                    _sunsetTime.FontSize = FontFamilyHelper.GetBodyFontSize(_sunsetTime);
                 break;
         }
     }
@@ -125,13 +137,33 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
         UpdateAllFontColors();
     }
 
-    protected override void OnInitialized()
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 0, "sunriseLabel");
+        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 0, "sunriseTime");
+        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 0, "sunsetLabel");
+        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 0, "sunsetTime");
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
 
         vm = new SunriseSunsetViewModel(
             _timeBaseService,
@@ -148,29 +180,35 @@ public class SunriseSunsetControl : ComponentBase<SunriseSunsetSettings>
 
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.SunriseTime)) _sunriseTime.Text = vm.SunriseTime;
-            if (e.PropertyName == nameof(vm.SunsetTime)) _sunsetTime.Text = vm.SunsetTime;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         _sunriseTime.Text = vm.SunriseTime;
         _sunsetTime.Text = vm.SunsetTime;
 
         UpdateAllFontColors();
-        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 14, "sunriseLabel");
-        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 14, "sunriseTime");
-        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 14, "sunsetLabel");
-        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 14, "sunsetTime");
+        UpdateFontSize(Settings.SunriseLabelEnableCustomFontSize ? Settings.SunriseLabelFontSize : 0, "sunriseLabel");
+        UpdateFontSize(Settings.SunriseTimeEnableCustomFontSize ? Settings.SunriseTimeFontSize : 0, "sunriseTime");
+        UpdateFontSize(Settings.SunsetLabelEnableCustomFontSize ? Settings.SunsetLabelFontSize : 0, "sunsetLabel");
+        UpdateFontSize(Settings.SunsetTimeEnableCustomFontSize ? Settings.SunsetTimeFontSize : 0, "sunsetTime");
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.SunriseTime)) _sunriseTime.Text = vm.SunriseTime;
+        if (e.PropertyName == nameof(vm.SunsetTime)) _sunsetTime.Text = vm.SunsetTime;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
         _isDisposed = true;
     }

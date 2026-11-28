@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.yearly_time", "每年", "\uecd1")]
+[TriggerInfo("advancedtimeisland.yearly_time", "每年", PackIconKind.CalendarOutline)]
 public class YearlyTimeTrigger : TimeTriggerBase<YearlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

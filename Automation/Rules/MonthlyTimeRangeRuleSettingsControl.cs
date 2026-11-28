@@ -1,12 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using ClassIsland.Core.Abstractions.Controls;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -18,9 +14,9 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<MonthlyTimeRangeRuleSettings>
 {
     private DatePicker _startDatePicker = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
     private DatePicker _endDatePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
 
     public MonthlyTimeRangeRuleSettingsControl()
     {
@@ -40,14 +36,13 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         mainPanel.Children.Add(CreateDateTimePickerGroup("开始时间:", true));
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -60,7 +55,6 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -75,13 +69,11 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         var datePicker = new DatePicker
         {
             Width = 300,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            YearVisible = false,
-            MonthVisible = false
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         // 时间选择器
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -110,36 +102,47 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
-        if (startDay > 0)
+        _isLoading = true;
+        try
         {
-            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, startDay));
-        }
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            if (Settings == null) return;
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
-        if (endDay > 0)
-        {
-            _endDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, 1, endDay));
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(2024, 1, startDay);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTime(2024, 1, endDay);
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
         }
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
-        var startDate = _startDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
+        var startDate = _startDatePicker.SelectedDate ?? new DateTime(2024, 1, 1);
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
 
-        var endDate = _endDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
+        var endDate = _endDatePicker.SelectedDate ?? new DateTime(2024, 1, 1);
         var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.EndTime = $"{endDate.Day:D2}-{endTime.Hours:D2}-{endTime.Minutes:D2}-{endTime.Seconds:D2}";
     }
@@ -158,6 +161,3 @@ public class MonthlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Month
         if (parts.Length >= 4 && int.TryParse(parts[3], out int s)) second = s;
     }
 }
-
-
-

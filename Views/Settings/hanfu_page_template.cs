@@ -1,19 +1,20 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Documents;
-using Avalonia.Controls.Primitives;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.VisualTree;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Abstractions.Services;
@@ -34,6 +35,11 @@ public class HanfuPageTemplate : SettingsPageBase
     protected List<TextBlock>? _paragraphTextBlocks;
     protected List<TextBlock>? _sectionTextBlocks;
     protected TextBlock? _backTextBlock;
+    private Dictionary<int, InfoBarData>? _infoBarData;
+    private Dictionary<int, ImgData>? _imgData;
+    private Dictionary<int, HideData>? _hideData;
+    private Dictionary<int, LoadingData>? _loadingData;
+    private Dictionary<Span, string>? _hyperlinkSpanMap;
 
     public HanfuPageTemplate()
     {
@@ -44,15 +50,17 @@ public class HanfuPageTemplate : SettingsPageBase
     {
     }
 
-    protected static IBrush GetAccentBrush()
+    protected static Brush GetAccentBrush()
     {
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        var accentColor = Application.Current?.TryFindResource("SystemAccentColor") as Color?;
+        if (accentColor.HasValue)
         {
-            return new SolidColorBrush(accentColor);
+            return new SolidColorBrush(accentColor.Value);
         }
-        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        var accentColor2 = Application.Current?.TryFindResource("AccentColor") as Color?;
+        if (accentColor2.HasValue)
         {
-            return new SolidColorBrush(accentColor2);
+            return new SolidColorBrush(accentColor2.Value);
         }
         return Brushes.DodgerBlue;
     }
@@ -62,20 +70,7 @@ public class HanfuPageTemplate : SettingsPageBase
         _paragraphTextBlocks = new List<TextBlock>();
         _sectionTextBlocks = new List<TextBlock>();
 
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Margin = new Thickness(0),
-            BringIntoViewOnFocusChange = false
-        };
-
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 0
-        };
-
+        // 返回按钮脱离滚动容器，始终固定在页面顶部
         _backTextBlock = new TextBlock
         {
             Text = "‹ 返回上一级",
@@ -83,10 +78,9 @@ public class HanfuPageTemplate : SettingsPageBase
             Foreground = GetAccentBrush(),
             TextDecorations = TextDecorations.Underline,
             Margin = new Thickness(16, 12, 16, 0),
-            Cursor = new Cursor(StandardCursorType.Hand)
+            Cursor = Cursors.Hand
         };
-        _backTextBlock.PointerPressed += OnBackClick;
-        mainPanel.Children.Add(_backTextBlock);
+        _backTextBlock.MouseLeftButtonDown += OnBackClick;
 
         _contentBorder = new Border
         {
@@ -99,15 +93,46 @@ public class HanfuPageTemplate : SettingsPageBase
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8
+
         };
 
-        BuildContent(panel);
+        try
+        {
+            BuildContent(panel);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"BuildContent failed: {ex}");
+            panel.Children.Add(new TextBlock
+            {
+                Text = $"页面内容加载失败: {ex.Message}",
+                Foreground = Brushes.Red,
+                FontSize = 14,
+                Margin = new Thickness(0, 8, 0, 0)
+            });
+        }
 
         _contentBorder.Child = panel;
-        mainPanel.Children.Add(_contentBorder);
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
+
+        var scrollViewer = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            Margin = new Thickness(0),
+
+            Content = _contentBorder
+        };
+
+        // 使用 Grid 将返回按钮固定在顶部，滚动内容占据剩余空间
+        var rootGrid = new Grid();
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        rootGrid.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        Grid.SetRow(_backTextBlock, 0);
+        Grid.SetRow(scrollViewer, 1);
+        rootGrid.Children.Add(_backTextBlock);
+        rootGrid.Children.Add(scrollViewer);
+
+        Content = rootGrid;
     }
 
     protected virtual void BuildContent(StackPanel panel)
@@ -140,7 +165,7 @@ public class HanfuPageTemplate : SettingsPageBase
 ## 2. 图片与链接
 
 网络图片:
-![banner](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg)
+![banner](https://www.classisland.tech/assets/automation-y0DvcHaz.webp)
 
 WPF 资源图片：
 
@@ -238,13 +263,206 @@ Hanfu | Photo Count
 <span style='cursor:pointer'>鼠标变手</span>
 <span style=""color:red; font-size:18px; font-weight:bold; background:#fff2f2; padding:4px 8px; border-radius:4px; cursor:pointer; font-family: 楷体, '宋体', serif;"">楷体红色18px加粗文字，浅红背景圆角变手</span>
 
+> [!tip]
+This is a tip
+
+```
+> [!tip]
+This is a tip
+```
+or  
+```
+> [!tip]
+> This is a tip
+```
+
+---
+> [!note]
+This is a note
+
+```
+> [!note]
+This is a note
+```
+or  
+```
+> [!note]
+> This is a note
+```
+
+---
+> [!warning]
+This is a warning
+
+```
+> [!warning]
+This is a warning
+```
+or  
+```
+> [!warning]
+> This is a warning
+```
+
+---
+> [!caution]
+This is a caution
+
+```
+> [!caution]
+This is a caution
+```
+or  
+```
+> [!caution]
+> This is a caution
+```
+
+---
+> [!important]
+How to end a tip
+
+Leave one blank line in between
+
+```
+> [!tip]
+How to end a tip
+<!-- One blank line left -->
+Leave one blank line in between
+```
+
+---
+> [a normal info]
+This is a normal info
+
+```
+> [a normal info]
+This is a normal info
+```
+or  
+```
+> [a normal info]
+> This is a normal info
+```
+
+## 6. InfoBar 自定义语法
+
+InfoBar 语法格式：
+
+```
+<infobar='type:类型, closable:布尔值'>内容</infobar>
+```
+
+类型支持：信息(info)、警告(warning)、错误(error)
+
+<infobar='type:info, closable:false'>这是一条信息提示，不可关闭。</infobar>
+
+<infobar='type:warning, closable:true'>这是一条警告信息，可以点击右上角按钮关闭。</infobar>
+
+<infobar='type:error, closable:true'>这是一条错误信息，可以关闭。</infobar>
+
+<infobar='type:信息, closable:false'>中文类型名称同样支持。</infobar>
+
+<img src='Assets/hanfupage/AdvancedTimeIslandMaMianQunMale.jpg' width='300px' title='马面裙男' alt='加载失败，轻触屏幕'>
+
+
+<hide clicktime=5000 count=11><img src='https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02575.jpg' width='100%' title='粽锁粥汁，女装只有0次与无数次；别说了，快女装吧'><br>还是被你发现了！人类文明这次凶多吉少了（三体二创），这个宇宙已经救不回来了！（捷德奥特曼第1集）</hide>
+
+强制换行测试：第一行<br>第二行<br>第三行
+
+<hide clicktime=5000 count=11>隐藏多行测试：第一行<br>第二行<br>第三行</hide>
+
+<loading size=20px color='#E70C22'>还没加载完，千万别关机！
 ";
 
         RenderMarkdown(panel, markdown);
     }
 
+    /// <summary>
+    /// 定位与页面代码文件同名的 Markdown 内容文件（位于插件目录下的 Markdown 文件夹）。
+    /// 内容由 HanfuMarkdownUpdater 在启动时从远端下载维护，不随插件包分发。
+    /// </summary>
+    protected static string? ResolveMarkdownPath(string fileName)
+    {
+        try
+        {
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var pluginDir = string.IsNullOrEmpty(assemblyLocation)
+                ? AppContext.BaseDirectory
+                : Path.GetDirectoryName(assemblyLocation) ?? AppContext.BaseDirectory;
+
+            // 固定从插件目录读取，保证内容与更新器写入位置一致
+            var path = Path.Combine(pluginDir, "Markdown", fileName);
+            if (File.Exists(path))
+            {
+                return path;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ResolveMarkdownPath failed for {fileName}: {ex.Message}");
+        }
+
+        return null;
+    }
+
+    /// <summary>
+    /// 读取 Markdown 内容文件的字节数，文件不存在时返回 0。用于判定条目是否已开发。
+    /// </summary>
+    protected static long GetMarkdownFileSize(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
+            return 0;
+        }
+
+        try
+        {
+            return new FileInfo(path).Length;
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"GetMarkdownFileSize failed for {fileName}: {ex.Message}");
+            return 0;
+        }
+    }
+
+    /// <summary>
+    /// 读取与页面代码文件同名的 Markdown 内容文件。
+    /// </summary>
+    protected static string LoadMarkdownFile(string fileName)
+    {
+        var path = ResolveMarkdownPath(fileName);
+        if (path == null)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile: Markdown/{fileName} not found.");
+            return "";
+        }
+
+        try
+        {
+            return File.ReadAllText(path);
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadMarkdownFile failed for {fileName}: {ex.Message}");
+            return "";
+        }
+    }
+
     protected void RenderMarkdown(StackPanel panel, string markdown)
     {
+        _hyperlinkSpanMap = new Dictionary<Span, string>();
+        markdown = StripHtmlComments(markdown);
+        markdown = PreprocessAlertBlocks(markdown);
+        markdown = PreprocessInfoBars(markdown);
+        markdown = PreprocessImgTags(markdown);
+        markdown = PreprocessRouteLinks(markdown);
+        markdown = PreprocessUnderlineTags(markdown);
+        markdown = PreprocessHideTags(markdown);
+        markdown = PreprocessLoadingTags(markdown);
+        
         var pipeline = new Markdig.MarkdownPipelineBuilder()
             .UseEmphasisExtras()
             .UsePipeTables()
@@ -260,8 +478,448 @@ Hanfu | Photo Count
         }
     }
 
-    private Control? ConvertMarkdownBlock(MarkdownObject block)
+    /// <summary>
+    /// 供其他页面（如「关于」页更新日志抽屉）复用的 Markdown 渲染入口：
+    /// 以延迟初始化构造（不执行页面初始化、无副作用）创建模板实例，把 markdown 渲染进指定 StackPanel。
+    /// 支持 Markdig 解析的全部语法（表格、代码块、删除线等）以及模板自带的 alert / info bar / 图片 / 路由链接等扩展。
+    /// </summary>
+    public static void RenderMarkdownToPanel(StackPanel panel, string markdown)
     {
+        var page = new HanfuPageTemplate(true);
+        page.RenderMarkdown(panel, markdown);
+    }
+
+    private string PreprocessAlertBlocks(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inAlert = false;
+        bool inCodeBlock = false;
+
+        for (int i = 0; i < lines.Length; i++)
+        {
+            var line = lines[i];
+            var trimmed = line.TrimStart();
+
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                if (inAlert)
+                {
+                    inAlert = false;
+                }
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                if (inAlert)
+                {
+                    inAlert = false;
+                }
+                result.Add(line);
+                continue;
+            }
+
+            if (trimmed.StartsWith("> [!tip]") || trimmed.StartsWith("> [!note]") ||
+                trimmed.StartsWith("> [!important]") || trimmed.StartsWith("> [!warning]") ||
+                trimmed.StartsWith("> [!caution]") ||
+                Regex.IsMatch(trimmed, @"^>\s*\[[^\]!]+\]\s*$"))
+            {
+                inAlert = true;
+                result.Add(line);
+            }
+            else if (inAlert)
+            {
+                if (string.IsNullOrWhiteSpace(trimmed))
+                {
+                    inAlert = false;
+                    result.Add(line);
+                }
+                else if (!trimmed.StartsWith(">"))
+                {
+                    var spaces = line.Length - line.TrimStart().Length;
+                    result.Add(new string(' ', spaces) + "> " + trimmed);
+                }
+                else
+                {
+                    result.Add(line);
+                }
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessInfoBars(string markdown)
+    {
+        _infoBarData = new Dictionary<int, InfoBarData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var match = Regex.Match(line, @"<infobar\s*=\s*'([^']*)'>([\s\S]*?)</infobar>", RegexOptions.IgnoreCase);
+            if (match.Success)
+            {
+                var attrs = match.Groups[1].Value;
+                var content = match.Groups[2].Value.Trim();
+
+                var infoBarType = InfoBarType.Info;
+                var closable = false;
+
+                var typeMatch = Regex.Match(attrs, @"type\s*:\s*(\w+)", RegexOptions.IgnoreCase);
+                if (typeMatch.Success)
+                {
+                    var typeStr = typeMatch.Groups[1].Value.ToLowerInvariant();
+                    infoBarType = typeStr switch
+                    {
+                        "info" or "信息" => InfoBarType.Info,
+                        "warning" or "警告" => InfoBarType.Warning,
+                        "error" or "错误" => InfoBarType.Error,
+                        _ => InfoBarType.Info
+                    };
+                }
+
+                var closableMatch = Regex.Match(attrs, @"closable\s*:\s*(true|false)", RegexOptions.IgnoreCase);
+                if (closableMatch.Success)
+                {
+                    closable = bool.Parse(closableMatch.Groups[1].Value);
+                }
+
+                _infoBarData[index] = new InfoBarData
+                {
+                    Type = infoBarType,
+                    Closable = closable,
+                    Content = content
+                };
+
+                result.Add($"INFOBARBLOCK{index}END");
+                result.Add("");
+                index++;
+            }
+            else
+            {
+                result.Add(line);
+            }
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessRouteLinks(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var newLine = System.Text.RegularExpressions.Regex.Replace(
+                line,
+                @"\[route:([^\]]+)\](?!\()",
+                m => $"[{m.Groups[1].Value}](route:{m.Groups[1].Value})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            newLine = System.Text.RegularExpressions.Regex.Replace(
+                newLine,
+                @"\[([^\]]+)\]\(route:([^\)]+)\)",
+                m => $"[{m.Groups[1].Value}]({RouteUrlPrefix}{m.Groups[2].Value})",
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+
+            result.Add(newLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessUnderlineTags(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var newLine = System.Text.RegularExpressions.Regex.Replace(
+                line,
+                @"<underline\s+style\s*=\s*['""]\s*(single|wave|double)\s*['""]\s*>(.*?)</underline>",
+                m =>
+                {
+                    var style = m.Groups[1].Value.ToLowerInvariant();
+                    var innerText = m.Groups[2].Value;
+                    return $"<span style=\"text-decoration: underline {style}\">{innerText}</span>";
+                },
+                System.Text.RegularExpressions.RegexOptions.IgnoreCase | System.Text.RegularExpressions.RegexOptions.Singleline);
+
+            result.Add(newLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessHideTags(string markdown)
+    {
+        _hideData = new Dictionary<int, HideData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<hide\s+clicktime\s*=\s*(\d+)\s+count\s*=\s*(\d+)\s*>([\s\S]*?)</hide>",
+                match =>
+                {
+                    var clicktime = int.Parse(match.Groups[1].Value);
+                    var count = int.Parse(match.Groups[2].Value);
+                    var content = match.Groups[3].Value;
+
+                    // 检测内部文本颜色（排除 background-color）
+                    string? detectedColor = null;
+                    var colorMatch = Regex.Match(
+                        content,
+                        @"(?<!-)color\s*:\s*(#[0-9a-fA-F]{3,8}|[a-zA-Z]+)",
+                        RegexOptions.IgnoreCase);
+                    if (colorMatch.Success)
+                    {
+                        detectedColor = colorMatch.Groups[1].Value;
+                    }
+
+                    int currentId = index;
+                    _hideData![currentId] = new HideData
+                    {
+                        ClickTime = clicktime,
+                        Count = count,
+                        Content = content,
+                        DetectedColor = detectedColor
+                    };
+                    index++;
+
+                    // 使用内联占位符，不加换行符，确保只有被 hide 包裹的文本部分有背景
+                    var placeholder = $"HIDEINLINE{currentId}END";
+                    return placeholder;
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessLoadingTags(string markdown)
+    {
+        _loadingData = new Dictionary<int, LoadingData>();
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+        int index = 0;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<loading\s+size\s*=\s*([\d.]+)px\s*(?:color\s*=\s*['""]?([^'""\s>]+)['""]?\s*)?>",
+                match =>
+                {
+                    var size = double.Parse(match.Groups[1].Value, CultureInfo.InvariantCulture);
+                    var color = match.Groups[2].Success ? match.Groups[2].Value : null;
+                    int currentId = index;
+                    _loadingData![currentId] = new LoadingData { Size = size, Color = color };
+                    index++;
+                    // 使用内联占位符，不加换行符，确保同一行的多个 loading 保持在同一段落内
+                    return $"LOADINGINLINE{currentId}END";
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string PreprocessImgTags(string markdown)
+    {
+        _imgData = new Dictionary<int, ImgData>();
+        int index = 0;
+
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processed = Regex.Replace(
+                line,
+                @"<img\s+([^>]*?)\s*/?>",
+                match =>
+                {
+                    var attrs = match.Groups[1].Value;
+
+                    var srcMatch = Regex.Match(attrs, @"src\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var widthMatch = Regex.Match(attrs, @"width\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var heightMatch = Regex.Match(attrs, @"height\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var titleMatch = Regex.Match(attrs, @"title\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+                    var altMatch = Regex.Match(attrs, @"alt\s*=\s*'([^']*)'", RegexOptions.IgnoreCase);
+
+                    var src = srcMatch.Success ? srcMatch.Groups[1].Value.Trim() : "";
+                    var width = widthMatch.Success ? widthMatch.Groups[1].Value.Trim() : "";
+                    var height = heightMatch.Success ? heightMatch.Groups[1].Value.Trim() : "auto";
+                    var title = titleMatch.Success ? titleMatch.Groups[1].Value.Trim() : "";
+                    var alt = altMatch.Success ? altMatch.Groups[1].Value.Trim() : "";
+
+                    _imgData[index] = new ImgData
+                    {
+                        Src = src,
+                        Width = width,
+                        Height = height,
+                        Title = title,
+                        Alt = alt
+                    };
+
+                    var placeholder = $"IMGINLINE{index}END";
+                    index++;
+                    return placeholder;
+                },
+                RegexOptions.IgnoreCase);
+
+            result.Add(processed);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private string StripHtmlComments(string markdown)
+    {
+        var lines = markdown.Split('\n');
+        var result = new List<string>();
+        bool inCodeBlock = false;
+
+        foreach (var line in lines)
+        {
+            var trimmed = line.Trim();
+            if (trimmed.StartsWith("```"))
+            {
+                inCodeBlock = !inCodeBlock;
+                result.Add(line);
+                continue;
+            }
+
+            if (inCodeBlock)
+            {
+                result.Add(line);
+                continue;
+            }
+
+            var processedLine = Regex.Replace(line, @"<!--[\s\S]*?-->", "", RegexOptions.Singleline);
+            result.Add(processedLine);
+        }
+
+        return string.Join("\n", result);
+    }
+
+    private FrameworkElement? ConvertMarkdownBlock(MarkdownObject block)
+    {
+        if (block is ParagraphBlock p2 && TryGetInfoBarPlaceholder(p2, out int infoBarIndex))
+        {
+            return ConvertInfoBar(infoBarIndex);
+        }
+
         return block switch
         {
             HeadingBlock heading => ConvertHeading(heading),
@@ -270,11 +928,239 @@ Hanfu | Photo Count
             QuoteBlock quote => ConvertQuoteBlock(quote),
             ListBlock list => ConvertListBlock(list),
             Markdig.Extensions.Tables.Table table => ConvertTableBlock(table),
+            ThematicBreakBlock => ConvertThematicBreak(),
             _ => null
         };
     }
 
-    private Control ConvertHeading(HeadingBlock heading)
+    private bool TryGetInfoBarPlaceholder(ParagraphBlock paragraph, out int index)
+    {
+        index = -1;
+        var text = ExtractParagraphText(paragraph);
+        var match = Regex.Match(text, @"^INFOBARBLOCK(\d+)END$");
+        if (match.Success && _infoBarData != null)
+        {
+            index = int.Parse(match.Groups[1].Value);
+            return _infoBarData.ContainsKey(index);
+        }
+        return false;
+    }
+
+    private enum InlinePlaceholderType { Loading, Hide, Img }
+
+    private record InlinePlaceholder(InlinePlaceholderType Type, int Id);
+
+    private static readonly Regex InlinePlaceholderRegex = new Regex(
+        @"(?:LOADINGINLINE(\d+)END)|(?:HIDEINLINE(\d+)END)|(?:IMGINLINE(\d+)END)", RegexOptions.Compiled);
+
+    private List<object> SplitInline(string text)
+    {
+        var result = new List<object>();
+        var matches = InlinePlaceholderRegex.Matches(text);
+        int pos = 0;
+        foreach (Match match in matches)
+        {
+            if (match.Index > pos)
+            {
+                result.Add(text.Substring(pos, match.Index - pos));
+            }
+            if (match.Groups[1].Success)
+            {
+                int id = int.Parse(match.Groups[1].Value);
+                if (_loadingData != null && _loadingData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Loading, id));
+                else
+                    result.Add(match.Value);
+            }
+            else if (match.Groups[2].Success)
+            {
+                int id = int.Parse(match.Groups[2].Value);
+                if (_hideData != null && _hideData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Hide, id));
+                else
+                    result.Add(match.Value);
+            }
+            else if (match.Groups[3].Success)
+            {
+                int id = int.Parse(match.Groups[3].Value);
+                if (_imgData != null && _imgData.ContainsKey(id))
+                    result.Add(new InlinePlaceholder(InlinePlaceholderType.Img, id));
+                else
+                    result.Add(match.Value);
+            }
+            pos = match.Index + match.Length;
+        }
+        if (pos < text.Length)
+        {
+            result.Add(text.Substring(pos));
+        }
+        return result;
+    }
+
+    private string ExtractParagraphText(ParagraphBlock paragraph)
+    {
+        if (paragraph.Inline == null) return "";
+        var sb = new System.Text.StringBuilder();
+        CollectInlineText(paragraph.Inline, sb);
+        return sb.ToString().Trim();
+    }
+
+    private void CollectInlineText(Markdig.Syntax.Inlines.Inline inline, System.Text.StringBuilder sb)
+    {
+        if (inline is Markdig.Syntax.Inlines.LiteralInline literal)
+        {
+            sb.Append(literal.Content.ToString());
+        }
+        else if (inline is Markdig.Syntax.Inlines.ContainerInline container)
+        {
+            var child = container.FirstChild;
+            while (child != null)
+            {
+                CollectInlineText(child, sb);
+                child = child.NextSibling;
+            }
+        }
+    }
+
+    private const string RouteUrlPrefix = "http://route.local/";
+
+    private Span CreateHyperlink(string url, string displayText, TextBlock? parentTextBlock = null)
+    {
+        var span = new Span
+        {
+            Foreground = GetAccentBrush(),
+            TextDecorations = TextDecorations.Underline
+        };
+
+        span.Inlines.Add(new Run { Text = displayText });
+        _hyperlinkSpanMap![span] = url;
+        return span;
+    }
+
+    private static void ApplyParentDecorationsToHyperlink(Span parentSpan, Span hyperlink)
+    {
+        if (parentSpan.TextDecorations == null) return;
+        var combined = new TextDecorationCollection();
+        if (hyperlink.TextDecorations != null)
+            foreach (var d in hyperlink.TextDecorations)
+                combined.Add(d);
+        foreach (var d in parentSpan.TextDecorations)
+            combined.Add(d);
+        hyperlink.TextDecorations = combined;
+    }
+
+    private Dictionary<Span, (int Offset, int Length)> FinalizeHyperlinkLayout(TextBlock textBlock)
+    {
+        var result = new Dictionary<Span, (int, int)>();
+        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return result;
+
+        var offset = 0;
+        ComputeSpanOffsetsRecursive(textBlock.Inlines, ref offset, result);
+        return result;
+    }
+
+    private void ComputeSpanOffsetsRecursive(InlineCollection inlines, ref int offset, Dictionary<Span, (int, int)> result)
+    {
+        foreach (var inline in inlines)
+        {
+            if (inline is Run run)
+            {
+                offset += run.Text.Length;
+            }
+            else if (inline is Span span)
+            {
+                int startOffset = offset;
+                ComputeSpanOffsetsRecursive(span.Inlines, ref offset, result);
+                int length = offset - startOffset;
+                if (_hyperlinkSpanMap!.ContainsKey(span))
+                {
+                    result[span] = (startOffset, length);
+                }
+            }
+            else if (inline is InlineUIContainer container)
+            {
+                if (container.Child is TextBlock tb)
+                    offset += tb.Text?.Length ?? 0;
+            }
+        }
+    }
+
+    private void AttachHyperlinkClickHandler(TextBlock textBlock)
+    {
+        if (_hyperlinkSpanMap == null || _hyperlinkSpanMap.Count == 0) return;
+
+        // 为当前 TextBlock 计算其专属的超链接偏移量，避免其他段落链接的"扩散"误触发
+        var spanOffsets = FinalizeHyperlinkLayout(textBlock);
+        if (spanOffsets.Count == 0) return;
+
+        textBlock.MouseLeftButtonUp += (s, e) =>
+        {
+            // 防止"链接扩散"：只处理直接点击 TextBlock 文本区域的情况
+            // 点击 InlineUIContainer 子控件（hide/loading/img）时 e.Source 为子控件而非 TextBlock，直接忽略
+            if (!ReferenceEquals(e.Source, textBlock)) return;
+
+            var position = e.GetPosition(textBlock);
+
+            foreach (var (span, range) in spanOffsets)
+            {
+                if (IsPositionInHyperlink(textBlock, range, position))
+                {
+                    OpenLink(_hyperlinkSpanMap![span]);
+                    e.Handled = true;
+                    return;
+                }
+            }
+        };
+
+        textBlock.MouseMove += (s, e) =>
+        {
+            // 同上：忽略 InlineUIContainer 子控件的鼠标移动，避免在非链接区域显示手型光标
+            if (!ReferenceEquals(e.Source, textBlock)) return;
+
+            var position = e.GetPosition(textBlock);
+
+            bool overLink = false;
+            foreach (var (_, range) in spanOffsets)
+            {
+                if (IsPositionInHyperlink(textBlock, range, position))
+                {
+                    overLink = true;
+                    break;
+                }
+            }
+            textBlock.Cursor = overLink ? Cursors.Hand : null;
+        };
+    }
+
+    private static bool IsPositionInHyperlink(TextBlock textBlock, (int Offset, int Length) range, Point position)
+    {
+        if (range.Length <= 0) return false;
+
+        var textPointer = textBlock.GetPositionFromPoint(position, true);
+        if (textPointer == null) return false;
+
+        var offset = textBlock.ContentStart.GetOffsetToPosition(textPointer);
+        return offset >= range.Offset && offset <= range.Offset + range.Length;
+    }
+
+    private static string NormalizeRouteUrl(string url)
+    {
+        if (url.StartsWith(RouteUrlPrefix, StringComparison.Ordinal))
+            return "route:" + url.Substring(RouteUrlPrefix.Length);
+        return url;
+    }
+
+    private FrameworkElement ConvertThematicBreak()
+    {
+        return new Border
+        {
+            Background = ThemeHelper.GetSeparatorBrush(),
+            Height = 1,
+            Margin = new Thickness(0, 8, 0, 8)
+        };
+    }
+
+    private FrameworkElement ConvertHeading(HeadingBlock heading)
     {
         var fontSize = heading.Level switch
         {
@@ -290,7 +1176,7 @@ Hanfu | Photo Count
         var textBlock = new TextBlock
         {
             FontSize = fontSize,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = heading.Level <= 2 ? ThemeHelper.GetLightBlueBrush() : ThemeHelper.GetTextBrush(),
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 8, 0, 4)
@@ -309,25 +1195,27 @@ Hanfu | Photo Count
             _sectionTextBlocks?.Add(textBlock);
         }
 
+        AttachHyperlinkClickHandler(textBlock);
         return textBlock;
     }
 
-    private Control ConvertParagraph(ParagraphBlock paragraph)
+    private FrameworkElement ConvertParagraph(ParagraphBlock paragraph)
     {
         var segments = new List<ParagraphSegment>();
         var imagePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 4
+
         };
 
-        CollectParagraphSegments(paragraph.Inline, segments, imagePanel);
+        var templateTextBlock = CreateParagraphTextBlock();
+        CollectParagraphSegments(paragraph.Inline, segments, imagePanel, templateTextBlock);
 
         var result = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Thickness(0, 0, 0, 4),
-            Spacing = 0
+
         };
 
         var currentTextBlock = CreateParagraphTextBlock();
@@ -340,6 +1228,7 @@ Hanfu | Photo Count
                 {
                     result.Children.Add(currentTextBlock);
                     _paragraphTextBlocks?.Add(currentTextBlock);
+                    AttachHyperlinkClickHandler(currentTextBlock);
                     currentTextBlock = CreateParagraphTextBlock();
                 }
 
@@ -351,6 +1240,8 @@ Hanfu | Photo Count
 
                 foreach (var inline in segment.Inlines!)
                 {
+                    if (inline is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                        ApplyParentDecorationsToHyperlink(spanContent, hyperlink);
                     spanContent.Inlines.Add(inline);
                 }
 
@@ -367,17 +1258,18 @@ Hanfu | Photo Count
                     // 处理 cursor:pointer 和 letter-spacing
                     if (segment.StyleText!.Contains("cursor:pointer"))
                     {
-                        innerTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
+                        innerTextBlock.Cursor = Cursors.Hand;
                     }
                     
                     var letterSpacingMatch = System.Text.RegularExpressions.Regex.Match(segment.StyleText, @"letter-spacing:\s*([\d.]+)(?:px)?", 
                         System.Text.RegularExpressions.RegexOptions.IgnoreCase);
                     if (letterSpacingMatch.Success && double.TryParse(letterSpacingMatch.Groups[1].Value, out double letterSpacing))
                     {
-                        innerTextBlock.LetterSpacing = letterSpacing;
+
                     }
 
                     border.Child = innerTextBlock;
+                    AttachHyperlinkClickHandler(innerTextBlock);
                     result.Children.Add(border);
             }
             else if (segment.Type == ParagraphSegmentType.InlineStyledSpan)
@@ -386,6 +1278,8 @@ Hanfu | Photo Count
                 ApplySpanStyle(styledSpan, segment.StyleText!);
                 foreach (var inline in segment.Inlines!)
                 {
+                    if (inline is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                        ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                     styledSpan.Inlines.Add(inline);
                 }
                 currentTextBlock.Inlines.Add(styledSpan);
@@ -396,14 +1290,6 @@ Hanfu | Photo Count
                 {
                     currentTextBlock.Inlines.Add(inline);
                 }
-                
-                if (!string.IsNullOrEmpty(segment.LinkUrl))
-                {
-                    // 在TextBlock上设置链接属性
-                    currentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    currentTextBlock.Tag = segment.LinkUrl;
-                    currentTextBlock.PointerReleased += OnTextBlockLinkClicked;
-                }
             }
         }
 
@@ -411,6 +1297,7 @@ Hanfu | Photo Count
         {
             result.Children.Add(currentTextBlock);
             _paragraphTextBlocks?.Add(currentTextBlock);
+            AttachHyperlinkClickHandler(currentTextBlock);
         }
 
         if (imagePanel.Children.Count > 0)
@@ -422,7 +1309,7 @@ Hanfu | Photo Count
         {
             var child = result.Children[0];
             result.Children.Remove(child);
-            return child;
+            return (FrameworkElement)child;
         }
 
         return result;
@@ -430,13 +1317,15 @@ Hanfu | Photo Count
 
     private TextBlock CreateParagraphTextBlock()
     {
-        return new TextBlock
+        var tb = new TextBlock
         {
             FontSize = 14,
             Foreground = ThemeHelper.GetSubTextBrush(),
             TextWrapping = TextWrapping.Wrap,
-            Margin = new Thickness(0)
+            Margin = new Thickness(0),
+            VerticalAlignment = VerticalAlignment.Stretch
         };
+        return tb;
     }
 
     private enum ParagraphSegmentType
@@ -450,21 +1339,74 @@ Hanfu | Photo Count
     {
         public ParagraphSegmentType Type { get; set; }
         public string? StyleText { get; set; }
-        public string? LinkUrl { get; set; }
-        public List<Avalonia.Controls.Documents.Inline>? Inlines { get; set; } = new List<Avalonia.Controls.Documents.Inline>();
+        public List<System.Windows.Documents.Inline>? Inlines { get; set; } = new List<System.Windows.Documents.Inline>();
     }
 
-    private void CollectParagraphSegments(Markdig.Syntax.Inlines.Inline? inline, List<ParagraphSegment> segments, StackPanel imagePanel)
+    private void CollectParagraphSegments(Markdig.Syntax.Inlines.Inline? inline, List<ParagraphSegment> segments, StackPanel imagePanel, TextBlock? parentTextBlock = null)
     {
         if (inline == null) return;
 
         if (inline is LiteralInline literal)
         {
-            if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+            var text = literal.Content.ToString();
+            var routeMatch = System.Text.RegularExpressions.Regex.Match(text, @"^\[route:([^\]]+)\]$", System.Text.RegularExpressions.RegexOptions.IgnoreCase);
+            if (routeMatch.Success)
             {
-                segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                var pageName = routeMatch.Groups[1].Value;
+                var url = "route:" + pageName;
+                var hyperlink = CreateHyperlink(url, pageName, parentTextBlock);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
-            segments[segments.Count - 1].Inlines!.Add(new Run { Text = literal.Content.ToString() });
+            else
+            {
+                // 检测内联占位符（loading / hide），拆分文本
+                var parts = SplitInline(text);
+                foreach (var part in parts)
+                {
+                    if (part is string textPart)
+                    {
+                        if (textPart.Length > 0)
+                        {
+                            // 按 <br> 拆分文本，支持强制换行
+                            foreach (var (brText, isBr) in SplitTextWithBr(textPart))
+                            {
+                                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                                {
+                                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                                }
+                                if (isBr)
+                                {
+                                    segments[segments.Count - 1].Inlines!.Add(new LineBreak());
+                                }
+                                else if (!string.IsNullOrEmpty(brText))
+                                {
+                                    segments[segments.Count - 1].Inlines!.Add(new Run { Text = brText });
+                                }
+                            }
+                        }
+                    }
+                    else if (part is InlinePlaceholder placeholder)
+                    {
+                        FrameworkElement control = placeholder.Type switch
+                        {
+                            InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                            InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                            InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: true),
+                            _ => new Border()
+                        };
+                        var container = new InlineUIContainer(control);
+                        if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                        {
+                            segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                        }
+                        segments[segments.Count - 1].Inlines!.Add(container);
+                    }
+                }
+            }
         }
         else if (inline is EmphasisInline emphasis)
         {
@@ -472,25 +1414,27 @@ Hanfu | Photo Count
             if (emphasis.DelimiterChar == '*')
             {
                 if (emphasis.DelimiterCount == 2)
-                    styledSpan.FontWeight = FontWeight.Bold;
+                    styledSpan.FontWeight = FontWeights.Bold;
                 else
-                    styledSpan.FontStyle = FontStyle.Italic;
+                    styledSpan.FontStyle = FontStyles.Italic;
             }
             else if (emphasis.DelimiterChar == '~')
             {
-                styledSpan.TextDecorations = TextDecorations.Strikethrough;
+                styledSpan.TextDecorations = CreateStrikethroughDecoration();
             }
 
             foreach (var child in emphasis)
             {
                 var childSegments = new List<ParagraphSegment>();
-                CollectParagraphSegments(child, childSegments, imagePanel);
+                CollectParagraphSegments(child, childSegments, imagePanel, parentTextBlock);
                 foreach (var childSegment in childSegments)
                 {
                     if (childSegment.Type == ParagraphSegmentType.Text)
                     {
                         foreach (var item in childSegment.Inlines!)
                         {
+                            if (item is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                                ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                             styledSpan.Inlines.Add(item);
                         }
                     }
@@ -510,26 +1454,24 @@ Hanfu | Photo Count
         else if (inline is Markdig.Syntax.Inlines.CodeInline code)
         {
             var codeText = code.Content.ToString();
-            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://");
+            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://") || codeText.StartsWith("route:");
 
             if (isUrl)
             {
-                var linkSegment = new ParagraphSegment
+                var url = NormalizeRouteUrl(codeText);
+                var hyperlink = CreateHyperlink(url, codeText, parentTextBlock);
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
                 {
-                    Type = ParagraphSegmentType.Text,
-                    LinkUrl = codeText
-                };
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
-                linkSpan.Inlines.Add(new Run { Text = codeText });
-                linkSegment.Inlines!.Add(linkSpan);
-                segments.Add(linkSegment);
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
             else
             {
                 var isDark = ThemeHelper.IsDarkTheme();
                 var codeSpan = new Span
                 {
-                    Background = isDark ? new SolidColorBrush(Color.Parse("#3c3c3c")) : new SolidColorBrush(Color.Parse("#f0f0f0")),
+                    Background = isDark ? new SolidColorBrush(ThemeHelper.ParseColor("#3c3c3c")) : new SolidColorBrush(ThemeHelper.ParseColor("#f0f0f0")),
                     FontFamily = new FontFamily("Consolas, Courier New, monospace"),
                     FontSize = 13
                 };
@@ -553,34 +1495,22 @@ Hanfu | Photo Count
             }
             else
             {
-                var linkSegment = new ParagraphSegment
-                {
-                    Type = ParagraphSegmentType.Text,
-                    LinkUrl = link.Url
-                };
-                
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
+                var linkText = new System.Text.StringBuilder();
                 foreach (var child in link)
                 {
-                    var childSegments = new List<ParagraphSegment>();
-                    CollectParagraphSegments(child, childSegments, imagePanel);
-                    foreach (var childSegment in childSegments)
-                    {
-                        if (childSegment.Type == ParagraphSegmentType.Text)
-                        {
-                            foreach (var item in childSegment.Inlines!)
-                            {
-                                linkSpan.Inlines.Add(item);
-                            }
-                        }
-                        else
-                        {
-                            segments.Add(childSegment);
-                        }
-                    }
+                    if (child is LiteralInline lit)
+                        linkText.Append(lit.Content.ToString());
                 }
-                linkSegment.Inlines!.Add(linkSpan);
-                segments.Add(linkSegment);
+
+                var displayText = linkText.Length > 0 ? linkText.ToString() : link.Url;
+                var url = NormalizeRouteUrl(link.Url);
+                var hyperlink = CreateHyperlink(url, displayText, parentTextBlock);
+
+                if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                {
+                    segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                }
+                segments[segments.Count - 1].Inlines!.Add(hyperlink);
             }
         }
         else if (inline is LineBreakInline)
@@ -615,7 +1545,7 @@ Hanfu | Photo Count
                     while (child != null && !(child is HtmlInline closing && IsSpanClosingTag(closing)))
                     {
                         var childSegments = new List<ParagraphSegment>();
-                        CollectParagraphSegments(child, childSegments, imagePanel);
+                        CollectParagraphSegments(child, childSegments, imagePanel, parentTextBlock);
                         foreach (var childSegment in childSegments)
                         {
                             if (childSegment.Type == ParagraphSegmentType.Text)
@@ -636,13 +1566,21 @@ Hanfu | Photo Count
                     segments.Add(segment);
                     if (child != null) child = child.NextSibling;
                 }
-                else if (child is HtmlInline)
+                else if (child is HtmlInline brChild)
                 {
+                    if (brChild.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+                    {
+                        if (segments.Count == 0 || segments[segments.Count - 1].Type != ParagraphSegmentType.Text)
+                        {
+                            segments.Add(new ParagraphSegment { Type = ParagraphSegmentType.Text });
+                        }
+                        segments[segments.Count - 1].Inlines!.Add(new LineBreak());
+                    }
                     child = child.NextSibling;
                 }
                 else
                 {
-                    CollectParagraphSegments(child, segments, imagePanel);
+                    CollectParagraphSegments(child, segments, imagePanel, parentTextBlock);
                     child = child.NextSibling;
                 }
             }
@@ -661,11 +1599,8 @@ Hanfu | Photo Count
         }
     }
 
-    private Control? CreateImageControl(string url)
+    private FrameworkElement? CreateImageControl(string url)
     {
-        if (!url.StartsWith("http"))
-            return null;
-
         var image = new Image
         {
             Stretch = Stretch.Uniform,
@@ -675,16 +1610,16 @@ Hanfu | Photo Count
         var errorPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
+
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            IsVisible = false,
+            Visibility = Visibility.Collapsed,
             Margin = new Thickness(16)
         };
 
         var errorText = new TextBlock
         {
-            Text = "图片加载失败",
+            Text = "加载失败，轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -704,9 +1639,9 @@ Hanfu | Photo Count
 
         var retryButton = new Button
         {
-            Content = "重试",
+            Content = "重新刷新",
             HorizontalAlignment = HorizontalAlignment.Center,
-            Padding = new Thickness(12, 6),
+            Padding = new Thickness(12, 6, 12, 6),
             FontSize = 12
         };
         errorPanel.Children.Add(retryButton);
@@ -722,26 +1657,71 @@ Hanfu | Photo Count
             Width = 0
         };
 
-        container.Loaded += (s, e) =>
+        // 图片宽度跟随父级（视口）宽度动态缩放，窗口缩放时自动调整
+        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: false);
+
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
         {
-            var parent = container.Parent as Control;
-            if (parent != null)
+            async void RetryHandler(object? sender, RoutedEventArgs args)
             {
-                container.Width = parent.Bounds.Width * 0.8;
+                retryButton.IsEnabled = false;
+                retryButton.Content = "加载中...";
+                errorPanel.Visibility = Visibility.Collapsed;
+                errorDetailText.Text = "";
+                await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
             }
-        };
 
-        async void RetryHandler(object? sender, RoutedEventArgs args)
-        {
-            retryButton.IsEnabled = false;
-            retryButton.Content = "加载中...";
-            errorPanel.IsVisible = false;
-            errorDetailText.Text = "";
-            await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+            retryButton.Click += RetryHandler;
+            LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
         }
+        else
+        {
+            string localPath = ResolveLocalPath(url);
+            System.Diagnostics.Debug.WriteLine($"CreateImageControl: url={url}, resolvedPath={localPath ?? "null"}");
+            
+            bool loaded = false;
 
-        retryButton.Click += RetryHandler;
-        LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            {
+                try
+                {
+                    using var stream = File.OpenRead(localPath);
+                    var bitmap = LoadBitmap(stream);
+                    image.Source = bitmap;
+                    loaded = true;
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from file {localPath}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl file load failed: {ex.Message}");
+                }
+            }
+
+            if (!loaded)
+            {
+                try
+                {
+                    var avaresUri = BuildAvaresUri(url);
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: trying avares {avaresUri}");
+                    using var assetStream = File.OpenRead(avaresUri);
+                    var bitmap = LoadBitmap(assetStream);
+                    image.Source = bitmap;
+                    loaded = true;
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl: loaded from avares {avaresUri}");
+                }
+                catch (Exception ex)
+                {
+                    System.Diagnostics.Debug.WriteLine($"CreateImageControl avares load failed: {ex.Message}");
+                }
+            }
+
+            if (!loaded)
+            {
+                retryButton.Visibility = Visibility.Collapsed;
+                errorDetailText.Text = $"加载失败，轻触屏幕: {url}";
+                errorPanel.Visibility = Visibility.Visible;
+            }
+        }
 
         return container;
     }
@@ -756,7 +1736,7 @@ Hanfu | Photo Count
 
             if (File.Exists(cachePath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
+                var bitmap = LoadBitmap(cachePath);
                 imageControl.Source = bitmap;
                 return;
             }
@@ -769,7 +1749,7 @@ Hanfu | Photo Count
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
             using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
+            var bitmap2 = LoadBitmap(ms);
             imageControl.Source = bitmap2;
 
             await Task.Run(() =>
@@ -786,17 +1766,72 @@ Hanfu | Photo Count
         {
             imageControl.Source = null;
             errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
-            errorPanel.IsVisible = true;
+            errorPanel.Visibility = Visibility.Visible;
             retryButton.IsEnabled = true;
-            retryButton.Content = "重试";
+            retryButton.Content = "重新刷新";
         }
     }
 
-    private IEnumerable<Avalonia.Controls.Documents.Inline> ConvertInline(Markdig.Syntax.Inlines.Inline inline, TextBlock? parentTextBlock = null)
+    private IEnumerable<(string? Text, bool IsLineBreak)> SplitTextWithBr(string text)
+    {
+        var matches = Regex.Matches(text, @"<br\s*/?>", RegexOptions.IgnoreCase);
+        if (matches.Count == 0)
+        {
+            yield return (text, false);
+            yield break;
+        }
+
+        int lastPos = 0;
+        foreach (Match match in matches)
+        {
+            if (match.Index > lastPos)
+                yield return (text.Substring(lastPos, match.Index - lastPos), false);
+            yield return (null, true);
+            lastPos = match.Index + match.Length;
+        }
+        if (lastPos < text.Length)
+            yield return (text.Substring(lastPos), false);
+    }
+
+    private IEnumerable<System.Windows.Documents.Inline> ConvertInline(Markdig.Syntax.Inlines.Inline inline, TextBlock? parentTextBlock = null)
     {
         if (inline is LiteralInline literal)
         {
-            yield return new Run { Text = literal.Content.ToString() };
+            var text = literal.Content.ToString();
+            var parts = SplitInline(text);
+            foreach (var part in parts)
+            {
+                if (part is string textPart && textPart.Length > 0)
+                {
+                    // 按 <br> 拆分文本，支持强制换行（不受 hide 等语法的单行限制）
+                    foreach (var (brText, isBr) in SplitTextWithBr(textPart))
+                    {
+                        if (isBr)
+                            yield return new LineBreak();
+                        else if (!string.IsNullOrEmpty(brText))
+                            yield return new Run { Text = brText };
+                    }
+                }
+                else if (part is InlinePlaceholder placeholder)
+                {
+                    FrameworkElement control = placeholder.Type switch
+                    {
+                        InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                        InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                        InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: true),
+                        _ => new Border()
+                    };
+                    yield return new InlineUIContainer(control);
+                }
+            }
+        }
+        else if (inline is HtmlInline htmlInline)
+        {
+            // 处理 Markdig 解析为 HtmlInline 的 <br> 标签
+            if (htmlInline.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+            {
+                yield return new LineBreak();
+            }
         }
         else if (inline is EmphasisInline emphasis)
         {
@@ -805,16 +1840,16 @@ Hanfu | Photo Count
             {
                 if (emphasis.DelimiterCount == 2)
                 {
-                    styleSpan = new Span { FontWeight = FontWeight.Bold };
+                    styleSpan = new Span { FontWeight = FontWeights.Bold };
                 }
                 else
                 {
-                    styleSpan = new Span { FontStyle = FontStyle.Italic };
+                    styleSpan = new Span { FontStyle = FontStyles.Italic };
                 }
             }
             else if (emphasis.DelimiterChar == '~')
             {
-                styleSpan = new Span { TextDecorations = TextDecorations.Strikethrough };
+                styleSpan = new Span { TextDecorations = CreateStrikethroughDecoration() };
             }
 
             foreach (var child in emphasis)
@@ -823,6 +1858,8 @@ Hanfu | Photo Count
                 {
                     if (styleSpan != null)
                     {
+                        if (inlineChild is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                            ApplyParentDecorationsToHyperlink(styleSpan, hyperlink);
                         styleSpan.Inlines.Add(inlineChild);
                     }
                     else
@@ -840,30 +1877,20 @@ Hanfu | Photo Count
         else if (inline is Markdig.Syntax.Inlines.CodeInline code)
         {
             var codeText = code.Content.ToString();
-            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://");
+            var isUrl = codeText.StartsWith("http://") || codeText.StartsWith("https://") || codeText.StartsWith("route:");
             
             if (isUrl)
             {
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
-                linkSpan.Inlines.Add(new Run { Text = codeText });
-                
-                if (parentTextBlock != null)
-                {
-                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerReleased += (sender, e) =>
-                    {
-                        OpenLink(codeText);
-                    };
-                }
-                
-                yield return linkSpan;
+                var url = NormalizeRouteUrl(codeText);
+                var hyperlink = CreateHyperlink(url, codeText, parentTextBlock);
+                yield return hyperlink;
             }
             else
             {
                 var isDark = ThemeHelper.IsDarkTheme();
                 var codeSpan = new Span
                 {
-                    Background = isDark ? new SolidColorBrush(Color.Parse("#3c3c3c")) : new SolidColorBrush(Color.Parse("#f0f0f0")),
+                    Background = isDark ? new SolidColorBrush(ThemeHelper.ParseColor("#3c3c3c")) : new SolidColorBrush(ThemeHelper.ParseColor("#f0f0f0")),
                     FontFamily = new FontFamily("Consolas, Courier New, monospace"),
                     FontSize = 13
                 };
@@ -875,29 +1902,29 @@ Hanfu | Photo Count
         {
             if (link.IsImage)
             {
-                yield return new Run { Text = $"[图片: {link.Url}]" };
+                var imageControl = CreateInlineImage(link.Url);
+                if (imageControl != null)
+                {
+                    yield return imageControl;
+                }
+                else
+                {
+                    yield return new Run { Text = $"[图片: {link.Url}]" };
+                }
             }
             else
             {
-                var linkSpan = new Span { Foreground = GetAccentBrush(), TextDecorations = TextDecorations.Underline };
+                var linkText = new System.Text.StringBuilder();
                 foreach (var child in link)
                 {
-                    foreach (var inlineChild in ConvertInline(child, parentTextBlock))
-                    {
-                        linkSpan.Inlines.Add(inlineChild);
-                    }
+                    if (child is LiteralInline lit)
+                        linkText.Append(lit.Content.ToString());
                 }
-                
-                if (parentTextBlock != null)
-                {
-                    parentTextBlock.Cursor = new Cursor(StandardCursorType.Hand);
-                    parentTextBlock.PointerReleased += (sender, e) =>
-                    {
-                        OpenLink(link.Url);
-                    };
-                }
-                
-                yield return linkSpan;
+
+                var displayText = linkText.Length > 0 ? linkText.ToString() : link.Url;
+                var url = NormalizeRouteUrl(link.Url);
+                var hyperlink = CreateHyperlink(url, displayText, parentTextBlock);
+                yield return hyperlink;
             }
         }
         else if (inline is LineBreakInline)
@@ -918,6 +1945,8 @@ Hanfu | Photo Count
                     {
                         foreach (var innerChild in ConvertInline(child, parentTextBlock))
                         {
+                            if (innerChild is Span hyperlink && _hyperlinkSpanMap!.ContainsKey(hyperlink))
+                                ApplyParentDecorationsToHyperlink(styledSpan, hyperlink);
                             styledSpan.Inlines.Add(innerChild);
                         }
                         child = child.NextSibling;
@@ -925,8 +1954,12 @@ Hanfu | Photo Count
                     yield return styledSpan;
                     if (child != null) child = child.NextSibling;
                 }
-                else if (child is HtmlInline)
+                else if (child is HtmlInline brChild)
                 {
+                    if (brChild.Tag.StartsWith("<br", StringComparison.OrdinalIgnoreCase))
+                    {
+                        yield return new LineBreak();
+                    }
                     child = child.NextSibling;
                 }
                 else
@@ -995,7 +2028,7 @@ Hanfu | Photo Count
             switch (name)
             {
                 case "color":
-                    try { span.Foreground = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    try { span.Foreground = new SolidColorBrush(ThemeHelper.ParseColor(value)); } catch { }
                     break;
                 case "font-size":
                     if (TryParsePixelValue(value, out double fontSize))
@@ -1011,22 +2044,91 @@ Hanfu | Photo Count
                     break;
                 case "font-style":
                     if (value.Equals("italic", StringComparison.OrdinalIgnoreCase))
-                        span.FontStyle = FontStyle.Italic;
+                        span.FontStyle = FontStyles.Italic;
                     else if (value.Equals("normal", StringComparison.OrdinalIgnoreCase))
-                        span.FontStyle = FontStyle.Normal;
+                        span.FontStyle = FontStyles.Normal;
                     break;
                 case "text-decoration":
-                    if (value.Contains("underline"))
-                        span.TextDecorations = TextDecorations.Underline;
-                    else if (value.Contains("line-through"))
-                        span.TextDecorations = TextDecorations.Strikethrough;
+                    var decorationValue = value.Trim().ToLowerInvariant();
+                    if (decorationValue.Contains("underline"))
+                    {
+                        var parts = decorationValue.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                        var styleType = parts.Length > 1 ? parts[1] : "single";
+                        span.TextDecorations = CreateUnderlineDecoration(styleType);
+                    }
+                    else if (decorationValue.Contains("line-through"))
+                    {
+                        span.TextDecorations = CreateStrikethroughDecoration();
+                    }
+                    else if (decorationValue.Contains("overline"))
+                    {
+                        var overlineCollection = new TextDecorationCollection();
+                        overlineCollection.Add(new TextDecoration
+                        {
+                            Location = TextDecorationLocation.OverLine,
+                            Pen = new Pen(ThemeHelper.GetTextBrush(), 1.0)
+                        });
+                        span.TextDecorations = overlineCollection;
+                    }
                     break;
                 case "background-color":
                 case "background":
-                    try { span.Background = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    try { span.Background = new SolidColorBrush(ThemeHelper.ParseColor(value)); } catch { }
                     break;
             }
         }
+    }
+
+    private static TextDecorationCollection CreateUnderlineDecoration(string style)
+    {
+        switch (style)
+        {
+            case "wave":
+                var waveDecoration = new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    Pen = new Pen(ThemeHelper.GetTextBrush(), 1.0)
+                    {
+                        DashStyle = new DashStyle(new double[] { 1.5, 1.0 }, 0),
+                        StartLineCap = PenLineCap.Round,
+                        EndLineCap = PenLineCap.Round
+                    }
+                };
+                var waveCollection = new TextDecorationCollection();
+                waveCollection.Add(waveDecoration);
+                return waveCollection;
+
+            case "double":
+                var doubleCollection = new TextDecorationCollection();
+                doubleCollection.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    Pen = new Pen(ThemeHelper.GetTextBrush(), 1.0)
+                });
+                doubleCollection.Add(new TextDecoration
+                {
+                    Location = TextDecorationLocation.Underline,
+                    Pen = new Pen(ThemeHelper.GetTextBrush(), 1.0),
+                    PenOffset = 3,
+                    PenOffsetUnit = TextDecorationUnit.FontRecommended
+                });
+                return doubleCollection;
+
+            default:
+                return TextDecorations.Underline;
+        }
+    }
+
+    private static TextDecorationCollection CreateStrikethroughDecoration()
+    {
+        var decoration = new TextDecoration
+        {
+            Location = TextDecorationLocation.Strikethrough,
+            Pen = new Pen(ThemeHelper.GetTextBrush(), 2.5)
+        };
+        var collection = new TextDecorationCollection();
+        collection.Add(decoration);
+        return collection;
     }
 
     private static Thickness ParseThickness(string value)
@@ -1081,7 +2183,7 @@ Hanfu | Photo Count
                     {
                         if (TryParsePixelValue(borderParts[0], out double borderWidth))
                             border.BorderThickness = new Thickness(borderWidth);
-                        try { border.BorderBrush = new SolidColorBrush(Color.Parse(borderParts[2])); } catch { }
+                        try { border.BorderBrush = new SolidColorBrush(ThemeHelper.ParseColor(borderParts[2])); } catch { }
                     }
                     break;
                 case "border-radius":
@@ -1090,7 +2192,7 @@ Hanfu | Photo Count
                     break;
                 case "background-color":
                 case "background":
-                    try { border.Background = new SolidColorBrush(Color.Parse(value)); } catch { }
+                    try { border.Background = new SolidColorBrush(ThemeHelper.ParseColor(value)); } catch { }
                     break;
             }
         }
@@ -1108,20 +2210,12 @@ Hanfu | Photo Count
     private static FontWeight ParseFontWeight(string value)
     {
         if (value.Equals("bold", StringComparison.OrdinalIgnoreCase))
-            return FontWeight.Bold;
+            return FontWeights.Bold;
         if (value.Equals("normal", StringComparison.OrdinalIgnoreCase))
-            return FontWeight.Normal;
+            return FontWeights.Normal;
         if (int.TryParse(value, out int num))
-            return (FontWeight)Math.Clamp(num, 100, 900);
-        return FontWeight.Normal;
-    }
-
-    private void OnTextBlockLinkClicked(object? sender, Avalonia.Input.PointerReleasedEventArgs e)
-    {
-        if (sender is TextBlock textBlock && textBlock.Tag is string url)
-        {
-            OpenLink(url);
-        }
+            return FontWeight.FromOpenTypeWeight(Math.Clamp(num, 100, 900));
+        return FontWeights.Normal;
     }
 
     private void OpenLink(string url)
@@ -1150,12 +2244,12 @@ Hanfu | Photo Count
         }
     }
 
-    private Control ConvertCodeBlock(CodeBlock code)
+    private FrameworkElement ConvertCodeBlock(CodeBlock code)
     {
         var isDark = ThemeHelper.IsDarkTheme();
         var border = new Border
         {
-            Background = isDark ? new SolidColorBrush(Color.Parse("#2d2d2d")) : new SolidColorBrush(Color.Parse("#f4f4f4")),
+            Background = isDark ? new SolidColorBrush(ThemeHelper.ParseColor("#2d2d2d")) : new SolidColorBrush(ThemeHelper.ParseColor("#f4f4f4")),
             CornerRadius = new CornerRadius(4),
             Padding = new Thickness(12),
             Margin = new Thickness(0, 4, 0, 4)
@@ -1182,8 +2276,170 @@ Hanfu | Photo Count
         return border;
     }
 
-    private Control ConvertQuoteBlock(QuoteBlock quote)
+    private enum AlertType
     {
+        None,
+        Tip,
+        Note,
+        Important,
+        Warning,
+        Caution,
+        Custom
+    }
+
+    private enum InfoBarType
+    {
+        Info,
+        Warning,
+        Error
+    }
+
+    private class InfoBarData
+    {
+        public InfoBarType Type { get; set; }
+        public bool Closable { get; set; }
+        public string Content { get; set; } = "";
+    }
+
+    private class ImgData
+    {
+        public string Src { get; set; } = "";
+        public string Width { get; set; } = "";
+        public string Height { get; set; } = "auto";
+        public string Title { get; set; } = "";
+        public string Alt { get; set; } = "";
+    }
+
+    private class HideData
+    {
+        public int ClickTime { get; set; }
+        public int Count { get; set; }
+        public string Content { get; set; } = "";
+        public string? DetectedColor { get; set; }
+    }
+
+    private class LoadingData
+    {
+        public double Size { get; set; }
+        public string? Color { get; set; }
+    }
+
+    private (AlertType Type, string CustomTitle) DetectAlertType(QuoteBlock quote)
+    {
+        foreach (var block in quote)
+        {
+            if (block is ParagraphBlock paragraph)
+            {
+                var text = ExtractParagraphText(paragraph);
+                var specificMatch = Regex.Match(text, @"^\[!(tip|note|important|warning|caution)\]", RegexOptions.IgnoreCase);
+                if (specificMatch.Success)
+                {
+                    return specificMatch.Groups[1].Value.ToLowerInvariant() switch
+                    {
+                        "tip" => (AlertType.Tip, ""),
+                        "note" => (AlertType.Note, ""),
+                        "important" => (AlertType.Important, ""),
+                        "warning" => (AlertType.Warning, ""),
+                        "caution" => (AlertType.Caution, ""),
+                        _ => (AlertType.None, "")
+                    };
+                }
+                
+                var customMatch = Regex.Match(text, @"^\[([^\]!]+)\]", RegexOptions.IgnoreCase);
+                if (customMatch.Success)
+                {
+                    return (AlertType.Custom, customMatch.Groups[1].Value.Trim());
+                }
+                
+                break;
+            }
+        }
+        return (AlertType.None, "");
+    }
+
+    private ParagraphBlock? StripAlertMarker(ParagraphBlock paragraph, AlertType alertType)
+    {
+        var text = ExtractParagraphText(paragraph);
+        var specificMatch = Regex.Match(text, @"^\[!(tip|note|important|warning|caution)\]\s*", RegexOptions.IgnoreCase);
+        var customMatch = Regex.Match(text, @"^\[[^\]!]+\]\s*", RegexOptions.IgnoreCase);
+        
+        var match = specificMatch.Success ? specificMatch : (customMatch.Success ? customMatch : null);
+        
+        if (match == null)
+        {
+            return paragraph;
+        }
+
+        var markerLength = match.Value.Length;
+        
+        var remainingText = text.Substring(markerLength).Trim();
+        if (string.IsNullOrWhiteSpace(remainingText))
+        {
+            return null;
+        }
+        
+        var newParagraph = new ParagraphBlock(paragraph.Parser);
+        var container = new ContainerInline();
+        container.AppendChild(new LiteralInline(remainingText));
+        newParagraph.Inline = container;
+        return newParagraph;
+    }
+
+    private FrameworkElement ConvertAlertBlock(QuoteBlock quote, AlertType alertType, string customTitle = "")
+    {
+        var isDark = ThemeHelper.IsDarkTheme();
+        
+        Brush borderColor, titleColor, bgColor;
+        switch (alertType)
+        {
+            case AlertType.Tip:
+                borderColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#00B368" : "#007D4B"));
+                titleColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#67E8A4" : "#005A36"));
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#0D2A1C" : "#F0FAF5"));
+                break;
+            case AlertType.Note:
+                borderColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#3B82F6" : "#1D4ED8"));
+                titleColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#60A5FA" : "#1E40AF"));
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#0E1F3D" : "#EFF6FF"));
+                break;
+            case AlertType.Important:
+                borderColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#A855F7" : "#7E22CE"));
+                titleColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#C084FC" : "#6B21A8"));
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#2A0F3D" : "#FAF5FF"));
+                break;
+            case AlertType.Warning:
+                borderColor = ThemeHelper.GetOrangeBrush();
+                titleColor = ThemeHelper.GetOrangeBrush();
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#332905" : "#FFFBEB"));
+                break;
+            case AlertType.Caution:
+                borderColor = Brushes.Red;
+                titleColor = Brushes.Red;
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#330505" : "#FEF2F2"));
+                break;
+            case AlertType.Custom:
+                borderColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#9CA3AF" : "#6B7280"));
+                titleColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#D1D5DB" : "#4B5563"));
+                bgColor = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#1F2937" : "#F9FAFB"));
+                break;
+            default:
+                borderColor = GetAccentBrush();
+                titleColor = GetAccentBrush();
+                bgColor = Brushes.Transparent;
+                break;
+        }
+
+        var (icon, titleText) = alertType switch
+        {
+            AlertType.Tip => ("💡", "Tip"),
+            AlertType.Note => ("📝", "Note"),
+            AlertType.Important => ("⭐", "Important"),
+            AlertType.Warning => ("⚠️", "Warning"),
+            AlertType.Caution => ("❗", "Caution"),
+            AlertType.Custom => ("", customTitle),
+            _ => ("", "")
+        };
+
         var grid = new Grid
         {
             Margin = new Thickness(0, 4, 0, 4)
@@ -1193,15 +2449,869 @@ Hanfu | Photo Count
 
         var leftBorder = new Border
         {
-            Background = GetAccentBrush()
+            Background = borderColor
         };
         Grid.SetColumn(leftBorder, 0);
         grid.Children.Add(leftBorder);
 
+        var contentBorder = new Border
+        {
+            Background = bgColor,
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        Grid.SetColumn(contentBorder, 1);
+
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 4
+
+        };
+
+        var titlePanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var iconText = new TextBlock
+        {
+            Text = icon,
+            FontSize = 14
+        };
+        titlePanel.Children.Add(iconText);
+
+        var titleTextBlock = new TextBlock
+        {
+            Text = titleText,
+            FontSize = 14,
+            FontWeight = FontWeights.Bold,
+            Foreground = titleColor
+        };
+        titlePanel.Children.Add(titleTextBlock);
+
+        panel.Children.Add(titlePanel);
+
+        var isFirst = true;
+        foreach (var block in quote)
+        {
+            if (block is ParagraphBlock paragraph && isFirst)
+            {
+                isFirst = false;
+                var cleanedParagraph = StripAlertMarker(paragraph, alertType);
+                if (cleanedParagraph != null)
+                {
+                    var element = ConvertParagraph(cleanedParagraph);
+                    if (element != null)
+                    {
+                        panel.Children.Add(element);
+                    }
+                }
+                continue;
+            }
+
+            isFirst = false;
+            var blockElement = ConvertMarkdownBlock(block);
+            if (blockElement != null)
+            {
+                panel.Children.Add(blockElement);
+            }
+        }
+
+        contentBorder.Child = panel;
+        grid.Children.Add(contentBorder);
+
+        return grid;
+    }
+
+    private FrameworkElement ConvertInfoBar(int index)
+    {
+        if (_infoBarData == null || !_infoBarData.TryGetValue(index, out var data))
+            return new Border();
+
+        var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+
+        object severityValue = data.Type switch
+        {
+            InfoBarType.Warning => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning(),
+            InfoBarType.Error => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityError(),
+            _ => FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational()
+        };
+
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity", severityValue);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message", data.Content);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", data.Closable);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 8, 0, 8));
+
+        return infoBar;
+    }
+
+    private FrameworkElement ConvertHide(int index)
+    {
+        if (_hideData == null || !_hideData.TryGetValue(index, out var data))
+            return new Border();
+
+        // 确定背景色：如果内部有文本颜色语法，背景色与文本颜色一致；否则使用默认文本色
+        Brush backgroundBrush;
+        if (!string.IsNullOrEmpty(data.DetectedColor))
+        {
+            try { backgroundBrush = new SolidColorBrush(ThemeHelper.ParseColor(data.DetectedColor)); }
+            catch { backgroundBrush = ThemeHelper.GetSubTextBrush(); }
+        }
+        else
+        {
+            backgroundBrush = ThemeHelper.GetSubTextBrush();
+        }
+
+        // 使用 StackPanel 作为容器，使图片等块级元素能正确应用宽度参数
+        // 使用 Opacity=0 隐藏所有内容（文本+图片），点击揭示后设为1
+        // IsHitTestVisible=false 防止隐藏状态下鼠标悬停仍展示 ToolTip（如图片 title）
+        var innerPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Margin = new Thickness(0),
+            Opacity = 0,
+            IsHitTestVisible = false
+        };
+
+        // 按内联占位符拆分内容：图片等块级元素单独渲染以正确应用宽度参数
+        var innerPipeline = new Markdig.MarkdownPipelineBuilder()
+            .UseEmphasisExtras()
+            .Build();
+
+        var parts = SplitInline(data.Content);
+        bool hasContent = false;
+
+        foreach (var part in parts)
+        {
+            if (part is string textPart && textPart.Length > 0)
+            {
+                textPart = Regex.Replace(textPart, @"^\s*<br\s*/?>\s*", "", RegexOptions.IgnoreCase);
+                if (string.IsNullOrEmpty(textPart)) continue;
+
+                var textDoc = Markdig.Markdown.Parse(textPart, innerPipeline);
+                bool partRendered = false;
+                foreach (var block in textDoc)
+                {
+                    if (block is ParagraphBlock paragraph && paragraph.Inline != null)
+                    {
+                        var textBlock = new TextBlock
+                        {
+                            FontSize = 14,
+                            TextWrapping = TextWrapping.Wrap,
+                            Foreground = backgroundBrush,
+                            Margin = new Thickness(0)
+                        };
+                        foreach (var inline in ConvertInline(paragraph.Inline, textBlock))
+                        {
+                            textBlock.Inlines.Add(inline);
+                        }
+                        if (textBlock.Inlines.Count > 0)
+                        {
+                            innerPanel.Children.Add(textBlock);
+                            AttachHyperlinkClickHandler(textBlock);
+                            partRendered = true;
+                        }
+                    }
+                }
+                if (!partRendered)
+                {
+                    var fallbackBlock = new TextBlock
+                    {
+                        FontSize = 14,
+                        TextWrapping = TextWrapping.Wrap,
+                        Foreground = backgroundBrush,
+                        Margin = new Thickness(0)
+                    };
+                    fallbackBlock.Inlines.Add(new Run { Text = textPart });
+                    innerPanel.Children.Add(fallbackBlock);
+                }
+                hasContent = true;
+            }
+            else if (part is InlinePlaceholder placeholder)
+            {
+                FrameworkElement control = placeholder.Type switch
+                {
+                    InlinePlaceholderType.Img => ConvertImg(placeholder.Id, isInline: false),
+                    InlinePlaceholderType.Hide => ConvertHide(placeholder.Id),
+                    InlinePlaceholderType.Loading => ConvertLoading(placeholder.Id),
+                    _ => new Border()
+                };
+                innerPanel.Children.Add(control);
+                hasContent = true;
+            }
+        }
+
+        if (!hasContent && !string.IsNullOrEmpty(data.Content))
+        {
+            var fallbackBlock = new TextBlock
+            {
+                FontSize = 14,
+                TextWrapping = TextWrapping.Wrap,
+                Foreground = backgroundBrush,
+                Margin = new Thickness(0)
+            };
+            fallbackBlock.Inlines.Add(new Run { Text = data.Content });
+            innerPanel.Children.Add(fallbackBlock);
+        }
+
+        // 创建带隐藏背景的 Border
+        var border = new Border
+        {
+            Background = backgroundBrush,
+            Child = innerPanel,
+            Padding = new Thickness(2, 0, 2, 0),
+            CornerRadius = new CornerRadius(2),
+            Cursor = Cursors.Hand
+        };
+
+        // 点击计数：在 clicktime 毫秒内点击 count 次后背景消失
+        // 使用 handledEventsToo: true 确保点击图片（其容器会设置 e.Handled = true）时仍能触发取消隐藏
+        var clickTimes = new List<DateTime>();
+        var pressedHandler = new MouseButtonEventHandler((s, e) =>
+        {
+            var now = DateTime.Now;
+            clickTimes.Add(now);
+            // 移除超出时间窗口的点击记录
+            clickTimes.RemoveAll(t => (now - t).TotalMilliseconds > data.ClickTime);
+
+            if (clickTimes.Count >= data.Count)
+            {
+                // 背景消失，展示所有内容（文本+图片）
+                border.Background = Brushes.Transparent;
+                innerPanel.Opacity = 1;
+                innerPanel.IsHitTestVisible = true;
+                border.Cursor = null;
+                clickTimes.Clear();
+            }
+            e.Handled = true;
+        });
+        border.AddHandler(UIElement.MouseLeftButtonDownEvent, pressedHandler, true);
+
+        // 阻止鼠标左键抬起冒泡到外层 TextBlock 的超链接处理器
+        border.AddHandler(UIElement.MouseLeftButtonUpEvent, new MouseButtonEventHandler((s, e) => e.Handled = true), true);
+
+        // 不保存消失状态：重进页面时控件会重新创建，自动恢复隐藏状态
+        return border;
+    }
+
+    private FrameworkElement ConvertLoading(int index)
+    {
+        if (_loadingData == null || !_loadingData.TryGetValue(index, out var data))
+            return new Border();
+
+        var size = data.Size;
+        var center = size / 2.0;
+        // FA3 比例：80x80视觉中圆弧半径30，描边宽度4
+        var radius = 3.0 * size / 8.0;
+        var strokeWidth = size / 20.0;
+
+        // 确定描边颜色：优先使用 color 属性，否则使用默认文本色
+        Brush strokeBrush;
+        if (!string.IsNullOrEmpty(data.Color))
+        {
+            try { strokeBrush = new SolidColorBrush(ThemeHelper.ParseColor(data.Color)); }
+            catch { strokeBrush = ThemeHelper.GetSubTextBrush(); }
+        }
+        else
+        {
+            strokeBrush = ThemeHelper.GetSubTextBrush();
+        }
+
+        var path = new System.Windows.Shapes.Path
+        {
+            Stroke = strokeBrush,
+            StrokeThickness = strokeWidth,
+            StrokeStartLineCap = PenLineCap.Round,
+            StrokeEndLineCap = PenLineCap.Round,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Width = size,
+            Height = size
+        };
+
+        // 完全按照 FA3 FAProgressRingAnimatedVisual 的动画算法实现
+        // 周期2秒，3圈旋转（1080°），弧长在0°→180°→180°→0°之间变化
+        var startTime = DateTime.Now;
+        var timer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(16) };
+
+        timer.Tick += (s, e) =>
+        {
+            var elapsed = (DateTime.Now - startTime).TotalSeconds;
+            var duration = 2.0; // FA3: _duration = 2
+            var seconds = elapsed % duration;
+            var progress = seconds / duration;
+
+            // 弧长（扫过角度）算法 - 与 FA3 一致
+            // 0%-25%: 0°→180°, 25%-75%: 180°, 75%-100%: 180°→0°
+            double sweepSize;
+            if (progress < 0.25)
+                sweepSize = 180.0 * (progress / 0.25);
+            else if (progress >= 0.75)
+                sweepSize = 180.0 * ((1.0 - progress) / 0.25);
+            else
+                sweepSize = 180.0;
+
+            var sweepSize2 = sweepSize / 2.0;
+
+            // 旋转位置：3圈 = 1080°
+            var position = 1080.0 * progress;
+
+            // 起始角度：-90° + 旋转位置 - 弧长一半（与 FA3 AddArc 一致）
+            var startAngle = -90.0 + position - sweepSize2;
+            var sweepAngle = sweepSize;
+
+            if (sweepAngle < 0.5)
+            {
+                path.Data = null;
+                return;
+            }
+
+            var startRad = startAngle * Math.PI / 180.0;
+            var endRad = (startAngle + sweepAngle) * Math.PI / 180.0;
+
+            var startX = center + radius * Math.Cos(startRad);
+            var startY = center + radius * Math.Sin(startRad);
+            var endX = center + radius * Math.Cos(endRad);
+            var endY = center + radius * Math.Sin(endRad);
+
+            var largeArc = sweepAngle > 180.0 ? 1 : 0;
+            var pathData = string.Format(CultureInfo.InvariantCulture,
+                "M {0},{1} A {2},{2} 0 {3} 1 {4},{5}",
+                startX, startY, radius, largeArc, endX, endY);
+            path.Data = StreamGeometry.Parse(pathData);
+        };
+
+        path.Loaded += (s, e) => timer.Start();
+        path.Unloaded += (s, e) => timer.Stop();
+
+        // 使用 Border 包装 Path，确保尺寸测量正确
+        var wrapper = new Border
+        {
+            Width = size,
+            Height = size,
+            HorizontalAlignment = HorizontalAlignment.Left,
+            VerticalAlignment = VerticalAlignment.Center,
+            Child = path
+        };
+
+        // 防止点击 loading 控件时事件冒泡到外层 TextBlock 触发超链接"扩散"
+        wrapper.MouseLeftButtonDown += (s, e) => e.Handled = true;
+        wrapper.MouseLeftButtonUp += (s, e) => e.Handled = true;
+
+        return wrapper;
+    }
+
+    private FrameworkElement ConvertImg(int index, bool isInline = false)
+    {
+        if (_imgData == null || !_imgData.TryGetValue(index, out var data))
+            return new Border();
+
+        var image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+
+        if (!string.IsNullOrEmpty(data.Title))
+        {
+            ToolTipService.SetToolTip(image, data.Title);
+        }
+
+        var altText = string.IsNullOrEmpty(data.Alt) ? "加载失败，轻触屏幕" : data.Alt;
+
+        var errorPanel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Visibility = Visibility.Collapsed,
+            Margin = new Thickness(16)
+        };
+
+        var errorText = new TextBlock
+        {
+            Text = altText,
+            FontSize = 13,
+            Foreground = Brushes.Gray,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            TextWrapping = TextWrapping.Wrap,
+            MaxWidth = 300
+        };
+        errorPanel.Children.Add(errorText);
+
+        var grid = new Grid();
+        grid.Children.Add(image);
+        grid.Children.Add(errorPanel);
+
+        var container = new Border
+        {
+            Child = grid,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+
+        // 防止点击 img 控件时事件冒泡到外层 TextBlock 触发超链接"扩散"
+        container.MouseLeftButtonDown += (s, e) => e.Handled = true;
+        container.MouseLeftButtonUp += (s, e) => e.Handled = true;
+
+        if (isInline)
+        {
+            // 内联模式：不使用 Loaded 处理器（避免 InlineUIContainer 内布局循环导致死机）
+            // 使用 MaxWidth/MaxHeight 而非 Width/Height，与 CreateInlineImage 一致
+            // 这样 Image 在 Source 加载前后都能正确测量，InlineUIContainer 可自适应
+            bool widthIsPercent = data.Width.EndsWith("%", StringComparison.Ordinal);
+            double? parsedWidth = ParseSizeValue(data.Width, 800);
+            double? parsedHeight = ParseSizeValue(data.Height, 600);
+
+            if (parsedWidth.HasValue && !widthIsPercent)
+            {
+                image.MaxWidth = parsedWidth.Value;
+            }
+            else
+            {
+                // 未指定宽度或百分比宽度：随所在 TextBlock 宽度动态缩放（窗口缩放时自动调整）
+                ResponsiveImageHelper.MakeInlineWidthFollowTextBlock(container, image, data.Width, 0.9);
+            }
+
+            if (parsedHeight.HasValue)
+            {
+                image.MaxHeight = parsedHeight.Value;
+            }
+
+            if (parsedWidth.HasValue && parsedHeight.HasValue && !widthIsPercent)
+            {
+                image.Stretch = Stretch.Fill;
+            }
+            else
+            {
+                image.Stretch = Stretch.Uniform;
+            }
+
+            // 内联模式不设置 container.Width，让 Border 自适应 Image 大小
+            container.HorizontalAlignment = HorizontalAlignment.Left;
+
+            ResolveAndLoadImage(data.Src, image, errorPanel);
+        }
+        else
+        {
+            // 块级模式：根据父级宽度计算尺寸，并随窗口缩放动态调整
+            Control? widthSource = null;
+
+            void ApplySize()
+            {
+                if (widthSource == null || widthSource.ActualWidth <= 0) return;
+                double viewportWidth = widthSource.ActualWidth;
+                double viewportHeight = widthSource.ActualHeight;
+
+                double? parsedWidth = ParseSizeValue(data.Width, viewportWidth);
+                double? parsedHeight = ParseSizeValue(data.Height, viewportHeight);
+
+                bool hasWidth = parsedWidth.HasValue;
+                bool hasHeight = parsedHeight.HasValue;
+
+                if (hasWidth)
+                {
+                    container.Width = parsedWidth.Value;
+                    image.Width = parsedWidth.Value;
+                }
+                else
+                {
+                    container.Width = double.NaN;
+                    image.Width = double.NaN;
+                }
+
+                if (hasHeight)
+                {
+                    container.Height = parsedHeight.Value;
+                    image.Height = parsedHeight.Value;
+                }
+                else
+                {
+                    container.Height = double.NaN;
+                    image.Height = double.NaN;
+                }
+
+                if (hasWidth && hasHeight)
+                {
+                    image.Stretch = Stretch.Fill;
+                }
+                else if (hasWidth || hasHeight)
+                {
+                    image.Stretch = Stretch.Uniform;
+                }
+                else
+                {
+                    image.Stretch = Stretch.Uniform;
+                    image.MaxWidth = viewportWidth * 0.9;
+                }
+            }
+
+            container.Loaded += (s, e) =>
+            {
+                // 向上遍历视觉树查找实际可用宽度
+                // 直接父级（如 hide 内的 StackPanel）宽度由内容决定，需找到外层 TextBlock 获取页面宽度
+                Control? fallback = null;
+                var parent = VisualTreeHelper.GetParent(container) as FrameworkElement;
+                while (parent != null)
+                {
+                    if (parent is Control c)
+                    {
+                        if (c.ActualWidth > 0)
+                        {
+                            widthSource = c;
+                            if (c is TextBlock) break;
+                        }
+                        else if (fallback == null)
+                        {
+                            fallback = c;
+                        }
+                    }
+                    parent = VisualTreeHelper.GetParent(parent) as FrameworkElement;
+                }
+                if (widthSource == null) widthSource = fallback;
+                if (widthSource == null) return;
+
+                ApplySize();
+                widthSource.SizeChanged += (_, _) => ApplySize();
+                ResolveAndLoadImage(data.Src, image, errorPanel);
+            };
+        }
+
+        return container;
+    }
+
+    private double? ParseSizeValue(string value, double viewportSize)
+    {
+        if (string.IsNullOrEmpty(value))
+            return null;
+
+        if (value.Equals("auto", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        if (value.EndsWith("%", StringComparison.Ordinal))
+        {
+            if (double.TryParse(value.Substring(0, value.Length - 1), out double percent))
+            {
+                return viewportSize * percent / 100.0;
+            }
+            return null;
+        }
+
+        if (value.EndsWith("px", StringComparison.OrdinalIgnoreCase))
+        {
+            if (double.TryParse(value.Substring(0, value.Length - 2), out double px))
+            {
+                return px;
+            }
+            return null;
+        }
+
+        if (double.TryParse(value, out double plainValue))
+        {
+            return plainValue;
+        }
+
+        return null;
+    }
+
+    private async void ResolveAndLoadImage(string src, Image imageControl, StackPanel errorPanel)
+    {
+        try
+        {
+            string localPath = ResolveLocalPath(src);
+
+            if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+            {
+                using var stream = File.OpenRead(localPath);
+                var bitmap = LoadBitmap(stream);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            try
+            {
+                var avaresUri = BuildAvaresUri(src);
+                using var assetStream = File.OpenRead(avaresUri);
+                var bitmap = LoadBitmap(assetStream);
+                imageControl.Source = bitmap;
+                return;
+            }
+            catch
+            {
+            }
+
+            if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            {
+                await LoadRemoteImgOnly(src, imageControl, errorPanel);
+            }
+            else
+            {
+                imageControl.Source = null;
+                errorPanel.Visibility = Visibility.Visible;
+            }
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"ResolveAndLoadImage failed: {ex.Message}");
+            imageControl.Source = null;
+            errorPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private async Task LoadRemoteImgOnly(string url, Image imageControl, StackPanel errorPanel)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var cachePath = Path.Combine(cacheDir, fileName);
+
+            if (File.Exists(cachePath))
+            {
+                var bitmap = LoadBitmap(cachePath);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+
+            using var ms = new MemoryStream(bytes);
+            var bitmap2 = LoadBitmap(ms);
+            imageControl.Source = bitmap2;
+
+            await Task.Run(() =>
+            {
+                Directory.CreateDirectory(cacheDir);
+                var tempPath = Path.Combine(cacheDir, Guid.NewGuid().ToString() + ".tmp");
+                File.WriteAllBytes(tempPath, bytes);
+                if (File.Exists(cachePath))
+                {
+                    File.Delete(tempPath);
+                }
+                else
+                {
+                    File.Move(tempPath, cachePath);
+                }
+            });
+        }
+        catch (Exception ex)
+        {
+            System.Diagnostics.Debug.WriteLine($"LoadRemoteImgOnly failed: {ex.Message}");
+            imageControl.Source = null;
+            errorPanel.Visibility = Visibility.Visible;
+        }
+    }
+
+    private static string BuildAvaresUri(string url)
+    {
+        var assemblyName = System.Reflection.Assembly.GetExecutingAssembly().GetName().Name ?? "AdvancedTimeIsland";
+        var cleanPath = url.Replace('\\', '/');
+        if (cleanPath.StartsWith('/')) cleanPath = cleanPath.Substring(1);
+        return Path.Combine(AppContext.BaseDirectory, cleanPath);
+    }
+
+    /// <summary>
+    /// 从文件路径加载位图（WPF）。
+    /// </summary>
+    private static BitmapImage LoadBitmap(string path)
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.UriSource = new Uri(path, UriKind.Absolute);
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    /// <summary>
+    /// 从流加载位图（WPF）。
+    /// </summary>
+    private static BitmapImage LoadBitmap(Stream stream)
+    {
+        var bitmap = new BitmapImage();
+        bitmap.BeginInit();
+        bitmap.CacheOption = BitmapCacheOption.OnLoad;
+        bitmap.StreamSource = stream;
+        bitmap.EndInit();
+        bitmap.Freeze();
+        return bitmap;
+    }
+
+    private InlineUIContainer? CreateInlineImage(string url)
+    {
+        var image = new Image
+        {
+            Stretch = Stretch.Uniform,
+            MaxWidth = 300,
+            MaxHeight = 200,
+            Margin = new Thickness(4, 4, 4, 4)
+        };
+
+        if (url.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+        {
+            // 异步加载网络图片（复用缓存逻辑），加载完成前 Image 为空白
+            _ = LoadRemoteInlineImage(url, image);
+            return new InlineUIContainer(image);
+        }
+
+        bool loaded = false;
+
+        string localPath = ResolveLocalPath(url);
+        if (!string.IsNullOrEmpty(localPath) && File.Exists(localPath))
+        {
+            try
+            {
+                using var stream = File.OpenRead(localPath);
+                var bitmap = LoadBitmap(stream);
+                image.Source = bitmap;
+                loaded = true;
+            }
+            catch { }
+        }
+
+        if (!loaded)
+        {
+            try
+            {
+                var avaresUri = BuildAvaresUri(url);
+                using var assetStream = File.OpenRead(avaresUri);
+                var bitmap = LoadBitmap(assetStream);
+                image.Source = bitmap;
+                loaded = true;
+            }
+            catch { }
+        }
+
+        if (!loaded)
+            return null;
+
+        return new InlineUIContainer(image);
+    }
+
+    private async Task LoadRemoteInlineImage(string url, Image imageControl)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            var cacheDir = Path.Combine(AppContext.BaseDirectory, "Assets", "Images");
+            var cachePath = Path.Combine(cacheDir, fileName);
+
+            if (File.Exists(cachePath))
+            {
+                var bitmap = LoadBitmap(cachePath);
+                imageControl.Source = bitmap;
+                return;
+            }
+
+            using var client = new HttpClient();
+            client.Timeout = TimeSpan.FromSeconds(30);
+            using var response = await client.GetAsync(url);
+            response.EnsureSuccessStatusCode();
+
+            var bytes = await response.Content.ReadAsByteArrayAsync();
+            using var ms = new MemoryStream(bytes);
+            var bitmap2 = LoadBitmap(ms);
+            imageControl.Source = bitmap2;
+
+            await Task.Run(() =>
+            {
+                try
+                {
+                    Directory.CreateDirectory(cacheDir);
+                    File.WriteAllBytes(cachePath, bytes);
+                }
+                catch { }
+            });
+        }
+        catch { }
+    }
+
+    private string? ResolveLocalPath(string src)
+    {
+        if (src.StartsWith("http", StringComparison.OrdinalIgnoreCase))
+            return null;
+
+        try
+        {
+            var baseDir = AppContext.BaseDirectory;
+            var assemblyLocation = System.Reflection.Assembly.GetExecutingAssembly().Location;
+            var pluginDir = string.IsNullOrEmpty(assemblyLocation) ? baseDir : System.IO.Path.GetDirectoryName(assemblyLocation) ?? baseDir;
+
+            var relativePath = src.Replace('/', Path.DirectorySeparatorChar);
+            if (relativePath.StartsWith("Assets", StringComparison.OrdinalIgnoreCase))
+            {
+                relativePath = relativePath.Substring("Assets".Length).TrimStart(Path.DirectorySeparatorChar);
+            }
+
+            var fullPath = Path.Combine(baseDir, "Assets", relativePath);
+            if (File.Exists(fullPath))
+                return fullPath;
+
+            var fullPathPlugin = Path.Combine(pluginDir, "Assets", relativePath);
+            if (File.Exists(fullPathPlugin))
+                return fullPathPlugin;
+
+            var fullPath2 = Path.Combine(baseDir, src);
+            if (File.Exists(fullPath2))
+                return fullPath2;
+
+            var fullPathPlugin2 = Path.Combine(pluginDir, src);
+            if (File.Exists(fullPathPlugin2))
+                return fullPathPlugin2;
+
+            return null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private FrameworkElement ConvertQuoteBlock(QuoteBlock quote)
+    {
+        var (alertType, customTitle) = DetectAlertType(quote);
+        if (alertType != AlertType.None)
+        {
+            return ConvertAlertBlock(quote, alertType, customTitle);
+        }
+
+        var isDark = ThemeHelper.IsDarkTheme();
+        var leftBorderBrush = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#9CA3AF" : "#6B7280"));
+        var bgBrush = new SolidColorBrush(ThemeHelper.ParseColor(isDark ? "#1F2937" : "#F9FAFB"));
+
+        var grid = new Grid
+        {
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(4) });
+        grid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+
+        var leftBorder = new Border
+        {
+            Background = leftBorderBrush
+        };
+        Grid.SetColumn(leftBorder, 0);
+        grid.Children.Add(leftBorder);
+
+        var contentBorder = new Border
+        {
+            Background = bgBrush,
+            Padding = new Thickness(12, 8, 12, 8)
+        };
+        Grid.SetColumn(contentBorder, 1);
+
+        var panel = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+
         };
 
         foreach (var block in quote)
@@ -1213,19 +3323,19 @@ Hanfu | Photo Count
             }
         }
 
-        Grid.SetColumn(panel, 1);
-        grid.Children.Add(panel);
+        contentBorder.Child = panel;
+        grid.Children.Add(contentBorder);
 
         return grid;
     }
 
-    private Control ConvertListBlock(ListBlock list)
+    private FrameworkElement ConvertListBlock(ListBlock list)
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
             Margin = new Thickness(16, 4, 0, 4),
-            Spacing = 4
+
         };
 
         foreach (var item in list)
@@ -1248,7 +3358,7 @@ Hanfu | Photo Count
                 var contentPanel = new StackPanel
                 {
                     Orientation = Orientation.Vertical,
-                    Spacing = 4,
+
                     Margin = new Thickness(8, 0, 0, 0)
                 };
 
@@ -1271,12 +3381,12 @@ Hanfu | Photo Count
         return panel;
     }
 
-    private Control ConvertTableBlock(Markdig.Extensions.Tables.Table table)
+    private FrameworkElement ConvertTableBlock(Markdig.Extensions.Tables.Table table)
     {
         var scrollViewer = new ScrollViewer
         {
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Margin = new Thickness(0, 4, 0, 4)
         };
 
@@ -1322,13 +3432,13 @@ Hanfu | Photo Count
                         {
                             BorderBrush = ThemeHelper.GetSeparatorBrush(),
                             BorderThickness = new Thickness(0, 0, 1, 1),
-                            Padding = new Thickness(8, 6)
+                            Padding = new Thickness(8, 6, 8, 6)
                         };
 
                         var cellContentPanel = new StackPanel
                         {
                             Orientation = Orientation.Vertical,
-                            Spacing = 2
+
                         };
 
                         foreach (var block in tableCell)
@@ -1377,12 +3487,12 @@ Hanfu | Photo Count
         return scrollViewer;
     }
 
-    protected virtual void OnBackClick(object? sender, PointerPressedEventArgs e)
+    protected virtual void OnBackClick(object? sender, MouseButtonEventArgs e)
     {
         FluentAvaloniaCompatibilityHelper.NavigateBack(this);
     }
 
-    protected void AddSection(StackPanel panel, string text, double fontSize, FontWeight fontWeight, IBrush foreground)
+    protected void AddSection(StackPanel panel, string text, double fontSize, FontWeight fontWeight, Brush foreground)
     {
         var textBlock = new TextBlock
         {
@@ -1410,22 +3520,23 @@ Hanfu | Photo Count
         panel.Children.Add(textBlock);
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
         if (Application.Current != null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            ThemeHelper.ThemeChanged += OnThemeVariantChanged;
         }
+        Unloaded += OnPageUnloaded;
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnPageUnloaded(object sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         if (Application.Current != null)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
         }
+        Unloaded -= OnPageUnloaded;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

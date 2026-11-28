@@ -1,10 +1,7 @@
 using System;
-using AdvancedTimeIsland.Helpers;using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -19,15 +16,56 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public TimeZoneHourlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
-    protected override void OnInitialized()
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        base.OnInitialized();
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (_hasLoaded) return;
+if (Settings == null) return;
+
+        _hasLoaded = true;
+_isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseTimeString(Settings.StartTime, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
+
+            ParseTimeString(Settings.EndTime, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
         if (Settings != null)
         {
             foreach (var item in _timeZoneComboBox.Items)
@@ -48,7 +86,6 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -61,7 +98,7 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         // 结束时间
         mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -74,7 +111,6 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -108,7 +144,6 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -121,22 +156,19 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
 
         var inputPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         var minuteBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "分钟 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -160,8 +192,8 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
+        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);
@@ -210,6 +242,7 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);
@@ -247,6 +280,3 @@ public class TimeZoneHourlyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         if (parts.Length >= 2 && int.TryParse(parts[1], out int s)) second = s;
     }
 }
-
-
-

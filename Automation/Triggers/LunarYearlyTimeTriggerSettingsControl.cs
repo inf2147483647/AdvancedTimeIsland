@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -15,7 +13,7 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
 {
     private ComboBox _lunarMonthComboBox = null!;
     private ComboBox _lunarDayComboBox = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public LunarYearlyTimeTriggerSettingsControl()
     {
@@ -35,14 +33,12 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -72,7 +68,6 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -102,7 +97,6 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -113,7 +107,7 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -134,35 +128,46 @@ public class LunarYearlyTimeTriggerSettingsControl : TriggerSettingsControlBase<
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
-        {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
-        }
-        else
-        {
-            _lunarMonthComboBox.SelectedIndex = 0;
-        }
+            if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
-        {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
 
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarMonth = _lunarMonthComboBox.SelectedIndex + 1;

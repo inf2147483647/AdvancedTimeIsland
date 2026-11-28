@@ -1,0 +1,357 @@
+<ci:ComponentBase x:Class="AdvancedTimeIsland.Views.Main.DayYiJiSettingsControl"
+                  x:TypeArguments="models:DayYiJiSettings"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:local="clr-namespace:AdvancedTimeIsland.Views.Main"
+                  xmlns:models="clr-namespace:AdvancedTimeIsland.Models"
+                  xmlns:helpers="clr-namespace:AdvancedTimeIsland.Helpers"
+                  xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                  xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+                  mc:Ignorable="d"
+                  d:DesignHeight="700" d:DesignWidth="800"
+                  DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:DayYiJiSettingsControl}}"
+                  TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+                  Background="{DynamicResource MaterialDesignPaper}"
+                  FontFamily="{DynamicResource HarmonyOsSans}"
+                  TextElement.FontWeight="Regular"
+                  TextElement.FontSize="14"
+                  TextOptions.TextFormattingMode="Ideal"
+                  TextOptions.TextRenderingMode="Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <helpers:WpfInfoBar Grid.Row="0"
+                            Severity="3"
+                            Title="郑重声明"
+                            Message="我们是坚定不移的唯物主义者，世界是物质的，不依赖于我们的意识（更不依赖于ClassIsland）。宜忌内容仅供参考，切勿当真。"
+                            IsOpen="True"
+                            IsClosable="False"
+                            Margin="0,0,0,8" />
+
+        <helpers:WpfInfoBar x:Name="InfoBar"
+                            Grid.Row="1"
+                            Severity="0"
+                            Message="注意：此组件的内容可能非常长，以至于超出屏幕，建议包括在滚动容器中使用。"
+                            IsOpen="True"
+                            IsClosable="True"
+                            Margin="0,0,0,8"
+                            Closed="OnInfoBarClosed" />
+
+        <ScrollViewer Grid.Row="2"
+                      VerticalScrollBarVisibility="Auto"
+                      HorizontalScrollBarVisibility="Disabled">
+            <StackPanel Style="{DynamicResource SettingsPageStackPanelStyle}">
+
+                <ci:SettingsControl x:Name="DisplayModeItem"
+                                     IconGlyph="ViewList"
+                                     Header="显示模式"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="150"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnDisplayModeChanged">
+                                <ComboBoxItem Content="单行" />
+                                <ComboBoxItem Content="双行" />
+                            </ComboBox>
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <!-- 宜标签样式 -->
+                <ci:IconText Kind="CalendarOutline" Text="宜标签样式" Margin="0 0 0 8" />
+
+                <ci:SettingsControl x:Name="YiLabelFontSizeItem"
+                                     IconGlyph="FormatSize"
+                                     Header="文本大小"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfNumericUpDown Width="155"
+                                                      Minimum="1" Maximum="72"
+                                                      Increment="1"
+                                                      FormatString="0.00"
+                                                      HorizontalAlignment="Left"
+                                                      ValueChanged="OnYiLabelFontSizeChanged" />
+                            <CheckBox Content="启用自定义文本大小"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiLabelEnableCustomFontSizeChanged"
+                                      Unchecked="OnYiLabelEnableCustomFontSizeChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="YiLabelColorItem"
+                                     IconGlyph="Palette"
+                                     Header="文本颜色"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfColorPicker Width="120"
+                                                    HorizontalAlignment="Left"
+                                                    ColorChanged="OnYiLabelColorChanged" />
+                            <CheckBox Content="启用自定义文本颜色"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiLabelEnableCustomFontColorChanged"
+                                      Unchecked="OnYiLabelEnableCustomFontColorChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="YiLabelFontFamilyItem"
+                                     IconGlyph="FormatFont"
+                                     Header="字体样式"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnYiLabelFontFamilyChanged" />
+                            <CheckBox Content="启用自定义字体样式"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiLabelEnableCustomFontFamilyChanged"
+                                      Unchecked="OnYiLabelEnableCustomFontFamilyChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="YiLabelFontWeightItem"
+                                     IconGlyph="FormatBold"
+                                     Header="字重"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnYiLabelFontWeightChanged" />
+                            <CheckBox Content="启用自定义字重"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiLabelEnableCustomFontWeightChanged"
+                                      Unchecked="OnYiLabelEnableCustomFontWeightChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <!-- 宜内容样式 -->
+                <Separator Margin="0 16 0 8" />
+                <ci:IconText Kind="CalendarOutline" Text="宜内容样式" Margin="0 0 0 8" />
+
+                <TextBlock Text="颜色：绿色（固定）"
+                           FontSize="12"
+                           Margin="0,2,0,4" />
+
+                <ci:SettingsControl x:Name="YiValueFontSizeItem"
+                                     IconGlyph="FormatSize"
+                                     Header="文本大小"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfNumericUpDown Width="155"
+                                                      Minimum="1" Maximum="72"
+                                                      Increment="1"
+                                                      FormatString="0.00"
+                                                      HorizontalAlignment="Left"
+                                                      ValueChanged="OnYiValueFontSizeChanged" />
+                            <CheckBox Content="启用自定义文本大小"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiValueEnableCustomFontSizeChanged"
+                                      Unchecked="OnYiValueEnableCustomFontSizeChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="YiValueFontFamilyItem"
+                                     IconGlyph="FormatFont"
+                                     Header="字体样式"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnYiValueFontFamilyChanged" />
+                            <CheckBox Content="启用自定义字体样式"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiValueEnableCustomFontFamilyChanged"
+                                      Unchecked="OnYiValueEnableCustomFontFamilyChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="YiValueFontWeightItem"
+                                     IconGlyph="FormatBold"
+                                     Header="字重"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnYiValueFontWeightChanged" />
+                            <CheckBox Content="启用自定义字重"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnYiValueEnableCustomFontWeightChanged"
+                                      Unchecked="OnYiValueEnableCustomFontWeightChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <!-- 忌标签样式 -->
+                <Separator Margin="0 16 0 8" />
+                <ci:IconText Kind="CalendarOutline" Text="忌标签样式" Margin="0 0 0 8" />
+
+                <ci:SettingsControl x:Name="JiLabelFontSizeItem"
+                                     IconGlyph="FormatSize"
+                                     Header="文本大小"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfNumericUpDown Width="155"
+                                                      Minimum="1" Maximum="72"
+                                                      Increment="1"
+                                                      FormatString="0.00"
+                                                      HorizontalAlignment="Left"
+                                                      ValueChanged="OnJiLabelFontSizeChanged" />
+                            <CheckBox Content="启用自定义文本大小"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiLabelEnableCustomFontSizeChanged"
+                                      Unchecked="OnJiLabelEnableCustomFontSizeChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="JiLabelColorItem"
+                                     IconGlyph="Palette"
+                                     Header="文本颜色"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfColorPicker Width="120"
+                                                    HorizontalAlignment="Left"
+                                                    ColorChanged="OnJiLabelColorChanged" />
+                            <CheckBox Content="启用自定义文本颜色"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiLabelEnableCustomFontColorChanged"
+                                      Unchecked="OnJiLabelEnableCustomFontColorChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="JiLabelFontFamilyItem"
+                                     IconGlyph="FormatFont"
+                                     Header="字体样式"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnJiLabelFontFamilyChanged" />
+                            <CheckBox Content="启用自定义字体样式"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiLabelEnableCustomFontFamilyChanged"
+                                      Unchecked="OnJiLabelEnableCustomFontFamilyChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="JiLabelFontWeightItem"
+                                     IconGlyph="FormatBold"
+                                     Header="字重"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnJiLabelFontWeightChanged" />
+                            <CheckBox Content="启用自定义字重"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiLabelEnableCustomFontWeightChanged"
+                                      Unchecked="OnJiLabelEnableCustomFontWeightChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <!-- 忌内容样式 -->
+                <Separator Margin="0 16 0 8" />
+                <ci:IconText Kind="CalendarOutline" Text="忌内容样式" Margin="0 0 0 8" />
+
+                <TextBlock Text="颜色：红色（固定）"
+                           FontSize="12"
+                           Margin="0,2,0,4" />
+
+                <ci:SettingsControl x:Name="JiValueFontSizeItem"
+                                     IconGlyph="FormatSize"
+                                     Header="文本大小"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <helpers:WpfNumericUpDown Width="155"
+                                                      Minimum="1" Maximum="72"
+                                                      Increment="1"
+                                                      FormatString="0.00"
+                                                      HorizontalAlignment="Left"
+                                                      ValueChanged="OnJiValueFontSizeChanged" />
+                            <CheckBox Content="启用自定义文本大小"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiValueEnableCustomFontSizeChanged"
+                                      Unchecked="OnJiValueEnableCustomFontSizeChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="JiValueFontFamilyItem"
+                                     IconGlyph="FormatFont"
+                                     Header="字体样式"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnJiValueFontFamilyChanged" />
+                            <CheckBox Content="启用自定义字体样式"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiValueEnableCustomFontFamilyChanged"
+                                      Unchecked="OnJiValueEnableCustomFontFamilyChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+                <ci:SettingsControl x:Name="JiValueFontWeightItem"
+                                     IconGlyph="FormatBold"
+                                     Header="字重"
+                                     Margin="0,4">
+                    <ci:SettingsControl.Switcher>
+                        <StackPanel Orientation="Horizontal">
+                            <ComboBox Width="200"
+                                      HorizontalAlignment="Left"
+                                      SelectionChanged="OnJiValueFontWeightChanged" />
+                            <CheckBox Content="启用自定义字重"
+                                      Margin="8,0,0,0"
+                                      VerticalAlignment="Center"
+                                      Checked="OnJiValueEnableCustomFontWeightChanged"
+                                      Unchecked="OnJiValueEnableCustomFontWeightChanged" />
+                        </StackPanel>
+                    </ci:SettingsControl.Switcher>
+                </ci:SettingsControl>
+
+            </StackPanel>
+        </ScrollViewer>
+    </Grid>
+</ci:ComponentBase>

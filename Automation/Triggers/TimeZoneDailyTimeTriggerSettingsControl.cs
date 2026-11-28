@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -14,7 +12,7 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBase<TimeZoneDailyTimeRangeRuleSettings>
 {
     private ComboBox _timeZoneComboBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     public TimeZoneDailyTimeTriggerSettingsControl()
     {
@@ -34,7 +32,6 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -54,7 +51,6 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -88,7 +84,6 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -99,7 +94,7 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -131,22 +126,32 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
-            {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
-            }
-        }
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateTimeZone()
@@ -160,6 +165,7 @@ public class TimeZoneDailyTimeTriggerSettingsControl : TriggerSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -15,7 +13,7 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 {
     private ComboBox _timeZoneComboBox = null!;
     private DatePicker _startDatePicker = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     public TimeZoneYearlyTimeTriggerSettingsControl()
     {
@@ -35,7 +33,6 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -55,7 +52,6 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -89,7 +85,6 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -103,11 +98,10 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var datePicker = new DatePicker
         {
             Width = 300,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            YearVisible = false
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -135,27 +129,37 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            if (Settings == null) return;
+
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (month > 0 && day > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(2024, month, day);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (month > 0 && day > 0)
+        finally
         {
-            _startDatePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            _isLoading = false;
         }
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateTimeZone()
@@ -169,9 +173,10 @@ public class TimeZoneYearlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
-        var startDate = _startDatePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
+        var startDate = _startDatePicker.SelectedDate ?? new DateTime(2024, 1, 1);
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{startDate.Month:D2}-{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
     }

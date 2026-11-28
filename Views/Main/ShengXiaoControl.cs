@@ -1,13 +1,12 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -16,7 +15,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556700",
     "生肖（ATI）",
-    "\uE124",
+    PackIconKind.Paw,
     "显示当前生肖及年份"
 )]
 public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
@@ -26,6 +25,7 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
     private TextBlock valueTb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private bool _initCompleted;
 
     public ShengXiaoControl(TimeBaseService tbs)
     {
@@ -56,7 +56,10 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
 
     private void UpdateLabelFontSize(double fontSize)
     {
-        labelTb.FontSize = fontSize;
+        if (fontSize > 0)
+            labelTb.FontSize = fontSize;
+        else
+            labelTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelTb);
     }
 
     private void UpdateLabelFontFamily(string fontFamily)
@@ -86,9 +89,18 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
         UpdateValueFontColor(Settings.ValueFontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
+    }
+
     private void UpdateValueFontSize(double fontSize)
     {
-        valueTb.FontSize = fontSize;
+        if (fontSize > 0)
+            valueTb.FontSize = fontSize;
+        else
+            valueTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueTb);
     }
 
     private void UpdateValueFontFamily(string fontFamily)
@@ -107,41 +119,59 @@ public class ShengXiaoControl : ComponentBase<ShengXiaoSettings>
             valueTb.ClearValue(TextBlock.FontWeightProperty);
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
         vm = new ShengXiaoViewModel(_timeBaseService, Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateValueFontColor, UpdateValueFontSize);
         DataContext = vm;
         labelTb.Text = vm.LabelText;
         valueTb.Text = vm.ValueText;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.LabelText)) labelTb.Text = vm.LabelText;
-            if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
         UpdateLabelFontFamily(Settings.LabelEnableCustomFontFamily ? Settings.LabelFontFamily : "");
         UpdateLabelFontWeight(Settings.LabelFontWeight);
         UpdateValueFontColor(Settings.ValueFontColor);
-        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
         UpdateValueFontFamily(Settings.ValueEnableCustomFontFamily ? Settings.ValueFontFamily : "");
         UpdateValueFontWeight(Settings.ValueFontWeight);
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.LabelText)) labelTb.Text = vm.LabelText;
+        if (e.PropertyName == nameof(vm.ValueText)) valueTb.Text = vm.ValueText;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 

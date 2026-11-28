@@ -1,14 +1,11 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Rendering;
-using Avalonia.Styling;
-using Avalonia.VisualTree;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -17,12 +14,13 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "11223344-5566-7788-9900-aabbccddeefe",
     "实时主界面刷新率（调试）（ATI）",
-    "\uE9D1",
+    PackIconKind.Timer,
     "实时显示ClassIsland主界面帧率"
 )]
 public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 {
     private FpsMonitorViewModel? vm;
+    private bool _initCompleted;
     private TextBlock labelFpsTb;
     private TextBlock valueFpsTb;
     private TextBlock labelMaxTb;
@@ -39,7 +37,7 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     private double _lastFrameTimestamp;
     private double _currentFps;
     private bool _isEnabled;
-    private TopLevel? _topLevel;
+    private Window? _topLevel;
     private IDisposable? _renderTimerSubscription;
     private double _currentSecondStartTimestamp;
     private int _currentSecondFrameCount;
@@ -48,6 +46,8 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
     public FpsMonitorControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
     }
 
     private void InitializeComponent()
@@ -113,55 +113,79 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateLabelFontSize(double fontSize)
     {
-        labelFpsTb.FontSize = fontSize;
-        labelMaxTb.FontSize = fontSize;
-        labelAvgTb.FontSize = fontSize;
-        labelMinTb.FontSize = fontSize;
-        labelLow1Tb.FontSize = fontSize;
-        labelOneSecondFrameCountTb.FontSize = fontSize;
+        if (fontSize > 0)
+        {
+            labelFpsTb.FontSize = fontSize;
+            labelMaxTb.FontSize = fontSize;
+            labelAvgTb.FontSize = fontSize;
+            labelMinTb.FontSize = fontSize;
+            labelLow1Tb.FontSize = fontSize;
+            labelOneSecondFrameCountTb.FontSize = fontSize;
+        }
+        else
+        {
+            labelFpsTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelFpsTb);
+            labelMaxTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelMaxTb);
+            labelAvgTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelAvgTb);
+            labelMinTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelMinTb);
+            labelLow1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(labelLow1Tb);
+            labelOneSecondFrameCountTb.FontSize = FontFamilyHelper.GetBodyFontSize(labelOneSecondFrameCountTb);
+        }
     }
 
     private void UpdateValueFontSize(double fontSize)
     {
-        valueFpsTb.FontSize = fontSize;
-        valueMaxTb.FontSize = fontSize;
-        valueAvgTb.FontSize = fontSize;
-        valueMinTb.FontSize = fontSize;
-        valueLow1Tb.FontSize = fontSize;
-        valueOneSecondFrameCountTb.FontSize = fontSize;
+        if (fontSize > 0)
+        {
+            valueFpsTb.FontSize = fontSize;
+            valueMaxTb.FontSize = fontSize;
+            valueAvgTb.FontSize = fontSize;
+            valueMinTb.FontSize = fontSize;
+            valueLow1Tb.FontSize = fontSize;
+            valueOneSecondFrameCountTb.FontSize = fontSize;
+        }
+        else
+        {
+            valueFpsTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueFpsTb);
+            valueMaxTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueMaxTb);
+            valueAvgTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueAvgTb);
+            valueMinTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueMinTb);
+            valueLow1Tb.FontSize = FontFamilyHelper.GetBodyFontSize(valueLow1Tb);
+            valueOneSecondFrameCountTb.FontSize = FontFamilyHelper.GetBodyFontSize(valueOneSecondFrameCountTb);
+        }
     }
 
-    private void UpdateFpsForeground(IBrush brush)
+    private void UpdateFpsForeground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueFpsTb.Foreground = brush;
     }
 
-    private void UpdateMaxForeground(IBrush brush)
+    private void UpdateMaxForeground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueMaxTb.Foreground = brush;
     }
 
-    private void UpdateAvgForeground(IBrush brush)
+    private void UpdateAvgForeground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueAvgTb.Foreground = brush;
     }
 
-    private void UpdateMinForeground(IBrush brush)
+    private void UpdateMinForeground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueMinTb.Foreground = brush;
     }
 
-    private void UpdateLow1Foreground(IBrush brush)
+    private void UpdateLow1Foreground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueLow1Tb.Foreground = brush;
     }
 
-    private void UpdateOneSecondFrameCountForeground(IBrush brush)
+    private void UpdateOneSecondFrameCountForeground(Brush brush)
     {
         if (Settings.ValueEnableCustomFontColor) return;
         valueOneSecondFrameCountTb.Foreground = brush;
@@ -173,17 +197,16 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         UpdateValueFontColor(Settings.ValueFontColor);
     }
 
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
+    }
+
     private void OnRenderTimerTick(TimeSpan timestamp)
     {
         if (!_isEnabled) return;
         UpdateFpsValue(timestamp.TotalSeconds);
-    }
-
-    private void OnAnimationFrame(TimeSpan timestamp)
-    {
-        if (!_isEnabled) return;
-        UpdateFpsValue(timestamp.TotalSeconds);
-        _topLevel?.RequestAnimationFrame(OnAnimationFrame);
     }
 
     private void UpdateFpsValue(double timestamp)
@@ -235,35 +258,17 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         vm = new FpsMonitorViewModel(Settings, UpdateLabelFontColor, UpdateLabelFontSize, UpdateFpsForeground, UpdateMaxForeground, UpdateAvgForeground, UpdateMinForeground, UpdateLow1Foreground, UpdateOneSecondFrameCountForeground, UpdateValueFontSize, UpdateValueFontColor);
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (!_isEnabled) return;
-            if (e.PropertyName == nameof(vm.FpsText)) valueFpsTb.Text = vm.FpsText;
-            if (e.PropertyName == nameof(vm.MaxText)) valueMaxTb.Text = vm.MaxText;
-            if (e.PropertyName == nameof(vm.AvgText)) valueAvgTb.Text = vm.AvgText;
-            if (e.PropertyName == nameof(vm.MinText)) valueMinTb.Text = vm.MinText;
-            if (e.PropertyName == nameof(vm.Low1Text)) valueLow1Tb.Text = vm.Low1Text;
-            if (e.PropertyName == nameof(vm.OneSecondFrameCountText)) valueOneSecondFrameCountTb.Text = vm.OneSecondFrameCountText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
-        _topLevel = TopLevel.GetTopLevel(this);
+        _topLevel = Window.GetWindow(this);
         _lastFrameTimestamp = 0;
         _currentSecondStartTimestamp = 0;
         _currentSecondFrameCount = 0;
         _lastReportedFrameCount = 0;
 
-        if (_topLevel != null)
-        {
-            // 优先使用 IRenderTimer.Tick（底层渲染定时器）
-            _renderTimerSubscription = RenderTimerHelper.SubscribeTick(_topLevel, OnRenderTimerTick);
-            if (_renderTimerSubscription != null)
-            {
-                return;
-            }
-
-            // 回退到 RequestAnimationFrame（Avalonia 公开 API）
-            _topLevel.RequestAnimationFrame(OnAnimationFrame);
-        }
+        // WPF 中 SubscribeTick 基于 CompositionTarget.Rendering 实现，总是可用，
+        // 无需 RequestAnimationFrame 回退
+        _renderTimerSubscription = RenderTimerHelper.SubscribeTick(_topLevel, OnRenderTimerTick);
     }
 
     private void DisableComponent()
@@ -286,19 +291,29 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         valueOneSecondFrameCountTb.Text = "---";
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
 
         UpdateLabelFontColor(Settings.LabelFontColor);
-        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 14);
+        UpdateLabelFontSize(Settings.LabelEnableCustomFontSize ? Settings.LabelFontSize : 0);
         UpdateValueFontColor(Settings.ValueFontColor);
-        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 14);
+        UpdateValueFontSize(Settings.ValueEnableCustomFontSize ? Settings.ValueFontSize : 0);
 
         if (Settings.EnableComponent)
         {
@@ -306,6 +321,12 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
 
         Settings.PropertyChanged += OnSettingsPropertyChanged;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnSettingsPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -323,36 +344,40 @@ public class FpsMonitorControl : ComponentBase<FpsMonitorSettings>
         }
     }
 
-    protected override void OnAttachedToVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        base.OnAttachedToVisualTree(e);
         if (_isEnabled && _topLevel == null)
         {
-            _topLevel = TopLevel.GetTopLevel(this);
+            _topLevel = Window.GetWindow(this);
             if (_topLevel != null)
             {
                 _renderTimerSubscription = RenderTimerHelper.SubscribeTick(_topLevel, OnRenderTimerTick);
-                if (_renderTimerSubscription == null)
-                {
-                    _topLevel.RequestAnimationFrame(OnAnimationFrame);
-                }
             }
         }
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        if (!_isEnabled || vm == null) return;
+        if (e.PropertyName == nameof(vm.FpsText)) valueFpsTb.Text = vm.FpsText;
+        if (e.PropertyName == nameof(vm.MaxText)) valueMaxTb.Text = vm.MaxText;
+        if (e.PropertyName == nameof(vm.AvgText)) valueAvgTb.Text = vm.AvgText;
+        if (e.PropertyName == nameof(vm.MinText)) valueMinTb.Text = vm.MinText;
+        if (e.PropertyName == nameof(vm.Low1Text)) valueLow1Tb.Text = vm.Low1Text;
+        if (e.PropertyName == nameof(vm.OneSecondFrameCountText)) valueOneSecondFrameCountTb.Text = vm.OneSecondFrameCountText;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsPropertyChanged;
 
         _renderTimerSubscription?.Dispose();
         _renderTimerSubscription = null;
         _topLevel = null;
         _isEnabled = false;
+        if (vm != null) vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

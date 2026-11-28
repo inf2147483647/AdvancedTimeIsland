@@ -1,70 +1,91 @@
-using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
-using AdvancedTimeIsland.Helpers;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using AdvancedTimeIsland.Models;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
-public class GlossaryPage : UserControl
+public partial class GlossaryPage : UserControl
 {
-    private List<TextBlock>? _paragraphTextBlocks;
-    private List<TextBlock>? _heading2TextBlocks;
-    private List<TextBlock>? _heading3TextBlocks;
-    private List<TextBlock>? _listItemTextBlocks;
-    private List<Border>? _quoteBorders;
-    private List<TextBlock>? _quoteTextBlocks;
-    private Border? _markdownSectionBorder;
-    private List<Border>? _separatorBorders;
+    private readonly PluginSettings? _settings;
+    private Card? _experimentalCard;
 
-    private static IBrush GetAccentBrush()
+    public GlossaryPage(PluginSettings? settings = null)
     {
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
-        {
-            return new SolidColorBrush(accentColor);
-        }
-        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
-        {
-            return new SolidColorBrush(accentColor2);
-        }
-        return Brushes.DodgerBlue;
-    }
-
-    public GlossaryPage()
-    {
+        _settings = settings;
         InitializeComponent();
+        RenderMarkdownContent();
+        RebuildExperimentalSection();
+        if (_settings != null)
+        {
+            // 页签切换会触发 Unloaded/Loaded：Loaded 时订阅、Unloaded 时退订，
+            // 既保证开关切换即时刷新，又避免长期持有引用造成内存泄漏
+            Loaded += OnPageLoaded;
+            Unloaded += OnPageUnloaded;
+        }
     }
 
-    private void InitializeComponent()
+    private void OnPageLoaded(object? sender, RoutedEventArgs e)
     {
-        var scrollViewer = new ScrollViewer
+        if (_settings != null)
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
+            // 先退订再订阅，防止 Loaded 多次触发导致重复订阅
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+            _settings.PropertyChanged += OnSettingsPropertyChanged;
+        }
+    }
+
+    private void OnPageUnloaded(object? sender, RoutedEventArgs e)
+    {
+        if (_settings != null)
+        {
+            _settings.PropertyChanged -= OnSettingsPropertyChanged;
+        }
+    }
+
+    private void OnSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            RebuildExperimentalSection();
+        }
+    }
+
+    /// <summary>
+    /// 根据实验性功能开关重建实验词条卡片
+    /// </summary>
+    private void RebuildExperimentalSection()
+    {
+        if (_experimentalCard != null)
+        {
+            MainPanel.Children.Remove(_experimentalCard);
+            _experimentalCard = null;
+        }
+
+        if (!(_settings?.EnableExperimentalFeatures ?? false)) return;
+
+        var panel = new StackPanel { Margin = new Thickness(16) };
+        RenderMarkdownInto(panel, ExperimentalMarkdown);
+        _experimentalCard = new Card
+        {
+            Margin = new Thickness(0, 0, 0, 6),
+            Content = panel
         };
+        MainPanel.Children.Add(_experimentalCard);
+    }
 
-        var mainPanel = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 16
-        };
+    private void RenderMarkdownContent()
+    {
+        ContentPanel.Children.Clear();
+        RenderMarkdownInto(ContentPanel, BaseMarkdown);
+    }
 
-        mainPanel.Children.Add(new TextBlock
-        {
-            Text = "专业名词解释",
-            FontSize = 28,
-            FontWeight = FontWeight.Bold,
-            Foreground = GetAccentBrush(),
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Margin = new Thickness(0, 0, 0, 8)
-        });
-
-        var markdownContent = @"## Unix时间戳
+    /// <summary>
+    /// 基础词条（始终显示）
+    /// </summary>
+    private const string BaseMarkdown = @"## Unix时间戳
 
 世界统一的时间，是指格林威治时间1970年01月01日00时00分00秒（北京时间1970年01月01日08时00分00秒）起至现在的总秒数（不考虑**闰秒**），它的核心作用是确保唯一性和顺序：在计算机系统中，它能精确记录事件发生的时刻，并且因为时间一直向前，每个时间戳都是独一无二的。
 
@@ -108,11 +129,12 @@ public class GlossaryPage : UserControl
 
 ## 1% Low 帧率
 
-统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。
+统计一段时间内所有画面的渲染速度，取最慢的1%位置并计算其平均帧率，代表画面最卡顿时刻的流畅下限。";
 
----
-
-## 汉服
+    /// <summary>
+    /// 实验性词条（仅当开启实验性功能时显示）
+    /// </summary>
+    private const string ExperimentalMarkdown = @"## 汉服
 
 全称""汉民族传统服饰""，是汉族流传数千年的传统服饰体系，**并非单指汉朝的衣服**。
 
@@ -125,39 +147,21 @@ public class GlossaryPage : UserControl
 汉服最核心的标志性形制，可拆开理解：
 
 - **交领**：左右两片衣襟在胸前交叉，在第二人称下领口呈现""y""字形。
-- **右衽**：穿衣时左侧衣襟压住右侧衣襟，衣襟开口朝向人体右侧，最终在右腋下系带固定。";
+- **右衽**：穿衣时左侧衣襟压住右侧衣襟，衣襟开口朝向人体右侧，最终在右腋下系带固定。
 
-        mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
+---
 
-        scrollViewer.Content = mainPanel;
-        Content = scrollViewer;
-    }
+## 女装
 
-    private Border CreateMarkdownSection(string markdownText)
+女装是以女性人体数据和女子号型标准为基础，以女性为主要目标穿着者，并在特定文化中被归为女性服饰符号的服装类别；其边界随时代和文化而变化，并不存在绝对固定的标准。";
+
+    /// <summary>
+    /// 自写 markdown 渲染器：支持标题（## / ###）、段落、列表、引用、分隔符。
+    /// 渲染结果直接填充到传入的 StackPanel（XAML 中的 ContentPanel）。
+    /// 所有颜色通过 DynamicResource 设置，自动跟随主题切换。
+    /// </summary>
+    private void RenderMarkdownInto(StackPanel content, string markdownText)
     {
-        _paragraphTextBlocks = new List<TextBlock>();
-        _heading2TextBlocks = new List<TextBlock>();
-        _heading3TextBlocks = new List<TextBlock>();
-        _listItemTextBlocks = new List<TextBlock>();
-        _quoteBorders = new List<Border>();
-        _quoteTextBlocks = new List<TextBlock>();
-
-        var section = new Border
-        {
-            Background = ThemeHelper.GetCardBackgroundBrush(),
-            Padding = new Thickness(20),
-            CornerRadius = new CornerRadius(6),
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
-            BorderThickness = new Thickness(2)
-        };
-        _markdownSectionBorder = section;
-
-        var content = new StackPanel
-        {
-            Orientation = Orientation.Vertical,
-            Spacing = 10
-        };
-
         var lines = markdownText.Split('\n');
         var paragraphBuffer = new System.Collections.Generic.List<string>();
 
@@ -168,8 +172,8 @@ public class GlossaryPage : UserControl
             paragraphBuffer.Clear();
             if (string.IsNullOrWhiteSpace(paragraphText)) return;
 
-            var tb = BuildInlineTextBlock(paragraphText, 13, ThemeHelper.GetSubTextBrush(), false);
-            _paragraphTextBlocks.Add(tb);
+            var tb = BuildInlineTextBlock(paragraphText, 13, false);
+            tb.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
             content.Children.Add(tb);
         }
 
@@ -187,34 +191,32 @@ public class GlossaryPage : UserControl
             if (line.StartsWith("## "))
             {
                 FlushParagraph();
-                var h2 = new TextBlock
+                var heading = new TextBlock
                 {
                     Text = line.Substring(3).Trim(),
                     FontSize = 21,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = GetAccentBrush(),
+                    FontWeight = FontWeights.Bold,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 12, 0, 4)
                 };
-                _heading2TextBlocks.Add(h2);
-                content.Children.Add(h2);
+                heading.SetResourceReference(TextBlock.ForegroundProperty, "SystemAccentColor");
+                content.Children.Add(heading);
                 continue;
             }
 
             if (line.StartsWith("### "))
             {
                 FlushParagraph();
-                var h3 = new TextBlock
+                var heading = new TextBlock
                 {
                     Text = line.Substring(4).Trim(),
                     FontSize = 16,
-                    FontWeight = FontWeight.Bold,
-                    Foreground = ThemeHelper.GetLightBlueBrush(),
+                    FontWeight = FontWeights.Bold,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 6, 0, 2)
                 };
-                _heading3TextBlocks.Add(h3);
-                content.Children.Add(h3);
+                heading.SetResourceReference(TextBlock.ForegroundProperty, "PrimaryHueMidBrush");
+                content.Children.Add(heading);
                 continue;
             }
 
@@ -224,10 +226,9 @@ public class GlossaryPage : UserControl
                 var sep = new Border
                 {
                     Height = 1,
-                    Background = ThemeHelper.GetSeparatorBrush(),
                     Margin = new Thickness(0, 8, 0, 8)
                 };
-                _separatorBorders?.Add(sep);
+                sep.SetResourceReference(Border.BackgroundProperty, "MaterialDesignDivider");
                 content.Children.Add(sep);
                 continue;
             }
@@ -235,19 +236,18 @@ public class GlossaryPage : UserControl
             if (line.StartsWith("> "))
             {
                 FlushParagraph();
-                var accentBrush = GetAccentBrush();
-                var quotePanel = new Border
+                var quoteText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, false);
+                quoteText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
+                var quoteBorder = new Border
                 {
-                    BorderBrush = accentBrush is SolidColorBrush sb ? sb : new SolidColorBrush(Color.Parse("#1E90FF")),
                     BorderThickness = new Thickness(3, 0, 0, 0),
                     Padding = new Thickness(10, 6, 6, 6),
-                    Margin = new Thickness(0, 4, 0, 4),
-                    Background = ThemeHelper.GetQuoteBackgroundBrush(),
-                    Child = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetYellowBrush(), false)
+                    Margin = new Thickness(0, 4, 0, 4)
                 };
-                _quoteBorders.Add(quotePanel);
-                _quoteTextBlocks.Add((TextBlock)quotePanel.Child);
-                content.Children.Add(quotePanel);
+                quoteBorder.SetResourceReference(Border.BorderBrushProperty, "SystemAccentColor");
+                quoteBorder.SetResourceReference(Border.BackgroundProperty, "MaterialDesignCardBackground");
+                quoteBorder.Child = quoteText;
+                content.Children.Add(quoteBorder);
                 continue;
             }
 
@@ -257,18 +257,18 @@ public class GlossaryPage : UserControl
                 var itemPanel = new StackPanel
                 {
                     Orientation = Orientation.Horizontal,
-                    Spacing = 6,
                     Margin = new Thickness(8, 0, 0, 0)
                 };
-                itemPanel.Children.Add(new TextBlock
+                var bullet = new TextBlock
                 {
                     Text = "•",
                     FontSize = 13,
-                    Foreground = GetAccentBrush(),
-                    FontWeight = FontWeight.Bold
-                });
-                var itemText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, ThemeHelper.GetSubTextBrush(), false);
-                _listItemTextBlocks.Add(itemText);
+                    FontWeight = FontWeights.Bold
+                };
+                bullet.SetResourceReference(TextBlock.ForegroundProperty, "SystemAccentColor");
+                itemPanel.Children.Add(bullet);
+                var itemText = BuildInlineTextBlock(line.Substring(2).Trim(), 13, false);
+                itemText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
                 itemPanel.Children.Add(itemText);
                 content.Children.Add(itemPanel);
                 continue;
@@ -278,12 +278,9 @@ public class GlossaryPage : UserControl
         }
 
         FlushParagraph();
-
-        section.Child = content;
-        return section;
     }
 
-    private TextBlock BuildInlineTextBlock(string text, double fontSize, IBrush defaultBrush, bool isItalic)
+    private TextBlock BuildInlineTextBlock(string text, double fontSize, bool isItalic)
     {
         var cleanText = text.Replace("**", "").Replace("`", "");
 
@@ -291,83 +288,8 @@ public class GlossaryPage : UserControl
         {
             Text = cleanText,
             FontSize = fontSize,
-            Foreground = defaultBrush,
             TextWrapping = TextWrapping.Wrap,
-            FontStyle = isItalic ? FontStyle.Italic : FontStyle.Normal
+            FontStyle = isItalic ? FontStyles.Italic : FontStyles.Normal
         };
-    }
-
-    protected override void OnInitialized()
-    {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
-    }
-
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void UpdateThemeColors()
-    {
-        if (_markdownSectionBorder != null)
-            _markdownSectionBorder.Background = ThemeHelper.GetCardBackgroundBrush();
-
-        if (_separatorBorders != null)
-        {
-            foreach (var border in _separatorBorders)
-            {
-                border.Background = ThemeHelper.GetSeparatorBrush();
-            }
-        }
-
-        if (_quoteBorders != null)
-        {
-            foreach (var border in _quoteBorders)
-            {
-                border.Background = ThemeHelper.GetQuoteBackgroundBrush();
-            }
-        }
-
-        if (_paragraphTextBlocks != null)
-        {
-            foreach (var tb in _paragraphTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetSubTextBrush();
-            }
-        }
-        if (_heading3TextBlocks != null)
-        {
-            foreach (var tb in _heading3TextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetLightBlueBrush();
-            }
-        }
-        if (_listItemTextBlocks != null)
-        {
-            foreach (var tb in _listItemTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetSubTextBrush();
-            }
-        }
-        if (_quoteTextBlocks != null)
-        {
-            foreach (var tb in _quoteTextBlocks)
-            {
-                tb.Foreground = ThemeHelper.GetYellowBrush();
-            }
-        }
     }
 }

@@ -1,0 +1,79 @@
+<ci:SettingsPageBase x:Class="AdvancedTimeIsland.Views.Settings.AboutPage"
+                     xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                     xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                     xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                     xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                     xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+                     mc:Ignorable="d"
+                     d:DesignHeight="600" d:DesignWidth="800"
+                     Title="AboutPage"
+                     TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+                     Background="{DynamicResource MaterialDesignPaper}"
+                     FontFamily="{DynamicResource HarmonyOsSans}"
+                     TextElement.FontWeight="Regular"
+                     TextElement.FontSize="14"
+                     TextOptions.TextFormattingMode="Ideal"
+                     TextOptions.TextRenderingMode="Auto">
+    <Grid>
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Grid.Row="0" x:Name="MainPanel" Style="{DynamicResource SettingsPageStackPanelStyle}">
+            <ci:IconText Kind="InformationOutline" Text="关于" Margin="0 0 0 8" />
+
+            <materialDesign:Card Margin="0 0 0 8">
+                <StackPanel Margin="16">
+                    <DockPanel LastChildFill="True" Margin="0">
+                        <Border x:Name="IconBorder"
+                                DockPanel.Dock="Left"
+                                Width="64" Height="64"
+                                CornerRadius="8"
+                                Margin="0,0,16,0"
+                                VerticalAlignment="Center"
+                                Cursor="Hand"
+                                MouseLeftButtonUp="OnIconClicked" />
+                        <StackPanel VerticalAlignment="Center">
+                            <TextBlock x:Name="NameTextBlock"
+                                       Text="AdvancedTimeIsland"
+                                       FontSize="20"
+                                       FontWeight="Bold" />
+                            <StackPanel Orientation="Horizontal" Margin="0,4,0,0">
+                                <TextBlock x:Name="AuthorTextBlock"
+                                           Text="inf2147483647"
+                                           FontSize="12"
+                                           VerticalAlignment="Center" />
+                                <Button Margin="8,0,0,0"
+                                        Padding="8,2"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        Cursor="Hand"
+                                        ToolTip="项目主页"
+                                        Click="OnProjectButtonClick">
+                                    <materialDesign:PackIcon Kind="Github" Width="18" Height="18" />
+                                </Button>
+                                <Button Margin="8,0,0,0"
+                                        Padding="8,2"
+                                        Background="Transparent"
+                                        BorderBrush="Transparent"
+                                        Cursor="Hand"
+                                        ToolTip="反馈问题"
+                                        Click="OnFeedbackButtonClick">
+                                    <materialDesign:PackIcon Kind="AlertCircleOutline" Width="18" Height="18" />
+                                </Button>
+                            </StackPanel>
+                        </StackPanel>
+                    </DockPanel>
+                </StackPanel>
+            </materialDesign:Card>
+        </StackPanel>
+
+        <TabControl x:Name="MainTabControl"
+                    Grid.Row="1"
+                    Background="Transparent"
+                    Margin="0"
+                    SelectionChanged="OnTabSelectionChanged" />
+    </Grid>
+</ci:SettingsPageBase>

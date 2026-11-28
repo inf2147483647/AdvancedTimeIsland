@@ -1,610 +1,256 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
+using System.ComponentModel;
+using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownSettings>
+public partial class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownSettings>
 {
-    private TextBox? _text1TextBox;
-    private TextBox? _text3TextBox;
-    private TextBox? _text4TextBox;
-    private TextBox? _timeFormatTextBox;
-    private TextBlock? _timeFormatHint;
-    private ToggleSwitch? _timeCorrectionToggle;
-    private ToggleSwitch? _text1EnableCustomFontSizeToggle;
-    private ToggleSwitch? _text1EnableCustomFontColorToggle;
-    private ToggleSwitch? _text2EnableCustomFontSizeToggle;
-    private ToggleSwitch? _text2EnableCustomFontColorToggle;
-    private ToggleSwitch? _text3EnableCustomFontSizeToggle;
-    private ToggleSwitch? _text3EnableCustomFontColorToggle;
-    private ToggleSwitch? _timeEnableCustomFontSizeToggle;
-    private ToggleSwitch? _timeEnableCustomFontColorToggle;
-    private ToggleSwitch? _text4EnableCustomFontSizeToggle;
-    private ToggleSwitch? _text4EnableCustomFontColorToggle;
-    private ComboBox? _timeBaseComboBox;
-    private ListBox? _countdownListBox;
-    private Button? _addButton;
-    private Button? _removeButton;
-    private Button? _editButton;
+    private TextBox _text1TextBox = null!;
+    private bool _initCompleted;
+    private TextBox _text3TextBox = null!;
+    private TextBox _text4TextBox = null!;
+    private TextBox _timeFormatTextBox = null!;
+    private CheckBox _text1EnableCustomFontSizeToggle = null!;
+    private CheckBox _text1EnableCustomFontColorToggle = null!;
+    private CheckBox _text2EnableCustomFontSizeToggle = null!;
+    private CheckBox _text2EnableCustomFontColorToggle = null!;
+    private CheckBox _text3EnableCustomFontSizeToggle = null!;
+    private CheckBox _text3EnableCustomFontColorToggle = null!;
+    private CheckBox _timeEnableCustomFontSizeToggle = null!;
+    private CheckBox _timeEnableCustomFontColorToggle = null!;
+    private CheckBox _text4EnableCustomFontSizeToggle = null!;
+    private CheckBox _text4EnableCustomFontColorToggle = null!;
+    private ComboBox _timeBaseComboBox = null!;
+    private ListBox _countdownListBox = null!;
 
-    private TextBlock? _selectionHintTextBlock;
+    private TextBlock _selectionHintTextBlock = null!;
     private System.Timers.Timer? _hintTimer;
 
-    private TextBox? _text1FontSizeTextBox;
-    private ColorPicker? _text1FontColorPicker;
-    private TextBox? _text2FontSizeTextBox;
-    private ColorPicker? _text2FontColorPicker;
-    private TextBox? _text3FontSizeTextBox;
-    private ColorPicker? _text3FontColorPicker;
-    private TextBox? _timeFontSizeTextBox;
-    private ColorPicker? _timeFontColorPicker;
-    private TextBox? _text4FontSizeTextBox;
-    private ColorPicker? _text4FontColorPicker;
+    private TextBox _text1FontSizeTextBox = null!;
+    private WpfColorPicker _text1FontColorPicker = null!;
+    private TextBox _text2FontSizeTextBox = null!;
+    private WpfColorPicker _text2FontColorPicker = null!;
+    private TextBox _text3FontSizeTextBox = null!;
+    private WpfColorPicker _text3FontColorPicker = null!;
+    private TextBox _timeFontSizeTextBox = null!;
+    private WpfColorPicker _timeFontColorPicker = null!;
+    private TextBox _text4FontSizeTextBox = null!;
+    private WpfColorPicker _text4FontColorPicker = null!;
 
-    private TextBlock? _titleTextBlock;
-    private TextBlock? _descTextBlock;
-    private TextBlock? _orderHintTextBlock;
-    private TextBlock? _textGroupHeader;
-    private TextBlock? _formatGroupHeader;
-    private TextBlock? _formatLabel;
-    private TextBlock? _timeBaseGroupHeader;
-    private TextBlock? _timeBaseLabel;
-    private TextBlock? _fontGroupHeader;
-    private TextBlock? _listGroupHeader;
-    private TextBlock? _nameHeader;
-    private TextBlock? _periodHeader;
-    private TextBlock? _notifyHeader;
-
-    private ComboBox? _progressDisplayModeComboBox;
-    private TextBlock? _progressDisplayModeLabel;
-    private TextBlock? _progressDisplayModeGroupHeader;
-    private ToggleSwitch? _enableCustomProgressColorToggle;
-    private ColorPicker? _progressBarColorPicker;
-    private ColorPicker? _progressRingColorPicker;
-
-    private TextBlock? _text1StyleTextBlock;
-    private TextBlock? _text2StyleTextBlock;
-    private TextBlock? _text3StyleTextBlock;
-    private TextBlock? _timeStyleTextBlock;
-    private TextBlock? _text4StyleTextBlock;
-
-    private List<TextBlock> _dynamicTextBlocks = new();
-    private StackPanel? _mainPanel;
+    private ComboBox _progressDisplayModeComboBox = null!;
+    private WpfColorPicker _progressBarColorPicker = null!;
+    private WpfColorPicker _progressRingColorPicker = null!;
 
     public PeriodicCountdownSettingsControl()
     {
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        _mainPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _text1TextBox = (TextBox)((StackPanel)Text1Item.Switcher).Children[0];
+        _text3TextBox = (TextBox)((StackPanel)Text3Item.Switcher).Children[0];
+        _text4TextBox = (TextBox)((StackPanel)Text4Item.Switcher).Children[0];
+        _timeFormatTextBox = (TextBox)((StackPanel)TimeFormatItem.Switcher).Children[0];
+        _timeBaseComboBox = (ComboBox)((StackPanel)TimeBaseItem.Switcher).Children[0];
 
-        _titleTextBlock = new TextBlock { Text = "周期性倒计时设置", FontSize = 14, FontWeight = FontWeight.Bold };
-        _mainPanel.Children.Add(_titleTextBlock);
+        _progressDisplayModeComboBox = (ComboBox)((StackPanel)ProgressDisplayModeItem.Switcher).Children[0];
+        _progressBarColorPicker = (WpfColorPicker)((StackPanel)ProgressBarColorItem.Switcher).Children[0];
+        _progressRingColorPicker = (WpfColorPicker)((StackPanel)ProgressRingColorItem.Switcher).Children[0];
 
-        _descTextBlock = new TextBlock { Text = "配置周期性倒计时显示选项和倒计时列表", FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        _mainPanel.Children.Add(_descTextBlock);
+        _text1FontSizeTextBox = (TextBox)((StackPanel)Text1FontSizeItem.Switcher).Children[0];
+        _text1EnableCustomFontSizeToggle = (CheckBox)((StackPanel)Text1FontSizeItem.Switcher).Children[1];
+        _text1FontColorPicker = (WpfColorPicker)((StackPanel)Text1ColorItem.Switcher).Children[0];
+        _text1EnableCustomFontColorToggle = (CheckBox)((StackPanel)Text1ColorItem.Switcher).Children[1];
 
-        _textGroupHeader = new TextBlock { Text = "文案设置" };
-        var textGroup = new Expander { Header = _textGroupHeader, IsExpanded = true };
-        var textPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        _text2FontSizeTextBox = (TextBox)((StackPanel)Text2FontSizeItem.Switcher).Children[0];
+        _text2EnableCustomFontSizeToggle = (CheckBox)((StackPanel)Text2FontSizeItem.Switcher).Children[1];
+        _text2FontColorPicker = (WpfColorPicker)((StackPanel)Text2ColorItem.Switcher).Children[0];
+        _text2EnableCustomFontColorToggle = (CheckBox)((StackPanel)Text2ColorItem.Switcher).Children[1];
 
-        _orderHintTextBlock = new TextBlock { Text = "以下内容在主界面上显示的顺序为：文案1->倒计时名称->文案3->剩余时间->文案4", FontSize = 11, FontWeight = FontWeight.Bold };
-        textPanel.Children.Add(_orderHintTextBlock);
-        textPanel.Children.Add(CreateTextRow("文案1", "距离", out _text1TextBox));
-        textPanel.Children.Add(CreateText2ButtonRow());
-        textPanel.Children.Add(CreateTextRow("文案3", "还有", out _text3TextBox));
-        textPanel.Children.Add(CreateTextRow("文案4", "", out _text4TextBox));
+        _text3FontSizeTextBox = (TextBox)((StackPanel)Text3FontSizeItem.Switcher).Children[0];
+        _text3EnableCustomFontSizeToggle = (CheckBox)((StackPanel)Text3FontSizeItem.Switcher).Children[1];
+        _text3FontColorPicker = (WpfColorPicker)((StackPanel)Text3ColorItem.Switcher).Children[0];
+        _text3EnableCustomFontColorToggle = (CheckBox)((StackPanel)Text3ColorItem.Switcher).Children[1];
 
-        textGroup.Content = textPanel;
-        _mainPanel.Children.Add(textGroup);
+        _timeFontSizeTextBox = (TextBox)((StackPanel)TimeFontSizeItem.Switcher).Children[0];
+        _timeEnableCustomFontSizeToggle = (CheckBox)((StackPanel)TimeFontSizeItem.Switcher).Children[1];
+        _timeFontColorPicker = (WpfColorPicker)((StackPanel)TimeColorItem.Switcher).Children[0];
+        _timeEnableCustomFontColorToggle = (CheckBox)((StackPanel)TimeColorItem.Switcher).Children[1];
 
-        _formatGroupHeader = new TextBlock { Text = "时间格式" };
-        var formatGroup = new Expander { Header = _formatGroupHeader, IsExpanded = true };
-        var formatPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        _text4FontSizeTextBox = (TextBox)((StackPanel)Text4FontSizeItem.Switcher).Children[0];
+        _text4EnableCustomFontSizeToggle = (CheckBox)((StackPanel)Text4FontSizeItem.Switcher).Children[1];
+        _text4FontColorPicker = (WpfColorPicker)((StackPanel)Text4ColorItem.Switcher).Children[0];
+        _text4EnableCustomFontColorToggle = (CheckBox)((StackPanel)Text4ColorItem.Switcher).Children[1];
 
-        var formatRow = new Grid();
-        formatRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        formatRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _formatLabel = new TextBlock { Text = "时间格式:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_formatLabel, 0);
-        formatRow.Children.Add(_formatLabel);
-
-        _timeFormatTextBox = new TextBox { Watermark = "%d天%h小时%m分钟%s秒" };
-        Grid.SetColumn(_timeFormatTextBox, 1);
-        formatRow.Children.Add(_timeFormatTextBox);
-
-        formatPanel.Children.Add(formatRow);
-
-        _timeFormatHint = new TextBlock
-        {
-            Text = "格式化变量: %D总天数 %H总小时 %M总分钟 %S总秒 %X总毫秒\n%d天 %h小时 %m分钟 %s秒 %x毫秒\n%L剩余百分比 %P已过百分比 %p已过百分比(两位)\n%yy总年 %YY总年(两位) %mo总月 %MO总月(两位)",
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap
-        };
-        formatPanel.Children.Add(_timeFormatHint);
-
-        _timeCorrectionToggle = new ToggleSwitch
-        {
-            Content = "差一矫正（当精度不足时最小单位加一）",
-            IsChecked = true,
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        _timeCorrectionToggle.IsCheckedChanged += (s, e) =>
-        {
-            Settings.EnableTimeCorrection = _timeCorrectionToggle.IsChecked == true;
-        };
-        formatPanel.Children.Add(_timeCorrectionToggle);
-
-        formatGroup.Content = formatPanel;
-        _mainPanel.Children.Add(formatGroup);
-
-        _timeBaseGroupHeader = new TextBlock { Text = "时间基准" };
-        var timeBaseGroup = new Expander { Header = _timeBaseGroupHeader, IsExpanded = true };
-        var timeBasePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var timeBaseRow = new Grid();
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeBaseRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _timeBaseLabel = new TextBlock { Text = "时间基准:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeBaseLabel, 0);
-        timeBaseRow.Children.Add(_timeBaseLabel);
-
-        _timeBaseComboBox = new ComboBox();
         _timeBaseComboBox.Items.Add("插件偏移后的服务器时间");
         _timeBaseComboBox.Items.Add("插件偏移后的系统时间");
         _timeBaseComboBox.Items.Add("原始服务器时间");
         _timeBaseComboBox.Items.Add("原始系统时间");
-        Grid.SetColumn(_timeBaseComboBox, 1);
-        timeBaseRow.Children.Add(_timeBaseComboBox);
 
-        timeBasePanel.Children.Add(timeBaseRow);
-        timeBaseGroup.Content = timeBasePanel;
-        _mainPanel.Children.Add(timeBaseGroup);
-
-        _progressDisplayModeGroupHeader = new TextBlock { Text = "进度显示" };
-        var progressDisplayModeGroup = new Expander { Header = _progressDisplayModeGroupHeader, IsExpanded = true };
-        var progressDisplayModePanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var progressDisplayModeRow = new Grid();
-        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        progressDisplayModeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _progressDisplayModeLabel = new TextBlock { Text = "显示进度条:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_progressDisplayModeLabel, 0);
-        progressDisplayModeRow.Children.Add(_progressDisplayModeLabel);
-
-        _progressDisplayModeComboBox = new ComboBox();
         _progressDisplayModeComboBox.Items.Add("不显示");
         _progressDisplayModeComboBox.Items.Add("进度条");
         _progressDisplayModeComboBox.Items.Add("进度环");
         _progressDisplayModeComboBox.Items.Add("进度条和进度环");
-        Grid.SetColumn(_progressDisplayModeComboBox, 1);
-        progressDisplayModeRow.Children.Add(_progressDisplayModeComboBox);
 
-        progressDisplayModePanel.Children.Add(progressDisplayModeRow);
-
-        _enableCustomProgressColorToggle = new ToggleSwitch { Content = "启用自定义进度颜色", Margin = new Thickness(0, 6, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        _enableCustomProgressColorToggle.IsCheckedChanged += OnEnableCustomProgressColorChanged;
-        progressDisplayModePanel.Children.Add(_enableCustomProgressColorToggle);
-
-        var progressBarColorRow = CreateColorRow("进度条颜色:", out _progressBarColorPicker);
-        progressDisplayModePanel.Children.Add(progressBarColorRow);
-
-        var progressRingColorRow = CreateColorRow("进度环颜色:", out _progressRingColorPicker);
-        progressDisplayModePanel.Children.Add(progressRingColorRow);
-
-        progressDisplayModeGroup.Content = progressDisplayModePanel;
-        _mainPanel.Children.Add(progressDisplayModeGroup);
-
-        _fontGroupHeader = new TextBlock { Text = "字体样式" };
-        var fontGroup = new Expander { Header = _fontGroupHeader, IsExpanded = false };
-        var fontPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        _text1StyleTextBlock = new TextBlock { Text = "文案1样式", FontSize = 12, FontWeight = FontWeight.Bold };
-        fontPanel.Children.Add(_text1StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text1FontSizeTextBox, out _text1EnableCustomFontSizeToggle, OnText1EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text1FontColorPicker, out _text1EnableCustomFontColorToggle, OnText1EnableCustomFontColorChanged));
-
-        _text2StyleTextBlock = new TextBlock { Text = "文案2样式", FontSize = 12, FontWeight = FontWeight.Bold };
-        fontPanel.Children.Add(_text2StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text2FontSizeTextBox, out _text2EnableCustomFontSizeToggle, OnText2EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text2FontColorPicker, out _text2EnableCustomFontColorToggle, OnText2EnableCustomFontColorChanged));
-
-        _text3StyleTextBlock = new TextBlock { Text = "文案3样式", FontSize = 12, FontWeight = FontWeight.Bold };
-        fontPanel.Children.Add(_text3StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text3FontSizeTextBox, out _text3EnableCustomFontSizeToggle, OnText3EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text3FontColorPicker, out _text3EnableCustomFontColorToggle, OnText3EnableCustomFontColorChanged));
-
-        _timeStyleTextBlock = new TextBlock { Text = "时间样式", FontSize = 12, FontWeight = FontWeight.Bold };
-        fontPanel.Children.Add(_timeStyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _timeFontSizeTextBox, out _timeEnableCustomFontSizeToggle, OnTimeEnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _timeFontColorPicker, out _timeEnableCustomFontColorToggle, OnTimeEnableCustomFontColorChanged));
-
-        _text4StyleTextBlock = new TextBlock { Text = "文案4样式", FontSize = 12, FontWeight = FontWeight.Bold };
-        fontPanel.Children.Add(_text4StyleTextBlock);
-        fontPanel.Children.Add(CreateFontRow("大小:", out _text4FontSizeTextBox, out _text4EnableCustomFontSizeToggle, OnText4EnableCustomFontSizeChanged));
-        fontPanel.Children.Add(CreateColorRow("颜色:", out _text4FontColorPicker, out _text4EnableCustomFontColorToggle, OnText4EnableCustomFontColorChanged));
-
-        fontGroup.Content = fontPanel;
-        _mainPanel.Children.Add(fontGroup);
-
-        _listGroupHeader = new TextBlock { Text = "倒计时列表" };
-        var listGroup = new Expander { Header = _listGroupHeader, IsExpanded = true };
-        var listPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
-
-        var headerGrid = new Grid();
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(100) });
-        headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(80) });
-
-        _nameHeader = new TextBlock
-        {
-            Text = "倒计时名称",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center
-        };
-        Grid.SetColumn(_nameHeader, 0);
-        headerGrid.Children.Add(_nameHeader);
-
-        _periodHeader = new TextBlock
-        {
-            Text = "周期",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_periodHeader, 1);
-        headerGrid.Children.Add(_periodHeader);
-
-        _notifyHeader = new TextBlock
-        {
-            Text = "启用通知？",
-            FontSize = 11,
-            FontWeight = FontWeight.Bold,
-            VerticalAlignment = VerticalAlignment.Center,
-            HorizontalAlignment = HorizontalAlignment.Center
-        };
-        Grid.SetColumn(_notifyHeader, 2);
-        headerGrid.Children.Add(_notifyHeader);
-        listPanel.Children.Add(headerGrid);
-
-        _countdownListBox = new ListBox { Height = 150, SelectionMode = SelectionMode.Single };
-        _countdownListBox.SelectionChanged += (s, e) =>
-        {
-            if (_countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        // SettingsCard 无内置事件，通过 IsOn 依赖属性变化订阅开关切换
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(TimeCorrectionCard, (s, e) =>
             {
-                HideHint();
-            }
-        };
-        listPanel.Children.Add(_countdownListBox);
-
-        var buttonPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-
-        _addButton = new Button { Content = "添加", Width = 60 };
-        _addButton.Click += OnAddClick;
-        buttonPanel.Children.Add(_addButton);
-
-        _removeButton = new Button { Content = "删除", Width = 60 };
-        _removeButton.Click += OnRemoveClick;
-        buttonPanel.Children.Add(_removeButton);
-
-        _editButton = new Button { Content = "编辑", Width = 60 };
-        _editButton.Click += OnEditClick;
-        buttonPanel.Children.Add(_editButton);
-
-        listPanel.Children.Add(buttonPanel);
-
-        _selectionHintTextBlock = new TextBlock
-        {
-            Text = "请选择一个倒计时",
-            Foreground = Brushes.Orange,
-            IsVisible = false,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            FontSize = 12
-        };
-        listPanel.Children.Add(_selectionHintTextBlock);
-        listGroup.Content = listPanel;
-        _mainPanel.Children.Add(listGroup);
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = _mainPanel
-        };
-        Content = scrollViewer;
+                Settings.EnableTimeCorrection = TimeCorrectionCard.IsOn;
+            });
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(EnableCustomProgressColorCard, (s, e) =>
+            {
+                Settings.EnableCustomProgressColor = EnableCustomProgressColorCard.IsOn;
+                UpdateProgressColorControlsEnabled();
+            });
     }
 
-    private Grid CreateTextRow(string label, string watermark, out TextBox? textBox)
+    private void OnText2ButtonClick(object? sender, RoutedEventArgs e)
     {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        _dynamicTextBlocks.Add(lbl);
-        Grid.SetColumn(lbl, 0);
-        row.Children.Add(lbl);
-
-        textBox = new TextBox { Watermark = watermark };
-        Grid.SetColumn(textBox, 1);
-        row.Children.Add(textBox);
-
-        return row;
-    }
-
-    private Grid CreateFontRow(string label, out TextBox? textBox, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-        _dynamicTextBlocks.Add(lbl);
-        Grid.SetColumn(lbl, 0);
-        row.Children.Add(lbl);
-
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "使用自定义大小" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateColorRow(string label, out ColorPicker? colorPicker)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-        _dynamicTextBlocks.Add(lbl);
-        Grid.SetColumn(lbl, 0);
-        row.Children.Add(lbl);
-
-        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(colorPicker, 1);
-        row.Children.Add(colorPicker);
-
-        return row;
-    }
-
-    private Grid CreateColorRow(string label, out ColorPicker? colorPicker, out ToggleSwitch? toggle, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(60) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var lbl = new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center };
-        _dynamicTextBlocks.Add(lbl);
-        Grid.SetColumn(lbl, 0);
-        row.Children.Add(lbl);
-
-        colorPicker = new ColorPicker { Width = 120, HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(colorPicker, 1);
-        row.Children.Add(colorPicker);
-
-        toggle = new ToggleSwitch { Content = "使用自定义颜色" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateText2ButtonRow()
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var lbl = new TextBlock { Text = "倒计时名称", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
-        _dynamicTextBlocks.Add(lbl);
-        Grid.SetColumn(lbl, 0);
-        row.Children.Add(lbl);
-
-        var button = new Button
-        {
-            Content = "前往编辑倒计时名称",
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        button.Click += OnText2ButtonClick;
-        Grid.SetColumn(button, 1);
-        row.Children.Add(button);
-
-        return row;
-    }
-
-    private void OnText2ButtonClick(object? sender, EventArgs e)
-    {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        if (Settings.CountdownItems != null && _countdownListBox.SelectedIndex >= 0)
         {
             var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
             ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
         }
         else
         {
-            if (_countdownListBox != null)
-            {
-                _countdownListBox.BringIntoView();
-            }
+            _countdownListBox.BringIntoView();
             ShowHint();
         }
     }
 
-    private void UpdateThemeColors()
+    private void OnText1EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        if (_titleTextBlock != null) _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        if (_descTextBlock != null) _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_orderHintTextBlock != null) _orderHintTextBlock.Foreground = ThemeHelper.GetYellowBrush();
-        if (_textGroupHeader != null) _textGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_formatGroupHeader != null) _formatGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_formatLabel != null) _formatLabel.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeFormatHint != null) _timeFormatHint.Foreground = ThemeHelper.GetGrayBrush();
-        if (_timeBaseGroupHeader != null) _timeBaseGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeBaseLabel != null) _timeBaseLabel.Foreground = ThemeHelper.GetTextBrush();
-        if (_progressDisplayModeGroupHeader != null) _progressDisplayModeGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_progressDisplayModeLabel != null) _progressDisplayModeLabel.Foreground = ThemeHelper.GetTextBrush();
-        if (_fontGroupHeader != null) _fontGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_listGroupHeader != null) _listGroupHeader.Foreground = ThemeHelper.GetTextBrush();
-        if (_nameHeader != null) _nameHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_periodHeader != null) _periodHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_notifyHeader != null) _notifyHeader.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_selectionHintTextBlock != null) _selectionHintTextBlock.Foreground = ThemeHelper.GetOrangeBrush();
-
-        if (_text1StyleTextBlock != null) _text1StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
-        if (_text2StyleTextBlock != null) _text2StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
-        if (_text3StyleTextBlock != null) _text3StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
-        if (_timeStyleTextBlock != null) _timeStyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
-        if (_text4StyleTextBlock != null) _text4StyleTextBlock.Foreground = ThemeHelper.GetLightBlueBrush();
-
-        if (_text1EnableCustomFontSizeToggle != null) _text1EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text1EnableCustomFontColorToggle != null) _text1EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text2EnableCustomFontSizeToggle != null) _text2EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text2EnableCustomFontColorToggle != null) _text2EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text3EnableCustomFontSizeToggle != null) _text3EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text3EnableCustomFontColorToggle != null) _text3EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeEnableCustomFontSizeToggle != null) _timeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_timeEnableCustomFontColorToggle != null) _timeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text4EnableCustomFontSizeToggle != null) _text4EnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        if (_text4EnableCustomFontColorToggle != null) _text4EnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-
-        foreach (var tb in _dynamicTextBlocks)
-        {
-            tb.Foreground = ThemeHelper.GetTextBrush();
-        }
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnText1EnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.Text1EnableCustomFontSize = _text1EnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText1EnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText1EnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.Text1EnableCustomFontColor = _text1EnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText2EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnText2EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text2EnableCustomFontSize = _text2EnableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.Text2EnableCustomFontSize = _text2EnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText2EnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText2EnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text2EnableCustomFontColor = _text2EnableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.Text2EnableCustomFontColor = _text2EnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText3EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnText3EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.Text3EnableCustomFontSize = _text3EnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText3EnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText3EnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.Text3EnableCustomFontColor = _text3EnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnTimeEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.TimeEnableCustomFontSize = _timeEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnTimeEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.TimeEnableCustomFontColor = _timeEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText4EnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnText4EnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text4EnableCustomFontSize = _text4EnableCustomFontSizeToggle?.IsChecked ?? false;
+        Settings.Text4EnableCustomFontSize = _text4EnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnText4EnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnText4EnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
-        Settings.Text4EnableCustomFontColor = _text4EnableCustomFontColorToggle?.IsChecked ?? false;
+        Settings.Text4EnableCustomFontColor = _text4EnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
-    }
-
-    private void OnEnableCustomProgressColorChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomProgressColor = _enableCustomProgressColorToggle?.IsChecked ?? false;
-        UpdateProgressColorControlsEnabled();
     }
 
     private void UpdateControlsEnabled()
     {
-        _text1FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontSize);
-        _text1FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text1EnableCustomFontColor);
-        _text2FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontSize);
-        _text2FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text2EnableCustomFontColor);
-        _text3FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontSize);
-        _text3FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text3EnableCustomFontColor);
-        _timeFontSizeTextBox?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontSize);
-        _timeFontColorPicker?.SetValue(IsEnabledProperty, Settings.TimeEnableCustomFontColor);
-        _text4FontSizeTextBox?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontSize);
-        _text4FontColorPicker?.SetValue(IsEnabledProperty, Settings.Text4EnableCustomFontColor);
+        _text1FontSizeTextBox.IsEnabled = Settings.Text1EnableCustomFontSize;
+        _text1FontColorPicker.IsEnabled = Settings.Text1EnableCustomFontColor;
+        _text2FontSizeTextBox.IsEnabled = Settings.Text2EnableCustomFontSize;
+        _text2FontColorPicker.IsEnabled = Settings.Text2EnableCustomFontColor;
+        _text3FontSizeTextBox.IsEnabled = Settings.Text3EnableCustomFontSize;
+        _text3FontColorPicker.IsEnabled = Settings.Text3EnableCustomFontColor;
+        _timeFontSizeTextBox.IsEnabled = Settings.TimeEnableCustomFontSize;
+        _timeFontColorPicker.IsEnabled = Settings.TimeEnableCustomFontColor;
+        _text4FontSizeTextBox.IsEnabled = Settings.Text4EnableCustomFontSize;
+        _text4FontColorPicker.IsEnabled = Settings.Text4EnableCustomFontColor;
     }
 
     private void UpdateProgressColorControlsEnabled()
     {
         var isCustomEnabled = Settings.EnableCustomProgressColor;
-        var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar || 
+        var showProgressBar = Settings.ProgressDisplayMode == ProgressDisplayMode.Bar ||
                               Settings.ProgressDisplayMode == ProgressDisplayMode.Both;
-        
-        _progressBarColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled && showProgressBar);
-        _progressRingColorPicker?.SetValue(IsEnabledProperty, isCustomEnabled);
+
+        _progressBarColorPicker.IsEnabled = isCustomEnabled && showProgressBar;
+        _progressRingColorPicker.IsEnabled = isCustomEnabled;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
 
-        if (!Settings.WarningAccepted && _mainPanel != null)
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
+        {
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
+        }
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+
+        if (!Settings.WarningAccepted)
         {
             var warningInfoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
@@ -613,78 +259,60 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "IsOpen", true);
             FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningInfoBar, "IsClosable", true);
             warningInfoBar.Margin = new Thickness(0, 0, 0, 8);
-            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(warningInfoBar, (s, e) =>
+            FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(warningInfoBar, (s, e2) =>
             {
                 Settings.WarningAccepted = true;
             });
-            _mainPanel.Children.Insert(0, warningInfoBar);
+            MainPanel.Children.Insert(0, warningInfoBar);
         }
 
-        UpdateThemeColors();
+        _text1TextBox.Text = Settings.Text1;
+        _text3TextBox.Text = Settings.Text3;
+        _text4TextBox.Text = Settings.Text4;
+        _timeFormatTextBox.Text = Settings.TimeFormat;
+        TimeCorrectionCard.IsOn = Settings.EnableTimeCorrection;
 
-        if (_text1TextBox != null) _text1TextBox.Text = Settings.Text1;
-        if (_text3TextBox != null) _text3TextBox.Text = Settings.Text3;
-        if (_text4TextBox != null) _text4TextBox.Text = Settings.Text4;
-        if (_timeFormatTextBox != null) _timeFormatTextBox.Text = Settings.TimeFormat;
-        if (_timeCorrectionToggle != null) _timeCorrectionToggle.IsChecked = Settings.EnableTimeCorrection;
+        _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
 
-        if (_timeBaseComboBox != null) _timeBaseComboBox.SelectedIndex = (int)Settings.TimeBaseType;
+        _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
 
-        if (_progressDisplayModeComboBox != null) _progressDisplayModeComboBox.SelectedIndex = (int)Settings.ProgressDisplayMode;
-
-        if (_text1FontSizeTextBox != null) _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_text1FontColorPicker != null) _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
-        if (_text2FontSizeTextBox != null) _text2FontSizeTextBox.Text = Settings.Text2FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_text2FontColorPicker != null) _text2FontColorPicker.Color = ParseColor(Settings.Text2FontColor);
-        if (_text3FontSizeTextBox != null) _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_text3FontColorPicker != null) _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
-        if (_timeFontSizeTextBox != null) _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_timeFontColorPicker != null) _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
-        if (_text4FontSizeTextBox != null) _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        if (_text4FontColorPicker != null) _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
+        _text1FontSizeTextBox.Text = Settings.Text1FontSize.ToString(CultureInfo.InvariantCulture);
+        _text1FontColorPicker.Color = ParseColor(Settings.Text1FontColor);
+        _text2FontSizeTextBox.Text = Settings.Text2FontSize.ToString(CultureInfo.InvariantCulture);
+        _text2FontColorPicker.Color = ParseColor(Settings.Text2FontColor);
+        _text3FontSizeTextBox.Text = Settings.Text3FontSize.ToString(CultureInfo.InvariantCulture);
+        _text3FontColorPicker.Color = ParseColor(Settings.Text3FontColor);
+        _timeFontSizeTextBox.Text = Settings.TimeFontSize.ToString(CultureInfo.InvariantCulture);
+        _timeFontColorPicker.Color = ParseColor(Settings.TimeFontColor);
+        _text4FontSizeTextBox.Text = Settings.Text4FontSize.ToString(CultureInfo.InvariantCulture);
+        _text4FontColorPicker.Color = ParseColor(Settings.Text4FontColor);
 
         UpdateCountdownList();
 
         AttachEventHandlers();
 
-        if (_text1EnableCustomFontSizeToggle != null)
-            _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
-        if (_text1EnableCustomFontColorToggle != null)
-            _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
-        if (_text2EnableCustomFontSizeToggle != null)
-            _text2EnableCustomFontSizeToggle.IsChecked = Settings.Text2EnableCustomFontSize;
-        if (_text2EnableCustomFontColorToggle != null)
-            _text2EnableCustomFontColorToggle.IsChecked = Settings.Text2EnableCustomFontColor;
-        if (_text3EnableCustomFontSizeToggle != null)
-            _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
-        if (_text3EnableCustomFontColorToggle != null)
-            _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
-        if (_timeEnableCustomFontSizeToggle != null)
-            _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
-        if (_timeEnableCustomFontColorToggle != null)
-            _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
-        if (_text4EnableCustomFontSizeToggle != null)
-            _text4EnableCustomFontSizeToggle.IsChecked = Settings.Text4EnableCustomFontSize;
-        if (_text4EnableCustomFontColorToggle != null)
-            _text4EnableCustomFontColorToggle.IsChecked = Settings.Text4EnableCustomFontColor;
+        _text1EnableCustomFontSizeToggle.IsChecked = Settings.Text1EnableCustomFontSize;
+        _text1EnableCustomFontColorToggle.IsChecked = Settings.Text1EnableCustomFontColor;
+        _text2EnableCustomFontSizeToggle.IsChecked = Settings.Text2EnableCustomFontSize;
+        _text2EnableCustomFontColorToggle.IsChecked = Settings.Text2EnableCustomFontColor;
+        _text3EnableCustomFontSizeToggle.IsChecked = Settings.Text3EnableCustomFontSize;
+        _text3EnableCustomFontColorToggle.IsChecked = Settings.Text3EnableCustomFontColor;
+        _timeEnableCustomFontSizeToggle.IsChecked = Settings.TimeEnableCustomFontSize;
+        _timeEnableCustomFontColorToggle.IsChecked = Settings.TimeEnableCustomFontColor;
+        _text4EnableCustomFontSizeToggle.IsChecked = Settings.Text4EnableCustomFontSize;
+        _text4EnableCustomFontColorToggle.IsChecked = Settings.Text4EnableCustomFontColor;
         UpdateControlsEnabled();
 
-        if (_enableCustomProgressColorToggle != null)
-        {
-            _enableCustomProgressColorToggle.IsChecked = Settings.EnableCustomProgressColor;
-            UpdateProgressColorControlsEnabled();
-        }
-        if (_progressBarColorPicker != null) _progressBarColorPicker.Color = ParseColor(Settings.ProgressBarColor);
-        if (_progressRingColorPicker != null) _progressRingColorPicker.Color = ParseColor(Settings.ProgressRingColor);
+        EnableCustomProgressColorCard.IsOn = Settings.EnableCustomProgressColor;
+        UpdateProgressColorControlsEnabled();
+        _progressBarColorPicker.Color = ParseColor(Settings.ProgressBarColor);
+        _progressRingColorPicker.Color = ParseColor(Settings.ProgressRingColor);
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        _hintTimer?.Stop();
+        _hintTimer?.Dispose();
     }
 
     private void AttachEventHandlers()
@@ -693,68 +321,88 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         AttachTextHandler(_text3TextBox, v => Settings.Text3 = v ?? "还有");
         AttachTextHandler(_text4TextBox, v => Settings.Text4 = v ?? "");
         AttachTextHandler(_timeFormatTextBox, v => Settings.TimeFormat = v ?? "%d天%h小时%m分钟%s秒");
-
-        if (_timeBaseComboBox != null)
-        {
-            _timeBaseComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_timeBaseComboBox != null && _timeBaseComboBox.SelectedIndex >= 0)
-                {
-                    Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
-                }
-            };
-        }
-
-        if (_progressDisplayModeComboBox != null)
-        {
-            _progressDisplayModeComboBox.SelectionChanged += (s, e) =>
-            {
-                if (_progressDisplayModeComboBox != null && _progressDisplayModeComboBox.SelectedIndex >= 0)
-                {
-                    Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
-                    UpdateProgressColorControlsEnabled();
-                }
-            };
-        }
-
         AttachFontSizeHandler(_text1FontSizeTextBox, v => Settings.Text1FontSize = v);
-        AttachColorPickerHandler(_text1FontColorPicker, v => Settings.Text1FontColor = v);
         AttachFontSizeHandler(_text2FontSizeTextBox, v => Settings.Text2FontSize = v);
-        AttachColorPickerHandler(_text2FontColorPicker, v => Settings.Text2FontColor = v);
         AttachFontSizeHandler(_text3FontSizeTextBox, v => Settings.Text3FontSize = v);
-        AttachColorPickerHandler(_text3FontColorPicker, v => Settings.Text3FontColor = v);
         AttachFontSizeHandler(_timeFontSizeTextBox, v => Settings.TimeFontSize = v);
-        AttachColorPickerHandler(_timeFontColorPicker, v => Settings.TimeFontColor = v);
         AttachFontSizeHandler(_text4FontSizeTextBox, v => Settings.Text4FontSize = v);
-        AttachColorPickerHandler(_text4FontColorPicker, v => Settings.Text4FontColor = v);
-
-        AttachColorPickerHandler(_progressBarColorPicker, v => Settings.ProgressBarColor = v);
-        AttachColorPickerHandler(_progressRingColorPicker, v => Settings.ProgressRingColor = v);
     }
 
-    private void AttachTextHandler(TextBox? textBox, Action<string?> setter)
+    private void AttachTextHandler(TextBox textBox, Action<string?> setter)
     {
-        if (textBox == null) return;
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => setter(textBox.Text));
     }
 
-    private void AttachFontSizeHandler(TextBox? textBox, Action<double> setter)
+    private void AttachFontSizeHandler(TextBox textBox, Action<double> setter)
     {
-        if (textBox == null) return;
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, (s, e) => ParseAndSetFontSize(textBox, setter));
     }
 
-    private void AttachColorPickerHandler(ColorPicker? colorPicker, Action<string> setter)
+    private void OnTimeBaseChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (colorPicker == null) return;
-        colorPicker.ColorChanged += (s, e) => setter(colorPicker.Color.ToString());
+        if (_timeBaseComboBox.SelectedIndex >= 0)
+        {
+            Settings.TimeBaseType = (TimeBaseType)_timeBaseComboBox.SelectedIndex;
+        }
+    }
+
+    private void OnProgressDisplayModeChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_progressDisplayModeComboBox.SelectedIndex >= 0)
+        {
+            Settings.ProgressDisplayMode = (ProgressDisplayMode)_progressDisplayModeComboBox.SelectedIndex;
+            UpdateProgressColorControlsEnabled();
+        }
+    }
+
+    private void OnProgressBarColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.ProgressBarColor = _progressBarColorPicker.Color.ToString();
+    }
+
+    private void OnProgressRingColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.ProgressRingColor = _progressRingColorPicker.Color.ToString();
+    }
+
+    private void OnCountdownListSelectionChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_countdownListBox.SelectedIndex >= 0)
+        {
+            HideHint();
+        }
+    }
+
+    private void OnText1ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text1FontColor = _text1FontColorPicker.Color.ToString();
+    }
+
+    private void OnText2ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text2FontColor = _text2FontColorPicker.Color.ToString();
+    }
+
+    private void OnText3ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text3FontColor = _text3FontColorPicker.Color.ToString();
+    }
+
+    private void OnTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.TimeFontColor = _timeFontColorPicker.Color.ToString();
+    }
+
+    private void OnText4ColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.Text4FontColor = _text4FontColorPicker.Color.ToString();
     }
 
     private Color ParseColor(string colorString)
     {
         try
         {
-            return Color.Parse(colorString);
+            return ThemeHelper.ParseColor(colorString);
         }
         catch
         {
@@ -767,7 +415,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         if (double.TryParse(textBox.Text, out double size))
         {
             setter(size);
-            textBox.Text = size.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            textBox.Text = size.ToString(CultureInfo.InvariantCulture);
         }
         else
         {
@@ -777,7 +425,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void UpdateCountdownList()
     {
-        if (_countdownListBox == null) return;
         _countdownListBox.Items.Clear();
         if (Settings.CountdownItems != null)
         {
@@ -794,7 +441,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
                     Text = item.Name,
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = ThemeHelper.GetTextBrush(),
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
+                    Padding = new Thickness(0, 4, 0, 4)
                 };
                 Grid.SetColumn(textBlock, 0);
                 container.Children.Add(textBlock);
@@ -805,20 +452,24 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
                     VerticalAlignment = VerticalAlignment.Center,
                     Foreground = ThemeHelper.GetSubTextBrush(),
                     HorizontalAlignment = HorizontalAlignment.Center,
-                    Padding = new Avalonia.Thickness(0, 4, 0, 4)
+                    Padding = new Thickness(0, 4, 0, 4)
                 };
                 Grid.SetColumn(periodTextBlock, 1);
                 container.Children.Add(periodTextBlock);
 
                 var notifyPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Center };
-                var notifySwitch = new ToggleSwitch
+                var notifySwitch = new CheckBox
                 {
                     IsChecked = item.EnableNotification,
                     VerticalAlignment = VerticalAlignment.Center,
-                    Margin = new Avalonia.Thickness(0, 4, 0, 4)
+                    Margin = new Thickness(0, 4, 0, 4)
                 };
                 var currentItem = item;
-                notifySwitch.IsCheckedChanged += (s, e) =>
+                notifySwitch.Checked += (s, e) =>
+                {
+                    currentItem.EnableNotification = notifySwitch.IsChecked == true;
+                };
+                notifySwitch.Unchecked += (s, e) =>
                 {
                     currentItem.EnableNotification = notifySwitch.IsChecked == true;
                 };
@@ -850,7 +501,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         };
     }
 
-    private void OnAddClick(object? sender, EventArgs e)
+    private void OnAddClick(object? sender, RoutedEventArgs e)
     {
         HideHint();
         if (Settings.CountdownItems == null)
@@ -861,9 +512,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         UpdateCountdownList();
     }
 
-    private void OnRemoveClick(object? sender, EventArgs e)
+    private void OnRemoveClick(object? sender, RoutedEventArgs e)
     {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        if (Settings.CountdownItems != null && _countdownListBox.SelectedIndex >= 0)
         {
             Settings.CountdownItems.RemoveAt(_countdownListBox.SelectedIndex);
             UpdateCountdownList();
@@ -875,9 +526,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         }
     }
 
-    private void OnEditClick(object? sender, EventArgs e)
+    private void OnEditClick(object? sender, RoutedEventArgs e)
     {
-        if (Settings.CountdownItems != null && _countdownListBox != null && _countdownListBox.SelectedIndex >= 0)
+        if (Settings.CountdownItems != null && _countdownListBox.SelectedIndex >= 0)
         {
             var item = Settings.CountdownItems[_countdownListBox.SelectedIndex];
             ShowEditDialog(item, _countdownListBox.SelectedIndex + 1);
@@ -891,27 +542,21 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
     private void ShowHint()
     {
-        if (_selectionHintTextBlock != null)
+        _selectionHintTextBlock.Visibility = Visibility.Visible;
+        _hintTimer?.Stop();
+        _hintTimer = new System.Timers.Timer(5000);
+        _hintTimer.Elapsed += (s, e) =>
         {
-            _selectionHintTextBlock.IsVisible = true;
-            _hintTimer?.Stop();
-            _hintTimer = new System.Timers.Timer(5000);
-            _hintTimer.Elapsed += (s, e) =>
-            {
-                Avalonia.Threading.Dispatcher.UIThread.Post(HideHint);
-            };
-            _hintTimer.AutoReset = false;
-            _hintTimer.Start();
-        }
+            UIThread.Post(HideHint);
+        };
+        _hintTimer.AutoReset = false;
+        _hintTimer.Start();
     }
 
     private void HideHint()
     {
-        if (_selectionHintTextBlock != null)
-        {
-            _selectionHintTextBlock.IsVisible = false;
-            _hintTimer?.Stop();
-        }
+        _selectionHintTextBlock.Visibility = Visibility.Collapsed;
+        _hintTimer?.Stop();
     }
 
     private void ShowEditDialog(PeriodicCountdownItem item, int order = 0)
@@ -922,7 +567,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "取消");
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
 
-        var contentPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        var contentPanel = new StackPanel { Orientation = Orientation.Vertical };
 
         var nameLabel = new TextBlock { Text = "名称:", Foreground = ThemeHelper.GetTextBrush() };
         var nameTextBox = new TextBox { Text = item.Name };
@@ -944,7 +589,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         var timeLabel = new TextBlock { Text = "时间:", Foreground = ThemeHelper.GetTextBrush() };
         contentPanel.Children.Add(timeLabel);
 
-        var timePanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
+        var timePanel = new StackPanel { Orientation = Orientation.Horizontal };
         var hourComboBox = new ComboBox { Width = 80 };
         for (int i = 0; i < 24; i++) hourComboBox.Items.Add(i.ToString("D2"));
         hourComboBox.SelectedIndex = item.Hour;
@@ -962,13 +607,13 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         timePanel.Children.Add(secondComboBox);
         contentPanel.Children.Add(timePanel);
 
-        var extraPanel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 6 };
+        var extraPanel = new StackPanel { Orientation = Orientation.Vertical };
 
         var dayOfWeekRow = new Grid();
         dayOfWeekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         dayOfWeekRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var dayOfWeekLabel = new TextBlock { Text = "星期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var dayOfWeekLabel = new TextBlock { Text = "星期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(dayOfWeekLabel, 0);
         dayOfWeekRow.Children.Add(dayOfWeekLabel);
 
@@ -989,7 +634,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         dayOfMonthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         dayOfMonthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var dayOfMonthLabel = new TextBlock { Text = "日期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var dayOfMonthLabel = new TextBlock { Text = "日期:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(dayOfMonthLabel, 0);
         dayOfMonthRow.Children.Add(dayOfMonthLabel);
 
@@ -1004,7 +649,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
         monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
         monthRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
 
-        var monthLabel = new TextBlock { Text = "月份:", VerticalAlignment = VerticalAlignment.Center, Margin = new Avalonia.Thickness(0, 0, 8, 0) };
+        var monthLabel = new TextBlock { Text = "月份:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
         Grid.SetColumn(monthLabel, 0);
         monthRow.Children.Add(monthLabel);
 
@@ -1017,9 +662,9 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
         void UpdateExtraVisibility()
         {
-            dayOfWeekRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Weekly;
-            dayOfMonthRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Monthly || periodComboBox.SelectedIndex == (int)PeriodType.Yearly;
-            monthRow.IsVisible = periodComboBox.SelectedIndex == (int)PeriodType.Yearly;
+            dayOfWeekRow.Visibility = periodComboBox.SelectedIndex == (int)PeriodType.Weekly ? Visibility.Visible : Visibility.Collapsed;
+            dayOfMonthRow.Visibility = (periodComboBox.SelectedIndex == (int)PeriodType.Monthly || periodComboBox.SelectedIndex == (int)PeriodType.Yearly) ? Visibility.Visible : Visibility.Collapsed;
+            monthRow.Visibility = periodComboBox.SelectedIndex == (int)PeriodType.Yearly ? Visibility.Visible : Visibility.Collapsed;
         }
 
         periodComboBox.SelectionChanged += (s, e) => UpdateExtraVisibility();
@@ -1027,7 +672,7 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
 
         contentPanel.Children.Add(extraPanel);
 
-        var notifyToggle = new ToggleSwitch { Content = "启用通知", IsChecked = item.EnableNotification };
+        var notifyToggle = new CheckBox { Content = "启用通知", IsChecked = item.EnableNotification };
         contentPanel.Children.Add(notifyToggle);
 
         var notifyTitleLabel = new TextBlock { Text = "通知标题:", Foreground = ThemeHelper.GetTextBrush() };
@@ -1055,16 +700,16 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             Content = contentPanel,
-            Margin = new Avalonia.Thickness(12, 12, 12, 0)
+            Margin = new Thickness(12, 12, 12, 0)
         };
 
-        var _mainPanel = new Grid();
-        _mainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        var dialogMainPanel = new Grid();
+        dialogMainPanel.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
 
         Grid.SetRow(scrollViewer, 0);
-        _mainPanel.Children.Add(scrollViewer);
+        dialogMainPanel.Children.Add(scrollViewer);
 
-        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", _mainPanel);
+        FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Content", dialogMainPanel);
 
         FluentAvaloniaCompatibilityHelper.AddContentDialogButtonClickHandler(dialog, "PrimaryButtonClick", (s, e) =>
         {
@@ -1105,6 +750,6 @@ public class PeriodicCountdownSettingsControl : ComponentBase<PeriodicCountdownS
             UpdateCountdownList();
         });
 
-        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        _ = FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, Window.GetWindow(this));
     }
 }

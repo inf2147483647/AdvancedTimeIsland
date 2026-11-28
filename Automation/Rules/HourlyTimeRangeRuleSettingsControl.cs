@@ -1,10 +1,7 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -15,10 +12,41 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public HourlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (_hasLoaded) return;
+        if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            ParseTimeString(Settings.StartTime, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
+
+            ParseTimeString(Settings.EndTime, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -28,14 +56,13 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         mainPanel.Children.Add(CreateInputGroup("开始时间:", true));
         mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -48,7 +75,6 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -61,22 +87,19 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
 
         var inputPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         var minuteBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "分钟 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -101,8 +124,8 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
+        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);
@@ -142,6 +165,7 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);
@@ -179,6 +203,3 @@ public class HourlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Hourly
         if (parts.Length >= 2 && int.TryParse(parts[1], out int s)) second = s;
     }
 }
-
-
-

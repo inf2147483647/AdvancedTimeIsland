@@ -8,7 +8,8 @@ using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Services.NotificationProviders;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -16,8 +17,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly CountdownSettings _settings;
-    private DispatcherTimer? _updateTimer;
-    private DispatcherTimer? _highFrequencyTimer;
+    private IDisposable? _subscription;
     private readonly Action<string, double> _updateText1Style;
     private readonly Action<string, double> _updateText2Style;
     private readonly Action<string, double> _updateText3Style;
@@ -26,8 +26,6 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     private bool _isDisposed;
     private bool _isFirstUpdate = true;
     private bool _requiresHighFrequencyRefresh;
-    private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
-    private TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
 
     private string _text1Display = string.Empty;
     private string _text2Display = string.Empty;
@@ -165,6 +163,12 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        // 迁移旧版时间基准值
+        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
+        if (migrated != _settings.TimeBaseType)
+        {
+            _settings.TimeBaseType = migrated;
+        }
         _updateText1Style = updateText1Style;
         _updateText2Style = updateText2Style;
         _updateText3Style = updateText3Style;
@@ -177,39 +181,16 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         UpdateCountdown();
         _isFirstUpdate = false;
 
-        // 根据显示器刷新率动态计算高频率刷新间隔
-        _highFrequencyInterval = DisplayHelper.CalculateHighFrequencyInterval();
-
-        // 检测是否需要高频率刷新
         _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
 
-        // 初始化计时器
-        InitializeTimers();
+        SubscribeToClock();
     }
 
-    private void InitializeTimers()
+    private void SubscribeToClock()
     {
-        // 低频率计时器（每秒5次）
-        _updateTimer = new DispatcherTimer
-        {
-            Interval = _normalInterval
-        };
-        _updateTimer.Tick += OnTimerElapsed;
-        _updateTimer.Start();
-
-        // 高频率计时器（帧级刷新，用于毫秒显示）
-        _highFrequencyTimer = new DispatcherTimer
-        {
-            Interval = _highFrequencyInterval
-        };
-        _highFrequencyTimer.Tick += OnHighFrequencyTimerElapsed;
-
-        // 如果需要高频率刷新，启动高频率计时器
-        if (_requiresHighFrequencyRefresh)
-        {
-            _updateTimer.Stop();
-            _highFrequencyTimer.Start();
-        }
+        _subscription?.Dispose();
+        _subscription = SharedRenderClockService.Instance.Subscribe(OnClockTick, _requiresHighFrequencyRefresh);
+        SharedRenderClockService.Instance.EnsureStarted();
     }
 
     /// <summary>
@@ -236,19 +217,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         if (_requiresHighFrequencyRefresh != newRequiresHighFrequency)
         {
             _requiresHighFrequencyRefresh = newRequiresHighFrequency;
-
-            if (_requiresHighFrequencyRefresh)
-            {
-                // 切换到高频率模式
-                _updateTimer?.Stop();
-                _highFrequencyTimer?.Start();
-            }
-            else
-            {
-                // 切换到低频率模式
-                _highFrequencyTimer?.Stop();
-                _updateTimer?.Start();
-            }
+            SubscribeToClock();
         }
     }
 
@@ -267,6 +236,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             e.PropertyName == nameof(CountdownSettings.Text3) ||
             e.PropertyName == nameof(CountdownSettings.Text4) ||
             e.PropertyName == nameof(CountdownSettings.CountdownItems) ||
+            e.PropertyName == nameof(CountdownSettings.EnableSimpleMode) ||
             e.PropertyName == nameof(CountdownSettings.TimeBaseType))
         {
             UpdateCountdown();
@@ -285,7 +255,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text1FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text1EnableCustomFontWeight))
         {
-            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text2FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text2FontColor) ||
@@ -296,7 +266,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text2FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text2EnableCustomFontWeight))
         {
-            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 14);
+            _updateText2Style?.Invoke(_settings.Text2FontColor, _settings.Text2EnableCustomFontSize ? _settings.Text2FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text3FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text3FontColor) ||
@@ -307,7 +277,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text3FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text3EnableCustomFontWeight))
         {
-            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.TimeFontSize) ||
                  e.PropertyName == nameof(CountdownSettings.TimeFontColor) ||
@@ -318,7 +288,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.TimeFontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.TimeEnableCustomFontWeight))
         {
-            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(CountdownSettings.Text4FontSize) ||
                  e.PropertyName == nameof(CountdownSettings.Text4FontColor) ||
@@ -329,18 +299,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(CountdownSettings.Text4FontWeight) ||
                  e.PropertyName == nameof(CountdownSettings.Text4EnableCustomFontWeight))
         {
-            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 0);
         }
     }
 
-    private void OnTimerElapsed(object? sender, EventArgs e)
+    private void OnClockTick(DateTime now)
     {
-        _ = UpdateCountdownAsync();
-    }
-
-    private void OnHighFrequencyTimerElapsed(object? sender, EventArgs e)
-    {
-        _ = UpdateCountdownAsync();
+        _ = UpdateCountdownAsync(now);
     }
 
     private void UpdateCountdown()
@@ -355,13 +320,13 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async System.Threading.Tasks.Task UpdateCountdownAsync()
+    private async System.Threading.Tasks.Task UpdateCountdownAsync(DateTime? clockTime = null)
     {
         try
         {
-            var now = await GetCurrentTimeAsync().ConfigureAwait(false);
+            var now = clockTime ?? await GetCurrentTimeAsync().ConfigureAwait(false);
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await UIThread.Dispatcher.InvokeAsync(() =>
             {
                 var displayData = ProcessCountdownInternal(now);
                 Text1Display = displayData.Text1;
@@ -385,9 +350,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
-            TimeBaseType.PluginOffsetSystemTime => _timeBaseService.GetPluginOffsetSystemTime(),
             TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.RawSystemTime => DateTime.Now,
+            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
             _ => _timeBaseService.GetCurrentTime()
         };
     }
@@ -397,9 +361,8 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            TimeBaseType.PluginOffsetSystemTime => await _timeBaseService.GetPluginOffsetSystemTimeAsync().ConfigureAwait(false),
             TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.RawSystemTime => await System.Threading.Tasks.Task.FromResult(DateTime.Now).ConfigureAwait(false),
+            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
             _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
         };
     }
@@ -450,11 +413,32 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
         if (activeItems.Count == 0)
         {
+            // 全部倒计时已结束：显示「{组件内所有倒计时的名称（空格分隔）} 已结束」（去掉原固定前缀"倒计时"）。
+            var displayName = string.Join(" ",
+                _settings.CountdownItems
+                    .Select(i => i?.Name?.Trim())
+                    .Where(n => !string.IsNullOrEmpty(n)));
+
+            if (string.IsNullOrEmpty(displayName))
+            {
+                return new CountdownDisplayData
+                {
+                    Text1 = string.Empty,
+                    Text2 = string.Empty,
+                    Text3 = "倒计时已结束",
+                    Time = string.Empty,
+                    Text4 = string.Empty,
+                    IsAllCompleted = true,
+                    IsEmpty = false,
+                    CurrentItem = null
+                };
+            }
+
             return new CountdownDisplayData
             {
-                Text1 = _settings.Text1,
-                Text2 = string.Empty,
-                Text3 = "倒计时已结束",
+                Text1 = string.Empty,
+                Text2 = displayName,
+                Text3 = "已结束",
                 Time = string.Empty,
                 Text4 = string.Empty,
                 IsAllCompleted = true,
@@ -482,13 +466,15 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
             percent = Math.Min(100, Math.Max(0, elapsedSeconds * 100.0 / totalDuration));
         }
 
+        var simple = _settings.EnableSimpleMode;
+
         return new CountdownDisplayData
         {
-            Text1 = _settings.Text1,
+            Text1 = simple ? string.Empty : _settings.Text1,
             Text2 = currentItem.Name,
-            Text3 = _settings.Text3,
+            Text3 = simple ? string.Empty : _settings.Text3,
             Time = timeText,
-            Text4 = _settings.Text4,
+            Text4 = simple ? string.Empty : _settings.Text4,
             IsAllCompleted = false,
             IsEmpty = false,
             CurrentItem = currentItem,
@@ -519,152 +505,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
     private string FormatTime(string format, long secondsLeft, double millisecondsLeft, DateTime now, DateTime targetDate, long startTime, long targetTime, bool enableTimeCorrection)
     {
-        var totalSeconds = secondsLeft;
-        var totalMilliseconds = millisecondsLeft;
-        var totalMinutes = Math.Ceiling(totalSeconds / 60.0);
-        var totalHours = Math.Ceiling(totalSeconds / 3600.0);
-        var totalDays = Math.Ceiling(totalSeconds / 86400.0);
-
-        var days = (int)(totalSeconds / 86400);
-        var remainingSeconds = totalSeconds % 86400;
-        var hours = (int)(remainingSeconds / 3600);
-        remainingSeconds %= 3600;
-        var minutes = (int)(remainingSeconds / 60);
-        var seconds = (int)(remainingSeconds % 60);
-        var milliseconds = (int)(totalMilliseconds % 1000);
-
-        bool hasMillisecond = format.Contains("%x") || format.Contains("%X");
-        if (enableTimeCorrection && !hasMillisecond && secondsLeft > 0)
-        {
-            bool hasSeconds = format.Contains("%s") || format.Contains("%S");
-            bool hasMinutes = format.Contains("%m") || format.Contains("%M");
-            bool hasHours = format.Contains("%h") || format.Contains("%H");
-            bool hasDays = format.Contains("%d") || format.Contains("%D");
-
-            if (hasSeconds)
-            {
-                seconds++;
-                if (seconds >= 60)
-                {
-                    seconds = 0;
-                    minutes++;
-                    if (minutes >= 60)
-                    {
-                        minutes = 0;
-                        hours++;
-                        if (hours >= 24)
-                        {
-                            hours = 0;
-                            days++;
-                        }
-                    }
-                }
-            }
-            else if (hasMinutes)
-            {
-                minutes++;
-                if (minutes >= 60)
-                {
-                    minutes = 0;
-                    hours++;
-                    if (hours >= 24)
-                    {
-                        hours = 0;
-                        days++;
-                    }
-                }
-            }
-            else if (hasHours)
-            {
-                hours++;
-                if (hours >= 24)
-                {
-                    hours = 0;
-                    days++;
-                }
-            }
-            else if (hasDays)
-            {
-                days++;
-            }
-        }
-
-        var totalDuration = targetTime - startTime;
-        var elapsedSeconds = targetTime - startTime - secondsLeft;
-
-        string remainingPercent = "0";
-        string elapsedPercent = "0";
-        string elapsedPercentDecimal = "0.00";
-
-        if (totalDuration > 0)
-        {
-            remainingPercent = ((int)(secondsLeft * 100.0 / totalDuration)).ToString();
-            elapsedPercent = ((int)(elapsedSeconds * 100.0 / totalDuration)).ToString();
-            elapsedPercentDecimal = (elapsedSeconds * 100.0 / totalDuration).ToString("F2");
-        }
-
-        bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
-        bool hasYear = format.Contains("%yy") || format.Contains("%YY");
-
-        int displayYears = 0;
-        int displayMonths = 0;
-        int displayDays = days;
-
-        if (hasYear || hasMonth)
-        {
-            var tempDate = now;
-            displayYears = 0;
-
-            while (tempDate.AddYears(1) <= targetDate)
-            {
-                tempDate = tempDate.AddYears(1);
-                displayYears++;
-            }
-
-            if (hasMonth)
-            {
-                displayMonths = 0;
-                while (tempDate.AddMonths(1) <= targetDate)
-                {
-                    tempDate = tempDate.AddMonths(1);
-                    displayMonths++;
-                }
-
-                var dayDiff = (targetDate - tempDate).Days;
-                displayDays = Math.Max(0, dayDiff);
-            }
-            else
-            {
-                var dayDiff = (targetDate - tempDate).Days;
-                displayDays = Math.Max(0, dayDiff);
-            }
-        }
-
-        var yy = displayYears.ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
-        var result = format
-            .Replace("%D", ((int)totalDays).ToString())
-            .Replace("%H", ((int)totalHours).ToString())
-            .Replace("%M", ((int)totalMinutes).ToString())
-            .Replace("%S", totalSeconds.ToString())
-            .Replace("%X", ((int)totalMilliseconds).ToString())
-            .Replace("%L", remainingPercent)
-            .Replace("%P", elapsedPercent)
-            .Replace("%p", elapsedPercentDecimal)
-            .Replace("%yy", yy)
-            .Replace("%YY", YY)
-            .Replace("%mo", displayMonths.ToString())
-            .Replace("%MO", displayMonths.ToString())
-            .Replace("%d", displayDays.ToString())
-            .Replace("%h", hours.ToString())
-            .Replace("%m", minutes.ToString("D2"))
-            .Replace("%s", seconds.ToString("D2"))
-            .Replace("%x", milliseconds.ToString("D3"));
-
-        return result;
+        return OptimizedTimeFormatter.FormatTime(format, secondsLeft, millisecondsLeft, now, targetDate, startTime, targetTime, enableTimeCorrection);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -680,8 +521,7 @@ public class CountdownViewModel : INotifyPropertyChanged, IDisposable
 
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
-        _updateTimer?.Stop();
-        _highFrequencyTimer?.Stop();
+        _subscription?.Dispose();
     }
 
     private class CountdownDisplayData

@@ -1,6 +1,6 @@
-using Avalonia.Controls;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
+using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -24,8 +24,7 @@ public class FestivalRuleSettingsControl : RuleSettingsControlBase<FestivalRuleS
     {
         var panel = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
+            Orientation = Orientation.Vertical
         };
 
         var label = new TextBlock { Text = "选择节日：" };
@@ -84,14 +83,25 @@ public class FestivalRuleSettingsControl : RuleSettingsControlBase<FestivalRuleS
         return festivals;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _festivalComboBox.SelectedItem = Settings.TargetFestival;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _festivalComboBox.SelectedItem = Settings.TargetFestival;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetFestival = _festivalComboBox.SelectedItem as string ?? string.Empty;
     }

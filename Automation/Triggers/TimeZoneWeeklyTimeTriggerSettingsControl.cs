@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -15,7 +13,7 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
 {
     private ComboBox _timeZoneComboBox = null!;
     private ComboBox _startDayOfWeekComboBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     public TimeZoneWeeklyTimeTriggerSettingsControl()
     {
@@ -35,7 +33,6 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -56,7 +53,6 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -90,7 +86,6 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -137,7 +132,6 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -148,7 +142,7 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -180,31 +174,41 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        foreach (var item in _timeZoneComboBox.Items)
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+            if (Settings == null) return;
+
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
-        }
 
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
-        {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateTimeZone()
@@ -218,6 +222,7 @@ public class TimeZoneWeeklyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

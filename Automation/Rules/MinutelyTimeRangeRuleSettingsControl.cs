@@ -1,10 +1,7 @@
 using System;
-using AdvancedTimeIsland.Helpers;using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -13,10 +10,39 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
 {
     private TextBox _startSecondBox = null!;
     private TextBox _endSecondBox = null!;
+    private bool _isLoading;
 
     public MinutelyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (int.TryParse(Settings.StartSecond, out int startSecond))
+            {
+                _startSecondBox.Text = startSecond.ToString("D2");
+            }
+
+            if (int.TryParse(Settings.EndSecond, out int endSecond))
+            {
+                _endSecondBox.Text = endSecond.ToString("D2");
+            }
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -26,14 +52,13 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         mainPanel.Children.Add(CreateInputGroup("开始秒数:", true));
         mainPanel.Children.Add(CreateInputGroup("结束秒数:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -46,7 +71,6 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -60,8 +84,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -83,7 +106,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
 
         var scrollViewer = new ScrollViewer
         {
@@ -120,6 +143,7 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);
@@ -136,6 +160,3 @@ public class MinutelyTimeRangeRuleSettingsControl : RuleSettingsControlBase<Minu
         return 0;
     }
 }
-
-
-

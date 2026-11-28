@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_daily_time", "区时每天", "\uece6")]
+[TriggerInfo("advancedtimeisland.timezone_daily_time", "区时每天", PackIconKind.ClockOutline)]
 public class TimeZoneDailyTimeTrigger : TimeTriggerBase<TimeZoneDailyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

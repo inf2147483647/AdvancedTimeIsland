@@ -1,27 +1,28 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-[ComponentInfo("688e6e20-f992-4310-8b16-bdebea05c101", "明日宜忌（ATI）", "\uE124", "显示明日宜忌")]
+[ComponentInfo("688e6e20-f992-4310-8b16-bdebea05c101", "明日宜忌（ATI）", PackIconKind.CalendarText, "显示明日宜忌")]
 public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
 {
     private TomorrowYiJiViewModel vm;
+    private bool _initCompleted;
     private TextBlock yiLabelTb;
     private TextBlock yiValueTb;
     private TextBlock jiLabelTb;
     private TextBlock jiValueTb;
     private Border rootBorder;
+    private StackPanel mainSp;
     private readonly TimeBaseService _timeBaseService;
 
     public TomorrowYiJiControl(TimeBaseService tbs) { _timeBaseService = tbs; InitializeComponent(); }
@@ -29,7 +30,7 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
     private void InitializeComponent()
     {
         rootBorder = new Border { VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Center };
-        var mainSp = new StackPanel { Orientation = Orientation.Vertical };
+        mainSp = new StackPanel { Orientation = Orientation.Vertical };
         
         var yiSp = new StackPanel { Orientation = Orientation.Horizontal };
         yiLabelTb = new TextBlock();
@@ -54,10 +55,10 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         yiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.YiLabelEnableCustomFontColor);
     }
 
-    private void UpdateYiLabelFontSize(double fontSize) { yiLabelTb.FontSize = fontSize; }
+    private void UpdateYiLabelFontSize(double fontSize) { if (fontSize > 0) yiLabelTb.FontSize = fontSize; else yiLabelTb.FontSize = FontFamilyHelper.GetBodyFontSize(yiLabelTb); }
     private void UpdateYiLabelFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) yiLabelTb.ClearValue(TextBlock.FontFamilyProperty); else yiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
     private void UpdateYiLabelFontWeight(string fontWeight) { if (Settings.YiLabelEnableCustomFontWeight) yiLabelTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else yiLabelTb.ClearValue(TextBlock.FontWeightProperty); }
-    private void UpdateYiValueFontSize(double fontSize) { yiValueTb.FontSize = fontSize; }
+    private void UpdateYiValueFontSize(double fontSize) { if (fontSize > 0) yiValueTb.FontSize = fontSize; else yiValueTb.FontSize = FontFamilyHelper.GetBodyFontSize(yiValueTb); }
     private void UpdateYiValueFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) yiValueTb.ClearValue(TextBlock.FontFamilyProperty); else yiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
     private void UpdateYiValueFontWeight(string fontWeight) { if (Settings.YiValueEnableCustomFontWeight) yiValueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else yiValueTb.ClearValue(TextBlock.FontWeightProperty); }
     private void UpdateJiLabelFontColor(string colorStr)
@@ -65,12 +66,17 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         jiLabelTb.Foreground = ThemeHelper.GetColorBrush(colorStr, Settings.JiLabelEnableCustomFontColor);
     }
 
-    private void UpdateJiLabelFontSize(double fontSize) { jiLabelTb.FontSize = fontSize; }
+    private void UpdateJiLabelFontSize(double fontSize) { if (fontSize > 0) jiLabelTb.FontSize = fontSize; else jiLabelTb.FontSize = FontFamilyHelper.GetBodyFontSize(jiLabelTb); }
     private void UpdateJiLabelFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) jiLabelTb.ClearValue(TextBlock.FontFamilyProperty); else jiLabelTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
     private void UpdateJiLabelFontWeight(string fontWeight) { if (Settings.JiLabelEnableCustomFontWeight) jiLabelTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else jiLabelTb.ClearValue(TextBlock.FontWeightProperty); }
-    private void UpdateJiValueFontSize(double fontSize) { jiValueTb.FontSize = fontSize; }
+    private void UpdateJiValueFontSize(double fontSize) { if (fontSize > 0) jiValueTb.FontSize = fontSize; else jiValueTb.FontSize = FontFamilyHelper.GetBodyFontSize(jiValueTb); }
     private void UpdateJiValueFontFamily(string fontFamily) { if (string.IsNullOrEmpty(fontFamily)) jiValueTb.ClearValue(TextBlock.FontFamilyProperty); else jiValueTb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily); }
     private void UpdateJiValueFontWeight(string fontWeight) { if (Settings.JiValueEnableCustomFontWeight) jiValueTb.FontWeight = FontFamilyHelper.GetFontWeightFromString(fontWeight); else jiValueTb.ClearValue(TextBlock.FontWeightProperty); }
+
+    private void UpdateDisplayMode()
+    {
+        mainSp.Orientation = Settings.DisplayMode == 0 ? Orientation.Horizontal : Orientation.Vertical;
+    }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
@@ -80,51 +86,78 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         jiValueTb.Foreground = ThemeHelper.GetJiBrush();
     }
 
-    protected override void OnInitialized()
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 0);
+        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 0);
+        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 0);
+        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 0);
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
         vm = new TomorrowYiJiViewModel(_timeBaseService, Settings, UpdateYiLabelFontColor, UpdateYiLabelFontSize, UpdateYiValueFontSize, UpdateJiLabelFontColor, UpdateJiLabelFontSize, UpdateJiValueFontSize);
         DataContext = vm;
         yiLabelTb.Text = vm.YiLabelText;
         yiValueTb.Text = vm.YiValueText;
         jiLabelTb.Text = vm.JiLabelText;
         jiValueTb.Text = vm.JiValueText;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.YiLabelText)) yiLabelTb.Text = vm.YiLabelText;
-            if (e.PropertyName == nameof(vm.YiValueText)) yiValueTb.Text = vm.YiValueText;
-            if (e.PropertyName == nameof(vm.JiLabelText)) jiLabelTb.Text = vm.JiLabelText;
-            if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateYiLabelFontColor(Settings.YiLabelFontColor);
-        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 14);
+        UpdateYiLabelFontSize(Settings.YiLabelEnableCustomFontSize ? Settings.YiLabelFontSize : 0);
         UpdateYiLabelFontFamily(Settings.YiLabelEnableCustomFontFamily ? Settings.YiLabelFontFamily : "");
         UpdateYiLabelFontWeight(Settings.YiLabelFontWeight);
-        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 14);
+        UpdateYiValueFontSize(Settings.YiValueEnableCustomFontSize ? Settings.YiValueFontSize : 0);
         UpdateYiValueFontFamily(Settings.YiValueEnableCustomFontFamily ? Settings.YiValueFontFamily : "");
         UpdateYiValueFontWeight(Settings.YiValueFontWeight);
         UpdateJiLabelFontColor(Settings.JiLabelFontColor);
-        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 14);
+        UpdateJiLabelFontSize(Settings.JiLabelEnableCustomFontSize ? Settings.JiLabelFontSize : 0);
         UpdateJiLabelFontFamily(Settings.JiLabelEnableCustomFontFamily ? Settings.JiLabelFontFamily : "");
         UpdateJiLabelFontWeight(Settings.JiLabelFontWeight);
-        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 14);
+        UpdateJiValueFontSize(Settings.JiValueEnableCustomFontSize ? Settings.JiValueFontSize : 0);
         UpdateJiValueFontFamily(Settings.JiValueEnableCustomFontFamily ? Settings.JiValueFontFamily : "");
         UpdateJiValueFontWeight(Settings.JiValueFontWeight);
+        UpdateDisplayMode();
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.YiLabelText)) yiLabelTb.Text = vm.YiLabelText;
+        if (e.PropertyName == nameof(vm.YiValueText)) yiValueTb.Text = vm.YiValueText;
+        if (e.PropertyName == nameof(vm.JiLabelText)) jiLabelTb.Text = vm.JiLabelText;
+        if (e.PropertyName == nameof(vm.JiValueText)) jiValueTb.Text = vm.JiValueText;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 
@@ -161,6 +194,10 @@ public class TomorrowYiJiControl : ComponentBase<TomorrowYiJiSettings>
         else if (e.PropertyName == nameof(Settings.JiValueFontWeight) || e.PropertyName == nameof(Settings.JiValueEnableCustomFontWeight))
         {
             UpdateJiValueFontWeight(Settings.JiValueFontWeight);
+        }
+        else if (e.PropertyName == nameof(Settings.DisplayMode))
+        {
+            UpdateDisplayMode();
         }
     }
 }

@@ -1,13 +1,9 @@
 using System;
 using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -42,6 +38,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         }
         InitializeComponent();
         Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -61,36 +58,50 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
     {
         if (_pluginSettings == null) return;
         var isDms = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
-        _longitudeBox.IsVisible = !isDms;
-        _dmsPanel.IsVisible = isDms;
+        _longitudeBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _dmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
         if (isDms)
         {
             UpdateDmsFromLongitude();
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
+            
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startMinute, out int startSecond);
-        _startMinuteBox.Text = startMinute.ToString("D2");
-        _startSecondBox.Text = startSecond.ToString("D2");
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startMinute, out int startSecond);
+            _startMinuteBox.Text = startMinute.ToString("D2");
+            _startSecondBox.Text = startSecond.ToString("D2");
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endMinute, out int endSecond);
-        _endMinuteBox.Text = endMinute.ToString("D2");
-        _endSecondBox.Text = endSecond.ToString("D2");
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endMinute, out int endSecond);
+            _endMinuteBox.Text = endMinute.ToString("D2");
+            _endSecondBox.Text = endSecond.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -100,7 +111,6 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -113,7 +123,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         // 结束时间
         mainPanel.Children.Add(CreateInputGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -126,7 +136,6 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -143,8 +152,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         {
             Width = 120,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)",
-            IsVisible = !isDms
+            Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
@@ -152,22 +160,21 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         _dmsPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Left,
-            IsVisible = isDms
+            Visibility = isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
-        _dmsDegreesBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesBox = new TextBox { Width = 50 };
         _dmsDegreesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsDegreesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsMinutesBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesBox = new TextBox { Width = 45 };
         _dmsMinutesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsMinutesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsSecondsBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsBox = new TextBox { Width = 45 };
         _dmsSecondsBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsSecondsBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
@@ -181,8 +188,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
         var container = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
+            Orientation = Orientation.Vertical
         };
         container.Children.Add(_longitudeBox);
         container.Children.Add(_dmsPanel);
@@ -204,7 +210,6 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -217,22 +222,19 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
         var inputPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         var minuteBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "分钟 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -250,8 +252,8 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         secondBox.TextChanged += (s, e) => UpdateSettingsValue();
 
         // 失去焦点时验证并格式化
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(minuteBox, (s, e) => ValidateAndFormatTextBox(minuteBox));
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(secondBox, (s, e) => ValidateAndFormatTextBox(secondBox));
+        minuteBox.LostFocus += (s, e) => ValidateAndFormatTextBox(minuteBox);
+        secondBox.LostFocus += (s, e) => ValidateAndFormatTextBox(secondBox);
 
         inputPanel.Children.Add(minuteBox);
         inputPanel.Children.Add(secondBox);
@@ -325,6 +327,7 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);
@@ -362,6 +365,3 @@ public class LocalSolarHourlyTimeRangeRuleSettingsControl : RuleSettingsControlB
         if (parts.Length >= 2 && int.TryParse(parts[1], out int s)) second = s;
     }
 }
-
-
-

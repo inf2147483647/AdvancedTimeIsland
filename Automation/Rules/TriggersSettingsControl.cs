@@ -1,9 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using ClassIsland.Core.Abstractions.Controls;
 using AdvancedTimeIsland.Helpers;
 
@@ -57,7 +56,6 @@ public class TriggersSettingsControl : UserControl
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 16,
             Margin = new Thickness(16)
         };
 
@@ -65,14 +63,13 @@ public class TriggersSettingsControl : UserControl
         {
             Text = "触发器设置",
             FontSize = 18,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = ThemeHelper.GetTextBrush()
         });
 
         var typePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 12,
             Margin = new Thickness(0, 8, 0, 0)
         };
 
@@ -152,15 +149,14 @@ public class TriggersSettingsControl : UserControl
             Text = "",
             FontSize = 12,
             Foreground = Brushes.Gray,
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
+            TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 8, 0, 0)
         };
         mainPanel.Children.Add(_triggerDescriptionTextBlock);
 
         _triggerSettingsPanel = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 12
+            Orientation = Orientation.Vertical
         };
         mainPanel.Children.Add(_triggerSettingsPanel);
 
@@ -333,7 +329,7 @@ public class TriggersSettingsControl : UserControl
     {
         return new Border
         {
-            Background = new SolidColorBrush(Color.Parse("#2D2D30")),
+            Background = new SolidColorBrush(ThemeHelper.ParseColor("#2D2D30")),
             Padding = new Thickness(16),
             CornerRadius = new CornerRadius(8),
             Child = new TextBlock

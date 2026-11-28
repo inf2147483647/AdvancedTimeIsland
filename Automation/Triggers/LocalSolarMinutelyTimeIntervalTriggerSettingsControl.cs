@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -17,7 +15,7 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
     private TextBox _longitudeBox = null!;
     private TextBox _startSecondBox = null!;
     private TextBox _endSecondBox = null!;
-    private NumericUpDown _intervalNumericUpDown = null!;
+    private WpfNumericUpDown _intervalNumericUpDown = null!;
     private ComboBox _intervalUnitComboBox = null!;
     private bool _isLoading = false;
 
@@ -39,7 +37,6 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -61,7 +58,6 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -75,8 +71,7 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         _longitudeBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
 
@@ -89,7 +84,6 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -103,8 +97,7 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -125,7 +118,6 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -139,11 +131,10 @@ public class LocalSolarMinutelyTimeIntervalTriggerSettingsControl : TriggerSetti
         var intervalPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _intervalNumericUpDown = new NumericUpDown
+        _intervalNumericUpDown = new WpfNumericUpDown
         {
             Width = 225,
             Minimum = 0.001m,

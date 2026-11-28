@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.daily_time", "每天", "\uecd4")]
+[TriggerInfo("advancedtimeisland.daily_time", "每天", PackIconKind.CalendarToday)]
 public class DailyTimeTrigger : TimeTriggerBase<DailyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

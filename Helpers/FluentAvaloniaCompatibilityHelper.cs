@@ -1,828 +1,349 @@
 using System;
+using System.Collections;
+using System.Collections.ObjectModel;
 using System.Reflection;
-using System.Linq;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.VisualTree;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Documents;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Threading;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Helpers;
 
+/// <summary>
+/// 兼容辅助类（WPF 版）。
+/// 原 Avalonia 版用于在 FA2/FA3 之间做反射兼容；WPF 版改为直接提供
+/// InfoBar / ContentDialog / SettingsExpander 等自绘控件，并保持方法签名不变，
+/// 以便调用方代码尽量少改动。
+/// </summary>
 public static class FluentAvaloniaCompatibilityHelper
 {
-    private static bool? _isV3;
+    // ==================== InfoBar ====================
 
-    public static bool IsV3
+    public static FrameworkElement CreateInfoBar()
     {
-        get
-        {
-            if (_isV3.HasValue)
-                return _isV3.Value;
-
-            _isV3 = CheckIsV3();
-            return _isV3.Value;
-        }
+        return new WpfInfoBar();
     }
 
-    private static bool CheckIsV3()
+    public static void SetInfoBarProperty(FrameworkElement infoBar, string propertyName, object value)
     {
-        try
-        {
-            var infoBarType = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
-            if (infoBarType != null)
-                return true;
-
-            var contentDialogType = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
-            if (contentDialogType != null)
-                return true;
-        }
-        catch
-        {
-        }
-
-        return false;
-    }
-
-    public static Control CreateInfoBar()
-    {
-        if (IsV3)
-        {
-            return CreateV3InfoBar();
-        }
-        else
-        {
-            return CreateV2InfoBar();
-        }
-    }
-
-    private static Control CreateV3InfoBar()
-    {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBar, FluentAvalonia");
-        if (type != null)
-        {
-            return (Control)Activator.CreateInstance(type)!;
-        }
-        return CreateV2InfoBar();
-    }
-
-    private static Control CreateV2InfoBar()
-    {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBar, FluentAvalonia");
-        if (type != null)
-        {
-            return (Control)Activator.CreateInstance(type)!;
-        }
-        return new Border();
-    }
-
-    public static void SetInfoBarProperty(Control infoBar, string propertyName, object value)
-    {
-        if (infoBar == null)
-            return;
-
-        var type = infoBar.GetType();
-        var property = type.GetProperty(propertyName);
+        if (infoBar == null) return;
+        var property = infoBar.GetType().GetProperty(propertyName);
         if (property != null)
         {
-            property.SetValue(infoBar, value);
+            try
+            {
+                if (property.PropertyType == typeof(Thickness) && value is Thickness t)
+                {
+                    property.SetValue(infoBar, t);
+                }
+                else if (property.PropertyType == typeof(bool) && value is bool b)
+                {
+                    property.SetValue(infoBar, b);
+                }
+                else if (property.PropertyType == typeof(int) && value is int i)
+                {
+                    property.SetValue(infoBar, i);
+                }
+                else if (property.PropertyType == typeof(string) && value is string s)
+                {
+                    property.SetValue(infoBar, s);
+                }
+                else
+                {
+                    property.SetValue(infoBar, value);
+                }
+            }
+            catch
+            {
+            }
         }
     }
 
-    public static object GetInfoBarProperty(Control infoBar, string propertyName)
+    public static object GetInfoBarProperty(FrameworkElement infoBar, string propertyName)
     {
-        if (infoBar == null)
-            return null!;
-
-        var type = infoBar.GetType();
-        var property = type.GetProperty(propertyName);
-        if (property != null)
-        {
-            return property.GetValue(infoBar)!;
-        }
-        return null!;
+        if (infoBar == null) return null!;
+        var property = infoBar.GetType().GetProperty(propertyName);
+        return property?.GetValue(infoBar) ?? null!;
     }
 
-    public static void AddInfoBarClosedHandler(Control infoBar, EventHandler handler)
+    public static void AddInfoBarClosedHandler(FrameworkElement infoBar, EventHandler handler)
     {
-        if (infoBar == null)
-            return;
-
-        var type = infoBar.GetType();
-        var eventInfo = type.GetEvent("Closed");
-        if (eventInfo != null)
+        if (infoBar is WpfInfoBar wpfInfoBar)
         {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(infoBar, convertedHandler);
+            wpfInfoBar.Closed += handler;
         }
     }
+
+    public static object GetInfoBarSeverityWarning() => WpfInfoBar.SeverityWarning;
+    public static object GetInfoBarSeverityInformational() => WpfInfoBar.SeverityInformational;
+    public static object GetInfoBarSeverityError() => WpfInfoBar.SeverityError;
+    public static object GetInfoBarSeveritySuccess() => WpfInfoBar.SeveritySuccess;
+
+    // ==================== ContentDialog ====================
 
     public static object CreateContentDialog()
     {
-        if (IsV3)
-        {
-            return CreateV3ContentDialog();
-        }
-        else
-        {
-            return CreateV2ContentDialog();
-        }
-    }
-
-    private static object CreateV3ContentDialog()
-    {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialog, FluentAvalonia");
-        if (type != null)
-        {
-            return Activator.CreateInstance(type)!;
-        }
-        return CreateV2ContentDialog();
-    }
-
-    private static object CreateV2ContentDialog()
-    {
-        var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialog, FluentAvalonia");
-        if (type != null)
-        {
-            return Activator.CreateInstance(type)!;
-        }
-        return new object();
+        return new WpfContentDialog();
     }
 
     public static void SetContentDialogProperty(object dialog, string propertyName, object value)
     {
-        if (dialog == null)
-            return;
-
-        var type = dialog.GetType();
-        var property = type.GetProperty(propertyName);
+        if (dialog == null) return;
+        var property = dialog.GetType().GetProperty(propertyName);
         if (property != null)
         {
-            property.SetValue(dialog, value);
+            try
+            {
+                property.SetValue(dialog, value);
+            }
+            catch
+            {
+            }
         }
     }
 
     public static object GetContentDialogProperty(object dialog, string propertyName)
     {
-        if (dialog == null)
-            return null!;
-
-        var type = dialog.GetType();
-        var property = type.GetProperty(propertyName);
-        if (property != null)
-        {
-            return property.GetValue(dialog)!;
-        }
-        return null!;
+        if (dialog == null) return null!;
+        var property = dialog.GetType().GetProperty(propertyName);
+        return property?.GetValue(dialog) ?? null!;
     }
 
     public static void AddContentDialogButtonClickHandler(object dialog, string eventName, EventHandler handler)
     {
-        if (dialog == null)
-            return;
-
-        var type = dialog.GetType();
-        var eventInfo = type.GetEvent(eventName);
-        if (eventInfo != null)
+        if (dialog is WpfContentDialog wpfDialog)
         {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(dialog, convertedHandler);
-        }
-    }
-
-    private static Delegate ConvertEventHandler(EventHandler handler, Type targetDelegateType)
-    {
-        if (handler == null || targetDelegateType == null)
-            return handler;
-
-        if (targetDelegateType == typeof(EventHandler))
-            return handler;
-
-        var invokeMethod = targetDelegateType.GetMethod("Invoke");
-        if (invokeMethod == null)
-            return handler;
-
-        var parameters = invokeMethod.GetParameters();
-        if (parameters.Length != 2)
-            return handler;
-
-        var senderType = parameters[0].ParameterType;
-        var argsType = parameters[1].ParameterType;
-
-        var genericType = typeof(EventHandlerAdapter<,>).MakeGenericType(senderType, argsType);
-        var adapter = Activator.CreateInstance(genericType, handler);
-        var adapterMethod = genericType.GetMethod("Invoke")!;
-
-        return Delegate.CreateDelegate(targetDelegateType, adapter, adapterMethod);
-    }
-
-    private class EventHandlerAdapter<TSender, TArgs>
-    {
-        private readonly EventHandler _handler;
-
-        public EventHandlerAdapter(EventHandler handler)
-        {
-            _handler = handler;
-        }
-
-        public void Invoke(TSender sender, TArgs args)
-        {
-            _handler?.Invoke(sender, args as EventArgs ?? EventArgs.Empty);
-        }
-    }
-
-    public static void AddLostFocusHandler(InputElement element, EventHandler<RoutedEventArgs> handler)
-    {
-        if (element == null)
-            return;
-
-        var type = element.GetType();
-        var eventInfo = type.GetEvent("LostFocus");
-        if (eventInfo != null)
-        {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertRoutedEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(element, convertedHandler);
-        }
-    }
-
-    private static Delegate ConvertRoutedEventHandler(EventHandler<RoutedEventArgs> handler, Type targetDelegateType)
-    {
-        if (handler == null || targetDelegateType == null)
-            return handler;
-
-        if (targetDelegateType == typeof(EventHandler<RoutedEventArgs>))
-            return handler;
-
-        var invokeMethod = targetDelegateType.GetMethod("Invoke");
-        if (invokeMethod == null)
-            return handler;
-
-        var parameters = invokeMethod.GetParameters();
-        if (parameters.Length != 2)
-            return handler;
-
-        var senderType = parameters[0].ParameterType;
-        var argsType = parameters[1].ParameterType;
-
-        var genericType = typeof(RoutedEventHandlerAdapter<,>).MakeGenericType(senderType, argsType);
-        var adapter = Activator.CreateInstance(genericType, handler);
-        var adapterMethod = genericType.GetMethod("Invoke")!;
-
-        return Delegate.CreateDelegate(targetDelegateType, adapter, adapterMethod);
-    }
-
-    private class RoutedEventHandlerAdapter<TSender, TArgs>
-    {
-        private readonly EventHandler<RoutedEventArgs> _handler;
-
-        public RoutedEventHandlerAdapter(EventHandler<RoutedEventArgs> handler)
-        {
-            _handler = handler;
-        }
-
-        public void Invoke(TSender sender, TArgs args)
-        {
-            _handler?.Invoke(sender, args as RoutedEventArgs ?? new RoutedEventArgs());
-        }
-    }
-
-    public static void AddCheckedHandler(ToggleButton toggleButton, EventHandler<RoutedEventArgs> handler)
-    {
-        if (toggleButton == null)
-            return;
-
-        var type = toggleButton.GetType();
-        var eventInfo = type.GetEvent("Checked");
-        if (eventInfo != null)
-        {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertRoutedEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(toggleButton, convertedHandler);
-            return;
-        }
-
-        var isCheckedChangedEvent = type.GetEvent("IsCheckedChanged");
-        if (isCheckedChangedEvent != null)
-        {
-            EventHandler<RoutedEventArgs> wrapper = (sender, args) =>
+            switch (eventName)
             {
-                var isCheckedProp = type.GetProperty("IsChecked");
-                var isChecked = isCheckedProp?.GetValue(toggleButton) as bool?;
-                if (isChecked == true)
-                {
-                    handler?.Invoke(sender, args);
-                }
-            };
-            var delegateType = isCheckedChangedEvent.EventHandlerType;
-            var convertedHandler = ConvertRoutedEventHandler(wrapper, delegateType);
-            isCheckedChangedEvent.AddEventHandler(toggleButton, convertedHandler);
-        }
-    }
-
-    public static void AddUncheckedHandler(ToggleButton toggleButton, EventHandler<RoutedEventArgs> handler)
-    {
-        if (toggleButton == null)
-            return;
-
-        var type = toggleButton.GetType();
-        var eventInfo = type.GetEvent("Unchecked");
-        if (eventInfo != null)
-        {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertRoutedEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(toggleButton, convertedHandler);
-            return;
-        }
-
-        var isCheckedChangedEvent = type.GetEvent("IsCheckedChanged");
-        if (isCheckedChangedEvent != null)
-        {
-            EventHandler<RoutedEventArgs> wrapper = (sender, args) =>
-            {
-                var isCheckedProp = type.GetProperty("IsChecked");
-                var isChecked = isCheckedProp?.GetValue(toggleButton) as bool?;
-                if (isChecked != true)
-                {
-                    handler?.Invoke(sender, args);
-                }
-            };
-            var delegateType = isCheckedChangedEvent.EventHandlerType;
-            var convertedHandler = ConvertRoutedEventHandler(wrapper, delegateType);
-            isCheckedChangedEvent.AddEventHandler(toggleButton, convertedHandler);
-        }
-    }
-
-    public static async System.Threading.Tasks.Task<object> ShowContentDialogAsync(object dialog, TopLevel topLevel)
-    {
-        if (dialog == null)
-            return null!;
-
-        var type = dialog.GetType();
-        var method = type.GetMethod("ShowAsync", new[] { typeof(TopLevel) });
-        if (method != null)
-        {
-            var task = method.Invoke(dialog, new object[] { topLevel }) as System.Threading.Tasks.Task;
-            if (task != null)
-            {
-                await task;
-                var resultProperty = task.GetType().GetProperty("Result");
-                if (resultProperty != null)
-                {
-                    return resultProperty.GetValue(task)!;
-                }
+                case "PrimaryButtonClick":
+                    wpfDialog.PrimaryButtonClick += handler;
+                    break;
+                case "SecondaryButtonClick":
+                    wpfDialog.SecondaryButtonClick += handler;
+                    break;
+                case "CloseButtonClick":
+                    wpfDialog.CloseButtonClick += handler;
+                    break;
             }
-            return null!;
         }
+    }
 
-        method = type.GetMethod("ShowAsync", Type.EmptyTypes);
-        if (method != null)
-        {
-            var task = method.Invoke(dialog, null) as System.Threading.Tasks.Task;
-            if (task != null)
-            {
-                await task;
-                var resultProperty = task.GetType().GetProperty("Result");
-                if (resultProperty != null)
-                {
-                    return resultProperty.GetValue(task)!;
-                }
-            }
+    public static async System.Threading.Tasks.Task<object> ShowContentDialogAsync(object dialog, object? topLevel)
+    {
+        if (dialog is not WpfContentDialog wpfDialog)
             return null!;
-        }
 
-        return null!;
+        var owner = topLevel as Window ?? Application.Current?.MainWindow;
+        var result = await wpfDialog.ShowAsync(owner);
+        return result!;
     }
 
     public static bool IsContentDialogResultPrimary(object result)
     {
-        if (result == null)
-            return false;
-
-        var type = result.GetType();
-        var name = type.Name;
-
-        if (name == "FAContentDialogResult" || name == "ContentDialogResult")
-        {
-            var valueField = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
-            if (valueField != null)
-            {
-                var primaryValue = valueField.GetValue(null);
-                return result.Equals(primaryValue);
-            }
-        }
-
-        return false;
+        return result is WpfContentDialogResult r && r == WpfContentDialogResult.Primary;
     }
 
     public static bool IsContentDialogResultSecondary(object result)
     {
-        if (result == null)
-            return false;
-
-        var type = result.GetType();
-        var name = type.Name;
-
-        if (name == "FAContentDialogResult" || name == "ContentDialogResult")
-        {
-            var valueField = type.GetField("Secondary", BindingFlags.Public | BindingFlags.Static);
-            if (valueField != null)
-            {
-                var secondaryValue = valueField.GetValue(null);
-                return result.Equals(secondaryValue);
-            }
-        }
-
-        return false;
+        return result is WpfContentDialogResult r && r == WpfContentDialogResult.Secondary;
     }
 
-    public static object GetContentDialogResultPrimary()
-    {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialogResult, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialogResult, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
+    public static object GetContentDialogResultPrimary() => WpfContentDialogResult.Primary;
+    public static object GetContentDialogButtonPrimary() => WpfContentDialogButton.Primary;
+    public static object GetContentDialogButtonSecondary() => WpfContentDialogButton.Secondary;
+    public static object GetContentDialogButtonClose() => WpfContentDialogButton.Close;
 
-        return null!;
+    /// <summary>
+    /// 对对话框窗口应用 MaterialDesign 主题样式，使其与 ClassIsland 主界面风格一致，
+    /// 避免出现 Windows 95 经典样式。
+    /// </summary>
+    public static void ApplyDialogTheme(Window dialog)
+    {
+        var paper = dialog.TryFindResource("MaterialDesignPaper") as Brush
+                    ?? Application.Current?.TryFindResource("MaterialDesignPaper") as Brush;
+        var body = dialog.TryFindResource("MaterialDesignBody") as Brush
+                   ?? Application.Current?.TryFindResource("MaterialDesignBody") as Brush;
+        var font = dialog.TryFindResource("HarmonyOsSans") as FontFamily
+                   ?? Application.Current?.TryFindResource("HarmonyOsSans") as FontFamily;
+
+        if (paper != null) dialog.Background = paper;
+        if (body != null) dialog.Foreground = body;
+        if (font != null) dialog.FontFamily = font;
+        dialog.FontSize = 14;
+        dialog.Focusable = true;
+
+        if (body != null)
+            TextElement.SetForeground(dialog, body);
     }
 
-    public static object GetContentDialogButtonPrimary()
+    /// <summary>
+    /// 为对话框窗口安装鼠标滚轮兜底路由：若鼠标光标下的子元素存在 ScrollViewer，
+    /// 但该 ScrollViewer 自身因焦点问题未收到滚轮事件，就把滚轮转发给它。
+    /// 同时在 Loaded 时强制把键盘焦点交给第一个可滚动内容，避免滚轮完全失效。
+    /// </summary>
+    public static void WireDialogScrollSupport(Window dialog, ScrollViewer? primaryScroll)
     {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAContentDialogButton, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.ContentDialogButton, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Primary", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
+        dialog.Focusable = true;
+        primaryScroll ??= FindVisualChild<ScrollViewer>(dialog.Content as DependencyObject);
 
-        return null!;
+        // 加载时：激活窗口 + 把键盘焦点交给主 ScrollViewer（若它支持聚焦）
+        dialog.Loaded += (_, _) =>
+        {
+            dialog.Activate();
+            dialog.Focus();
+            if (primaryScroll != null)
+            {
+                primaryScroll.Focusable = true;
+                if (primaryScroll.Content is IInputElement ie)
+                {
+                    System.Windows.Input.Keyboard.Focus(ie);
+                }
+                else
+                {
+                    System.Windows.Input.Keyboard.Focus(primaryScroll);
+                }
+            }
+        };
+
+        // 兜底：在 PreviewMouseWheel 上，找到光标下最近的 ScrollViewer 并执行 LineUp/LineDown
+        dialog.PreviewMouseWheel += (sender, e) =>
+        {
+            if (e.Handled) return;
+            var point = e.GetPosition(dialog);
+            if (VisualTreeHelper.HitTest(dialog, point) is HitTestResult hit
+                && hit.VisualHit is DependencyObject hitDo)
+            {
+                var target = FindVisualAncestorOrSelf<ScrollViewer>(hitDo) ?? primaryScroll;
+                if (target != null && target.ComputedVerticalScrollBarVisibility != Visibility.Collapsed)
+                {
+                    int count = Math.Max(1, Math.Abs(e.Delta) / 48);
+                    for (int i = 0; i < count; i++)
+                    {
+                        if (e.Delta > 0) target.LineUp();
+                        else target.LineDown();
+                    }
+                    e.Handled = true;
+                }
+            }
+        };
     }
 
-    public static object GetInfoBarSeverityWarning()
+    /// <summary>查找视觉树子元素</summary>
+    private static T? FindVisualChild<T>(DependencyObject? obj) where T : DependencyObject
     {
-        if (IsV3)
+        if (obj == null) return null;
+        for (int i = 0; i < VisualTreeHelper.GetChildrenCount(obj); i++)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Warning", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
+            var child = VisualTreeHelper.GetChild(obj, i);
+            if (child is T t) return t;
+            var result = FindVisualChild<T>(child);
+            if (result != null) return result;
         }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Warning", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-
-        return 1;
+        return null;
     }
 
-    public static object GetInfoBarSeverityInformational()
+    /// <summary>查找视觉树祖先或自身</summary>
+    private static T? FindVisualAncestorOrSelf<T>(DependencyObject? obj) where T : DependencyObject
     {
-        if (IsV3)
+        while (obj != null)
         {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Informational", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
+            if (obj is T t) return t;
+            obj = VisualTreeHelper.GetParent(obj);
         }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Informational", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-
-        return 0;
+        return null;
     }
 
-    public static object GetInfoBarSeverityError()
-    {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Error", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Error", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
+    // ==================== SettingsExpander ====================
 
-        return 2;
+    public static FrameworkElement CreateSettingsExpander()
+    {
+        return new WpfSettingsExpander();
     }
 
-    public static object GetInfoBarSeveritySuccess()
+    public static void SetSettingsExpanderProperty(FrameworkElement expander, string propertyName, object value)
     {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FAInfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Success", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.InfoBarSeverity, FluentAvalonia");
-            if (type != null)
-            {
-                var field = type.GetField("Success", BindingFlags.Public | BindingFlags.Static);
-                if (field != null)
-                    return field.GetValue(null)!;
-            }
-        }
-
-        return 3;
-    }
-
-    public static Control CreateSettingsExpander()
-    {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpander, FluentAvalonia");
-            if (type != null)
-            {
-                return (Control)Activator.CreateInstance(type)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpander, FluentAvalonia");
-            if (type != null)
-            {
-                return (Control)Activator.CreateInstance(type)!;
-            }
-        }
-
-        return new Border();
-    }
-
-    public static Control CreateSettingsExpanderItem()
-    {
-        if (IsV3)
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.FASettingsExpanderItem, FluentAvalonia");
-            if (type != null)
-            {
-                return (Control)Activator.CreateInstance(type)!;
-            }
-        }
-        else
-        {
-            var type = Type.GetType("FluentAvalonia.UI.Controls.SettingsExpanderItem, FluentAvalonia");
-            if (type != null)
-            {
-                return (Control)Activator.CreateInstance(type)!;
-            }
-        }
-
-        return new Border();
-    }
-
-    public static void SetSettingsExpanderProperty(Control expander, string propertyName, object value)
-    {
-        if (expander == null)
-            return;
-
-        var type = expander.GetType();
-        var property = type.GetProperty(propertyName);
+        if (expander == null) return;
+        var property = expander.GetType().GetProperty(propertyName);
         if (property != null)
         {
-            property.SetValue(expander, value);
+            try
+            {
+                property.SetValue(expander, value);
+            }
+            catch
+            {
+            }
         }
     }
 
-    public static void SetSettingsExpanderItemProperty(Control item, string propertyName, object value)
+    public static FrameworkElement CreateSettingsExpanderItem()
     {
-        if (item == null)
-            return;
+        return new WpfSettingsExpanderItem();
+    }
 
-        var type = item.GetType();
-        var property = type.GetProperty(propertyName);
+    public static void SetSettingsExpanderItemProperty(FrameworkElement item, string propertyName, object value)
+    {
+        if (item == null) return;
+        var property = item.GetType().GetProperty(propertyName);
         if (property != null)
         {
-            property.SetValue(item, value);
+            try
+            {
+                property.SetValue(item, value);
+            }
+            catch
+            {
+            }
         }
     }
 
-    public static void AddSettingsExpanderClickHandler(Control expander, EventHandler handler)
+    public static void AddSettingsExpanderClickHandler(FrameworkElement expander, EventHandler handler)
     {
-        if (expander == null)
-            return;
-
-        var type = expander.GetType();
-        var eventInfo = type.GetEvent("Click");
-        if (eventInfo != null)
+        if (expander is WpfSettingsExpander wpfExpander)
         {
-            var delegateType = eventInfo.EventHandlerType;
-            var convertedHandler = ConvertEventHandler(handler, delegateType);
-            eventInfo.AddEventHandler(expander, convertedHandler);
+            wpfExpander.Click += handler;
         }
     }
 
     public static object CreateSymbolIconSource(string symbolName)
     {
-        // 尝试创建 SymbolIconSource (FA 2.x)
-        var iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.SymbolIconSource, FluentAvalonia");
-        if (iconSourceType != null)
+        try
         {
-            var instance = Activator.CreateInstance(iconSourceType);
-            var symbolProperty = iconSourceType.GetProperty("Symbol");
-            if (symbolProperty != null && instance != null)
+            if (Enum.TryParse<PackIconKind>(symbolName, true, out var kind))
             {
-                var symbolType = symbolProperty.PropertyType;
-                if (symbolType.IsEnum)
-                {
-                    // 尝试解析枚举值
-                    try
-                    {
-                        var symbolValue = Enum.Parse(symbolType, symbolName, true);
-                        symbolProperty.SetValue(instance, symbolValue);
-                    }
-                    catch
-                    {
-                        // 如果解析失败，尝试使用索引值
-                        var names = Enum.GetNames(symbolType);
-                        if (names.Length > 0)
-                        {
-                            var defaultValue = Enum.Parse(symbolType, names[0]);
-                            symbolProperty.SetValue(instance, defaultValue);
-                        }
-                    }
-                }
+                return new PackIcon { Kind = kind, Width = 24, Height = 24 };
             }
-            return instance ?? new object();
         }
-
-        // 尝试创建 FASymbolIconSource (FA 3.0)
-        iconSourceType = Type.GetType("FluentAvalonia.UI.Controls.FASymbolIconSource, FluentAvalonia");
-        if (iconSourceType != null)
+        catch
         {
-            var instance = Activator.CreateInstance(iconSourceType);
-            var symbolProperty = iconSourceType.GetProperty("Symbol");
-            if (symbolProperty != null && instance != null)
-            {
-                var symbolType = symbolProperty.PropertyType;
-                if (symbolType.IsEnum)
-                {
-                    // 尝试解析枚举值
-                    try
-                    {
-                        var symbolValue = Enum.Parse(symbolType, symbolName, true);
-                        symbolProperty.SetValue(instance, symbolValue);
-                    }
-                    catch
-                    {
-                        // 如果解析失败，尝试使用索引值
-                        var names = Enum.GetNames(symbolType);
-                        if (names.Length > 0)
-                        {
-                            var defaultValue = Enum.Parse(symbolType, names[0]);
-                            symbolProperty.SetValue(instance, defaultValue);
-                        }
-                    }
-                }
-            }
-            return instance ?? new object();
         }
-
-        return new object();
+        return new PackIcon { Kind = PackIconKind.SettingsOutline, Width = 24, Height = 24 };
     }
 
-    public static void NavigateBack(Control control)
+    // ==================== 导航 ====================
+
+    public static void NavigateBack(FrameworkElement control)
     {
-        if (control == null)
-            return;
+        if (control == null) return;
 
         try
         {
-            // 尝试查找 FA 2.x 和 FA 3.0 的 Frame/NavigationView 类型
-            var frameTypes = new[]
+            var p = VisualTreeHelper.GetParent(control) as DependencyObject;
+            while (p != null)
             {
-                Type.GetType("FluentAvalonia.UI.Controls.Frame, FluentAvalonia"),
-                Type.GetType("FluentAvalonia.UI.Controls.FAFrame, FluentAvalonia")
-            };
-
-            var navigationViewTypes = new[]
-            {
-                Type.GetType("FluentAvalonia.UI.Controls.NavigationView, FluentAvalonia"),
-                Type.GetType("FluentAvalonia.UI.Controls.FANavigationView, FluentAvalonia")
-            };
-
-            foreach (var ancestor in control.GetVisualAncestors())
-            {
-                var ancestorType = ancestor.GetType();
-                
-                foreach (var frameType in frameTypes)
+                if (p is Frame frame)
                 {
-                    if (frameType != null && frameType.IsAssignableFrom(ancestorType))
+                    if (frame.CanGoBack)
                     {
-                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                        if (goBackMethod != null)
-                        {
-                            goBackMethod.Invoke(ancestor, null);
-                            return;
-                        }
-                    }
-                }
-
-                foreach (var navViewType in navigationViewTypes)
-                {
-                    if (navViewType != null && navViewType.IsAssignableFrom(ancestorType))
-                    {
-                        var goBackMethod = ancestorType.GetMethod("GoBack", Type.EmptyTypes);
-                        if (goBackMethod != null)
-                        {
-                            goBackMethod.Invoke(ancestor, null);
-                            return;
-                        }
-                    }
-                }
-            }
-
-            var topLevel = Avalonia.Controls.TopLevel.GetTopLevel(control);
-            if (topLevel != null)
-            {
-                foreach (var frameType in frameTypes)
-                {
-                    var frame = FindVisualChildOfType(topLevel, frameType);
-                    if (frame != null)
-                    {
-                        var goBackMethod = frame.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                        goBackMethod?.Invoke(frame, null);
+                        frame.GoBack();
                         return;
                     }
                 }
-
-                foreach (var navViewType in navigationViewTypes)
-                {
-                    var navView = FindVisualChildOfType(topLevel, navViewType);
-                    if (navView != null)
-                    {
-                        var goBackMethod = navView.GetType().GetMethod("GoBack", Type.EmptyTypes);
-                        goBackMethod?.Invoke(navView, null);
-                        return;
-                    }
-                }
+                p = VisualTreeHelper.GetParent(p);
             }
         }
         catch
@@ -830,25 +351,581 @@ public static class FluentAvaloniaCompatibilityHelper
         }
     }
 
-    private static object? FindVisualChildOfType(Avalonia.Visual visual, Type targetType)
-    {
-        if (visual == null || targetType == null)
-            return null;
+    // ==================== 事件适配 ====================
 
-        if (targetType.IsAssignableFrom(visual.GetType()))
+    public static void AddLostFocusHandler(FrameworkElement element, RoutedEventHandler handler)
+    {
+        if (element == null || handler == null) return;
+        element.LostFocus += handler;
+    }
+
+    public static void AddCheckedHandler(ToggleButton toggleButton, RoutedEventHandler handler)
+    {
+        if (toggleButton == null || handler == null) return;
+        toggleButton.Checked += handler;
+    }
+
+    public static void AddUncheckedHandler(ToggleButton toggleButton, RoutedEventHandler handler)
+    {
+        if (toggleButton == null || handler == null) return;
+        toggleButton.Unchecked += handler;
+    }
+}
+
+// ==================== 自绘兼容控件 ====================
+
+/// <summary>
+/// 简单信息条控件（兼容原 FA InfoBar 用法）。
+/// </summary>
+public class WpfInfoBar : Border
+{
+    public const int SeverityInformational = 0;
+    public const int SeveritySuccess = 1;
+    public const int SeverityWarning = 2;
+    public const int SeverityError = 3;
+
+    public static readonly DependencyProperty SeverityProperty =
+        DependencyProperty.Register(nameof(Severity), typeof(int), typeof(WpfInfoBar),
+            new PropertyMetadata(SeverityInformational, OnSeverityChanged));
+
+    public static readonly DependencyProperty TitleProperty =
+        DependencyProperty.Register(nameof(Title), typeof(string), typeof(WpfInfoBar),
+            new PropertyMetadata("", OnContentChanged));
+
+    public static readonly DependencyProperty MessageProperty =
+        DependencyProperty.Register(nameof(Message), typeof(string), typeof(WpfInfoBar),
+            new PropertyMetadata("", OnContentChanged));
+
+    public static readonly DependencyProperty IsOpenProperty =
+        DependencyProperty.Register(nameof(IsOpen), typeof(bool), typeof(WpfInfoBar),
+            new PropertyMetadata(false, OnIsOpenChanged));
+
+    public static readonly DependencyProperty IsClosableProperty =
+        DependencyProperty.Register(nameof(IsClosable), typeof(bool), typeof(WpfInfoBar),
+            new PropertyMetadata(true));
+
+    private readonly Grid _root;
+    private readonly TextBlock _titleText;
+    private readonly TextBlock _messageText;
+    private readonly Button _closeButton;
+
+    public event EventHandler? Closed;
+
+    public int Severity
+    {
+        get => (int)GetValue(SeverityProperty);
+        set => SetValue(SeverityProperty, value);
+    }
+
+    public string Title
+    {
+        get => (string)GetValue(TitleProperty);
+        set => SetValue(TitleProperty, value);
+    }
+
+    public string Message
+    {
+        get => (string)GetValue(MessageProperty);
+        set => SetValue(MessageProperty, value);
+    }
+
+    public bool IsOpen
+    {
+        get => (bool)GetValue(IsOpenProperty);
+        set => SetValue(IsOpenProperty, value);
+    }
+
+    public bool IsClosable
+    {
+        get => (bool)GetValue(IsClosableProperty);
+        set => SetValue(IsClosableProperty, value);
+    }
+
+    public WpfInfoBar()
+    {
+        Margin = new Thickness(0, 0, 0, 8);
+        CornerRadius = new CornerRadius(4);
+        Padding = new Thickness(10, 6, 10, 6);
+        BorderThickness = new Thickness(1);
+
+        _root = new Grid();
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _root.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var icon = new PackIcon
         {
-            return visual;
+            Kind = PackIconKind.InformationOutline,
+            Width = 18,
+            Height = 18,
+            Margin = new Thickness(0, 0, 8, 0),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        Grid.SetColumn(icon, 0);
+        _root.Children.Add(icon);
+
+        var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        _titleText = new TextBlock { FontWeight = FontWeights.Bold, TextWrapping = TextWrapping.Wrap };
+        _messageText = new TextBlock { TextWrapping = TextWrapping.Wrap };
+        textPanel.Children.Add(_titleText);
+        textPanel.Children.Add(_messageText);
+        Grid.SetColumn(textPanel, 1);
+        _root.Children.Add(textPanel);
+
+        _closeButton = new Button
+        {
+            Content = "✕",
+            Width = 22,
+            Height = 22,
+            Padding = new Thickness(0, 0, 0, 0),
+            Margin = new Thickness(8, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Top
+        };
+        _closeButton.Click += (_, _) => OnClosed();
+        Grid.SetColumn(_closeButton, 2);
+        _root.Children.Add(_closeButton);
+
+        Child = _root;
+        ApplySeverity(Severity);
+        RefreshVisibility();
+    }
+
+    private void OnClosed()
+    {
+        IsOpen = false;
+        Closed?.Invoke(this, EventArgs.Empty);
+    }
+
+    private void OnContentChanged()
+    {
+        _titleText.Text = Title;
+        _messageText.Text = Message;
+    }
+
+    private void OnIsOpenChanged()
+    {
+        RefreshVisibility();
+    }
+
+    private void RefreshVisibility()
+    {
+        Visibility = IsOpen ? Visibility.Visible : Visibility.Collapsed;
+        if (_closeButton != null)
+        {
+            _closeButton.Visibility = IsClosable ? Visibility.Visible : Visibility.Collapsed;
+        }
+    }
+
+    private void ApplySeverity(int severity)
+    {
+        Brush background;
+        Brush border;
+        Brush foreground = Brushes.White;
+        switch (severity)
+        {
+            case SeverityWarning:
+                background = new SolidColorBrush(ThemeHelper.ParseColor("#FFF4E5"));
+                border = new SolidColorBrush(ThemeHelper.ParseColor("#FFC107"));
+                foreground = new SolidColorBrush(ThemeHelper.ParseColor("#7A5B00"));
+                break;
+            case SeverityError:
+                background = new SolidColorBrush(ThemeHelper.ParseColor("#FDECEA"));
+                border = new SolidColorBrush(ThemeHelper.ParseColor("#F44336"));
+                foreground = new SolidColorBrush(ThemeHelper.ParseColor("#8B1A1A"));
+                break;
+            case SeveritySuccess:
+                background = new SolidColorBrush(ThemeHelper.ParseColor("#E8F5E9"));
+                border = new SolidColorBrush(ThemeHelper.ParseColor("#4CAF50"));
+                foreground = new SolidColorBrush(ThemeHelper.ParseColor("#1B5E20"));
+                break;
+            default:
+                background = new SolidColorBrush(ThemeHelper.ParseColor("#E3F2FD"));
+                border = new SolidColorBrush(ThemeHelper.ParseColor("#2196F3"));
+                foreground = new SolidColorBrush(ThemeHelper.ParseColor("#0D47A1"));
+                break;
+        }
+        if (ThemeHelper.IsDarkTheme())
+        {
+            background = new SolidColorBrush(ThemeHelper.ParseColor("#3A3A3A"));
+            border = new SolidColorBrush(ThemeHelper.ParseColor("#5A5A5A"));
+            foreground = Brushes.White;
+        }
+        Background = background;
+        BorderBrush = border;
+        _titleText.Foreground = foreground;
+        _messageText.Foreground = foreground;
+    }
+
+    private static void OnSeverityChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is WpfInfoBar infoBar)
+        {
+            infoBar.ApplySeverity((int)e.NewValue);
+        }
+    }
+
+    private static void OnContentChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is WpfInfoBar infoBar)
+        {
+            infoBar.OnContentChanged();
+        }
+    }
+
+    private static void OnIsOpenChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+    {
+        if (d is WpfInfoBar infoBar)
+        {
+            infoBar.OnIsOpenChanged();
+        }
+    }
+}
+
+/// <summary>
+/// 内容对话框结果。
+/// </summary>
+public enum WpfContentDialogResult
+{
+    None = 0,
+    Primary = 1,
+    Secondary = 2,
+    Cancel = 3
+}
+
+/// <summary>
+/// 内容对话框按钮。
+/// </summary>
+public enum WpfContentDialogButton
+{
+    None = 0,
+    Primary = 1,
+    Secondary = 2,
+    Close = 3
+}
+
+/// <summary>
+/// 简单内容对话框控件（兼容原 FA ContentDialog 用法）。
+/// </summary>
+public class WpfContentDialog
+{
+    public string Title { get; set; } = "";
+    public object? Content { get; set; }
+    public string PrimaryButtonText { get; set; } = "";
+    public string SecondaryButtonText { get; set; } = "";
+    public string CloseButtonText { get; set; } = "";
+    public object? DefaultButton { get; set; }
+
+    public event EventHandler? PrimaryButtonClick;
+    public event EventHandler? SecondaryButtonClick;
+    public event EventHandler? CloseButtonClick;
+
+    private TaskCompletionSource<WpfContentDialogResult>? _tcs;
+
+    public Task<WpfContentDialogResult> ShowAsync(Window? owner)
+    {
+        _tcs = new TaskCompletionSource<WpfContentDialogResult>();
+
+        var paper = Application.Current?.TryFindResource("MaterialDesignPaper") as Brush;
+        var body = Application.Current?.TryFindResource("MaterialDesignBody") as Brush;
+        var font = Application.Current?.TryFindResource("HarmonyOsSans") as FontFamily;
+        var raisedButtonStyle = Application.Current?.TryFindResource("MaterialDesignRaisedButton") as Style;
+        var flatButtonStyle = Application.Current?.TryFindResource("MaterialDesignFlatButton") as Style;
+
+        var window = new Window
+        {
+            Title = Title,
+            Width = 420,
+            Height = 280,
+            MinWidth = 360,
+            MinHeight = 200,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            ResizeMode = ResizeMode.NoResize,
+            ShowInTaskbar = false,
+            Background = paper,
+            FontFamily = font,
+            FontSize = 14
+        };
+
+        TextElement.SetForeground(window, body ?? Brushes.Black);
+
+        var border = new Border
+        {
+            CornerRadius = new CornerRadius(8),
+            Padding = new Thickness(20, 16, 20, 16),
+            Background = paper
+        };
+
+        var root = new Grid();
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        root.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        root.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+
+        var titleText = new TextBlock
+        {
+            Text = Title,
+            FontSize = 16,
+            FontWeight = FontWeights.Bold,
+            Margin = new Thickness(0, 0, 0, 12),
+            TextWrapping = TextWrapping.Wrap,
+            Foreground = body ?? Brushes.Black
+        };
+        Grid.SetRow(titleText, 0);
+        root.Children.Add(titleText);
+
+        var contentScroll = new ScrollViewer
+        {
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Content = Content
+        };
+        Grid.SetRow(contentScroll, 1);
+        root.Children.Add(contentScroll);
+
+        var buttonPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(0, 16, 0, 0)
+        };
+
+        var closeButton = new Button
+        {
+            Content = string.IsNullOrEmpty(CloseButtonText) ? "关闭" : CloseButtonText,
+            Margin = new Thickness(8, 0, 0, 0),
+            MinWidth = 72,
+            Padding = new Thickness(16, 6, 16, 6),
+            Style = raisedButtonStyle
+        };
+        closeButton.Click += (_, _) =>
+        {
+            CloseButtonClick?.Invoke(this, EventArgs.Empty);
+            window.Close();
+            _tcs.TrySetResult(WpfContentDialogResult.Cancel);
+        };
+        buttonPanel.Children.Add(closeButton);
+
+        if (!string.IsNullOrEmpty(SecondaryButtonText))
+        {
+            var secondaryButton = new Button
+            {
+                Content = SecondaryButtonText,
+                Margin = new Thickness(8, 0, 0, 0),
+                MinWidth = 72,
+                Padding = new Thickness(16, 6, 16, 6),
+                Style = raisedButtonStyle
+            };
+            secondaryButton.Click += (_, _) =>
+            {
+                SecondaryButtonClick?.Invoke(this, EventArgs.Empty);
+                window.Close();
+                _tcs.TrySetResult(WpfContentDialogResult.Secondary);
+            };
+            buttonPanel.Children.Add(secondaryButton);
         }
 
-        foreach (var child in visual.GetVisualChildren())
+        if (!string.IsNullOrEmpty(PrimaryButtonText))
         {
-            var result = FindVisualChildOfType(child, targetType);
-            if (result != null)
+            var primaryButton = new Button
             {
-                return result;
+                Content = PrimaryButtonText,
+                Margin = new Thickness(8, 0, 0, 0),
+                MinWidth = 72,
+                IsDefault = true,
+                Padding = new Thickness(16, 6, 16, 6),
+                Style = flatButtonStyle
+            };
+            primaryButton.Click += (_, _) =>
+            {
+                PrimaryButtonClick?.Invoke(this, EventArgs.Empty);
+                window.Close();
+                _tcs.TrySetResult(WpfContentDialogResult.Primary);
+            };
+            buttonPanel.Children.Add(primaryButton);
+        }
+
+        Grid.SetRow(buttonPanel, 2);
+        root.Children.Add(buttonPanel);
+
+        border.Child = root;
+        window.Content = border;
+        window.Closed += (_, _) => _tcs.TrySetResult(WpfContentDialogResult.None);
+
+        // 主题 + 鼠标滚轮兜底（焦点 + PreviewMouseWheel 转发给 ScrollViewer）
+        FluentAvaloniaCompatibilityHelper.ApplyDialogTheme(window);
+        FluentAvaloniaCompatibilityHelper.WireDialogScrollSupport(window, contentScroll);
+
+        if (owner != null)
+        {
+            window.Owner = owner;
+            window.WindowStartupLocation = WindowStartupLocation.CenterOwner;
+        }
+        else
+        {
+            window.WindowStartupLocation = WindowStartupLocation.CenterScreen;
+        }
+
+        window.ShowDialog();
+
+        return _tcs.Task;
+    }
+}
+
+/// <summary>
+/// 设置展开器控件（兼容原 FA SettingsExpander 用法）。
+/// 采用与 ClassIsland 原版一致的结构：materialDesign:Card &gt; Expander(MaterialDesignExpander)
+/// &gt; Header = ci:SettingsControl（图标+标题+描述），内容区缩进 Grid(36 0 48 12)。
+/// </summary>
+public class WpfSettingsExpander : ContentControl
+{
+    private readonly Expander _expander;
+    private readonly ClassIsland.Core.Controls.SettingsControl _header;
+    private readonly ItemsControl _itemsControl;
+
+    public event EventHandler? Click;
+
+    public ObservableCollection<object> Items { get; } = new();
+
+    public object? Header
+    {
+        get => _header.Header;
+        set => _header.Header = value?.ToString() ?? "";
+    }
+
+    public object? Description
+    {
+        get => _header.Description;
+        set => _header.Description = value?.ToString() ?? "";
+    }
+
+    public object? IconSource
+    {
+        get => _header.IconGlyph;
+        set
+        {
+            if (value is PackIcon pi) _header.IconGlyph = pi.Kind;
+            else if (value is PackIconKind kind) _header.IconGlyph = kind;
+        }
+    }
+
+    public object? Footer
+    {
+        get => _header.Switcher;
+        set
+        {
+            // 与 ClassIsland 原版一致：Footer 开关渲染在折叠栏头部右侧（开关 + Chevron）
+            _header.Switcher = value;
+            _header.HasSwitcher = value != null;
+        }
+    }
+
+    public bool IsExpanded
+    {
+        get => _expander.IsExpanded;
+        set => _expander.IsExpanded = value;
+    }
+
+    public WpfSettingsExpander()
+    {
+        Margin = new Thickness(0, 0, 0, 6);
+
+        _header = new ClassIsland.Core.Controls.SettingsControl
+        {
+            HasSwitcher = false,
+            Margin = new Thickness(-12, 0, 0, 0)
+        };
+        _header.SetResourceReference(Control.ForegroundProperty, "MaterialDesignBody");
+
+        _itemsControl = new ItemsControl { ItemsSource = Items };
+
+        var contentGrid = new Grid
+        {
+            Margin = new Thickness(36, 0, 48, 12),
+            Children = { _itemsControl }
+        };
+
+        _expander = new Expander
+        {
+            Background = Brushes.Transparent,
+            IsExpanded = true,
+            Header = _header,
+            Content = contentGrid
+        };
+        _expander.SetResourceReference(StyleProperty, "MaterialDesignExpander");
+        _expander.SetResourceReference(TextElement.ForegroundProperty, "MaterialDesignBody");
+        _expander.Expanded += (_, _) => Click?.Invoke(this, EventArgs.Empty);
+        _expander.Collapsed += (_, _) => Click?.Invoke(this, EventArgs.Empty);
+
+        Content = new Card
+        {
+            Margin = new Thickness(0),
+            Content = _expander
+        };
+    }
+}
+
+/// <summary>
+/// 设置展开器条目控件（兼容原 FA SettingsExpanderItem 用法）。
+/// </summary>
+public class WpfSettingsExpanderItem : Border
+{
+    private readonly TextBlock _contentText;
+    private readonly TextBlock _descriptionText;
+    private readonly ContentControl _footerHost;
+
+    public object? Content
+    {
+        get => _contentText.Text;
+        set
+        {
+            if (value is string s)
+            {
+                _contentText.Text = s;
+            }
+            else if (value is FrameworkElement fe)
+            {
+                _contentText.Visibility = Visibility.Collapsed;
+                _footerHost.Visibility = Visibility.Collapsed;
             }
         }
+    }
 
-        return null;
+    public object? Description
+    {
+        get => _descriptionText.Text;
+        set => _descriptionText.Text = value?.ToString() ?? "";
+    }
+
+    public object? Footer
+    {
+        get => _footerHost.Content;
+        set => _footerHost.Content = value;
+    }
+
+    public WpfSettingsExpanderItem()
+    {
+        Margin = new Thickness(0, 4, 0, 4);
+        Padding = new Thickness(0, 6, 0, 6);
+        BorderBrush = ThemeHelper.GetSeparatorBrush();
+        BorderThickness = new Thickness(0, 0, 0, 0.5);
+        Background = Brushes.Transparent;
+
+        var panel = new Grid();
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        panel.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+
+        var textPanel = new StackPanel { VerticalAlignment = VerticalAlignment.Center };
+        _contentText = new TextBlock { FontSize = 13 };
+        _contentText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
+        _descriptionText = new TextBlock { FontSize = 11, TextWrapping = TextWrapping.Wrap };
+        _descriptionText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBodyLight");
+        textPanel.Children.Add(_contentText);
+        textPanel.Children.Add(_descriptionText);
+        Grid.SetColumn(textPanel, 0);
+        panel.Children.Add(textPanel);
+
+        _footerHost = new ContentControl { VerticalAlignment = VerticalAlignment.Center };
+        Grid.SetColumn(_footerHost, 1);
+        panel.Children.Add(_footerHost);
+
+        Child = panel;
     }
 }

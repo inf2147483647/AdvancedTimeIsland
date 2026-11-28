@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -24,7 +22,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
     private TextBox _dmsSecondsBox = null!;
     private ComboBox _dmsDirectionBox = null!;
     private Panel _dmsPanel = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
     private readonly PluginSettings? _pluginSettings;
 
     public LocalSolarDailyTimeTriggerSettingsControl() : this(null)
@@ -59,30 +57,40 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
     {
         if (_pluginSettings == null) return;
         var isDms = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
-        _longitudeBox.IsVisible = !isDms;
-        _dmsPanel.IsVisible = isDms;
+        _longitudeBox.Visibility = isDms ? Visibility.Collapsed : Visibility.Visible;
+        _dmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
         if (isDms)
         {
             UpdateDmsFromLongitude();
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -92,7 +100,6 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -120,7 +127,6 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -137,8 +143,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         {
             Width = 120,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)",
-            IsVisible = !isDms
+            Visibility = isDms ? Visibility.Collapsed : Visibility.Visible
         };
 
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
@@ -146,22 +151,21 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         _dmsPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Left,
-            IsVisible = isDms
+            Visibility = isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
-        _dmsDegreesBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesBox = new TextBox { Width = 50 };
         _dmsDegreesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsDegreesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsMinutesBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesBox = new TextBox { Width = 45 };
         _dmsMinutesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsMinutesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsSecondsBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsBox = new TextBox { Width = 45 };
         _dmsSecondsBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsSecondsBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
@@ -175,8 +179,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
 
         var container = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
+            Orientation = Orientation.Vertical
         };
         container.Children.Add(_longitudeBox);
         container.Children.Add(_dmsPanel);
@@ -198,7 +201,6 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -209,7 +211,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _startTimePicker = new TimePicker
+        _startTimePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -267,6 +269,7 @@ public class LocalSolarDailyTimeTriggerSettingsControl : TriggerSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

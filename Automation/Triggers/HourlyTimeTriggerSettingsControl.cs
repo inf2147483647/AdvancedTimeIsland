@@ -1,11 +1,9 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -20,6 +18,7 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -34,7 +33,6 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -60,7 +58,6 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -73,22 +70,19 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
 
         var inputPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         _startMinuteBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "分钟 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         _startSecondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         _startMinuteBox.TextChanged += (s, e) => UpdateSettingsValue();
@@ -112,15 +106,28 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
         return groupPanel;
     }
 
+    private bool _isLoading;
+    private bool _hasLoaded;
+
     private void LoadSettingsToUi()
     {
+        if (_hasLoaded) return;
         if (Settings == null) return;
+        _hasLoaded = true;
+        _isLoading = true;
+        try
+        {
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int minute, out int second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int minute, out int second);
 
-        _startMinuteBox.Text = minute.ToString("D2");
-        _startSecondBox.Text = second.ToString("D2");
+            _startMinuteBox.Text = minute.ToString("D2");
+            _startSecondBox.Text = second.ToString("D2");
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void ValidateAndFormatTextBox(TextBox textBox)
@@ -146,6 +153,7 @@ public class HourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Hourl
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startMinute = ParseMinute(_startMinuteBox.Text);

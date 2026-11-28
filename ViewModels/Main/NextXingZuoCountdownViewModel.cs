@@ -5,7 +5,8 @@ using System.Timers;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -68,7 +69,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1FontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1EnableCustomFontSize))
         {
-            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontColor))
@@ -78,7 +79,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.NameFontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.NameEnableCustomFontSize))
         {
-            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontColor))
@@ -88,7 +89,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3FontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3EnableCustomFontSize))
         {
-            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontColor) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontColor))
@@ -98,9 +99,9 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFontSize) ||
             e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeEnableCustomFontSize))
         {
-            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
-        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3))
+        if (e.PropertyName == nameof(NextXingZuoCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text1) || e.PropertyName == nameof(NextXingZuoCountdownSettings.Text3) || e.PropertyName == nameof(NextXingZuoCountdownSettings.EnableTimeCorrection))
         {
             UpdateDisplay();
         }
@@ -132,7 +133,7 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
             var nextXingZuo = GetNextXingZuo(now);
             var targetTime = new DateTime(nextXingZuo.Year, nextXingZuo.Month, nextXingZuo.Day, 0, 0, 0);
             var timeLeft = targetTime - now;
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await UIThread.Dispatcher.InvokeAsync(() =>
             {
                 Text1Display = _settings.Text1;
                 NameDisplay = $"{nextXingZuo.Name} ({nextXingZuo.DateRange})";
@@ -210,6 +211,58 @@ public class NextXingZuoCountdownViewModel : INotifyPropertyChanged, IDisposable
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
         var format = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天" : _settings.TimeFormat;
+
+        // 差一矫正：精度不足时将最小显示单位加一（与多倒计时组件一致）
+        if (_settings.EnableTimeCorrection && totalSeconds > 0 && !format.Contains("%x") && !format.Contains("%X"))
+        {
+            if (format.Contains("%s") || format.Contains("%S"))
+            {
+                seconds++;
+                if (seconds >= 60)
+                {
+                    seconds = 0;
+                    minutes++;
+                    if (minutes >= 60)
+                    {
+                        minutes = 0;
+                        hours++;
+                        if (hours >= 24)
+                        {
+                            hours = 0;
+                            days++;
+                        }
+                    }
+                }
+            }
+            else if (format.Contains("%m") || format.Contains("%M"))
+            {
+                minutes++;
+                if (minutes >= 60)
+                {
+                    minutes = 0;
+                    hours++;
+                    if (hours >= 24)
+                    {
+                        hours = 0;
+                        days++;
+                    }
+                }
+            }
+            else if (format.Contains("%h") || format.Contains("%H"))
+            {
+                hours++;
+                if (hours >= 24)
+                {
+                    hours = 0;
+                    days++;
+                }
+            }
+            else if (format.Contains("%d"))
+            {
+                days++;
+            }
+        }
+
         return format
             .Replace("%d", days.ToString())
             .Replace("%h", hours.ToString())

@@ -1,10 +1,9 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -18,16 +17,81 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
     private ComboBox _startMonthComboBox = null!;
     private ComboBox _startDayComboBox = null!;
     private CheckBox _startIsLeapMonthCheckBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     private ComboBox _endMonthComboBox = null!;
     private ComboBox _endDayComboBox = null!;
     private CheckBox _endIsLeapMonthCheckBox = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public LunarYearlyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings.StartMonth > 0 && Settings.StartMonth <= 12)
+            {
+                _startMonthComboBox.SelectedIndex = Settings.StartMonth - 1;
+            }
+            else
+            {
+                _startMonthComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.StartDay > 0 && Settings.StartDay <= 30)
+            {
+                _startDayComboBox.SelectedIndex = Settings.StartDay - 1;
+            }
+            else
+            {
+                _startDayComboBox.SelectedIndex = 0;
+            }
+
+            _startIsLeapMonthCheckBox.IsChecked = Settings.StartIsLeapMonth;
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            if (Settings.EndMonth > 0 && Settings.EndMonth <= 12)
+            {
+                _endMonthComboBox.SelectedIndex = Settings.EndMonth - 1;
+            }
+            else
+            {
+                _endMonthComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndDay > 0 && Settings.EndDay <= 30)
+            {
+                _endDayComboBox.SelectedIndex = Settings.EndDay - 1;
+            }
+            else
+            {
+                _endDayComboBox.SelectedIndex = 0;
+            }
+
+            _endIsLeapMonthCheckBox.IsChecked = Settings.EndIsLeapMonth;
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -37,7 +101,6 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 16,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -57,7 +120,6 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -66,14 +128,13 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
             Text = label,
             Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeights.Bold
         });
 
         // 农历月份和闰月
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -120,8 +181,8 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
             IsChecked = isStart ? (Settings?.StartIsLeapMonth ?? false) : (Settings?.EndIsLeapMonth ?? false),
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(isLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
-        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(isLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        isLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
+        isLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
 
         if (isStart)
             _startIsLeapMonthCheckBox = isLeapMonthCheckBox;
@@ -135,7 +196,6 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -181,7 +241,6 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -192,7 +251,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -220,6 +279,7 @@ public class LunarYearlyTimeRangeRuleSettingsControl : RuleSettingsControlBase<L
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartMonth = _startMonthComboBox.SelectedIndex + 1;

@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -14,7 +12,7 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<WeeklyTimeRangeRuleSettings>
 {
     private ComboBox _startDayOfWeekComboBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     public WeeklyTimeTriggerSettingsControl()
     {
@@ -34,7 +32,6 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -61,7 +58,6 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -99,7 +95,6 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -110,7 +105,7 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _startTimePicker = new TimePicker
+        _startTimePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -125,26 +120,37 @@ public class WeeklyTimeTriggerSettingsControl : TriggerSettingsControlBase<Weekl
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+        _isLoading = true;
+        try
         {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

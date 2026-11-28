@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_exact_time", "区时精确时间", "\uece2")]
+[TriggerInfo("advancedtimeisland.timezone_exact_time", "区时精确时间", PackIconKind.ClockOutline)]
 public class TimeZoneExactTimeTrigger : TimeTriggerBase<TimeZoneExactTimeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

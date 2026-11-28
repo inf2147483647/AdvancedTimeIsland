@@ -1,387 +1,416 @@
 using System;
-using System.Globalization;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
+public partial class DayYiJiSettingsControl : ComponentBase<DayYiJiSettings>
 {
-    private TextBox _labelColorTextBox;
-    private TextBox _labelFontSizeTextBox;
-    private TextBox _valueFontSizeTextBox;
-    private ToggleSwitch _labelEnableCustomFontSizeToggle;
-    private ToggleSwitch _labelEnableCustomFontColorToggle;
-    private ToggleSwitch _valueEnableCustomFontSizeToggle;
-    private ToggleSwitch _labelEnableCustomFontFamilyToggle;
-    private ToggleSwitch _valueEnableCustomFontFamilyToggle;
-    private ToggleSwitch _labelEnableCustomFontWeightToggle;
-    private ToggleSwitch _valueEnableCustomFontWeightToggle;
-    private ComboBox _labelFontFamilyComboBox;
-    private ComboBox _valueFontFamilyComboBox;
-    private ComboBox _labelFontWeightComboBox;
-    private ComboBox _valueFontWeightComboBox;
-
-    private TextBlock _labelTitleTextBlock;
-    private TextBlock _labelColorLabelTextBlock;
-    private TextBlock _labelFontSizeLabelTextBlock;
-    private TextBlock _valueTitleTextBlock;
-    private TextBlock _valueColorNoteTextBlock;
-    private TextBlock _valueFontSizeLabelTextBlock;
+    private WpfNumericUpDown _yiLabelFontSizeNumericUpDown = null!;
+    private bool _initCompleted;
+    private WpfColorPicker _yiLabelFontColorPicker = null!;
+    private WpfNumericUpDown _yiValueFontSizeNumericUpDown = null!;
+    private WpfNumericUpDown _jiLabelFontSizeNumericUpDown = null!;
+    private WpfColorPicker _jiLabelFontColorPicker = null!;
+    private WpfNumericUpDown _jiValueFontSizeNumericUpDown = null!;
+    private CheckBox _yiLabelEnableCustomFontSizeToggle = null!;
+    private CheckBox _yiLabelEnableCustomFontColorToggle = null!;
+    private CheckBox _yiLabelEnableCustomFontFamilyToggle = null!;
+    private CheckBox _yiLabelEnableCustomFontWeightToggle = null!;
+    private CheckBox _yiValueEnableCustomFontSizeToggle = null!;
+    private CheckBox _yiValueEnableCustomFontFamilyToggle = null!;
+    private CheckBox _yiValueEnableCustomFontWeightToggle = null!;
+    private CheckBox _jiLabelEnableCustomFontSizeToggle = null!;
+    private CheckBox _jiLabelEnableCustomFontColorToggle = null!;
+    private CheckBox _jiLabelEnableCustomFontFamilyToggle = null!;
+    private CheckBox _jiLabelEnableCustomFontWeightToggle = null!;
+    private CheckBox _jiValueEnableCustomFontSizeToggle = null!;
+    private CheckBox _jiValueEnableCustomFontFamilyToggle = null!;
+    private CheckBox _jiValueEnableCustomFontWeightToggle = null!;
+    private ComboBox _yiLabelFontFamilyComboBox = null!;
+    private ComboBox _yiValueFontFamilyComboBox = null!;
+    private ComboBox _jiLabelFontFamilyComboBox = null!;
+    private ComboBox _jiValueFontFamilyComboBox = null!;
+    private ComboBox _yiLabelFontWeightComboBox = null!;
+    private ComboBox _yiValueFontWeightComboBox = null!;
+    private ComboBox _jiLabelFontWeightComboBox = null!;
+    private ComboBox _jiValueFontWeightComboBox = null!;
+    private ComboBox _displayModeComboBox = null!;
 
     public DayYiJiSettingsControl()
     {
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _displayModeComboBox = (ComboBox)((StackPanel)DisplayModeItem.Switcher).Children[0];
 
-        _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_labelTitleTextBlock);
+        _yiLabelFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)YiLabelFontSizeItem.Switcher).Children[0];
+        _yiLabelEnableCustomFontSizeToggle = (CheckBox)((StackPanel)YiLabelFontSizeItem.Switcher).Children[1];
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _labelFontSizeLabelTextBlock, out _labelFontSizeTextBox, out _labelEnableCustomFontSizeToggle, OnLabelFontSizeLostFocus, OnLabelEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _labelColorLabelTextBlock, out _labelColorTextBox, out _labelEnableCustomFontColorToggle, OnLabelColorLostFocus, OnLabelEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _labelFontFamilyComboBox, out _labelEnableCustomFontFamilyToggle, OnLabelEnableCustomFontFamilyChanged, OnLabelFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _labelFontWeightComboBox, out _labelEnableCustomFontWeightToggle, OnLabelEnableCustomFontWeightChanged, OnLabelFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        _yiLabelFontColorPicker = (WpfColorPicker)((StackPanel)YiLabelColorItem.Switcher).Children[0];
+        _yiLabelEnableCustomFontColorToggle = (CheckBox)((StackPanel)YiLabelColorItem.Switcher).Children[1];
 
-        _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_valueTitleTextBlock);
+        _yiLabelFontFamilyComboBox = (ComboBox)((StackPanel)YiLabelFontFamilyItem.Switcher).Children[0];
+        _yiLabelEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)YiLabelFontFamilyItem.Switcher).Children[1];
 
-        _valueColorNoteTextBlock = new TextBlock { Text = "宜：绿色（固定）；忌：红色（固定）", FontSize = 12, Margin = new Thickness(0, 4, 0, 0) };
-        sp.Children.Add(_valueColorNoteTextBlock);
+        _yiLabelFontWeightComboBox = (ComboBox)((StackPanel)YiLabelFontWeightItem.Switcher).Children[0];
+        _yiLabelEnableCustomFontWeightToggle = (CheckBox)((StackPanel)YiLabelFontWeightItem.Switcher).Children[1];
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _valueFontSizeLabelTextBlock, out _valueFontSizeTextBox, out _valueEnableCustomFontSizeToggle, OnValueFontSizeLostFocus, OnValueEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _valueFontFamilyComboBox, out _valueEnableCustomFontFamilyToggle, OnValueEnableCustomFontFamilyChanged, OnValueFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _valueFontWeightComboBox, out _valueEnableCustomFontWeightToggle, OnValueEnableCustomFontWeightChanged, OnValueFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        _yiValueFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)YiValueFontSizeItem.Switcher).Children[0];
+        _yiValueEnableCustomFontSizeToggle = (CheckBox)((StackPanel)YiValueFontSizeItem.Switcher).Children[1];
 
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = sp
-        };
-        Content = scrollViewer;
-    }
+        _yiValueFontFamilyComboBox = (ComboBox)((StackPanel)YiValueFontFamilyItem.Switcher).Children[0];
+        _yiValueEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)YiValueFontFamilyItem.Switcher).Children[1];
 
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _yiValueFontWeightComboBox = (ComboBox)((StackPanel)YiValueFontWeightItem.Switcher).Children[0];
+        _yiValueEnableCustomFontWeightToggle = (CheckBox)((StackPanel)YiValueFontWeightItem.Switcher).Children[1];
 
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+        _jiLabelFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)JiLabelFontSizeItem.Switcher).Children[0];
+        _jiLabelEnableCustomFontSizeToggle = (CheckBox)((StackPanel)JiLabelFontSizeItem.Switcher).Children[1];
 
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        _jiLabelFontColorPicker = (WpfColorPicker)((StackPanel)JiLabelColorItem.Switcher).Children[0];
+        _jiLabelEnableCustomFontColorToggle = (CheckBox)((StackPanel)JiLabelColorItem.Switcher).Children[1];
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
+        _jiLabelFontFamilyComboBox = (ComboBox)((StackPanel)JiLabelFontFamilyItem.Switcher).Children[0];
+        _jiLabelEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)JiLabelFontFamilyItem.Switcher).Children[1];
 
-        return row;
-    }
+        _jiLabelFontWeightComboBox = (ComboBox)((StackPanel)JiLabelFontWeightItem.Switcher).Children[0];
+        _jiLabelEnableCustomFontWeightToggle = (CheckBox)((StackPanel)JiLabelFontWeightItem.Switcher).Children[1];
 
-    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _jiValueFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)JiValueFontSizeItem.Switcher).Children[0];
+        _jiValueEnableCustomFontSizeToggle = (CheckBox)((StackPanel)JiValueFontSizeItem.Switcher).Children[1];
 
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
+        _jiValueFontFamilyComboBox = (ComboBox)((StackPanel)JiValueFontFamilyItem.Switcher).Children[0];
+        _jiValueEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)JiValueFontFamilyItem.Switcher).Children[1];
 
-        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
+        _jiValueFontWeightComboBox = (ComboBox)((StackPanel)JiValueFontWeightItem.Switcher).Children[0];
+        _jiValueEnableCustomFontWeightToggle = (CheckBox)((StackPanel)JiValueFontWeightItem.Switcher).Children[1];
 
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
-            comboBox.Items.Add(font);
+            _yiLabelFontFamilyComboBox.Items.Add(font);
+            _yiValueFontFamilyComboBox.Items.Add(font);
+            _jiLabelFontFamilyComboBox.Items.Add(font);
+            _jiValueFontFamilyComboBox.Items.Add(font);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
-            comboBox.Items.Add(weight);
-        }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private TextBlock CreateFontWeightHintTextBlock()
-    {
-        return new TextBlock
-        {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-    }
-
-    private void UpdateThemeColors()
-    {
-        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueColorNoteTextBlock.Foreground = ThemeHelper.GetGrayBrush();
-        _valueFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.LabelEnableCustomFontSize = _labelEnableCustomFontSizeToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
-    {
-        Settings.LabelEnableCustomFontColor = _labelEnableCustomFontColorToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.ValueEnableCustomFontSize = _valueEnableCustomFontSizeToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnLabelEnableCustomFontFamilyChanged(object? sender, EventArgs e)
-    {
-        Settings.LabelEnableCustomFontFamily = _labelEnableCustomFontFamilyToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnLabelFontFamilyChanged(object? sender, EventArgs e)
-    {
-        if (_labelFontFamilyComboBox.SelectedItem != null)
-        {
-            Settings.LabelFontFamily = _labelFontFamilyComboBox.SelectedItem.ToString() ?? "";
+            _yiLabelFontWeightComboBox.Items.Add(weight);
+            _yiValueFontWeightComboBox.Items.Add(weight);
+            _jiLabelFontWeightComboBox.Items.Add(weight);
+            _jiValueFontWeightComboBox.Items.Add(weight);
         }
     }
 
-    private void OnLabelFontWeightChanged(object? sender, EventArgs e)
+    private void OnDisplayModeChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_labelFontWeightComboBox.SelectedItem != null)
+        Settings.DisplayMode = _displayModeComboBox.SelectedIndex;
+    }
+
+    private void OnInfoBarClosed(object? sender, EventArgs e)
+    {
+        Settings.InfoBarDismissed = true;
+    }
+
+    private void OnYiLabelEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiLabelEnableCustomFontSize = _yiLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiLabelEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiLabelEnableCustomFontColor = _yiLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiValueEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiValueEnableCustomFontSize = _yiValueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontSize = _jiLabelEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontColor = _jiLabelEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiValueEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiValueEnableCustomFontSize = _jiValueEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiLabelEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiLabelEnableCustomFontFamily = _yiLabelEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiLabelEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiLabelEnableCustomFontWeight = _yiLabelEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiLabelFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_yiLabelFontFamilyComboBox.SelectedItem != null)
         {
-            Settings.LabelFontWeight = _labelFontWeightComboBox.SelectedItem.ToString() ?? "";
+            Settings.YiLabelFontFamily = _yiLabelFontFamilyComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
-    private void OnValueEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    private void OnYiLabelFontWeightChanged(object? sender, SelectionChangedEventArgs e)
     {
-        Settings.ValueEnableCustomFontFamily = _valueEnableCustomFontFamilyToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnLabelEnableCustomFontWeightChanged(object? sender, EventArgs e)
-    {
-        Settings.LabelEnableCustomFontWeight = _labelEnableCustomFontWeightToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnValueEnableCustomFontWeightChanged(object? sender, EventArgs e)
-    {
-        Settings.ValueEnableCustomFontWeight = _valueEnableCustomFontWeightToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnValueFontFamilyChanged(object? sender, EventArgs e)
-    {
-        if (_valueFontFamilyComboBox.SelectedItem != null)
+        if (_yiLabelFontWeightComboBox.SelectedItem != null)
         {
-            Settings.ValueFontFamily = _valueFontFamilyComboBox.SelectedItem.ToString() ?? "";
+            Settings.YiLabelFontWeight = _yiLabelFontWeightComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
-    private void OnValueFontWeightChanged(object? sender, EventArgs e)
+    private void OnYiValueEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
     {
-        if (_valueFontWeightComboBox.SelectedItem != null)
+        Settings.YiValueEnableCustomFontFamily = _yiValueEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiValueEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.YiValueEnableCustomFontWeight = _yiValueEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnYiValueFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_yiValueFontFamilyComboBox.SelectedItem != null)
         {
-            Settings.ValueFontWeight = _valueFontWeightComboBox.SelectedItem.ToString() ?? "";
+            Settings.YiValueFontFamily = _yiValueFontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnYiValueFontWeightChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_yiValueFontWeightComboBox.SelectedItem != null)
+        {
+            Settings.YiValueFontWeight = _yiValueFontWeightComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnJiLabelEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontFamily = _jiLabelEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiLabelEnableCustomFontWeight = _jiLabelEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiLabelFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_jiLabelFontFamilyComboBox.SelectedItem != null)
+        {
+            Settings.JiLabelFontFamily = _jiLabelFontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnJiLabelFontWeightChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_jiLabelFontWeightComboBox.SelectedItem != null)
+        {
+            Settings.JiLabelFontWeight = _jiLabelFontWeightComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnJiValueEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiValueEnableCustomFontFamily = _jiValueEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiValueEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.JiValueEnableCustomFontWeight = _jiValueEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnJiValueFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_jiValueFontFamilyComboBox.SelectedItem != null)
+        {
+            Settings.JiValueFontFamily = _jiValueFontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnJiValueFontWeightChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_jiValueFontWeightComboBox.SelectedItem != null)
+        {
+            Settings.JiValueFontWeight = _jiValueFontWeightComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
     private void UpdateControlsEnabled()
     {
-        _labelColorTextBox.IsEnabled = Settings.LabelEnableCustomFontColor;
-        _labelFontSizeTextBox.IsEnabled = Settings.LabelEnableCustomFontSize;
-        _labelFontFamilyComboBox.IsEnabled = Settings.LabelEnableCustomFontFamily;
-        _labelFontWeightComboBox.IsEnabled = Settings.LabelEnableCustomFontWeight;
-        _valueFontSizeTextBox.IsEnabled = Settings.ValueEnableCustomFontSize;
-        _valueFontFamilyComboBox.IsEnabled = Settings.ValueEnableCustomFontFamily;
-        _valueFontWeightComboBox.IsEnabled = Settings.ValueEnableCustomFontWeight;
+        _yiLabelFontSizeNumericUpDown.IsEnabled = Settings.YiLabelEnableCustomFontSize;
+        _yiLabelFontColorPicker.IsEnabled = Settings.YiLabelEnableCustomFontColor;
+        _yiLabelFontFamilyComboBox.IsEnabled = Settings.YiLabelEnableCustomFontFamily;
+        _yiLabelFontWeightComboBox.IsEnabled = Settings.YiLabelEnableCustomFontWeight;
+        _yiValueFontSizeNumericUpDown.IsEnabled = Settings.YiValueEnableCustomFontSize;
+        _yiValueFontFamilyComboBox.IsEnabled = Settings.YiValueEnableCustomFontFamily;
+        _yiValueFontWeightComboBox.IsEnabled = Settings.YiValueEnableCustomFontWeight;
+        _jiLabelFontSizeNumericUpDown.IsEnabled = Settings.JiLabelEnableCustomFontSize;
+        _jiLabelFontColorPicker.IsEnabled = Settings.JiLabelEnableCustomFontColor;
+        _jiLabelFontFamilyComboBox.IsEnabled = Settings.JiLabelEnableCustomFontFamily;
+        _jiLabelFontWeightComboBox.IsEnabled = Settings.JiLabelEnableCustomFontWeight;
+        _jiValueFontSizeNumericUpDown.IsEnabled = Settings.JiValueEnableCustomFontSize;
+        _jiValueFontFamilyComboBox.IsEnabled = Settings.JiValueEnableCustomFontFamily;
+        _jiValueFontWeightComboBox.IsEnabled = Settings.JiValueEnableCustomFontWeight;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
-        UpdateThemeColors();
-        _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
-        _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
-        _labelEnableCustomFontFamilyToggle.IsChecked = Settings.LabelEnableCustomFontFamily;
-        _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;
-        _valueEnableCustomFontFamilyToggle.IsChecked = Settings.ValueEnableCustomFontFamily;
-        _labelEnableCustomFontWeightToggle.IsChecked = Settings.LabelEnableCustomFontWeight;
-        _valueEnableCustomFontWeightToggle.IsChecked = Settings.ValueEnableCustomFontWeight;
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        InfoBar.IsOpen = !Settings.InfoBarDismissed;
+        _displayModeComboBox.SelectedIndex = Settings.DisplayMode;
+
+        _yiLabelFontSizeNumericUpDown.Value = (decimal)Settings.YiLabelFontSize;
+        _yiLabelFontColorPicker.Color = ParseColor(Settings.YiLabelFontColor);
+        _yiValueFontSizeNumericUpDown.Value = (decimal)Settings.YiValueFontSize;
+        _jiLabelFontSizeNumericUpDown.Value = (decimal)Settings.JiLabelFontSize;
+        _jiLabelFontColorPicker.Color = ParseColor(Settings.JiLabelFontColor);
+        _jiValueFontSizeNumericUpDown.Value = (decimal)Settings.JiValueFontSize;
+
+        _yiLabelFontFamilyComboBox.SelectedItem = Settings.YiLabelFontFamily;
+        _yiValueFontFamilyComboBox.SelectedItem = Settings.YiValueFontFamily;
+        _jiLabelFontFamilyComboBox.SelectedItem = Settings.JiLabelFontFamily;
+        _jiValueFontFamilyComboBox.SelectedItem = Settings.JiValueFontFamily;
+        _yiLabelFontWeightComboBox.SelectedItem = Settings.YiLabelFontWeight;
+        _yiValueFontWeightComboBox.SelectedItem = Settings.YiValueFontWeight;
+        _jiLabelFontWeightComboBox.SelectedItem = Settings.JiLabelFontWeight;
+        _jiValueFontWeightComboBox.SelectedItem = Settings.JiValueFontWeight;
+
+        _yiLabelEnableCustomFontSizeToggle.IsChecked = Settings.YiLabelEnableCustomFontSize;
+        _yiLabelEnableCustomFontColorToggle.IsChecked = Settings.YiLabelEnableCustomFontColor;
+        _yiLabelEnableCustomFontFamilyToggle.IsChecked = Settings.YiLabelEnableCustomFontFamily;
+        _yiLabelEnableCustomFontWeightToggle.IsChecked = Settings.YiLabelEnableCustomFontWeight;
+        _yiValueEnableCustomFontSizeToggle.IsChecked = Settings.YiValueEnableCustomFontSize;
+        _yiValueEnableCustomFontFamilyToggle.IsChecked = Settings.YiValueEnableCustomFontFamily;
+        _yiValueEnableCustomFontWeightToggle.IsChecked = Settings.YiValueEnableCustomFontWeight;
+        _jiLabelEnableCustomFontSizeToggle.IsChecked = Settings.JiLabelEnableCustomFontSize;
+        _jiLabelEnableCustomFontColorToggle.IsChecked = Settings.JiLabelEnableCustomFontColor;
+        _jiLabelEnableCustomFontFamilyToggle.IsChecked = Settings.JiLabelEnableCustomFontFamily;
+        _jiLabelEnableCustomFontWeightToggle.IsChecked = Settings.JiLabelEnableCustomFontWeight;
+        _jiValueEnableCustomFontSizeToggle.IsChecked = Settings.JiValueEnableCustomFontSize;
+        _jiValueEnableCustomFontFamilyToggle.IsChecked = Settings.JiValueEnableCustomFontFamily;
+        _jiValueEnableCustomFontWeightToggle.IsChecked = Settings.JiValueEnableCustomFontWeight;
+
         UpdateControlsEnabled();
-        _labelColorTextBox.Text = Settings.LabelFontColor;
-        _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
-        _labelFontFamilyComboBox.SelectedItem = Settings.LabelFontFamily;
-        _valueFontFamilyComboBox.SelectedItem = Settings.ValueFontFamily;
-        _labelFontWeightComboBox.SelectedItem = Settings.LabelFontWeight;
-        _valueFontWeightComboBox.SelectedItem = Settings.ValueFontWeight;
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
     }
 
-    private void OnLabelColorLostFocus(object? sender, RoutedEventArgs e)
+    private Color ParseColor(string colorString)
     {
-        var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        try
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.LabelFontColor = color;
-            }
-            catch
-            {
-                _labelColorTextBox.Text = Settings.LabelFontColor;
-            }
+            return ThemeHelper.ParseColor(colorString);
         }
-        else
+        catch
         {
-            _labelColorTextBox.Text = Settings.LabelFontColor;
+            return ThemeHelper.ParseColor(ThemeHelper.GetTextColorHex());
         }
     }
 
-    private void OnLabelFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnYiLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_labelFontSizeTextBox.Text, out double size))
+        if (_yiLabelFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.LabelFontSize = size;
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.YiLabelFontSize = (double)_yiLabelFontSizeNumericUpDown.Value.Value;
         }
     }
 
-    private void OnValueFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnYiValueFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_valueFontSizeTextBox.Text, out double size))
+        if (_yiValueFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.ValueFontSize = size;
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.YiValueFontSize = (double)_yiValueFontSizeNumericUpDown.Value.Value;
         }
-        else
+    }
+
+    private void OnJiLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_jiLabelFontSizeNumericUpDown.Value.HasValue)
         {
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.JiLabelFontSize = (double)_jiLabelFontSizeNumericUpDown.Value.Value;
         }
+    }
+
+    private void OnJiValueFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_jiValueFontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.JiValueFontSize = (double)_jiValueFontSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnYiLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.YiLabelFontColor = _yiLabelFontColorPicker.Color.ToString();
+    }
+
+    private void OnJiLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.JiLabelFontColor = _jiLabelFontColorPicker.Color.ToString();
     }
 }

@@ -4,7 +4,8 @@ using System.Runtime.CompilerServices;
 using System.Timers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -55,7 +56,7 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(TimeZoneTimeSettings.FontWeight) ||
                  e.PropertyName == nameof(TimeZoneTimeSettings.EnableCustomFontWeight))
         {
-            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 14);
+            _updateFontSize?.Invoke(_settings.EnableCustomFontSize ? _settings.TextFontSize : 0);
         }
     }
 
@@ -99,7 +100,7 @@ public class TimeZoneTimeViewModel : INotifyPropertyChanged, IDisposable
             var timeZoneTime = ConvertToTimeZone(now);
             var display = FormatFullDisplay(timeZoneTime);
             
-            await Dispatcher.UIThread.InvokeAsync(() => { FullDisplay = display; });
+            await UIThread.Dispatcher.InvokeAsync(() => { FullDisplay = display; });
         }
         catch (Exception)
         {

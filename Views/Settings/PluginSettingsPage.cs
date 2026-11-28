@@ -1,14 +1,16 @@
 using System;
+using System.ComponentModel;
+using System.Diagnostics;
+using System.Linq;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Threading;
+using ClassIsland.Core.Controls;
 
 
 namespace AdvancedTimeIsland.Views.Settings;
@@ -32,7 +34,7 @@ internal static class PlatformHelper
 /// <summary>
 /// 插件设置页面
 /// </summary>
-public class PluginSettingsPage : UserControl
+public partial class PluginSettingsPage : UserControl
 {
     private static readonly string[] EchoHoleTexts =
     {
@@ -421,7 +423,6 @@ public class PluginSettingsPage : UserControl
         "最喜欢的中国服装有数千万。我买不起的中国衣服不能买。我一直在存钱，而且价格一直在上涨。",
         "我愿意重回汉唐，再谱盛世华章。",
         "一袭华美的霓裳，在这个时节，在这个地点，在这个城市，穿着一件白衣，在这里，在这座城，在这片土地，只属于你。",
-        "个人很喜欢女生穿汉服的样子，很好看。",
         "我愿意重回汉唐，再奏角徵宫商。",
         "汉服穿上身，文化在心中。六一儿童节，让我们穿上汉服，一起传承中华优秀传统文化！",
         "一直以来有个梦想，希望在每个传统节日里，所有的汉族儿女都能穿上属于我们民族的衣服——汉服。衣裾飘渺，不再有遗憾。",
@@ -501,28 +502,36 @@ public class PluginSettingsPage : UserControl
 
     private static SolidColorBrush GetAccentBrush()
     {
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is Color accentColor)
         {
             return new SolidColorBrush(accentColor);
         }
-        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is SolidColorBrush accentBrush)
+        {
+            return accentBrush;
+        }
+        if (Application.Current?.TryFindResource("AccentColor") is Color accentColor2)
         {
             return new SolidColorBrush(accentColor2);
+        }
+        if (Application.Current?.TryFindResource("AccentColor") is SolidColorBrush accentBrush2)
+        {
+            return accentBrush2;
         }
         return new SolidColorBrush(Colors.DodgerBlue);
     }
 
-    private static IBrush GetAccentTextBrush(SolidColorBrush accentBrush)
+    private static Brush GetAccentTextBrush(SolidColorBrush accentBrush)
     {
         var color = accentBrush.Color;
         var luminance = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255.0;
         return luminance > 0.6 ? Brushes.Black : Brushes.White;
     }
 
-    private static IBrush GetSyncingTextBrush()
+    private static Brush GetSyncingTextBrush()
     {
         // 正在同步时使用白色（深色主题）或黑色（浅色主题）
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is Color accentColor)
         {
             var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
             return luminance > 0.6 ? Brushes.Black : Brushes.White;
@@ -531,8 +540,6 @@ public class PluginSettingsPage : UserControl
     }
 
     private readonly PluginSettings? _settings;
-    private TextBlock? _titleTextBlock;
-    private TextBlock? _licenseTextBlock;
     private TextBlock? _ntpHintTextBlock;
     private TextBox? _longitudeTextBox;
     private TextBox? _dmsDegreesTextBox;
@@ -543,134 +550,49 @@ public class PluginSettingsPage : UserControl
     private TextBlock? _syncStatusText;
     private Button? _syncNowButton;
     private System.Timers.Timer? _ntpTimeDisplayTimer;
-    private Button? _echoHoleButton;
-    private TextBlock? _echoHoleDisplayText;
     private CancellationTokenSource? _echoHoleCts;
     private int _lastEchoIndex = -1;
     private System.Timers.Timer? _cursorBlinkTimer;
     private List<int>? _remainingIndices;
     private bool _isTyping;
-    private ToggleSwitch? _experimentalToggle;
-    private ToggleSwitch? _easterEggToggle;
-    private Control? _easterEggExpander;
 
     public Action? RequestRestartAction { get; set; }
 
-    public PluginSettingsPage() : this(null, null)
+    public PluginSettingsPage() : this(null)
     {
     }
 
-    public PluginSettingsPage(PluginSettings? settings) : this(settings, null)
+    public PluginSettingsPage(PluginSettings? settings)
     {
-    }
-
-    public PluginSettingsPage(PluginSettings? settings, LunarInstallerService? lunarInstaller)
-    {
-        _settings = settings;
+        _settings = settings ?? Plugin.Instance?.Settings;
         InitializeComponent();
+        try { InitializePageContent(); }
+        catch (Exception ex)
+        {
+            // 内层 InitializePageContent 本身已有 try/catch 并会显示红色错误 UI；
+            // 外层兜底仅记录调试日志，避免极端情况下完全无排错线索。
+            Debug.WriteLine($"[PluginSettingsPage] InitializePageContent 外层异常: {ex}");
+        }
     }
 
-    private void InitializeComponent()
+    private void InitializePageContent()
     {
         try
         {
-            var mainPanel = new StackPanel
-            {
-                Orientation = Orientation.Vertical,
-                Margin = new Avalonia.Thickness(16),
-                Spacing = 16
-            };
-
-            // 标题
-            _titleTextBlock = new TextBlock
-            {
-                Text = "插件设置",
-                FontSize = 18,
-                FontWeight = FontWeight.Bold,
-                Foreground = ThemeHelper.GetTextBrush()
-            };
-            mainPanel.Children.Add(_titleTextBlock);
-
-            // 管理启用的功能 - 使用 SettingsExpander（仿照SystemTools样式）
-            var featureManagementExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Header", "管理启用的功能");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Description", "点击管理各类功能的启用状态");
-
-            // 添加图标（Settings 图标）
-            var iconSource = FluentAvaloniaCompatibilityHelper.CreateSymbolIconSource("Settings");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "IconSource", iconSource);
-
-            var featureFooterPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            var featureButton = new Button
-            {
-                Content = "管理启用的功能...",
-                Width = 165
-            };
-            featureButton.Click += OnManageFeaturesClick;
-            featureFooterPanel.Children.Add(featureButton);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(featureManagementExpander, "Footer", featureFooterPanel);
-
-            mainPanel.Children.Add(featureManagementExpander);
-
-            // 许可证声明
-            _licenseTextBlock = new TextBlock
-            {
-                Text = "本项目基于 GNU GENERAL PUBLIC LICENSE v3.0 获得许可",
-                FontSize = 12,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-                Margin = new Avalonia.Thickness(0, 0, 0, 8)
-            };
-            mainPanel.Children.Add(_licenseTextBlock);
-
-            // 通用设置 SettingsExpander
-            var generalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Header", "通用设置");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(generalExpander, "Description", "插件的基本设置");
-
-            // 地方时经度设置
-            AddSettingsExpanderItem(generalExpander,
-                "地方时经度",
-                "设置地方时计算使用的经度（范围：-180 到 180）",
-                CreateLongitudePanel());
-
-            // 经纬度表示方式
-            AddSettingsExpanderItem(generalExpander,
-                "经纬度表示方式",
-                "选择经度的显示格式",
-                CreateLongitudeModeComboBox());
-
-            // 区时时区设置
-            AddSettingsExpanderItem(generalExpander,
-                "区时时区",
-                "选择区时显示使用的时区",
-                CreateTimeZoneComboBox());
-
-            // 插件时间偏移设置（与ClassIsland时间独立）
-            AddSettingsExpanderItem(generalExpander,
-                "插件时间偏移",
-                "与ClassIsland时间独立，单位为秒，增大偏移抵消铃声滞后，减小偏移抵消铃声提前",
-                CreateTimeOffsetTextBox());
+            // 通用设置：复杂 Switcher 控件由代码设置
+            LongitudeItem.Switcher = CreateLongitudePanel();
+            LongitudeModeItem.Switcher = CreateLongitudeModeComboBox();
+            TimeZoneItem.Switcher = CreateTimeZoneComboBox();
+            TimeOffsetItem.Switcher = CreateTimeOffsetTextBox();
 
             // 时间同步相关设置（仅64位显示）
             if (!PlatformHelper.Is32BitProcess)
             {
-                // 时间服务器设置
-                AddSettingsExpanderItem(generalExpander,
-                    "时间服务器",
-                    "选择用于同步时间的NTP服务器",
-                    CreateNtpServerComboBox());
+                NtpServerItem.Visibility = Visibility.Visible;
+                NtpServerItem.Switcher = CreateNtpServerComboBox();
 
-                // 同步时间周期设置
-                AddSettingsExpanderItem(generalExpander,
-                    "同步时间周期",
-                    "NTP时间同步周期，单位为分钟",
-                    CreateNtpSyncIntervalTextBox());
+                NtpIntervalItem.Visibility = Visibility.Visible;
+                NtpIntervalItem.Switcher = CreateNtpSyncIntervalTextBox();
             }
             else
             {
@@ -681,81 +603,27 @@ public class PluginSettingsPage : UserControl
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsOpen", true);
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "IsClosable", false);
                 FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(warningBar, "Margin", new Thickness(0, 0, 0, 12));
-                AddChildToSettingsExpander(generalExpander, warningBar);
+                NtpWarningHost.Content = warningBar;
+                NtpWarningHost.Visibility = Visibility.Visible;
             }
 
-            mainPanel.Children.Add(generalExpander);
-
-            // 实验性功能开关 - 使用 SettingsExpander
+            // 实验性功能开关
             var isExperimentalEnabled = _settings?.EnableExperimentalFeatures ?? false;
-            _experimentalToggle = CreateToggleSwitch(isExperimentalEnabled, OnExperimentalToggled);
+            ExperimentalItem.IsOn = isExperimentalEnabled;
+            var experimentalDescriptor = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            experimentalDescriptor.AddValueChanged(ExperimentalItem, (s, e) => OnExperimentalToggled(ExperimentalItem.IsOn));
+            EchoHoleButton.Visibility = isExperimentalEnabled ? Visibility.Visible : Visibility.Collapsed;
 
-            var experimentalExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Header", "实验性功能");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Description", "启用后可以使用实验性功能，不保证其稳定性。");
-
-            var experimentalFooterPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Spacing = 8
-            };
-            experimentalFooterPanel.Children.Add(_experimentalToggle);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(experimentalExpander, "Footer", experimentalFooterPanel);
-
-            mainPanel.Children.Add(experimentalExpander);
-
-            // 女装彩蛋（默认不可见）
+            // 女装彩蛋（默认隐藏）
             var isEasterEggEnabled = _settings?.EnableEasterEgg ?? false;
-            _easterEggToggle = CreateToggleSwitch(isEasterEggEnabled, OnEasterEggToggled);
-            _easterEggToggle.IsVisible = isEasterEggEnabled; // 根据保存的状态决定是否可见
+            EasterEggItem.IsOn = isEasterEggEnabled;
+            var easterEggDescriptor = DependencyPropertyDescriptor.FromProperty(
+                SettingsControl.IsOnProperty, typeof(SettingsControl));
+            easterEggDescriptor.AddValueChanged(EasterEggItem, (s, e) => OnEasterEggToggled(EasterEggItem.IsOn));
+            EasterEggItem.Visibility = isEasterEggEnabled ? Visibility.Visible : Visibility.Collapsed;
 
-            _easterEggExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Header", "女装");
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Description", "开启后显示女装彩蛋页面");
-
-            var easterEggFooterPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            easterEggFooterPanel.Children.Add(_easterEggToggle);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_easterEggExpander, "Footer", easterEggFooterPanel);
-
-            _easterEggExpander.IsVisible = isEasterEggEnabled;
-            mainPanel.Children.Add(_easterEggExpander);
-
-            // 回声洞（实验性功能）
-            _echoHoleButton = new Button
-            {
-                Content = "回声洞",
-                Margin = new Thickness(0, 8, 0, 0),
-                IsVisible = isExperimentalEnabled
-            };
-            _echoHoleButton.Click += OnEchoHoleButtonClick;
-            mainPanel.Children.Add(_echoHoleButton);
-
-            _echoHoleDisplayText = new TextBlock
-            {
-                FontSize = 13,
-                Foreground = ThemeHelper.GetSubTextBrush(),
-                TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 4, 0, 0),
-                IsVisible = false
-            };
-            mainPanel.Children.Add(_echoHoleDisplayText);
-
-            var scrollViewer = new ScrollViewer
-            {
-                Content = mainPanel,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-                BringIntoViewOnFocusChange = false
-            };
-
-            Content = scrollViewer;
+            // 悬浮时间表设置已拆分至独立页面 FloatingScheduleSettingsPage（"时间表悬浮窗"）
         }
         catch (Exception ex)
         {
@@ -769,32 +637,17 @@ public class PluginSettingsPage : UserControl
     }
 
     /// <summary>
-    /// 创建开关控件
-    /// </summary>
-    private ToggleSwitch CreateToggleSwitch(bool isOn, Action<bool> onToggleChanged)
-    {
-        var toggle = new ToggleSwitch
-        {
-            IsChecked = isOn
-        };
-        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(toggle, (s, e) => onToggleChanged?.Invoke(true));
-        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(toggle, (s, e) => onToggleChanged?.Invoke(false));
-        return toggle;
-    }
-
-    /// <summary>
     /// 创建跳转按钮
     /// </summary>
-    private Button CreateLinkButton(string text, EventHandler<RoutedEventArgs> handler)
+    private Button CreateLinkButton(string text, RoutedEventHandler handler)
     {
         var accentBrush = GetAccentBrush();
         var button = new Button
         {
             Content = $"➜ {text}",
-            Padding = new Avalonia.Thickness(12, 4),
+            Padding = new Thickness(12, 4, 12, 4),
             Background = accentBrush,
-            Foreground = GetAccentTextBrush(accentBrush),
-            CornerRadius = new Avalonia.CornerRadius(4)
+            Foreground = GetAccentTextBrush(accentBrush)
         };
         button.Click += handler;
         return button;
@@ -809,8 +662,7 @@ public class PluginSettingsPage : UserControl
         {
             Width = 100,
             Text = (_settings?.TimeOffsetSeconds ?? 0).ToString(System.Globalization.CultureInfo.InvariantCulture),
-            HorizontalAlignment = HorizontalAlignment.Right,
-            Watermark = "0"
+            HorizontalAlignment = HorizontalAlignment.Right
         };
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, OnTimeOffsetLostFocus);
         return textBox;
@@ -819,16 +671,16 @@ public class PluginSettingsPage : UserControl
     /// <summary>
     /// 创建经度输入面板（小数/度分秒切换）
     /// </summary>
-    private Control CreateLongitudePanel()
+    private FrameworkElement CreateLongitudePanel()
     {
-        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
+        var panel = new StackPanel { Orientation = Orientation.Vertical };
 
         _longitudeTextBox = new TextBox
         {
             Width = 100,
             Text = _settings?.Longitude.ToString("F4") ?? "116.4",
             HorizontalAlignment = HorizontalAlignment.Right,
-            IsVisible = _settings?.LongitudeDisplayMode != LongitudeDisplayMode.Dms
+            Visibility = _settings?.LongitudeDisplayMode != LongitudeDisplayMode.Dms ? Visibility.Visible : Visibility.Collapsed
         };
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
         panel.Children.Add(_longitudeTextBox);
@@ -836,22 +688,21 @@ public class PluginSettingsPage : UserControl
         var dmsPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Right,
-            IsVisible = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms
+            Visibility = _settings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms ? Visibility.Visible : Visibility.Collapsed
         };
 
-        _dmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesTextBox = new TextBox { Width = 50 };
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsDegreesTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsDegreesTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesTextBox = new TextBox { Width = 45 };
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsMinutesTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsMinutesTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsTextBox = new TextBox { Width = 45 };
         FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_dmsSecondsTextBox, OnDmsValueChanged);
         dmsPanel.Children.Add(_dmsSecondsTextBox);
         dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
@@ -928,9 +779,9 @@ public class PluginSettingsPage : UserControl
     /// <summary>
     /// 创建时间服务器下拉框（包含同步时间显示）
     /// </summary>
-    private Control CreateNtpServerComboBox()
+    private FrameworkElement CreateNtpServerComboBox()
     {
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var panel = new StackPanel { Orientation = Orientation.Horizontal };
 
         // 同步时间显示文本（放在左侧）
         _ntpTimeDisplayText = new TextBlock
@@ -974,7 +825,7 @@ public class PluginSettingsPage : UserControl
         _ntpTimeDisplayTimer = new System.Timers.Timer(100); // 0.1秒
         _ntpTimeDisplayTimer.Elapsed += (s, e) =>
         {
-            Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+            UIThread.Post(() =>
             {
                 if (_ntpTimeDisplayText != null)
                 {
@@ -1006,12 +857,12 @@ public class PluginSettingsPage : UserControl
     /// <summary>
     /// 创建同步时间周期输入框（包含立即同步按钮和状态提示）
     /// </summary>
-    private Control CreateNtpSyncIntervalTextBox()
+    private FrameworkElement CreateNtpSyncIntervalTextBox()
     {
-        var panel = new StackPanel { Orientation = Orientation.Vertical, Spacing = 4 };
+        var panel = new StackPanel { Orientation = Orientation.Vertical };
 
         // 输入框和按钮的行
-        var inputRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var inputRow = new StackPanel { Orientation = Orientation.Horizontal };
 
         var textBox = new TextBox
         {
@@ -1038,7 +889,7 @@ public class PluginSettingsPage : UserControl
         {
             FontSize = 11,
             TextWrapping = TextWrapping.Wrap,
-            IsVisible = true
+            Visibility = Visibility.Visible
         };
         panel.Children.Add(_syncStatusText);
 
@@ -1099,7 +950,7 @@ public class PluginSettingsPage : UserControl
 
     private void OnSyncStatusChanged(object? sender, SyncStatusEventArgs e)
     {
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        UIThread.Post(() =>
         {
             UpdateSyncStatusText(e.Status, e.SyncTime, e.SyncSource);
         });
@@ -1109,7 +960,7 @@ public class PluginSettingsPage : UserControl
     {
         if (_syncStatusText == null) return;
 
-        _syncStatusText.IsVisible = true;
+        _syncStatusText.Visibility = Visibility.Visible;
 
         switch (status)
         {
@@ -1194,7 +1045,7 @@ public class PluginSettingsPage : UserControl
     private SolidColorBrush GetSuccessForegroundBrush()
     {
         // 浅色主题用深绿色，深色主题用浅绿色
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is Color accentColor)
         {
             var luminance = (0.299 * accentColor.R + 0.587 * accentColor.G + 0.114 * accentColor.B) / 255.0;
             return luminance > 0.6 ? new SolidColorBrush(Color.FromRgb(0, 128, 0)) : new SolidColorBrush(Color.FromRgb(144, 238, 144));
@@ -1232,7 +1083,7 @@ public class PluginSettingsPage : UserControl
         }
 
         comboBox.SelectionChanged += OnTimeZoneSelectionChanged;
-        comboBox.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<TimeZoneInfo>((tz, ns) => new TextBlock { Text = tz?.DisplayName ?? "" });
+        comboBox.DisplayMemberPath = "DisplayName";
 
         return comboBox;
     }
@@ -1242,15 +1093,8 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     public void ShowEasterEggSetting()
     {
-        if (_easterEggExpander != null)
-        {
-            _easterEggExpander.IsVisible = true;
-        }
-        if (_easterEggToggle != null)
-        {
-            _easterEggToggle.IsVisible = true;
-            _easterEggToggle.IsChecked = true;
-        }
+        EasterEggItem.Visibility = Visibility.Visible;
+        EasterEggItem.IsOn = true;
     }
 
     /// <summary>
@@ -1258,15 +1102,8 @@ public class PluginSettingsPage : UserControl
     /// </summary>
     public void HideEasterEggSetting()
     {
-        if (_easterEggExpander != null)
-        {
-            _easterEggExpander.IsVisible = false;
-        }
-        if (_easterEggToggle != null)
-        {
-            _easterEggToggle.IsVisible = false;
-            _easterEggToggle.IsChecked = false;
-        }
+        EasterEggItem.Visibility = Visibility.Collapsed;
+        EasterEggItem.IsOn = false;
     }
 
     #region 事件处理
@@ -1343,11 +1180,11 @@ public class PluginSettingsPage : UserControl
                 : LongitudeDisplayMode.Decimal;
             if (_longitudeTextBox != null)
             {
-                _longitudeTextBox.IsVisible = !isDms;
+                _longitudeTextBox.Visibility = isDms ? Visibility.Collapsed : Visibility.Visible;
             }
-            if (_dmsDegreesTextBox != null && _dmsDegreesTextBox.Parent is Control dmsPanel)
+            if (_dmsDegreesTextBox != null && _dmsDegreesTextBox.Parent is FrameworkElement dmsPanel)
             {
-                dmsPanel.IsVisible = isDms;
+                dmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
                 if (isDms)
                 {
                     UpdateDmsFromLongitude();
@@ -1371,56 +1208,63 @@ public class PluginSettingsPage : UserControl
         var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "Title", "管理启用的功能");
 
-        var contentPanel = new StackPanel { Spacing = 8, MaxHeight = 400 };
+        var contentPanel = new StackPanel { MaxHeight = 400 };
 
         var descTextBlock = new TextBlock
         {
             Text = "以下功能相对不常用，可按需开启或关闭。更改后需重启ClassIsland生效。",
             FontSize = 12,
             Foreground = ThemeHelper.GetSubTextBrush(),
-            TextWrapping = Avalonia.Media.TextWrapping.Wrap,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 0, 0, 8)
         };
         contentPanel.Children.Add(descTextBlock);
 
         var scrollViewer = new ScrollViewer
         {
-            Content = new StackPanel { Spacing = 4 },
-            HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Auto
+            Content = new StackPanel(),
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
         var featuresPanel = scrollViewer.Content as StackPanel;
 
+        // 创建 MaterialDesign 风格开关
+        ToggleButton CreateFeatureSwitch(bool isOn) => new ToggleButton
+        {
+            IsChecked = isOn,
+            Style = Application.Current?.TryFindResource("MaterialDesignSwitchToggleButton") as Style
+        };
+
         // 农历开关项
-        var lunarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLunarCalendar ?? true };
+        var lunarToggle = CreateFeatureSwitch(_settings?.EnableLunarCalendar ?? true);
         featuresPanel!.Children.Add(CreateFeatureToggleItem("农历", lunarToggle));
 
         // 地方时开关项
-        var localSolarToggle = new ToggleSwitch { IsChecked = _settings?.EnableLocalSolarTime ?? true };
+        var localSolarToggle = CreateFeatureSwitch(_settings?.EnableLocalSolarTime ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("地方时", localSolarToggle));
 
         // 区时开关项
-        var timeZoneToggle = new ToggleSwitch { IsChecked = _settings?.EnableTimeZoneTime ?? true };
+        var timeZoneToggle = CreateFeatureSwitch(_settings?.EnableTimeZoneTime ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("区时", timeZoneToggle));
 
         // 星座开关项
-        var xingZuoToggle = new ToggleSwitch { IsChecked = _settings?.EnableXingZuo ?? true };
+        var xingZuoToggle = CreateFeatureSwitch(_settings?.EnableXingZuo ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("星座", xingZuoToggle));
 
         // 节气开关项
-        var jieQiToggle = new ToggleSwitch { IsChecked = _settings?.EnableJieQi ?? true };
+        var jieQiToggle = CreateFeatureSwitch(_settings?.EnableJieQi ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("节气", jieQiToggle));
 
         // 宜忌开关项
-        var dayYiJiToggle = new ToggleSwitch { IsChecked = _settings?.EnableDayYiJi ?? true };
+        var dayYiJiToggle = CreateFeatureSwitch(_settings?.EnableDayYiJi ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("宜忌", dayYiJiToggle));
 
         // 生肖开关项
-        var shengXiaoToggle = new ToggleSwitch { IsChecked = _settings?.EnableShengXiao ?? true };
+        var shengXiaoToggle = CreateFeatureSwitch(_settings?.EnableShengXiao ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("生肖", shengXiaoToggle));
 
         // 节日开关项
-        var festivalToggle = new ToggleSwitch { IsChecked = _settings?.EnableFestival ?? true };
+        var festivalToggle = CreateFeatureSwitch(_settings?.EnableFestival ?? true);
         featuresPanel.Children.Add(CreateFeatureToggleItem("节日", festivalToggle));
 
         contentPanel.Children.Add(scrollViewer);
@@ -1431,7 +1275,7 @@ public class PluginSettingsPage : UserControl
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
 
-        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, Window.GetWindow(this));
         bool isPrimary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result);
         bool isSecondary = FluentAvaloniaCompatibilityHelper.IsContentDialogResultSecondary(result);
             
@@ -1455,16 +1299,16 @@ public class PluginSettingsPage : UserControl
         }
     }
 
-    private Control CreateFeatureToggleItem(string label, ToggleSwitch toggle)
+    private FrameworkElement CreateFeatureToggleItem(string label, ToggleButton toggle)
     {
-        var itemPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, HorizontalAlignment = HorizontalAlignment.Stretch };
+        var itemPanel = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Stretch };
         var labelText = new TextBlock
         {
             Text = label,
             FontSize = 13,
-            Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center
         };
+        labelText.SetResourceReference(TextBlock.ForegroundProperty, "MaterialDesignBody");
         toggle.VerticalAlignment = VerticalAlignment.Center;
         toggle.HorizontalAlignment = HorizontalAlignment.Right;
         itemPanel.Children.Add(labelText);
@@ -1475,23 +1319,23 @@ public class PluginSettingsPage : UserControl
     private void OnExperimentalToggled(bool isEnabled)
     {
         _settings!.EnableExperimentalFeatures = isEnabled;
-        if (_echoHoleButton != null)
+        if (EchoHoleButton != null)
         {
-            _echoHoleButton.IsVisible = isEnabled;
+            EchoHoleButton.Visibility = isEnabled ? Visibility.Visible : Visibility.Collapsed;
         }
         if (!isEnabled)
         {
             _echoHoleCts?.Cancel();
             _cursorBlinkTimer?.Stop();
             _cursorBlinkTimer?.Dispose();
-            if (_echoHoleDisplayText != null)
+            if (EchoHoleDisplayText != null)
             {
-                _echoHoleDisplayText.IsVisible = false;
-                _echoHoleDisplayText.Text = "";
+                EchoHoleDisplayText.Visibility = Visibility.Collapsed;
+                EchoHoleDisplayText.Text = "";
             }
-            if (_echoHoleButton != null)
+            if (EchoHoleButton != null)
             {
-                _echoHoleButton.IsEnabled = true;
+                EchoHoleButton.IsEnabled = true;
             }
         }
 
@@ -1503,7 +1347,7 @@ public class PluginSettingsPage : UserControl
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "立即重启");
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "SecondaryButtonText", "稍后");
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "DefaultButton", FluentAvaloniaCompatibilityHelper.GetContentDialogButtonPrimary());
-        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this)).ContinueWith(task =>
+        FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, Window.GetWindow(this)).ContinueWith(task =>
         {
             if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(task.Result))
             {
@@ -1524,9 +1368,9 @@ public class PluginSettingsPage : UserControl
 
     private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)
     {
-        if (_echoHoleButton == null || _echoHoleDisplayText == null) return;
+        if (EchoHoleButton == null || EchoHoleDisplayText == null) return;
 
-        _echoHoleButton.IsEnabled = false;
+        EchoHoleButton.IsEnabled = false;
 
         _echoHoleCts?.Cancel();
         _echoHoleCts = new CancellationTokenSource();
@@ -1553,8 +1397,8 @@ public class PluginSettingsPage : UserControl
 
         var text = EchoHoleTexts[newIndex];
 
-        _echoHoleDisplayText.IsVisible = true;
-        _echoHoleDisplayText.Text = "";
+        EchoHoleDisplayText.Visibility = Visibility.Visible;
+        EchoHoleDisplayText.Text = "";
 
         _isTyping = true;
         var charDelay = TimeSpan.FromSeconds(1.0 / 20);
@@ -1566,11 +1410,11 @@ public class PluginSettingsPage : UserControl
                 if (_echoHoleCts.Token.IsCancellationRequested)
                     break;
 
-                _echoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
+                EchoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
                 await Task.Delay(charDelay, _echoHoleCts.Token);
             }
 
-            _echoHoleDisplayText.Text = text + "_";
+            EchoHoleDisplayText.Text = text + "_";
         }
         catch (OperationCanceledException)
         {
@@ -1583,125 +1427,43 @@ public class PluginSettingsPage : UserControl
         _cursorBlinkTimer.Elapsed += OnCursorBlink;
         _cursorBlinkTimer.Start();
 
-        _echoHoleButton.IsEnabled = true;
+        EchoHoleButton.IsEnabled = true;
     }
 
     private void OnCursorBlink(object? sender, System.Timers.ElapsedEventArgs e)
     {
-        if (_echoHoleDisplayText == null || _isTyping) return;
+        if (EchoHoleDisplayText == null || _isTyping) return;
 
-        Avalonia.Threading.Dispatcher.UIThread.Post(() =>
+        UIThread.Post(() =>
         {
-            if (_echoHoleDisplayText == null || _isTyping) return;
+            if (EchoHoleDisplayText == null || _isTyping) return;
             
-            var currentText = _echoHoleDisplayText.Text ?? "";
+            var currentText = EchoHoleDisplayText.Text ?? "";
             if (currentText.EndsWith("_"))
             {
-                _echoHoleDisplayText.Text = currentText.Substring(0, currentText.Length - 1);
+                EchoHoleDisplayText.Text = currentText.Substring(0, currentText.Length - 1);
             }
             else
             {
-                _echoHoleDisplayText.Text = currentText + "_";
+                EchoHoleDisplayText.Text = currentText + "_";
             }
         });
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
+        base.OnInitialized(e);
         StartNtpTimeDisplayTimer();
+        Unloaded += OnUnloaded;
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+        _ntpTimeDisplayTimer?.Dispose();
+        _ntpTimeDisplayTimer = null;
+        if (TimeBaseService.Instance != null)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void UpdateThemeColors()
-    {
-        if (_titleTextBlock != null)
-            _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        if (_licenseTextBlock != null)
-            _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        if (_echoHoleDisplayText != null)
-            _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
-    }
-
-    private void AddSettingsExpanderItem(Control expander, string content, string description, Control? footerContent)
-    {
-        var item = FluentAvaloniaCompatibilityHelper.CreateSettingsExpanderItem();
-        FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Content", content);
-        if (!string.IsNullOrEmpty(description))
-        {
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Description", description);
-        }
-
-        if (footerContent != null)
-        {
-            var footerPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
-            };
-            footerPanel.Children.Add(footerContent);
-            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(item, "Footer", footerPanel);
-        }
-
-        AddChildToSettingsExpander(expander, item);
-    }
-
-    private void AddChildToSettingsExpander(Control expander, Control child)
-    {
-        // 尝试通过 Items 属性添加子元素
-        var type = expander.GetType();
-        var itemsProperty = type.GetProperty("Items");
-        if (itemsProperty != null)
-        {
-            var items = itemsProperty.GetValue(expander) as System.Collections.IList;
-            if (items != null)
-            {
-                items.Add(child);
-                return;
-            }
-        }
-
-        // 如果没有 Items 属性，尝试添加到 Children
-        var panel = expander as Panel;
-        if (panel != null)
-        {
-            panel.Children.Add(child);
-            return;
-        }
-
-        // 尝试 Content 属性
-        var contentProperty = type.GetProperty("Content");
-        if (contentProperty != null)
-        {
-            var currentContent = contentProperty.GetValue(expander);
-            if (currentContent is StackPanel stackPanel)
-            {
-                stackPanel.Children.Add(child);
-            }
-            else if (currentContent == null)
-            {
-                var newPanel = new StackPanel();
-                newPanel.Children.Add(child);
-                contentProperty.SetValue(expander, newPanel);
-            }
+            TimeBaseService.Instance.SyncStatusChanged -= OnSyncStatusChanged;
         }
     }
 

@@ -1,11 +1,10 @@
 using System;
 using System.Collections.Generic;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using ClassIsland.Core.Abstractions.Services;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Enums.SettingsWindow;
@@ -23,22 +22,22 @@ public class HanfuPointNorthPage : HanfuPageTemplate
         // 隐藏返回上一页按钮
         if (_backTextBlock != null)
         {
-            _backTextBlock.IsVisible = false;
+            _backTextBlock.Visibility = Visibility.Collapsed;
         }
-        AddSection(panel, "汉服指南", 24, FontWeight.Bold, ThemeHelper.GetLightBlueBrush());
+        AddSection(panel, "汉服指南", 24, FontWeights.Bold, ThemeHelper.GetLightBlueBrush());
 //        AddParagraph(panel, "给我指到南极点了");
 
         var buttonPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             Margin = new Thickness(0, 16, 0, 0)
         };
 
         var guideItems = new[]
         {
             ("汉服百科", true),
-            ("选购指南", false),
+            ("选购指南", true),
+            ("常见（以及一些不常见的）问题", true),
             ("汉服拍照姿势指南", false),
             ("汉服照片修图指南", false)
         };
@@ -49,8 +48,7 @@ public class HanfuPointNorthPage : HanfuPageTemplate
             {
                 Content = text,
                 FontSize = 16,
-                Padding = new Thickness(16, 12),
-                CornerRadius = new CornerRadius(8),
+                Padding = new Thickness(16, 12, 16, 12),
                 HorizontalAlignment = HorizontalAlignment.Stretch
             };
 
@@ -75,20 +73,30 @@ public class HanfuPointNorthPage : HanfuPageTemplate
             IAppHost.TryGetService<IUriNavigationService>()?
                 .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfu?ci_keepHistory=true"));
         }
+        else if (text == "选购指南")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuXuanGouZhiNan?ci_keepHistory=true"));
+        }
+        else if (text == "常见（以及一些不常见的）问题")
+        {
+            IAppHost.TryGetService<IUriNavigationService>()?
+                .NavigateWrapped(new Uri("classisland://app/settings/AdvancedTimeIslandHanfuIssues?ci_keepHistory=true"));
+        }
     }
 
     private void UpdateButtonStyle(Button button, bool isDeveloped)
     {
         var isDark = ThemeHelper.IsDarkTheme();
         button.Background = isDark
-            ? new SolidColorBrush(Color.Parse("#37373D"))
-            : new SolidColorBrush(Color.Parse("#E8E8E8"));
+            ? new SolidColorBrush(ThemeHelper.ParseColor("#37373D"))
+            : new SolidColorBrush(ThemeHelper.ParseColor("#E8E8E8"));
         button.Foreground = isDeveloped
             ? GetAccentBrush()
             : ThemeHelper.GetTextBrush();
         button.BorderBrush = isDark
-            ? new SolidColorBrush(Color.Parse("#444444"))
-            : new SolidColorBrush(Color.Parse("#CCCCCC"));
+            ? new SolidColorBrush(ThemeHelper.ParseColor("#444444"))
+            : new SolidColorBrush(ThemeHelper.ParseColor("#CCCCCC"));
         button.BorderThickness = new Thickness(1);
     }
 

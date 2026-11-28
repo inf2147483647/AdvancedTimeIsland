@@ -1,15 +1,12 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Platform.Storage;
-using Avalonia.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 
 using AdvancedTimeIsland.Views.Controls;
 using AdvancedTimeIsland.Helpers;
@@ -39,15 +36,14 @@ public class FpsChartAnalysisPage : SettingsPageBase
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 12
+            Margin = new Thickness(16)
         };
 
         _titleTextBlock = new TextBlock
         {
             Text = "帧率折线图分析",
             FontSize = 24,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = ThemeHelper.GetTextBrush()
         };
         mainPanel.Children.Add(_titleTextBlock);
@@ -66,7 +62,6 @@ public class FpsChartAnalysisPage : SettingsPageBase
         var toolbar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -104,7 +99,7 @@ public class FpsChartAnalysisPage : SettingsPageBase
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
+
         };
 
         var rootGrid = new Grid();
@@ -126,48 +121,39 @@ public class FpsChartAnalysisPage : SettingsPageBase
         Content = rootGrid;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
 
         if (_statusTextBlock != null) _statusTextBlock.Text = "请导入CSV文件";
 
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        Unloaded += OnUnloaded;
 
         UpdateThemeColors();
     }
 
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        _chartControl?.Dispose();
+
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+    }
+
     private async void OnImportClick(object? sender, RoutedEventArgs e)
     {
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
-
-        var files = await topLevel.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+        var openDialog = new Microsoft.Win32.OpenFileDialog
         {
             Title = "选择CSV文件",
-            AllowMultiple = false,
-            FileTypeFilter = new[]
-            {
-                new FilePickerFileType("CSV 文件")
-                {
-                    Patterns = new[] { "*.csv" }
-                },
-                new FilePickerFileType("所有文件")
-                {
-                    Patterns = new[] { "*.*" }
-                }
-            }
-        });
-
-        if (files == null || files.Count == 0) return;
-        var file = files[0];
+            Filter = "CSV 文件 (*.csv)|*.csv|所有文件 (*.*)|*.*",
+            Multiselect = false
+        };
+        if (openDialog.ShowDialog(Window.GetWindow(this)) != true) return;
+        var filePath = openDialog.FileName;
 
         try
         {
-            var (records, errorDetail) = await ParseCsvFile(file);
+            var (records, errorDetail) = await ParseCsvFile(filePath);
             _chartControl?.SetData(records);
             if (_statusTextBlock != null)
             {
@@ -183,11 +169,11 @@ public class FpsChartAnalysisPage : SettingsPageBase
         }
     }
 
-    private async Task<(List<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> Records, string ErrorDetail)> ParseCsvFile(IStorageFile file)
+    private async Task<(List<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)> Records, string ErrorDetail)> ParseCsvFile(string filePath)
     {
         var records = new List<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)>();
 
-        using var stream = await file.OpenReadAsync();
+        using var stream = File.OpenRead(filePath);
         using var reader = new StreamReader(stream, detectEncodingFromByteOrderMarks: true);
 
         var invariantCulture = System.Globalization.CultureInfo.InvariantCulture;
@@ -309,18 +295,6 @@ public class FpsChartAnalysisPage : SettingsPageBase
     {
         _chartControl?.SetData(new List<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)>());
         if (_statusTextBlock != null) _statusTextBlock.Text = "已清空图表";
-    }
-
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-
-        _chartControl?.Dispose();
-
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

@@ -1,13 +1,12 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -16,7 +15,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "66778899-0011-2233-4455-667788990011",
     "正向计时器（ATI）",
-    "\uE122",
+    PackIconKind.Timer,
     "显示从开始时间到现在已过的时间"
 )]
 public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
@@ -30,6 +29,7 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
     private Border rootBorder;
     private StackPanel contentPanel;
     private readonly TimeBaseService _timeBaseService;
+    private bool _initCompleted;
 
     public ForwardTimerControl(TimeBaseService tbs)
     {
@@ -48,7 +48,6 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         contentPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             VerticalAlignment = VerticalAlignment.Center
         };
 
@@ -95,7 +94,10 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
 
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor, string fontFamily = "", bool enableCustomFontFamily = false, string fontWeight = "", bool enableCustomFontWeight = false)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
         if (enableCustomFontFamily)
             tb.FontFamily = FontFamilyHelper.GetFontFamilyOrDefault(fontFamily);
@@ -109,63 +111,60 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
     }
 
-    protected override void OnInitialized()
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
         vm = new ForwardTimerViewModel(_timeBaseService, Settings,
             UpdateText1Style, UpdateNameStyle, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            switch (e.PropertyName)
-            {
-                case nameof(vm.Text1Display):
-                    tbText1.Text = vm.Text1Display;
-                    break;
-                case nameof(vm.NameDisplay):
-                    tbName.Text = vm.NameDisplay;
-                    break;
-                case nameof(vm.Text3Display):
-                    tbText3.Text = vm.Text3Display;
-                    break;
-                case nameof(vm.TimeDisplay):
-                    tbTime.Text = vm.TimeDisplay;
-                    break;
-                case nameof(vm.Text4Display):
-                    tbText4.Text = vm.Text4Display;
-                    break;
-                case nameof(vm.IsNotStarted):
-                    if (vm.IsNotStarted)
-                    {
-                        tbText1.Text = "";
-                        tbName.Text = "";
-                        tbText3.Text = "正向计时器未开始";
-                        tbTime.Text = "";
-                        tbText4.Text = "";
-                    }
-                    break;
-            }
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void OnSettingsChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
@@ -174,36 +173,65 @@ public class ForwardTimerControl : ComponentBase<ForwardTimerSettings>
         {
             case nameof(Settings.Text1FontWeight):
             case nameof(Settings.Text1EnableCustomFontWeight):
-                UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
+                UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
                 break;
             case nameof(Settings.NameFontWeight):
             case nameof(Settings.NameEnableCustomFontWeight):
-                UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 14);
+                UpdateNameStyle(Settings.NameFontColor, Settings.NameEnableCustomFontSize ? Settings.NameFontSize : 0);
                 break;
             case nameof(Settings.Text3FontWeight):
             case nameof(Settings.Text3EnableCustomFontWeight):
-                UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
+                UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
                 break;
             case nameof(Settings.TimeFontWeight):
             case nameof(Settings.TimeEnableCustomFontWeight):
-                UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
+                UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
                 break;
             case nameof(Settings.Text4FontWeight):
             case nameof(Settings.Text4EnableCustomFontWeight):
-                UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+                UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
                 break;
         }
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+        switch (e.PropertyName)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            case nameof(vm.Text1Display):
+                tbText1.Text = vm.Text1Display;
+                break;
+            case nameof(vm.NameDisplay):
+                tbName.Text = vm.NameDisplay;
+                break;
+            case nameof(vm.Text3Display):
+                tbText3.Text = vm.Text3Display;
+                break;
+            case nameof(vm.TimeDisplay):
+                tbTime.Text = vm.TimeDisplay;
+                break;
+            case nameof(vm.Text4Display):
+                tbText4.Text = vm.Text4Display;
+                break;
+            case nameof(vm.IsNotStarted):
+                if (vm.IsNotStarted)
+                {
+                    tbText1.Text = "";
+                    tbName.Text = "";
+                    tbText3.Text = "正向计时器未开始";
+                    tbTime.Text = "";
+                    tbText4.Text = "";
+                }
+                break;
         }
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
+        Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }
-
-

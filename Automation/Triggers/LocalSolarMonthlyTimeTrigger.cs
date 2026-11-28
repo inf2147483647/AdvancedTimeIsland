@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_monthly_time", "地方时每月", "\uecdd")]
+[TriggerInfo("advancedtimeisland.local_solar_monthly_time", "地方时每月", PackIconKind.Earth)]
 public class LocalSolarMonthlyTimeTrigger : TimeTriggerBase<LocalSolarMonthlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_hourly_time_interval", "区时每小时时间范围间隔触发", "\uece7")]
+[TriggerInfo("advancedtimeisland.time_zone_hourly_time_interval", "区时每小时时间范围间隔触发", PackIconKind.TimerSync)]
 public class TimeZoneHourlyTimeIntervalTrigger : TimeTriggerBase<TimeZoneHourlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

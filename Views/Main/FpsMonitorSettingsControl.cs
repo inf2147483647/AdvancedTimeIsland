@@ -1,192 +1,87 @@
 using System;
-using System.Globalization;
+using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
-using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
+public partial class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
 {
-    private TextBox _labelColorTextBox;
-    private TextBox _labelFontSizeTextBox;
-    private TextBox _valueColorTextBox;
-    private TextBox _valueFontSizeTextBox;
-    private ToggleSwitch _labelEnableCustomFontSizeToggle;
-    private ToggleSwitch _labelEnableCustomFontColorToggle;
-    private ToggleSwitch _valueEnableCustomFontSizeToggle;
-    private ToggleSwitch _valueEnableCustomFontColorToggle;
-    private ToggleSwitch _enableComponentToggle;
-
-    private TextBlock _labelTitleTextBlock;
-    private TextBlock _labelColorLabelTextBlock;
-    private TextBlock _labelFontSizeLabelTextBlock;
-    private TextBlock _valueTitleTextBlock;
-    private TextBlock _valueColorNoteTextBlock;
-    private TextBlock _valueColorLabelTextBlock;
-    private TextBlock _valueFontSizeLabelTextBlock;
+    private WpfColorPicker _labelColorPicker = null!;
+    private WpfNumericUpDown _labelFontSizeNumericUpDown = null!;
+    private WpfColorPicker _valueColorPicker = null!;
+    private WpfNumericUpDown _valueFontSizeNumericUpDown = null!;
+    private CheckBox _labelEnableCustomFontSizeToggle = null!;
+    private CheckBox _labelEnableCustomFontColorToggle = null!;
+    private CheckBox _valueEnableCustomFontSizeToggle = null!;
+    private CheckBox _valueEnableCustomFontColorToggle = null!;
 
     private bool _isInDialogFlow;
+    private bool _initCompleted;
 
     public FpsMonitorSettingsControl()
     {
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _labelFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)LabelFontSizeItem.Switcher).Children[0];
+        _labelEnableCustomFontSizeToggle = (CheckBox)((StackPanel)LabelFontSizeItem.Switcher).Children[1];
 
-        _enableComponentToggle = new ToggleSwitch { Content = "启用此组件", Margin = new Thickness(0, 10, 0, 0), HorizontalAlignment = HorizontalAlignment.Left };
-        _enableComponentToggle.IsCheckedChanged += OnEnableComponentToggleChanged;
-        sp.Children.Add(_enableComponentToggle);
+        _labelColorPicker = (WpfColorPicker)((StackPanel)LabelColorItem.Switcher).Children[0];
+        _labelEnableCustomFontColorToggle = (CheckBox)((StackPanel)LabelColorItem.Switcher).Children[1];
 
-        _labelTitleTextBlock = new TextBlock { Text = "标签样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_labelTitleTextBlock);
+        _valueFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)ValueFontSizeItem.Switcher).Children[0];
+        _valueEnableCustomFontSizeToggle = (CheckBox)((StackPanel)ValueFontSizeItem.Switcher).Children[1];
 
-        var labelColorRow = new Grid();
-        labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+        _valueColorPicker = (WpfColorPicker)((StackPanel)ValueColorItem.Switcher).Children[0];
+        _valueEnableCustomFontColorToggle = (CheckBox)((StackPanel)ValueColorItem.Switcher).Children[1];
 
-        _labelColorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_labelColorLabelTextBlock, 0);
-        labelColorRow.Children.Add(_labelColorLabelTextBlock);
-
-        _labelColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
-        Grid.SetColumn(_labelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelColorTextBox, OnLabelColorLostFocus);
-        labelColorRow.Children.Add(_labelColorTextBox);
-        sp.Children.Add(labelColorRow);
-
-        _labelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _labelEnableCustomFontColorToggle.IsCheckedChanged += OnLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_labelEnableCustomFontColorToggle);
-
-        var labelFontSizeRow = new Grid();
-        labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        labelFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _labelFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_labelFontSizeLabelTextBlock, 0);
-        labelFontSizeRow.Children.Add(_labelFontSizeLabelTextBlock);
-
-        _labelFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_labelFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_labelFontSizeTextBox, OnLabelFontSizeLostFocus);
-        labelFontSizeRow.Children.Add(_labelFontSizeTextBox);
-        sp.Children.Add(labelFontSizeRow);
-
-        _labelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _labelEnableCustomFontSizeToggle.IsCheckedChanged += OnLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_labelEnableCustomFontSizeToggle);
-
-        _valueTitleTextBlock = new TextBlock { Text = "值样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_valueTitleTextBlock);
-
-        _valueColorNoteTextBlock = new TextBlock { Text = "默认颜色根据FPS自动变化（>=30绿色，20-30黄色，<20红色），启用自定义颜色后将使用固定颜色", FontSize = 12, Foreground = ThemeHelper.GetSubTextBrush(), TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_valueColorNoteTextBlock);
-
-        var valueColorRow = new Grid();
-        valueColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueColorRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _valueColorLabelTextBlock = new TextBlock { Text = "颜色:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_valueColorLabelTextBlock, 0);
-        valueColorRow.Children.Add(_valueColorLabelTextBlock);
-
-        _valueColorTextBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex() };
-        Grid.SetColumn(_valueColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueColorTextBox, OnValueColorLostFocus);
-        valueColorRow.Children.Add(_valueColorTextBox);
-        sp.Children.Add(valueColorRow);
-
-        _valueEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _valueEnableCustomFontColorToggle.IsCheckedChanged += OnValueEnableCustomFontColorChanged;
-        sp.Children.Add(_valueEnableCustomFontColorToggle);
-
-        var valueFontSizeRow = new Grid();
-        valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        valueFontSizeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _valueFontSizeLabelTextBlock = new TextBlock { Text = "字体大小:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_valueFontSizeLabelTextBlock, 0);
-        valueFontSizeRow.Children.Add(_valueFontSizeLabelTextBlock);
-
-        _valueFontSizeTextBox = new TextBox { Width = 80, Watermark = "14" };
-        Grid.SetColumn(_valueFontSizeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_valueFontSizeTextBox, OnValueFontSizeLostFocus);
-        valueFontSizeRow.Children.Add(_valueFontSizeTextBox);
-        sp.Children.Add(valueFontSizeRow);
-
-        _valueEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _valueEnableCustomFontSizeToggle.IsCheckedChanged += OnValueEnableCustomFontSizeChanged;
-        sp.Children.Add(_valueEnableCustomFontSizeToggle);
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = sp
-        };
-        Content = scrollViewer;
+        // SettingsCard 无内置事件，通过 IsOn 依赖属性变化订阅开关切换
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(EnableComponentCard, (s, e) => OnEnableComponentToggleChanged());
     }
 
-    private void UpdateThemeColors()
-    {
-        _enableComponentToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _valueEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _labelTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _labelFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueColorNoteTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        _valueColorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _valueFontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnLabelEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.LabelEnableCustomFontSize = _labelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnLabelEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.LabelEnableCustomFontColor = _labelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnValueEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnValueEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.ValueEnableCustomFontSize = _valueEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnValueEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnValueEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.ValueEnableCustomFontColor = _valueEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private async void OnEnableComponentToggleChanged(object? sender, EventArgs e)
+    private async void OnEnableComponentToggleChanged()
     {
-        if (_enableComponentToggle.IsChecked ?? false)
+        if (EnableComponentCard.IsOn)
         {
             if (Settings.EnableComponent)
             {
@@ -202,7 +97,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
 
     private async Task<bool> ShowEpilepsyWarningDialogAsync()
     {
-        var topLevel = TopLevel.GetTopLevel(this);
+        var topLevel = Window.GetWindow(this);
         if (topLevel == null) return false;
 
         var contentPanel = new StackPanel();
@@ -239,7 +134,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
             for (int i = 15; i >= 0; i--)
             {
                 await Task.Delay(1000);
-                await Dispatcher.UIThread.InvokeAsync(() =>
+                await UIThread.InvokeAsync(() =>
                 {
                     if (i > 0)
                     {
@@ -260,7 +155,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
 
     private async Task<bool> ShowDebugWarningDialogAsync()
     {
-        var topLevel = TopLevel.GetTopLevel(this);
+        var topLevel = Window.GetWindow(this);
         if (topLevel == null) return false;
 
         var dialog = FluentAvaloniaCompatibilityHelper.CreateContentDialog();
@@ -290,7 +185,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
             if (!epilepsyAccepted)
             {
                 Settings.EnableComponent = false;
-                _enableComponentToggle.IsChecked = false;
+                EnableComponentCard.IsOn = false;
                 return;
             }
 
@@ -300,7 +195,7 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
                 if (!debugAccepted)
                 {
                     Settings.EnableComponent = false;
-                    _enableComponentToggle.IsChecked = false;
+                    EnableComponentCard.IsOn = false;
                     return;
                 }
             }
@@ -315,106 +210,92 @@ public class FpsMonitorSettingsControl : ComponentBase<FpsMonitorSettings>
 
     private void UpdateControlsEnabled()
     {
-        _labelColorTextBox.IsEnabled = Settings.LabelEnableCustomFontColor;
-        _labelFontSizeTextBox.IsEnabled = Settings.LabelEnableCustomFontSize;
-        _valueColorTextBox.IsEnabled = Settings.ValueEnableCustomFontColor;
-        _valueFontSizeTextBox.IsEnabled = Settings.ValueEnableCustomFontSize;
+        _labelColorPicker.IsEnabled = Settings.LabelEnableCustomFontColor;
+        _labelFontSizeNumericUpDown.IsEnabled = Settings.LabelEnableCustomFontSize;
+        _valueColorPicker.IsEnabled = Settings.ValueEnableCustomFontColor;
+        _valueFontSizeNumericUpDown.IsEnabled = Settings.ValueEnableCustomFontSize;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
-        UpdateThemeColors();
-        _enableComponentToggle.IsChecked = Settings.EnableComponent;
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        EnableComponentCard.IsOn = Settings.EnableComponent;
         _labelEnableCustomFontSizeToggle.IsChecked = Settings.LabelEnableCustomFontSize;
         _labelEnableCustomFontColorToggle.IsChecked = Settings.LabelEnableCustomFontColor;
         _valueEnableCustomFontSizeToggle.IsChecked = Settings.ValueEnableCustomFontSize;
         _valueEnableCustomFontColorToggle.IsChecked = Settings.ValueEnableCustomFontColor;
         UpdateControlsEnabled();
-        _labelColorTextBox.Text = Settings.LabelFontColor;
-        _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        _valueColorTextBox.Text = Settings.ValueFontColor;
-        _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+        _labelColorPicker.Color = ParseColor(Settings.LabelFontColor);
+        _labelFontSizeNumericUpDown.Value = (decimal)Settings.LabelFontSize;
+        _valueColorPicker.Color = ParseColor(Settings.ValueFontColor);
+        _valueFontSizeNumericUpDown.Value = (decimal)Settings.ValueFontSize;
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
     }
 
-    private void OnLabelColorLostFocus(object? sender, EventArgs e)
+    private Color ParseColor(string colorString)
     {
-        var color = _labelColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        try
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.LabelFontColor = color;
-            }
-            catch
-            {
-                _labelColorTextBox.Text = Settings.LabelFontColor;
-            }
+            return ThemeHelper.ParseColor(colorString);
         }
-        else
+        catch
         {
-            _labelColorTextBox.Text = Settings.LabelFontColor;
+            return Colors.White;
         }
     }
 
-    private void OnLabelFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_labelFontSizeTextBox.Text, out double size))
+        if (_labelFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.LabelFontSize = size;
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _labelFontSizeTextBox.Text = Settings.LabelFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.LabelFontSize = (double)_labelFontSizeNumericUpDown.Value.Value;
         }
     }
 
-    private void OnValueFontSizeLostFocus(object? sender, EventArgs e)
+    private void OnValueFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_valueFontSizeTextBox.Text, out double size))
+        if (_valueFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.ValueFontSize = size;
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _valueFontSizeTextBox.Text = Settings.ValueFontSize.ToString(CultureInfo.InvariantCulture);
+            Settings.ValueFontSize = (double)_valueFontSizeNumericUpDown.Value.Value;
         }
     }
 
-    private void OnValueColorLostFocus(object? sender, EventArgs e)
+    private void OnLabelColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        var color = _valueColorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.ValueFontColor = color;
-            }
-            catch
-            {
-                _valueColorTextBox.Text = Settings.ValueFontColor;
-            }
-        }
-        else
-        {
-            _valueColorTextBox.Text = Settings.ValueFontColor;
-        }
+        Settings.LabelFontColor = _labelColorPicker.Color.ToString();
+    }
+
+    private void OnValueColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.ValueFontColor = _valueColorPicker.Color.ToString();
     }
 }

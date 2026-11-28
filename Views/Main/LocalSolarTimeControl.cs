@@ -1,13 +1,12 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -16,7 +15,7 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "22334455-6677-8899-0011-223344556677",
     "地方时（ATI）",
-    "\uE121",
+    PackIconKind.Earth,
     "显示指定经度的地方时"
 )]
 public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
@@ -25,6 +24,7 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
     private TextBlock tb;
     private Border rootBorder;
     private readonly TimeBaseService _timeBaseService;
+    private bool _initCompleted;
 
     public LocalSolarTimeControl(TimeBaseService tbs)
     {
@@ -51,7 +51,10 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
 
     private void UpdateFontSize(double fontSize)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
     }
 
     private void UpdateFontFamily(string fontFamily)
@@ -75,35 +78,58 @@ public class LocalSolarTimeControl : ComponentBase<LocalSolarTimeSettings>
         UpdateFontColor(Settings.FontColor);
     }
 
-    protected override void OnInitialized()
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 0);
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
         vm = new LocalSolarTimeViewModel(_timeBaseService, Settings, UpdateFontColor, UpdateFontSize);
         DataContext = vm;
         tb.Text = vm.FullDisplay;
-        vm.PropertyChanged += (s, e) =>
-        {
-            if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
         Settings.PropertyChanged += OnSettingsChanged;
         UpdateFontColor(Settings.FontColor);
-        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 14);
+        UpdateFontSize(Settings.EnableCustomFontSize ? Settings.TextFontSize : 0);
         UpdateFontFamily(Settings.EnableCustomFontFamily ? Settings.FontFamily : "");
         UpdateFontWeight(Settings.FontWeight);
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(vm.FullDisplay)) tb.Text = vm.FullDisplay;
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 

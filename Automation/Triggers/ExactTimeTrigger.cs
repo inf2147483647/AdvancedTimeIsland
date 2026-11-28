@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.exact_time", "精确时间是", "\uecd0")]
+[TriggerInfo("advancedtimeisland.exact_time", "精确时间是", PackIconKind.ClockOutline)]
 public class ExactTimeTrigger : TimeTriggerBase<ExactTimeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

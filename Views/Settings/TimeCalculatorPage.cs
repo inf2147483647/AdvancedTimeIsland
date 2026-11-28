@@ -6,13 +6,10 @@ using System.Text.RegularExpressions;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -28,10 +25,10 @@ public class TimeCalculatorPage : UserControl
     private List<TextBlock>? _labelTextBlocks;
     private List<Border>? _sectionBorders;
 
-    private NumericUpDown? _minuendYearTextBox;
+    private WpfNumericUpDown? _minuendYearTextBox;
     private ComboBox? _minuendMonthComboBox;
     private ComboBox? _minuendDayComboBox;
-    private TimePicker? _minuendTimePicker;
+    private WpfTimePicker? _minuendTimePicker;
     private Button? _minuendNowButton;
 
     private ComboBox? _subDirectionComboBox;
@@ -39,10 +36,10 @@ public class TimeCalculatorPage : UserControl
     private TextBlock? _subtrahendHint;
     private Button? _calculateButton;
 
-    private NumericUpDown? _resultYearTextBox;
+    private WpfNumericUpDown? _resultYearTextBox;
     private ComboBox? _resultMonthComboBox;
     private ComboBox? _resultDayComboBox;
-    private TimePicker? _resultTimePicker;
+    private WpfTimePicker? _resultTimePicker;
     private Button? _diffButton;
 
     private Button? _clearButton;
@@ -65,15 +62,14 @@ public class TimeCalculatorPage : UserControl
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 16
+            Margin = new Thickness(16)
         };
 
         _titleTextBlock = new TextBlock
         {
             Text = "时间计算器",
             FontSize = 18,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = ThemeHelper.GetTextBrush()
         };
         mainPanel.Children.Add(_titleTextBlock);
@@ -82,7 +78,7 @@ public class TimeCalculatorPage : UserControl
         {
             Content = "清空",
             HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(16, 6)
+            Padding = new Thickness(16, 6, 16, 6)
         };
         _clearButton.Click += OnClearButtonClick;
         mainPanel.Children.Add(_clearButton);
@@ -96,18 +92,17 @@ public class TimeCalculatorPage : UserControl
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
+
         };
 
         Content = scrollViewer;
     }
 
-    private Control CreateMinuendSection()
+    private FrameworkElement CreateMinuendSection()
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -129,7 +124,7 @@ public class TimeCalculatorPage : UserControl
         {
             Content = "选取当前时间",
             HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
+            Padding = new Thickness(12, 4, 12, 4)
         };
         _minuendNowButton.Click += OnMinuendNowButtonClick;
         panel.Children.Add(_minuendNowButton);
@@ -140,19 +135,18 @@ public class TimeCalculatorPage : UserControl
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderBrush = new SolidColorBrush(ThemeHelper.ParseColor("#BBBBBB")),
             BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
         return border;
     }
 
-    private Control CreateSubtrahendSection()
+    private FrameworkElement CreateSubtrahendSection()
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -166,8 +160,7 @@ public class TimeCalculatorPage : UserControl
 
         var inputRow = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         _subDirectionComboBox = new ComboBox { Width = 100, HorizontalAlignment = HorizontalAlignment.Left };
@@ -179,7 +172,6 @@ public class TimeCalculatorPage : UserControl
         _subtrahendTextBox = new TextBox
         {
             HorizontalAlignment = HorizontalAlignment.Stretch,
-            Watermark = "例如：1d2h3m4s",
             MinWidth = 200
         };
         inputRow.Children.Add(_subtrahendTextBox);
@@ -199,7 +191,7 @@ public class TimeCalculatorPage : UserControl
         {
             Content = "是（计算）",
             HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
+            Padding = new Thickness(12, 4, 12, 4)
         };
         _calculateButton.Click += OnCalculateButtonClick;
         panel.Children.Add(_calculateButton);
@@ -210,19 +202,18 @@ public class TimeCalculatorPage : UserControl
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderBrush = new SolidColorBrush(ThemeHelper.ParseColor("#BBBBBB")),
             BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
         return border;
     }
 
-    private Control CreateResultSection()
+    private FrameworkElement CreateResultSection()
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -244,7 +235,7 @@ public class TimeCalculatorPage : UserControl
         {
             Content = "相差（计算）",
             HorizontalAlignment = HorizontalAlignment.Left,
-            Padding = new Thickness(12, 4)
+            Padding = new Thickness(12, 4, 12, 4)
         };
         _diffButton.Click += OnDiffButtonClick;
         panel.Children.Add(_diffButton);
@@ -255,7 +246,7 @@ public class TimeCalculatorPage : UserControl
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
             Child = panel,
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderBrush = new SolidColorBrush(ThemeHelper.ParseColor("#BBBBBB")),
             BorderThickness = new Thickness(2)
         };
         _sectionBorders.Add(border);
@@ -284,7 +275,7 @@ public class TimeCalculatorPage : UserControl
         SetDateTimeToControls(now, _minuendYearTextBox, _minuendMonthComboBox, _minuendDayComboBox, _minuendTimePicker);
     }
 
-    private static void SetDateTimeToControls(DateTime dt, NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker)
+    private static void SetDateTimeToControls(DateTime dt, WpfNumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, WpfTimePicker? timePicker)
     {
         if (yearTextBox != null) yearTextBox.Value = dt.Year;
         if (monthComboBox != null) monthComboBox.SelectedItem = $"{dt.Month}月";
@@ -292,7 +283,7 @@ public class TimeCalculatorPage : UserControl
         if (timePicker != null) timePicker.SelectedTime = new TimeSpan(dt.Hour, dt.Minute, dt.Second);
     }
 
-    private static bool TryGetDateTimeFromControls(NumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, TimePicker? timePicker, out DateTime result)
+    private static bool TryGetDateTimeFromControls(WpfNumericUpDown? yearTextBox, ComboBox? monthComboBox, ComboBox? dayComboBox, WpfTimePicker? timePicker, out DateTime result)
     {
         result = DateTime.MinValue;
 
@@ -622,21 +613,22 @@ public class TimeCalculatorPage : UserControl
                 Width = 380,
                 SizeToContent = SizeToContent.Height,
                 WindowStartupLocation = WindowStartupLocation.CenterOwner,
-                CanResize = false
+                ResizeMode = ResizeMode.NoResize
             };
+
+            FluentAvaloniaCompatibilityHelper.ApplyDialogTheme(dialog);
 
             var okButton = new Button
             {
                 Content = "确定",
-                Padding = new Thickness(16, 8),
+                Padding = new Thickness(16, 8, 16, 8),
                 HorizontalAlignment = HorizontalAlignment.Right
             };
 
             var stack = new StackPanel
             {
                 Orientation = Orientation.Vertical,
-                Margin = new Thickness(16),
-                Spacing = 12
+                Margin = new Thickness(16)
             };
             stack.Children.Add(new TextBlock
             {
@@ -650,13 +642,14 @@ public class TimeCalculatorPage : UserControl
             dialog.Content = stack;
             okButton.Click += (s, e) => dialog.Close();
 
-            if (VisualRoot is Window owner)
+            if (Window.GetWindow(this) is Window owner)
             {
-                await dialog.ShowDialog(owner);
+                dialog.Owner = owner;
+                dialog.ShowDialog();
             }
             else
             {
-                dialog.Show();
+                dialog.ShowDialog();
             }
         }
         catch
@@ -664,13 +657,12 @@ public class TimeCalculatorPage : UserControl
         }
     }
 
-    private StackPanel CreateDatePickerRow(string label, out NumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
+    private StackPanel CreateDatePickerRow(string label, out WpfNumericUpDown yearTextBox, out ComboBox monthComboBox, out ComboBox dayComboBox)
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Thickness(0, 0, 0, 8)
         };
 
         var labelTextBlock = new TextBlock
@@ -685,14 +677,12 @@ public class TimeCalculatorPage : UserControl
 
         var datePanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 6
+            Orientation = Orientation.Horizontal
         };
 
-        var ytb = new NumericUpDown
+        var ytb = new WpfNumericUpDown
         {
             Width = 155,
-            CornerRadius = new CornerRadius(4),
             Minimum = 1,
             Maximum = 9999,
             Increment = 1,
@@ -704,7 +694,6 @@ public class TimeCalculatorPage : UserControl
         var mcb = new ComboBox
         {
             Width = 80,
-            CornerRadius = new CornerRadius(4),
             SelectedIndex = -1
         };
         for (int i = 1; i <= 12; i++)
@@ -716,7 +705,6 @@ public class TimeCalculatorPage : UserControl
         var dcb = new ComboBox
         {
             Width = 80,
-            CornerRadius = new CornerRadius(4),
             SelectedIndex = -1
         };
         for (int i = 1; i <= 31; i++)
@@ -737,13 +725,12 @@ public class TimeCalculatorPage : UserControl
         return panel;
     }
 
-    private StackPanel CreateTimePickerRow(string label, out TimePicker timePicker)
+    private StackPanel CreateTimePickerRow(string label, out WpfTimePicker timePicker)
     {
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Margin = new Avalonia.Thickness(0, 0, 0, 8)
+            Margin = new Thickness(0, 0, 0, 8)
         };
 
         var labelTextBlock = new TextBlock
@@ -756,7 +743,7 @@ public class TimeCalculatorPage : UserControl
         _labelTextBlocks.Add(labelTextBlock);
         panel.Children.Add(labelTextBlock);
 
-        timePicker = new TimePicker
+        timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -771,7 +758,7 @@ public class TimeCalculatorPage : UserControl
 
     private void OnYearTextBoxLostFocus(object? sender, RoutedEventArgs e)
     {
-        if (sender is NumericUpDown numericUpDown)
+        if (sender is WpfNumericUpDown numericUpDown)
         {
             if (numericUpDown.Value != null)
             {
@@ -783,7 +770,7 @@ public class TimeCalculatorPage : UserControl
         }
     }
 
-    private void UpdateDayComboBox(NumericUpDown yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
+    private void UpdateDayComboBox(WpfNumericUpDown yearTextBox, ComboBox monthComboBox, ComboBox dayComboBox)
     {
         if (yearTextBox.Value == null)
             return;
@@ -837,22 +824,16 @@ public class TimeCalculatorPage : UserControl
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
+        base.OnInitialized(e);
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        Unloaded += OnUnloaded;
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)

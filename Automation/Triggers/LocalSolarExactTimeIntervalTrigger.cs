@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_exact_time_interval", "地方时精确时间范围间隔触发", "\uecdd")]
+[TriggerInfo("advancedtimeisland.local_solar_exact_time_interval", "地方时精确时间范围间隔触发", PackIconKind.TimerSync)]
 public class LocalSolarExactTimeIntervalTrigger : TimeTriggerBase<LocalSolarExactTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

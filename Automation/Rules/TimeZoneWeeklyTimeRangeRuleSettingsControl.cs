@@ -1,10 +1,8 @@
 using System;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
-using ClassIsland.Core.Abstractions.Controls;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -13,17 +11,69 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
     private ComboBox _timeZoneComboBox = null!;
     private ComboBox _startDayOfWeekComboBox = null!;
     private ComboBox _endDayOfWeekComboBox = null!;
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneWeeklyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
     }
 
-    protected override void OnInitialized()
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        base.OnInitialized();
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZone)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
+            {
+                _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
+            }
+            else
+            {
+                _endDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
         if (Settings != null)
         {
             foreach (var item in _timeZoneComboBox.Items)
@@ -60,7 +110,6 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -83,7 +132,6 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -117,7 +165,6 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -164,7 +211,6 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -175,7 +221,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 260,
             ClockIdentifier = "24HourClock",
@@ -222,6 +268,7 @@ public class TimeZoneWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlBas
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

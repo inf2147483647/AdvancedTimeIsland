@@ -1,0 +1,90 @@
+{
+  "format": 1,
+  "restore": {
+    "R:\\AdvancedTimeIsland\\AdvancedTimeIslandWPF\\AdvancedTimeIslandWPF.csproj": {}
+  },
+  "projects": {
+    "R:\\AdvancedTimeIsland\\AdvancedTimeIslandWPF\\AdvancedTimeIslandWPF.csproj": {
+      "version": "1.0.0",
+      "restore": {
+        "projectUniqueName": "R:\\AdvancedTimeIsland\\AdvancedTimeIslandWPF\\AdvancedTimeIslandWPF.csproj",
+        "projectName": "AdvancedTimeIsland",
+        "projectPath": "R:\\AdvancedTimeIsland\\AdvancedTimeIslandWPF\\AdvancedTimeIslandWPF.csproj",
+        "packagesPath": "C:\\Users\\seewo\\.nuget\\packages\\",
+        "outputPath": "R:\\AdvancedTimeIsland\\AdvancedTimeIslandWPF\\obj\\",
+        "projectStyle": "PackageReference",
+        "configFilePaths": [
+          "R:\\AdvancedTimeIsland\\NuGet.Config",
+          "C:\\Users\\seewo\\AppData\\Roaming\\NuGet\\NuGet.Config"
+        ],
+        "originalTargetFrameworks": [
+          "net8.0-windows"
+        ],
+        "sources": {
+          "R:\\AdvancedTimeIsland\\packages": {},
+          "https://api.nuget.org/v3/index.json": {}
+        },
+        "frameworks": {
+          "net8.0-windows": {
+            "framework": "net8.0-windows7.0",
+            "targetAlias": "net8.0-windows",
+            "projectReferences": {}
+          }
+        },
+        "warningProperties": {
+          "warnAsError": [
+            "NU1605"
+          ]
+        },
+        "restoreAuditProperties": {
+          "enableAudit": "true",
+          "auditLevel": "low",
+          "auditMode": "direct"
+        },
+        "SdkAnalysisLevel": "10.0.400"
+      },
+      "frameworks": {
+        "net8.0-windows": {
+          "framework": "net8.0-windows7.0",
+          "targetAlias": "net8.0-windows",
+          "dependencies": {
+            "ClassIsland.Core": {
+              "include": "Compile, Build, ContentFiles, Analyzers, BuildTransitive",
+              "target": "Package",
+              "version": "[1.7.0.1, )"
+            },
+            "ClassIsland.PluginSdk": {
+              "include": "Compile, Build, ContentFiles, Analyzers, BuildTransitive",
+              "target": "Package",
+              "version": "[1.7.0.1, )"
+            },
+            "Markdig": {
+              "target": "Package",
+              "version": "[1.3.2, )"
+            }
+          },
+          "imports": [
+            "net461",
+            "net462",
+            "net47",
+            "net471",
+            "net472",
+            "net48",
+            "net481"
+          ],
+          "assetTargetFallback": true,
+          "warn": true,
+          "frameworkReferences": {
+            "Microsoft.NETCore.App": {
+              "privateAssets": "all"
+            },
+            "Microsoft.WindowsDesktop.App.WPF": {
+              "privateAssets": "none"
+            }
+          },
+          "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\10.0.404/PortableRuntimeIdentifierGraph.json"
+        }
+      }
+    }
+  }
+}

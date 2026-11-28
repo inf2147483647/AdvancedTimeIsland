@@ -1,20 +1,18 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Controls.Shapes;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Threading;
 using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.Views.Controls;
 
-public class FpsChartAnalysisControl : TemplatedControl, IDisposable
+public class FpsChartAnalysisControl : Control, IDisposable
 {
     private const double SamplePixelWidth = 2.0;
     private const double LeftPadding = 50.0;
@@ -38,7 +36,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
     private Grid? _rootGrid;
     private StackPanel? _legendPanel;
     private List<Polyline>? _polylines;
-    private IBrush[]? _seriesColors;
+    private Brush[]? _seriesColors;
     private string[]? _seriesNames;
     private Border? _tooltipBorder;
     private TextBlock? _tooltipTextBlock;
@@ -54,8 +52,8 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
     private bool[] _seriesVisible = { true, true, true, true, true };
     private double _initialPinchDistance;
     private double _initialPinchZoom;
-    private (IPointer? Pointer, Point Position) _pointer1;
-    private (IPointer? Pointer, Point Position) _pointer2;
+    private (int TouchId, Point Position)? _touch1;
+    private (int TouchId, Point Position)? _touch2;
 
     private static IReadOnlyList<(DateTime Time, double Fps, double Max, double Avg, double Min, double Low1)>? _cachedData;
 
@@ -69,7 +67,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
             _data = value;
             _cachedData = value;
             _lastDrawnRecordCount = 0;
-            Dispatcher.UIThread.Post(Redraw);
+            UIThread.Post(Redraw);
         }
     }
 
@@ -85,8 +83,9 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         {
             _data = _cachedData;
             _lastDrawnRecordCount = 0;
-            Dispatcher.UIThread.Post(Redraw);
+            UIThread.Post(Redraw);
         }
+        Unloaded += OnUnloaded;
     }
 
     private void Initialize()
@@ -95,7 +94,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         _isInitialized = true;
 
         _seriesNames = new[] { "fps", "max", "avg", "min", "1%low" };
-        _seriesColors = new IBrush[]
+        _seriesColors = new Brush[]
         {
             new SolidColorBrush(Color.FromRgb(0, 255, 0)),
             new SolidColorBrush(Color.FromRgb(255, 60, 60)),
@@ -113,14 +112,14 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
                 : new SolidColorBrush(Color.FromArgb(20, 0, 0, 0)),
             Focusable = false
         };
-        _canvas.PointerPressed += OnCanvasPointerPressed;
-        _canvas.PointerReleased += OnCanvasPointerReleased;
-        _canvas.PointerMoved += OnCanvasPointerMoved;
-        _canvas.PointerExited += OnCanvasPointerExited;
-        _canvas.PointerWheelChanged += OnCanvasPointerWheelChanged;
-        _canvas.AddHandler(InputElement.PointerPressedEvent, OnPointerPressed, RoutingStrategies.Tunnel);
-        _canvas.AddHandler(InputElement.PointerReleasedEvent, OnPointerReleased, RoutingStrategies.Tunnel);
-        _canvas.AddHandler(InputElement.PointerMovedEvent, OnPointerMoved, RoutingStrategies.Tunnel);
+        _canvas.MouseDown += OnCanvasMouseDown;
+        _canvas.MouseUp += OnCanvasMouseUp;
+        _canvas.MouseMove += OnCanvasMouseMove;
+        _canvas.MouseLeave += OnCanvasMouseLeave;
+        _canvas.MouseWheel += OnCanvasMouseWheel;
+        _canvas.TouchDown += OnTouchDown;
+        _canvas.TouchMove += OnTouchMove;
+        _canvas.TouchUp += OnTouchUp;
 
         _yAxisPanel = new Canvas();
 
@@ -149,7 +148,6 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         var zoomButtonPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Right
         };
 
@@ -195,14 +193,13 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         _legendPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             Margin = new Thickness(8, 8, 8, 8),
             VerticalAlignment = VerticalAlignment.Center
         };
 
         for (int i = 0; i < 5; i++)
         {
-            var legendItem = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+            var legendItem = new StackPanel { Orientation = Orientation.Horizontal };
             var legendColor = new Rectangle
             {
                 Width = 16,
@@ -247,7 +244,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
             BorderThickness = new Thickness(1),
             Padding = new Thickness(8, 4, 8, 4),
             CornerRadius = new CornerRadius(4),
-            IsVisible = false
+            Visibility = Visibility.Collapsed
         };
 
         _tooltipTextBlock = new TextBlock
@@ -261,7 +258,6 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         var checkboxPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 16,
             Margin = new Thickness(10, 8, 10, 0),
             HorizontalAlignment = HorizontalAlignment.Center
         };
@@ -280,13 +276,13 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
             {
                 _seriesVisible[idx] = true;
                 _lastDrawnRecordCount = 0;
-                Dispatcher.UIThread.Post(Redraw);
+                UIThread.Post(Redraw);
             });
             FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(checkbox, (s, e) =>
             {
                 _seriesVisible[idx] = false;
                 _lastDrawnRecordCount = 0;
-                Dispatcher.UIThread.Post(() =>
+                UIThread.Post(() =>
                 {
                     if (_polylines != null && idx < _polylines.Count)
                     {
@@ -303,9 +299,8 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         _rootGrid.Children.Add(checkboxPanel);
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
         Dispose();
     }
 
@@ -316,11 +311,14 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
 
         if (_canvas != null)
         {
-            _canvas.PointerPressed -= OnCanvasPointerPressed;
-            _canvas.PointerReleased -= OnCanvasPointerReleased;
-            _canvas.PointerMoved -= OnCanvasPointerMoved;
-            _canvas.PointerExited -= OnCanvasPointerExited;
-            _canvas.PointerWheelChanged -= OnCanvasPointerWheelChanged;
+            _canvas.MouseDown -= OnCanvasMouseDown;
+            _canvas.MouseUp -= OnCanvasMouseUp;
+            _canvas.MouseMove -= OnCanvasMouseMove;
+            _canvas.MouseLeave -= OnCanvasMouseLeave;
+            _canvas.MouseWheel -= OnCanvasMouseWheel;
+            _canvas.TouchDown -= OnTouchDown;
+            _canvas.TouchMove -= OnTouchMove;
+            _canvas.TouchUp -= OnTouchUp;
         }
 
         _polylines = null;
@@ -329,9 +327,9 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         _rootGrid = null;
     }
 
-    public Control GetContent()
+    public FrameworkElement GetContent()
     {
-        return _rootGrid ?? new Control();
+        return _rootGrid ?? new Grid();
     }
 
     private void Redraw()
@@ -354,10 +352,10 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         var visibleStartIndex = 0;
         var visibleEndIndex = records.Count - 1;
 
-        if (_scrollViewer.Bounds.Width > 0)
+        if (_scrollViewer.ActualWidth > 0)
         {
-            var visibleWidth = _scrollViewer.Bounds.Width;
-            var offset = _scrollViewer.Offset.X;
+            var visibleWidth = _scrollViewer.ActualWidth;
+            var offset = _scrollViewer.HorizontalOffset;
             visibleStartIndex = Math.Max(0, (int)(offset / CurrentSamplePixelWidth));
             visibleEndIndex = Math.Min(records.Count - 1, visibleStartIndex + (int)(visibleWidth / CurrentSamplePixelWidth) + 100);
         }
@@ -374,7 +372,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         if (yMax < 10) yMax = 10;
 
         var canvasWidth = Math.Max(
-            _scrollViewer.Bounds.Width > 0 ? _scrollViewer.Bounds.Width : 800,
+            _scrollViewer.ActualWidth > 0 ? _scrollViewer.ActualWidth : 800,
             records.Count * CurrentSamplePixelWidth + RightPadding);
 
         _canvas.Width = canvasWidth;
@@ -419,7 +417,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
                     var y = TopPadding + chartHeight - (value / yMax * chartHeight);
                     points.Add(new Point(x, y));
                 }
-                _polylines[seriesIdx].Points = points;
+                _polylines[seriesIdx].Points = new PointCollection(points);
             }
             _lastDrawnRecordCount = records.Count;
         }
@@ -493,8 +491,10 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         {
             var gridLine = new Line
             {
-                StartPoint = new Point(0, TopPadding + chartHeight - (y / yMax * chartHeight)),
-                EndPoint = new Point(canvasWidth - RightPadding, TopPadding + chartHeight - (y / yMax * chartHeight)),
+                X1 = 0,
+                Y1 = TopPadding + chartHeight - (y / yMax * chartHeight),
+                X2 = canvasWidth - RightPadding,
+                Y2 = TopPadding + chartHeight - (y / yMax * chartHeight),
                 Stroke = ThemeHelper.IsDarkTheme() 
                     ? new SolidColorBrush(Color.FromArgb(30, 255, 255, 255)) 
                     : new SolidColorBrush(Color.FromArgb(30, 0, 0, 0)),
@@ -517,10 +517,10 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         var visibleStartIndex = 0;
         var visibleEndIndex = records.Count - 1;
 
-        if (_scrollViewer.Bounds.Width > 0)
+        if (_scrollViewer.ActualWidth > 0)
         {
-            var visibleWidth = _scrollViewer.Bounds.Width;
-            var offset = _scrollViewer.Offset.X;
+            var visibleWidth = _scrollViewer.ActualWidth;
+            var offset = _scrollViewer.HorizontalOffset;
             visibleStartIndex = Math.Max(0, (int)(offset / CurrentSamplePixelWidth));
             visibleEndIndex = Math.Min(records.Count - 1, visibleStartIndex + (int)(visibleWidth / CurrentSamplePixelWidth) + 100);
         }
@@ -600,38 +600,43 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
             _canvas.Children.Remove(tb);
         }
 
-        _canvas.Width = _scrollViewer?.Bounds.Width > 0 ? _scrollViewer.Bounds.Width : 800;
+        _canvas.Width = _scrollViewer?.ActualWidth > 0 ? _scrollViewer.ActualWidth : 800;
     }
 
-    private void OnCanvasPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void OnCanvasMouseDown(object? sender, MouseButtonEventArgs e)
     {
         if (_isPinching || _canvas == null) return;
+        // 忽略触摸笔/触摸产生的模拟鼠标事件，触摸缩放由 Touch 事件处理
+        if (e.StylusDevice != null) return;
         _isDragging = true;
         
-        var topLevel = TopLevel.GetTopLevel(_canvas);
+        var topLevel = Window.GetWindow(_canvas);
         if (topLevel != null)
         {
             _lastScreenX = e.GetPosition(topLevel).X;
         }
         else
         {
-            _lastScreenX = e.GetCurrentPoint(_canvas).Position.X;
+            _lastScreenX = e.GetPosition(_canvas).X;
         }
         
-        e.Pointer.Capture(_canvas);
+        _canvas.CaptureMouse();
     }
 
-    private void OnCanvasPointerReleased(object? sender, PointerReleasedEventArgs e)
+    private void OnCanvasMouseUp(object? sender, MouseButtonEventArgs e)
     {
+        if (e.StylusDevice != null) return;
         _isDragging = false;
-        e.Pointer.Capture(null);
+        _canvas?.ReleaseMouseCapture();
     }
 
-    private void OnCanvasPointerMoved(object? sender, PointerEventArgs e)
+    private void OnCanvasMouseMove(object? sender, MouseEventArgs e)
     {
         if (_isDragging && _scrollViewer != null && _canvas != null)
         {
-            var topLevel = TopLevel.GetTopLevel(_canvas);
+            if (e.StylusDevice != null) return;
+
+            var topLevel = Window.GetWindow(_canvas);
             double currentScreenX;
             if (topLevel != null)
             {
@@ -639,23 +644,23 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
             }
             else
             {
-                currentScreenX = e.GetCurrentPoint(_canvas).Position.X;
+                currentScreenX = e.GetPosition(_canvas).X;
             }
             var deltaX = _lastScreenX - currentScreenX;
             _lastScreenX = currentScreenX;
 
-            var newOffsetX = _scrollViewer.Offset.X + deltaX;
-            var maxOffsetX = _scrollViewer.Extent.Width - _scrollViewer.Viewport.Width;
+            var newOffsetX = _scrollViewer.HorizontalOffset + deltaX;
+            var maxOffsetX = _scrollViewer.ExtentWidth - _scrollViewer.ViewportWidth;
             newOffsetX = Math.Max(0, Math.Min(maxOffsetX, newOffsetX));
 
-            _scrollViewer.Offset = new Vector(newOffsetX, 0);
+            _scrollViewer.ScrollToHorizontalOffset(newOffsetX);
             return;
         }
 
         UpdateTooltip(e);
     }
 
-    private void UpdateTooltip(PointerEventArgs e)
+    private void UpdateTooltip(MouseEventArgs e)
     {
         if (_tooltipBorder == null || _tooltipTextBlock == null || _canvas == null || _data == null) return;
 
@@ -664,14 +669,14 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
 
         if (position.X < 0 || position.Y < TopPadding || position.Y > TopPadding + chartHeight)
         {
-            _tooltipBorder.IsVisible = false;
+            _tooltipBorder.Visibility = Visibility.Collapsed;
             return;
         }
 
         var index = (int)(position.X / CurrentSamplePixelWidth);
         if (index < 0 || index >= _data.Count)
         {
-            _tooltipBorder.IsVisible = false;
+            _tooltipBorder.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -694,22 +699,22 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
 
         Canvas.SetLeft(_tooltipBorder, tooltipX);
         Canvas.SetTop(_tooltipBorder, tooltipY);
-        _tooltipBorder.IsVisible = true;
+        _tooltipBorder.Visibility = Visibility.Visible;
     }
 
-    private void OnCanvasPointerExited(object? sender, PointerEventArgs e)
+    private void OnCanvasMouseLeave(object? sender, MouseEventArgs e)
     {
         if (_tooltipBorder != null)
-            _tooltipBorder.IsVisible = false;
+            _tooltipBorder.Visibility = Visibility.Collapsed;
     }
 
-    private void OnCanvasPointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    private void OnCanvasMouseWheel(object? sender, MouseWheelEventArgs e)
     {
         if (_scrollViewer == null) return;
 
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Control))
+        if (Keyboard.Modifiers.HasFlag(ModifierKeys.Control))
         {
-            if (e.Delta.Y > 0)
+            if (e.Delta > 0)
             {
                 ZoomIn(e.GetPosition(_canvas).X);
             }
@@ -721,63 +726,75 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         }
     }
 
-    private void OnPointerPressed(object? sender, PointerPressedEventArgs e)
+    private void OnTouchDown(object? sender, TouchEventArgs e)
     {
         if (_canvas == null) return;
+        e.Handled = true;
 
-        if (!_isPinching && e.Pointer.Type == PointerType.Touch)
+        if (_isPinching) return;
+
+        var id = e.TouchDevice.Id;
+        var position = e.GetTouchPoint(_canvas).Position;
+
+        if (_touch1 == null)
         {
-            if (_pointer1.Pointer == null)
-            {
-                _pointer1 = (e.Pointer, e.GetPosition(_canvas));
-            }
-            else if (_pointer2.Pointer == null)
-            {
-                _pointer2 = (e.Pointer, e.GetPosition(_canvas));
-                _isPinching = true;
-                _initialPinchDistance = CalculateDistance(_pointer1.Position, _pointer2.Position);
-                _initialPinchZoom = _zoomLevel;
-            }
+            _touch1 = (id, position);
+        }
+        else if (_touch2 == null)
+        {
+            _touch2 = (id, position);
+            _isPinching = true;
+            _initialPinchDistance = CalculateDistance(_touch1.Value.Position, _touch2.Value.Position);
+            _initialPinchZoom = _zoomLevel;
         }
     }
 
-    private void OnPointerReleased(object? sender, PointerReleasedEventArgs e)
+    private void OnTouchUp(object? sender, TouchEventArgs e)
     {
-        if (_pointer1.Pointer == e.Pointer)
+        e.Handled = true;
+
+        var id = e.TouchDevice.Id;
+        if (_touch1?.TouchId == id)
         {
-            _pointer1 = (null, default);
+            _touch1 = null;
         }
-        else if (_pointer2.Pointer == e.Pointer)
+        else if (_touch2?.TouchId == id)
         {
-            _pointer2 = (null, default);
+            _touch2 = null;
         }
 
-        if (_pointer1.Pointer == null && _pointer2.Pointer == null)
+        if (_touch1 == null && _touch2 == null)
         {
             _isPinching = false;
         }
     }
 
-    private void OnPointerMoved(object? sender, PointerEventArgs e)
+    private void OnTouchMove(object? sender, TouchEventArgs e)
     {
         if (!_isPinching || _canvas == null || _scrollViewer == null) return;
+        e.Handled = true;
 
-        if (_pointer1.Pointer == e.Pointer)
+        var id = e.TouchDevice.Id;
+        var position = e.GetTouchPoint(_canvas).Position;
+
+        if (_touch1?.TouchId == id)
         {
-            _pointer1 = (e.Pointer, e.GetPosition(_canvas));
+            _touch1 = (id, position);
         }
-        else if (_pointer2.Pointer == e.Pointer)
+        else if (_touch2?.TouchId == id)
         {
-            _pointer2 = (e.Pointer, e.GetPosition(_canvas));
+            _touch2 = (id, position);
         }
 
-        var currentDistance = CalculateDistance(_pointer1.Position, _pointer2.Position);
+        if (_touch1 == null || _touch2 == null) return;
+
+        var currentDistance = CalculateDistance(_touch1.Value.Position, _touch2.Value.Position);
         var scale = currentDistance / _initialPinchDistance;
         var newZoom = _initialPinchZoom * scale;
 
         newZoom = Math.Clamp(newZoom, MinZoom, MaxZoom);
 
-        ApplyZoom(newZoom, _scrollViewer.Viewport.Width / 2);
+        ApplyZoom(newZoom, _scrollViewer.ViewportWidth / 2);
     }
 
     private double CalculateDistance(Point p1, Point p2)
@@ -788,7 +805,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
     public void ZoomIn()
     {
         if (_scrollViewer == null) return;
-        ApplyZoom(_zoomLevel * ZoomStep, _scrollViewer.Viewport.Width / 2);
+        ApplyZoom(_zoomLevel * ZoomStep, _scrollViewer.ViewportWidth / 2);
     }
 
     public void ZoomIn(double centerX)
@@ -800,7 +817,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
     public void ZoomOut()
     {
         if (_scrollViewer == null) return;
-        ApplyZoom(_zoomLevel / ZoomStep, _scrollViewer.Viewport.Width / 2);
+        ApplyZoom(_zoomLevel / ZoomStep, _scrollViewer.ViewportWidth / 2);
     }
 
     public void ZoomOut(double centerX)
@@ -812,7 +829,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
     public void ZoomReset()
     {
         if (_scrollViewer == null) return;
-        ApplyZoom(DefaultZoom, _scrollViewer.Viewport.Width / 2);
+        ApplyZoom(DefaultZoom, _scrollViewer.ViewportWidth / 2);
     }
 
     private void ApplyZoom(double newZoom, double viewportCenterX)
@@ -821,8 +838,8 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
 
         newZoom = Math.Clamp(newZoom, MinZoom, MaxZoom);
 
-        var viewportWidth = _scrollViewer.Viewport.Width;
-        var currentOffset = _scrollViewer.Offset.X;
+        var viewportWidth = _scrollViewer.ViewportWidth;
+        var currentOffset = _scrollViewer.HorizontalOffset;
         var centerDataIndex = (int)((currentOffset + viewportCenterX) / CurrentSamplePixelWidth);
 
         _zoomLevel = newZoom;
@@ -835,10 +852,10 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         Redraw();
 
         newOffset = Math.Max(0, newOffset);
-        var maxOffset = _scrollViewer.Extent.Width - viewportWidth;
+        var maxOffset = _scrollViewer.ExtentWidth - viewportWidth;
         newOffset = Math.Min(maxOffset, newOffset);
 
-        _scrollViewer.Offset = new Vector(newOffset, 0);
+        _scrollViewer.ScrollToHorizontalOffset(newOffset);
     }
 
     private double _lastScrollOffset;
@@ -853,7 +870,7 @@ public class FpsChartAnalysisControl : TemplatedControl, IDisposable
         if ((now - _lastRedrawTime).TotalMilliseconds < RedrawIntervalMs) return;
         _lastRedrawTime = now;
         
-        var currentOffset = _scrollViewer.Offset.X;
+        var currentOffset = _scrollViewer.HorizontalOffset;
         if (Math.Abs(currentOffset - _lastScrollOffset) > 50)
         {
             _lastScrollOffset = currentOffset;

@@ -1,11 +1,9 @@
 using System;
 using System.Globalization;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -37,7 +35,6 @@ public class UnixTimestampIntervalTriggerSettingsControl : TriggerSettingsContro
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -65,7 +62,6 @@ public class UnixTimestampIntervalTriggerSettingsControl : TriggerSettingsContro
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -79,15 +75,13 @@ public class UnixTimestampIntervalTriggerSettingsControl : TriggerSettingsContro
         var inputPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         textBox = new TextBox
         {
             Width = 300,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "输入时间戳"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
         textBox.TextChanged += (s, e) => UpdateSettingsValue();
 
@@ -113,7 +107,6 @@ public class UnixTimestampIntervalTriggerSettingsControl : TriggerSettingsContro
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -127,8 +120,7 @@ public class UnixTimestampIntervalTriggerSettingsControl : TriggerSettingsContro
         _intervalTimestampTextBox = new TextBox
         {
             Width = 300,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "输入间隔时间戳"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
         _intervalTimestampTextBox.TextChanged += (s, e) => UpdateSettingsValue();
 

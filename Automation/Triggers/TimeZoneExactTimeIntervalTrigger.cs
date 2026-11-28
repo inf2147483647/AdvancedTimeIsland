@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_exact_time_interval", "区时精确时间范围间隔触发", "\uece3")]
+[TriggerInfo("advancedtimeisland.time_zone_exact_time_interval", "区时精确时间范围间隔触发", PackIconKind.TimerSync)]
 public class TimeZoneExactTimeIntervalTrigger : TimeTriggerBase<TimeZoneExactTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

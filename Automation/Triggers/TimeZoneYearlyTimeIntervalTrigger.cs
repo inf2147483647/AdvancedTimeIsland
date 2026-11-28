@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.time_zone_yearly_time_interval", "区时每年时间范围间隔触发", "\uece4")]
+[TriggerInfo("advancedtimeisland.time_zone_yearly_time_interval", "区时每年时间范围间隔触发", PackIconKind.TimerSync)]
 public class TimeZoneYearlyTimeIntervalTrigger : TimeTriggerBase<TimeZoneYearlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

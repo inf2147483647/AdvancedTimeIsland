@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_monthly_time_interval", "地方时每月时间范围间隔触发", "\uecdf")]
+[TriggerInfo("advancedtimeisland.local_solar_monthly_time_interval", "地方时每月时间范围间隔触发", PackIconKind.TimerSync)]
 public class LocalSolarMonthlyTimeIntervalTrigger : TimeTriggerBase<LocalSolarMonthlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

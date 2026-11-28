@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -20,7 +18,7 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
     private ComboBox _startLunarMonthComboBox = null!;
     private CheckBox _startLeapMonthCheckBox = null!;
     private ComboBox _startLunarDayComboBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     private ComboBox _endTianganComboBox = null!;
     private ComboBox _endDizhiComboBox = null!;
@@ -28,9 +26,9 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
     private ComboBox _endLunarMonthComboBox = null!;
     private CheckBox _endLeapMonthCheckBox = null!;
     private ComboBox _endLunarDayComboBox = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
 
-    private NumericUpDown _intervalNumericUpDown = null!;
+    private WpfNumericUpDown _intervalNumericUpDown = null!;
     private ComboBox _intervalUnitComboBox = null!;
     private bool _isLoading = false;
 
@@ -52,7 +50,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -73,7 +70,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -82,20 +78,18 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
             Text = label,
             Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeights.Bold
         });
 
         var yearPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var yearRangePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -124,7 +118,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var tgDzPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -193,7 +186,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -244,7 +236,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -283,7 +274,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -294,7 +284,7 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -324,7 +314,6 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -338,11 +327,10 @@ public class LunarExactTimeIntervalTriggerSettingsControl : TriggerSettingsContr
         var intervalPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _intervalNumericUpDown = new NumericUpDown
+        _intervalNumericUpDown = new WpfNumericUpDown
         {
             Width = 225,
             Minimum = 0.001m,

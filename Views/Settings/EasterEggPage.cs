@@ -3,17 +3,15 @@ using System.IO;
 using System.Linq;
 using System.Net.Http;
 using System.Reflection;
+using System.Text;
 using System.Threading.Tasks;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Input;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
-using Avalonia.Threading;
-using Avalonia.VisualTree;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Input;
+using System.Windows.Media;
+using System.Windows.Media.Imaging;
+using System.Windows.Threading;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 
@@ -26,15 +24,23 @@ namespace AdvancedTimeIsland.Views.Settings;
 /// </summary>
 public class EasterEggPage : UserControl
 {
-    private static IBrush GetAccentBrush()
+    private static Brush GetAccentBrush()
     {
-        if (Application.Current?.TryFindResource("SystemAccentColor", out var colorObj) == true && colorObj is Color accentColor)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is Color accentColor)
         {
             return new SolidColorBrush(accentColor);
         }
-        if (Application.Current?.TryFindResource("AccentColor", out var accentObj) == true && accentObj is Color accentColor2)
+        if (Application.Current?.TryFindResource("SystemAccentColor") is SolidColorBrush accentBrush)
+        {
+            return accentBrush;
+        }
+        if (Application.Current?.TryFindResource("AccentColor") is Color accentColor2)
         {
             return new SolidColorBrush(accentColor2);
+        }
+        if (Application.Current?.TryFindResource("AccentColor") is SolidColorBrush accentBrush2)
+        {
+            return accentBrush2;
         }
         return Brushes.DodgerBlue;
     }
@@ -48,7 +54,7 @@ public class EasterEggPage : UserControl
     private List<(string url, Image image, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)>? _imageLoadInfos;
     private ScrollViewer? _scrollViewer;
     private Button? _backToTopButton;
-    private OverlayLayer? _overlayLayer;
+    private Canvas? _overlayCanvas;
     private ScrollViewer? _outerScrollViewer;
 
     public EasterEggPage() : this(null)
@@ -58,7 +64,30 @@ public class EasterEggPage : UserControl
     public EasterEggPage(PluginSettings? pluginSettings = null)
     {
         _pluginSettings = pluginSettings;
+        Log($"===== session start, baseDir={AppContext.BaseDirectory}, wpf={Environment.Version} =====");
         InitializeComponent();
+    }
+
+    /// <summary>
+    /// 右键“另存为”问题诊断日志（写插件目录 ContextMenuDebug.log）：跟踪右键事件是否到达
+    /// 图片卡片、是否被上游标记 Handled、ContextMenu 是否尝试打开、保存流程各步骤。定位完成后可移除。
+    /// </summary>
+    private static readonly object DebugLogLock = new();
+
+    private static void Log(string message)
+    {
+        try
+        {
+            var line = $"[{DateTime.Now:HH:mm:ss.fff} T{Environment.CurrentManagedThreadId}] {message}\r\n";
+            lock (DebugLogLock)
+            {
+                File.AppendAllText(Path.Combine(AppContext.BaseDirectory, "ContextMenuDebug.log"), line);
+            }
+        }
+        catch
+        {
+            // 诊断日志失败不影响功能
+        }
     }
 
     private void InitializeComponent()
@@ -66,14 +95,13 @@ public class EasterEggPage : UserControl
         _scrollViewer = new ScrollViewer
         {
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
+
         };
 
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 16
+            Margin = new Thickness(16)
         };
 
         // 标题
@@ -81,7 +109,7 @@ public class EasterEggPage : UserControl
         {
             Text = "女装",
             FontSize = 24,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = Brushes.HotPink,
             HorizontalAlignment = HorizontalAlignment.Center
         });
@@ -148,7 +176,28 @@ public class EasterEggPage : UserControl
 
 ![图片14](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC07560.jpg)
 
-![图片15](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02563.jpg)";
+![图片15](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/DSC02563.jpg)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5701.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5704.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5723.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A5728.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6161.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6172.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6176.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6179.JPG)
+
+![图片16](https://raw.gitcode.com/inf2147483647/PicBed/raw/main/2E3A6168.JPG)
+
+
+";
 
         mainPanel.Children.Add(CreateMarkdownSection(markdownContent));
 
@@ -156,7 +205,13 @@ public class EasterEggPage : UserControl
         mainPanel.Children.Add(new Border { Height = 30 });
 
         _scrollViewer.Content = mainPanel;
-        Content = _scrollViewer;
+
+        // 使用 Grid 作为根布局：ScrollViewer 占据全部空间，Canvas 作为返回顶部按钮的覆盖层
+        var rootGrid = new Grid();
+        rootGrid.Children.Add(_scrollViewer);
+        _overlayCanvas = new Canvas { IsHitTestVisible = false };
+        rootGrid.Children.Add(_overlayCanvas);
+        Content = rootGrid;
 
         // 在Loaded事件中初始化返回顶部按钮
         Loaded += OnLoaded;
@@ -177,15 +232,14 @@ public class EasterEggPage : UserControl
             Background = ThemeHelper.GetCardBackgroundBrush(),
             Padding = new Thickness(16),
             Margin = new Thickness(0, 0, 0, 16),
-            BorderBrush = new SolidColorBrush(Color.Parse("#BBBBBB")),
+            BorderBrush = new SolidColorBrush(ThemeHelper.ParseColor("#BBBBBB")),
             BorderThickness = new Thickness(2)
         };
         _markdownSectionBorder = section;
 
         var content = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
+            Orientation = Orientation.Vertical
         };
 
         // 解析Markdown并创建文本块
@@ -207,7 +261,7 @@ public class EasterEggPage : UserControl
                 {
                     Text = title,
                     FontSize = 18,
-                    FontWeight = FontWeight.Bold,
+                    FontWeight = FontWeights.Bold,
                     Foreground = Brushes.HotPink,
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 8, 0, 4)
@@ -219,7 +273,7 @@ public class EasterEggPage : UserControl
                     {
                         Content = "刷新",
                         HorizontalAlignment = HorizontalAlignment.Center,
-                        Padding = new Thickness(16, 8),
+                        Padding = new Thickness(16, 8, 16, 8),
                         FontSize = 12,
                         Margin = new Thickness(0, 4, 0, 8)
                     };
@@ -268,7 +322,7 @@ public class EasterEggPage : UserControl
                 {
                     Text = line.Trim('*'),
                     FontSize = 14,
-                    FontWeight = FontWeight.Bold,
+                    FontWeight = FontWeights.Bold,
                     Foreground = ThemeHelper.GetOrangeBrush(),
                     TextWrapping = TextWrapping.Wrap,
                     Margin = new Thickness(0, 8, 0, 4)
@@ -314,8 +368,7 @@ public class EasterEggPage : UserControl
 
         var panel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 4
+            Orientation = Orientation.Horizontal
         };
 
         if (startBracket >= 0 && endBracket > startBracket && startParen > endBracket && endParen > startParen)
@@ -329,10 +382,10 @@ public class EasterEggPage : UserControl
                 FontSize = 13,
                 Foreground = GetAccentBrush(),
                 TextDecorations = TextDecorations.Underline,
-                Cursor = new Cursor(StandardCursorType.Hand)
+                Cursor = Cursors.Hand
             };
 
-            link.PointerPressed += (s, e) =>
+            link.MouseLeftButtonUp += (s, e) =>
             {
                 try
                 {
@@ -391,8 +444,7 @@ public class EasterEggPage : UserControl
 
             var panel = new StackPanel
             {
-                Orientation = Orientation.Horizontal,
-                Spacing = 4
+                Orientation = Orientation.Horizontal
             };
 
             panel.Children.Add(new TextBlock
@@ -419,10 +471,10 @@ public class EasterEggPage : UserControl
                     FontSize = 13,
                     Foreground = GetAccentBrush(),
                     TextDecorations = TextDecorations.Underline,
-                    Cursor = new Cursor(StandardCursorType.Hand)
+                    Cursor = Cursors.Hand
                 };
 
-                link.PointerPressed += (s, e) =>
+                link.MouseLeftButtonUp += (s, e) =>
                 {
                     try
                     {
@@ -457,7 +509,7 @@ public class EasterEggPage : UserControl
     /// <summary>
     /// 创建 Markdown 图片控件
     /// </summary>
-    private Control CreateMarkdownImage(string line)
+    private FrameworkElement CreateMarkdownImage(string line)
     {
         var startBracket = line.IndexOf('[');
         var endBracket = line.IndexOf(']');
@@ -480,16 +532,15 @@ public class EasterEggPage : UserControl
         var errorPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Center,
             VerticalAlignment = VerticalAlignment.Center,
-            IsVisible = false,
+            Visibility = Visibility.Collapsed,
             Margin = new Thickness(16)
         };
 
         var errorText = new TextBlock
         {
-            Text = "图片加载失败",
+            Text = "加载失败，轻触屏幕",
             FontSize = 13,
             Foreground = Brushes.Red,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -509,9 +560,9 @@ public class EasterEggPage : UserControl
 
         var retryButton = new Button
         {
-            Content = "重试",
+            Content = "重新刷新",
             HorizontalAlignment = HorizontalAlignment.Center,
-            Padding = new Thickness(12, 6),
+            Padding = new Thickness(12, 6, 12, 6),
             FontSize = 12
         };
         errorPanel.Children.Add(retryButton);
@@ -523,24 +574,20 @@ public class EasterEggPage : UserControl
         var container = new Border
         {
             Child = grid,
-            HorizontalAlignment = HorizontalAlignment.Center,
-            Width = 0
+            HorizontalAlignment = HorizontalAlignment.Center
+            // 不设固定 Width：宽度由 MakeWidthFollowAncestor 的 MaxWidth 控制（内容自适应）
         };
 
-        container.Loaded += (s, e) =>
-        {
-            var parent = container.Parent as Control;
-            if (parent != null)
-            {
-                container.Width = parent.Bounds.Width * 0.8;
-            }
-        };
+        // 图片宽度跟随父级（内容区）宽度动态缩放，窗口缩放时自动调整；
+        // 使用 MaxWidth 而非强制 Width：图片最多占内容区 80%，不会超出展示框，
+        // 也不会把小图强制拉伸到占满整个页面宽度。
+        ResponsiveImageHelper.MakeWidthFollowAncestor(container, 0.8, applyAsMax: true);
 
         async void RetryHandler(object? sender, RoutedEventArgs args)
         {
             retryButton.IsEnabled = false;
             retryButton.Content = "加载中...";
-            errorPanel.IsVisible = false;
+            errorPanel.Visibility = Visibility.Collapsed;
             errorDetailText.Text = "";
             await LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
         }
@@ -551,7 +598,284 @@ public class EasterEggPage : UserControl
 
         LoadRemoteImageWithRetry(url, image, errorPanel, errorDetailText, retryButton);
 
+        // 右键菜单：支持把照片“另存为”jpg 文件（优先无损复制本地缓存的原始 JPG）；
+        // 无缓存无位图且处于错误状态时，同一菜单改为另存为错误日志（见 AttachImageContextMenu）
+        AttachImageContextMenu(container, url, image);
+
         return container;
+    }
+
+    /// <summary>
+    /// 取女装图片的本地缓存路径（与 <see cref="LoadRemoteImageWithRetry"/> 的缓存位置一致）。URL 非法时返回 null。
+    /// </summary>
+    private static string? GetImageCachePath(string url)
+    {
+        try
+        {
+            var fileName = Path.GetFileName(new Uri(url).AbsolutePath);
+            return string.IsNullOrWhiteSpace(fileName)
+                ? null
+                : Path.Combine(AppContext.BaseDirectory, "Assets", "Images", fileName);
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// 为图片卡片挂右键菜单（“另存为...”）：优先无损复制本地缓存的原始 JPG（与页面上显示的原图同源）；
+    /// 缓存缺失时把当前显示位图重编码为 JPG 保存。菜单打开时按可保存状态（有缓存文件或已显示位图）
+    /// 动态启用/禁用菜单项，避免对未加载成功的图片弹出“另存为”后毫无反应。
+    /// </summary>
+    private static void AttachImageContextMenu(Border container, string url, Image imageControl)
+    {
+        var saveMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为…" };
+        saveMenuItem.Click += async (_, _) =>
+        {
+            // 无缓存无位图且处于错误状态（存在加载失败记录）→ 保存错误日志；否则保存照片
+            if (GetImageCachePath(url) == null && imageControl.Source is not BitmapSource && GetImageLoadErrorCount(url) > 0)
+            {
+                Log($"[click] 另存为 clicked (error state, save log), url={url}");
+                await SaveErrorLogAsAsync(url, imageControl);
+            }
+            else
+            {
+                Log($"[click] 另存为 clicked (save image), url={url}");
+                await SaveImageAsAsync(url, imageControl);
+            }
+        };
+
+        var menu = new ContextMenu();
+        menu.Items.Add(saveMenuItem);
+        menu.Opened += (_, _) =>
+        {
+            var cachePath = GetImageCachePath(url);
+            var cacheExists = cachePath != null && File.Exists(cachePath);
+            var hasBitmap = imageControl.Source is BitmapSource;
+            var hasErrors = GetImageLoadErrorCount(url) > 0;
+            // 可保存：照片（有缓存或位图）或错误日志（无缓存无位图且处于错误状态）
+            saveMenuItem.IsEnabled = cacheExists || hasBitmap || hasErrors;
+            Log($"[opened] menu Opened, url={url}, enabled={saveMenuItem.IsEnabled}, saveLog={!cacheExists && !hasBitmap && hasErrors}, cacheExists={cacheExists}, hasBitmap={hasBitmap}, hasErrors={hasErrors}");
+        };
+        menu.Closed += (_, _) => Log($"[closed] menu Closed, url={url}");
+        container.ContextMenu = menu;
+
+        // 右键事件到达情况跟踪（Preview/冒泡各一道）：判断右键事件是否到达卡片、是否被上游标记 Handled
+        container.PreviewMouseRightButtonDown += (s, e) =>
+            Log($"[ptr] RightButtonDown preview, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.MouseRightButtonDown += (s, e) =>
+            Log($"[ptr] RightButtonDown bubble, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.PreviewMouseRightButtonUp += (s, e) =>
+            Log($"[ptr] RightButtonUp preview, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.MouseRightButtonUp += (s, e) =>
+            Log($"[ptr] RightButtonUp bubble, handled={e.Handled}, source={e.OriginalSource?.GetType().Name ?? "null"}");
+        container.ContextMenuOpening += (s, e) =>
+            Log($"[opening] ContextMenuOpening, url={url}, handled={e.Handled}");
+
+        Log($"[attach] ContextMenu attached, url={url}");
+    }
+
+    /// <summary>单次图片加载失败记录。</summary>
+    private sealed record ImageLoadErrorEntry(DateTime Time, string ExceptionType, string Message);
+
+    private static readonly object ImageLoadErrorsLock = new();
+    private static readonly Dictionary<string, List<ImageLoadErrorEntry>> ImageLoadErrors = new();
+
+    /// <summary>
+    /// 记录一次图片加载失败（每次重试失败都会追加）。每个 URL 最多保留 20 条，防止长期驻留内存。
+    /// </summary>
+    private static void RecordImageLoadError(string url, Exception ex)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            if (!ImageLoadErrors.TryGetValue(url, out var list))
+            {
+                list = new List<ImageLoadErrorEntry>();
+                ImageLoadErrors[url] = list;
+            }
+
+            list.Add(new ImageLoadErrorEntry(DateTime.Now, ex.GetType().Name, ex.Message));
+            if (list.Count > 20)
+            {
+                list.RemoveAt(0);
+            }
+        }
+    }
+
+    private static int GetImageLoadErrorCount(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list) ? list.Count : 0;
+        }
+    }
+
+    private static List<ImageLoadErrorEntry> GetImageLoadErrors(string url)
+    {
+        lock (ImageLoadErrorsLock)
+        {
+            return ImageLoadErrors.TryGetValue(url, out var list)
+                ? new List<ImageLoadErrorEntry>(list)
+                : new List<ImageLoadErrorEntry>();
+        }
+    }
+
+    /// <summary>
+    /// 为错误面板挂右键菜单（“另存为错误日志...”）：把该图片的加载失败记录导出为文本日志，
+    /// 便于用户反馈网络/服务端问题（如 429 限流、超时等）。菜单打开时按是否有失败记录动态启用。
+    /// </summary>
+    private static void AttachErrorPanelContextMenu(StackPanel errorPanel, string url, Image imageControl)
+    {
+        var saveLogMenuItem = new System.Windows.Controls.MenuItem { Header = "另存为…" };
+        saveLogMenuItem.Click += async (_, _) => await SaveErrorLogAsAsync(url, imageControl);
+
+        var menu = new ContextMenu();
+        menu.Items.Add(saveLogMenuItem);
+        menu.Opened += (_, _) =>
+        {
+            saveLogMenuItem.IsEnabled = GetImageLoadErrorCount(url) > 0;
+            Log($"[opened] error panel menu Opened, url={url}, records={GetImageLoadErrorCount(url)}");
+        };
+        errorPanel.ContextMenu = menu;
+    }
+
+    /// <summary>
+    /// “另存为错误日志”：弹出系统保存文件对话框（默认 .txt），把该图片的加载失败记录
+    /// （含环境信息）写入用户选择的位置。对话框等待与文本组装在 UI 线程完成，
+    /// 写盘放后台线程执行；CI1 宿主无 Toast 机制，成功/失败均记录到 ContextMenuDebug.log。
+    /// </summary>
+    private static async Task SaveErrorLogAsAsync(string url, Image imageControl)
+    {
+        string targetPath = string.Empty;
+        try
+        {
+            var entries = GetImageLoadErrors(url);
+            if (entries.Count == 0)
+            {
+                Log("[save error log] no error records, abort");
+                return;
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "另存为错误日志",
+                FileName = $"AdvancedTimeIsland-image-load-error-{DateTime.Now:yyyyMMdd-HHmmss}",
+                DefaultExt = ".txt",
+                Filter = "文本文件|*.txt|所有文件|*.*"
+            };
+            var dialogResult = dialog.ShowDialog(Window.GetWindow(imageControl));
+            Log($"[save error log] dialog result={dialogResult}, path={dialog.FileName}");
+            if (dialogResult != true)
+            {
+                return;
+            }
+
+            targetPath = dialog.FileName;
+            var content = BuildImageLoadErrorLogText(url, entries);
+            await Task.Run(() => File.WriteAllText(targetPath, content));
+            Log($"[save error log] done: {targetPath}");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save error log] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
+            System.Diagnostics.Debug.WriteLine($"SaveErrorLogAsAsync failed: {ex}");
+        }
+    }
+
+    /// <summary>
+    /// 组装错误日志文本：环境信息 + 该 URL 的全部失败记录（时间/异常类型/消息）。
+    /// </summary>
+    private static string BuildImageLoadErrorLogText(string url, List<ImageLoadErrorEntry> entries)
+    {
+        var sb = new StringBuilder();
+        sb.AppendLine("AdvancedTimeIsland 女装图片加载错误日志");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"生成时间：{DateTime.Now:yyyy-MM-dd HH:mm:ss}");
+        sb.AppendLine($"运行时：{System.Runtime.InteropServices.RuntimeInformation.FrameworkDescription}");
+        sb.AppendLine($"操作系统：{System.Runtime.InteropServices.RuntimeInformation.OSDescription}");
+        sb.AppendLine("========================================");
+        sb.AppendLine($"失败 URL：{url}");
+        sb.AppendLine($"失败记录（共 {entries.Count} 次，按时间顺序）：");
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            sb.AppendLine($"[{i + 1}] {entry.Time:yyyy-MM-dd HH:mm:ss}  {entry.ExceptionType}");
+            sb.AppendLine($"    {entry.Message}");
+        }
+        sb.AppendLine("========================================");
+        sb.AppendLine("本日志仅包含图片加载的网络/解码错误信息，不含任何个人数据。");
+        return sb.ToString();
+    }
+
+    /// <summary>
+    /// “另存为”：弹出系统保存文件对话框（默认 jpg），把照片写入用户选择的位置。
+    /// 对话框等待与位图编码均在 UI 线程完成（BitmapSource 跨线程访问受限），
+    /// 磁盘读写全部放到后台线程执行，不阻塞 UI；
+    /// 用户取消或无可保存内容时静默返回，保存失败写入调试输出。
+    /// </summary>
+    private static async Task SaveImageAsAsync(string url, Image imageControl)
+    {
+        Log($"[save] begin, url={url}");
+        try
+        {
+            var suggestedName = Path.GetFileName(new Uri(url).AbsolutePath);
+            if (string.IsNullOrWhiteSpace(suggestedName))
+            {
+                suggestedName = "image.jpg";
+            }
+
+            var dialog = new Microsoft.Win32.SaveFileDialog
+            {
+                Title = "另存为",
+                FileName = Path.GetFileNameWithoutExtension(suggestedName),
+                DefaultExt = ".jpg",
+                Filter = "JPEG 图片|*.jpg;*.jpeg|所有文件|*.*"
+            };
+            var dialogResult = dialog.ShowDialog(Window.GetWindow(imageControl));
+            Log($"[save] dialog result={dialogResult}, path={dialog.FileName}");
+            if (dialogResult != true)
+            {
+                return;
+            }
+
+            var targetPath = dialog.FileName;
+            var cachePath = GetImageCachePath(url);
+
+            // 仅当缓存缺失时才需要把当前显示位图重编码为 JPG（质量 95）；
+            // 位图编码必须在 UI 线程完成（BitmapSource 跨线程访问受限），先编码进内存再交后台写盘
+            byte[]? encoded = null;
+            if ((cachePath == null || !File.Exists(cachePath)) && imageControl.Source is BitmapSource source)
+            {
+                var encoder = new JpegBitmapEncoder { QualityLevel = 95 };
+                encoder.Frames.Add(BitmapFrame.Create(source));
+                using var memory = new MemoryStream();
+                encoder.Save(memory);
+                encoded = memory.ToArray();
+                Log($"[save] cache missing, re-encoded display bitmap to JPEG ({encoded.Length} bytes)");
+            }
+
+            await Task.Run(() =>
+            {
+                if (cachePath != null && File.Exists(cachePath))
+                {
+                    File.Copy(cachePath, targetPath, overwrite: true);
+                    Log($"[save] copied cache file to target (thread T{Environment.CurrentManagedThreadId})");
+                }
+                else if (encoded != null)
+                {
+                    File.WriteAllBytes(targetPath, encoded);
+                    Log($"[save] wrote re-encoded JPEG to target (thread T{Environment.CurrentManagedThreadId})");
+                }
+            });
+            Log("[save] done");
+        }
+        catch (Exception ex)
+        {
+            Log($"[save] exception: {ex.GetType().Name}: {ex.Message}\r\n{ex.StackTrace}");
+            // 磁盘满/路径非法等保存失败不打断页面：写入调试输出便于排查
+            System.Diagnostics.Debug.WriteLine($"SaveImageAsAsync failed: {ex}");
+        }
     }
 
     private async Task LoadRemoteImageWithRetry(string url, Image imageControl, StackPanel errorPanel, TextBlock errorDetailText, Button retryButton)
@@ -564,8 +888,7 @@ public class EasterEggPage : UserControl
 
             if (File.Exists(cachePath))
             {
-                var bitmap = new Avalonia.Media.Imaging.Bitmap(cachePath);
-                imageControl.Source = bitmap;
+                imageControl.Source = new BitmapImage(new Uri(cachePath));
                 return;
             }
 
@@ -577,8 +900,12 @@ public class EasterEggPage : UserControl
             var bytes = await response.Content.ReadAsByteArrayAsync();
 
             using var ms = new MemoryStream(bytes);
-            var bitmap2 = new Avalonia.Media.Imaging.Bitmap(ms);
-            imageControl.Source = bitmap2;
+            var bitmapImage = new BitmapImage();
+            bitmapImage.BeginInit();
+            bitmapImage.CacheOption = BitmapCacheOption.OnLoad;
+            bitmapImage.StreamSource = ms;
+            bitmapImage.EndInit();
+            imageControl.Source = bitmapImage;
 
             await Task.Run(() =>
             {
@@ -594,9 +921,10 @@ public class EasterEggPage : UserControl
         {
             imageControl.Source = null;
             errorDetailText.Text = $"URL: {url}\n错误: {ex.GetType().Name}: {ex.Message}";
-            errorPanel.IsVisible = true;
+            errorPanel.Visibility = Visibility.Visible;
             retryButton.IsEnabled = true;
-            retryButton.Content = "重试";
+            retryButton.Content = "重新刷新";
+            RecordImageLoadError(url, ex);
         }
     }
 
@@ -632,7 +960,7 @@ public class EasterEggPage : UserControl
                 }
 
                 info.image.Source = null;
-                info.errorPanel.IsVisible = false;
+                info.errorPanel.Visibility = Visibility.Collapsed;
                 info.errorDetailText.Text = "";
                 info.retryButton.IsEnabled = false;
                 info.retryButton.Content = "加载中...";
@@ -649,35 +977,29 @@ public class EasterEggPage : UserControl
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
-        // 监听键盘事件（使用Tunnel策略确保能接收到事件）
-        AddHandler(KeyDownEvent, OnKeyDown, RoutingStrategies.Tunnel);
+        base.OnInitialized(e);
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        // 监听键盘事件（使用Preview隧道策略确保能接收到事件）
+        AddHandler(UIElement.PreviewKeyDownEvent, new KeyEventHandler(OnKeyDown), true);
+        Unloaded += OnUnloaded;
     }
 
-    protected override void OnDetachedFromVisualTree(VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
-        }
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
         // 注意：不移除KeyDown和Loaded订阅，以便切换Tab回来时仍能正常工作
-        // 清理返回顶部按钮（移除OverlayLayer上的按钮和事件订阅）
+        // 清理返回顶部按钮（移除Canvas上的按钮和事件订阅）
         CleanupBackToTopButton();
     }
 
     private void CleanupBackToTopButton()
     {
         // 移除LayoutUpdated监听
-        if (_overlayLayer != null)
+        if (_overlayCanvas != null)
         {
-            _overlayLayer.LayoutUpdated -= OnLayoutUpdated;
+            _overlayCanvas.LayoutUpdated -= OnLayoutUpdated;
         }
 
         if (_outerScrollViewer != null)
@@ -686,20 +1008,20 @@ public class EasterEggPage : UserControl
             _outerScrollViewer = null;
         }
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel != null)
+        var window = Window.GetWindow(this);
+        if (window != null)
         {
-            topLevel.SizeChanged -= OnTopLevelSizeChanged;
+            window.SizeChanged -= OnTopLevelSizeChanged;
         }
 
-        if (_backToTopButton != null && _overlayLayer != null)
+        if (_backToTopButton != null && _overlayCanvas != null)
         {
-            _overlayLayer.Children.Remove(_backToTopButton);
+            _overlayCanvas.Children.Remove(_backToTopButton);
             _backToTopButton.Click -= BackToTopButton_Click;
             _backToTopButton = null;
         }
 
-        _overlayLayer = null;
+        _overlayCanvas = null;
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
@@ -740,8 +1062,8 @@ public class EasterEggPage : UserControl
         // 先清理旧的按钮（防止切换Tab回来时重复创建）
         CleanupBackToTopButton();
 
-        // 延迟到布局完成后再初始化，确保OverlayLayer的AvailableSize已正确计算
-        Dispatcher.UIThread.Post(() =>
+        // 延迟到布局完成后再初始化，确保覆盖层Canvas的尺寸已正确计算
+        UIThread.Post(() =>
         {
             try
             {
@@ -754,34 +1076,44 @@ public class EasterEggPage : UserControl
         });
     }
 
+    private static ScrollViewer? FindAncestorScrollViewer(DependencyObject child)
+    {
+        DependencyObject? current = child;
+        while (current != null)
+        {
+            if (current is ScrollViewer scrollViewer)
+                return scrollViewer;
+            current = current is FrameworkElement fe ? fe.Parent : null;
+        }
+        return null;
+    }
+
     private void InitializeBackToTopButton()
     {
-        // 获取OverlayLayer用于放置固定按钮
-        _overlayLayer = OverlayLayer.GetOverlayLayer(this);
-        if (_overlayLayer == null)
+        // 覆盖层Canvas用于放置固定按钮
+        if (_overlayCanvas == null)
             return;
 
-        // 查找外层的ScrollViewer（实际滚动的那个）
-        _outerScrollViewer = this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+        // 查找外层（设置窗口内）实际滚动的ScrollViewer
+        _outerScrollViewer = FindAncestorScrollViewer(this);
 
         // 创建"返回顶部"按钮
         _backToTopButton = new Button
         {
             Content = "返回顶部",
-            Padding = new Thickness(24, 10),
+            Padding = new Thickness(24, 10, 24, 10),
             FontSize = 14,
-            IsVisible = false,
+            Visibility = Visibility.Collapsed,
             Background = GetAccentBrush(),
             Foreground = Brushes.White,
-            CornerRadius = new CornerRadius(20),
             MinWidth = 100
         };
         _backToTopButton.Click += BackToTopButton_Click;
 
-        _overlayLayer.Children.Add(_backToTopButton);
+        _overlayCanvas.Children.Add(_backToTopButton);
 
         // 监听LayoutUpdated来更新按钮位置（布局完成时触发）
-        _overlayLayer.LayoutUpdated += OnLayoutUpdated;
+        _overlayCanvas.LayoutUpdated += OnLayoutUpdated;
 
         // 初始定位按钮
         UpdateBackToTopButtonPosition();
@@ -795,10 +1127,10 @@ public class EasterEggPage : UserControl
         }
 
         // 监听窗口大小变化
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel != null)
+        var window = Window.GetWindow(this);
+        if (window != null)
         {
-            topLevel.SizeChanged += OnTopLevelSizeChanged;
+            window.SizeChanged += OnTopLevelSizeChanged;
         }
     }
 
@@ -814,22 +1146,23 @@ public class EasterEggPage : UserControl
 
     private void UpdateBackToTopButtonPosition()
     {
-        if (_backToTopButton == null || _overlayLayer == null)
+        if (_backToTopButton == null || _overlayCanvas == null)
             return;
 
-        var availableSize = _overlayLayer.AvailableSize;
-        // 如果AvailableSize还没准备好（布局未完成），跳过本次定位
-        if (availableSize.Width <= 0 || availableSize.Height <= 0)
+        var availableWidth = _overlayCanvas.ActualWidth;
+        var availableHeight = _overlayCanvas.ActualHeight;
+        // 如果可用尺寸还没准备好（布局未完成），跳过本次定位
+        if (availableWidth <= 0 || availableHeight <= 0)
             return;
 
         // 测量按钮所需大小
-        _backToTopButton.Measure(availableSize);
+        _backToTopButton.Measure(new Size(availableWidth, availableHeight));
         var buttonWidth = _backToTopButton.DesiredSize.Width;
         var buttonHeight = _backToTopButton.DesiredSize.Height;
 
         // 水平居中，距底部24px
-        var x = (availableSize.Width - buttonWidth) / 2;
-        var y = availableSize.Height - buttonHeight - 24;
+        var x = (availableWidth - buttonWidth) / 2;
+        var y = availableHeight - buttonHeight - 24;
 
         Canvas.SetLeft(_backToTopButton, x);
         Canvas.SetTop(_backToTopButton, y);
@@ -848,7 +1181,7 @@ public class EasterEggPage : UserControl
         // 滚动超过250px时显示按钮，否则隐藏
         if (_backToTopButton != null && _outerScrollViewer != null)
         {
-            _backToTopButton.IsVisible = _outerScrollViewer.Offset.Y >= 250;
+            _backToTopButton.Visibility = _outerScrollViewer.VerticalOffset >= 250 ? Visibility.Visible : Visibility.Collapsed;
         }
     }
 
@@ -856,7 +1189,7 @@ public class EasterEggPage : UserControl
     {
         if (_outerScrollViewer != null)
         {
-            _outerScrollViewer.Offset = new Vector(0, 0);
+            _outerScrollViewer.ScrollToVerticalOffset(0);
         }
     }
 
@@ -866,15 +1199,13 @@ public class EasterEggPage : UserControl
         if (e.Key == Key.Home)
         {
             // 如果外层ScrollViewer未初始化，尝试重新查找
-            _outerScrollViewer ??= this.GetVisualAncestors().OfType<ScrollViewer>().FirstOrDefault();
+            _outerScrollViewer ??= FindAncestorScrollViewer(this);
             if (_outerScrollViewer != null)
             {
-                _outerScrollViewer.Offset = new Vector(0, 0);
+                _outerScrollViewer.ScrollToVerticalOffset(0);
                 e.Handled = true;
             }
         }
     }
 }
-
-
 

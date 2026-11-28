@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -15,7 +13,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
 {
     private ComboBox _lunarMonthComboBox = null!;
     private TextBox _daysFromEndTextBox = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public LunarLastDayTimeTriggerSettingsControl()
     {
@@ -35,14 +33,12 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -72,7 +68,6 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         var daysPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -104,7 +99,6 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -115,7 +109,7 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -136,28 +130,39 @@ public class LunarLastDayTimeTriggerSettingsControl : TriggerSettingsControlBase
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+        _isLoading = true;
+        try
         {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            if (Settings == null) return;
+
+            if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
+
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        else
+        finally
         {
-            _lunarMonthComboBox.SelectedIndex = 0;
+            _isLoading = false;
         }
-
-        _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
-
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarMonth = _lunarMonthComboBox.SelectedIndex + 1;

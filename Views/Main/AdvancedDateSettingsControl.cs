@@ -1,343 +1,318 @@
 using System;
+using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
+using ClassIsland.Core.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
+public partial class AdvancedDateSettingsControl : ComponentBase<AdvancedDateSettings>
 {
-    private ToggleSwitch _showWeekDayToggle;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
-    private ToggleSwitch _enableCustomFontFamilyToggle;
-    private ToggleSwitch _enableCustomFontWeightToggle;
-    private TextBox _colorTextBox;
-    private TextBox _fontSizeTextBox;
-    private ComboBox _fontFamilyComboBox;
-    private ComboBox _fontWeightComboBox;
+    private CheckBox _weekDayEnableCustomFontSizeToggle = null!;
+    private CheckBox _weekDayEnableCustomFontColorToggle = null!;
+    private CheckBox _weekDayEnableCustomFontFamilyToggle = null!;
+    private CheckBox _weekDayEnableCustomFontWeightToggle = null!;
+    private WpfColorPicker _weekDayColorPicker = null!;
+    private WpfNumericUpDown _weekDayFontSizeNumericUpDown = null!;
+    private ComboBox _weekDayFontFamilyComboBox = null!;
+    private ComboBox _weekDayFontWeightComboBox = null!;
 
-    private TextBlock _titleTextBlock;
-    private TextBlock _descTextBlock;
-    private TextBlock _labelTextBlock;
-    private TextBlock _styleTitleTextBlock;
-    private TextBlock _colorLabelTextBlock;
-    private TextBlock _fontSizeLabelTextBlock;
+    private CheckBox _dateEnableCustomFontSizeToggle = null!;
+    private CheckBox _dateEnableCustomFontColorToggle = null!;
+    private CheckBox _dateEnableCustomFontFamilyToggle = null!;
+    private CheckBox _dateEnableCustomFontWeightToggle = null!;
+    private WpfColorPicker _dateColorPicker = null!;
+    private WpfNumericUpDown _dateFontSizeNumericUpDown = null!;
+    private ComboBox _dateFontFamilyComboBox = null!;
+    private ComboBox _dateFontWeightComboBox = null!;
+
+    private ComboBox _contentOrderComboBox = null!;
+    private ComboBox _dateSeparatorComboBox = null!;
+    private bool _initCompleted;
 
     public AdvancedDateSettingsControl()
     {
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _contentOrderComboBox = (ComboBox)((StackPanel)ContentOrderItem.Switcher).Children[0];
+        _dateSeparatorComboBox = (ComboBox)((StackPanel)DateSeparatorItem.Switcher).Children[0];
 
-        _titleTextBlock = new TextBlock { Text = "日期设置", FontSize = 14, FontWeight = FontWeight.Bold };
-        sp.Children.Add(_titleTextBlock);
+        _dateFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)DateFontSizeItem.Switcher).Children[0];
+        _dateEnableCustomFontSizeToggle = (CheckBox)((StackPanel)DateFontSizeItem.Switcher).Children[1];
 
-        _descTextBlock = new TextBlock { Text = "配置日期显示选项", FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_descTextBlock);
+        _dateColorPicker = (WpfColorPicker)((StackPanel)DateColorItem.Switcher).Children[0];
+        _dateEnableCustomFontColorToggle = (CheckBox)((StackPanel)DateColorItem.Switcher).Children[1];
 
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Auto) });
+        _dateFontFamilyComboBox = (ComboBox)((StackPanel)DateFontFamilyItem.Switcher).Children[0];
+        _dateEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)DateFontFamilyItem.Switcher).Children[1];
 
-        _labelTextBlock = new TextBlock { Text = "显示星期", FontSize = 12, VerticalAlignment = VerticalAlignment.Center };
-        Grid.SetColumn(_labelTextBlock, 0);
-        row.Children.Add(_labelTextBlock);
+        _dateFontWeightComboBox = (ComboBox)((StackPanel)DateFontWeightItem.Switcher).Children[0];
+        _dateEnableCustomFontWeightToggle = (CheckBox)((StackPanel)DateFontWeightItem.Switcher).Children[1];
 
-        _showWeekDayToggle = new ToggleSwitch();
-        _showWeekDayToggle.IsCheckedChanged += OnShowWeekDayChanged;
-        Grid.SetColumn(_showWeekDayToggle, 1);
-        row.Children.Add(_showWeekDayToggle);
+        _weekDayFontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)WeekDayFontSizeItem.Switcher).Children[0];
+        _weekDayEnableCustomFontSizeToggle = (CheckBox)((StackPanel)WeekDayFontSizeItem.Switcher).Children[1];
 
-        sp.Children.Add(row);
+        _weekDayColorPicker = (WpfColorPicker)((StackPanel)WeekDayColorItem.Switcher).Children[0];
+        _weekDayEnableCustomFontColorToggle = (CheckBox)((StackPanel)WeekDayColorItem.Switcher).Children[1];
 
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Avalonia.Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
+        _weekDayFontFamilyComboBox = (ComboBox)((StackPanel)WeekDayFontFamilyItem.Switcher).Children[0];
+        _weekDayEnableCustomFontFamilyToggle = (CheckBox)((StackPanel)WeekDayFontFamilyItem.Switcher).Children[1];
 
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _fontSizeLabelTextBlock, out _fontSizeTextBox, out _enableCustomFontSizeToggle, OnFontSizeLostFocus, OnEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _colorLabelTextBlock, out _colorTextBox, out _enableCustomFontColorToggle, OnColorLostFocus, OnEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
+        _weekDayFontWeightComboBox = (ComboBox)((StackPanel)WeekDayFontWeightItem.Switcher).Children[0];
+        _weekDayEnableCustomFontWeightToggle = (CheckBox)((StackPanel)WeekDayFontWeightItem.Switcher).Children[1];
 
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = sp
-        };
-        Content = scrollViewer;
-    }
-
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        textBox = new TextBox { Width = 120, Watermark = ThemeHelper.GetTextColorHex(), HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
-            comboBox.Items.Add(font);
+            _dateFontFamilyComboBox.Items.Add(font);
+            _weekDayFontFamilyComboBox.Items.Add(font);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
-            comboBox.Items.Add(weight);
+            _dateFontWeightComboBox.Items.Add(weight);
+            _weekDayFontWeightComboBox.Items.Add(weight);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
+        _contentOrderComboBox.Items.Add("日期-星期");
+        _contentOrderComboBox.Items.Add("星期-日期");
+        _dateSeparatorComboBox.Items.Add("- (2026-07-29)");
+        _dateSeparatorComboBox.Items.Add("/ (2026/07/29)");
+        _dateSeparatorComboBox.Items.Add(". (2026.07.29)");
+        _dateSeparatorComboBox.Items.Add("纯文本 (2026 年 7 月 29 日)");
 
-        return row;
+        // SettingsCard 无内置事件，通过 IsOn 依赖属性变化订阅开关切换
+        DependencyPropertyDescriptor.FromProperty(SettingsCard.IsOnProperty, typeof(SettingsCard))
+            .AddValueChanged(ShowWeekDayCard, (s, e) =>
+            {
+                Settings.ShowWeekDay = ShowWeekDayCard.IsOn;
+                UpdateControlsEnabled();
+            });
     }
 
-    private TextBlock CreateFontWeightHintTextBlock()
+    private void OnDateEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
-        return new TextBlock
+        Settings.EnableCustomFontSize = _dateEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnDateEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.EnableCustomFontColor = _dateEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnDateEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.EnableCustomFontFamily = _dateEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnDateEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.EnableCustomFontWeight = _dateEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontSize = _weekDayEnableCustomFontSizeToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontColor = _weekDayEnableCustomFontColorToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontFamily = _weekDayEnableCustomFontFamilyToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnWeekDayEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
+    {
+        Settings.WeekDayEnableCustomFontWeight = _weekDayEnableCustomFontWeightToggle.IsChecked ?? false;
+        UpdateControlsEnabled();
+    }
+
+    private void OnDateFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_dateFontFamilyComboBox.SelectedItem != null)
         {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-    }
-
-    private void UpdateThemeColors()
-    {
-        _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        _labelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnEnableCustomFontFamilyChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontFamily = _enableCustomFontFamilyToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnEnableCustomFontWeightChanged(object? sender, EventArgs e)
-    {
-        Settings.EnableCustomFontWeight = _enableCustomFontWeightToggle.IsChecked ?? false;
-        UpdateControlsEnabled();
-    }
-
-    private void OnFontFamilyChanged(object? sender, EventArgs e)
-    {
-        if (_fontFamilyComboBox.SelectedItem != null)
-        {
-            Settings.FontFamily = _fontFamilyComboBox.SelectedItem.ToString() ?? "";
+            Settings.FontFamily = _dateFontFamilyComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
-    private void OnFontWeightChanged(object? sender, EventArgs e)
+    private void OnDateFontWeightChanged(object? sender, SelectionChangedEventArgs e)
     {
-        if (_fontWeightComboBox.SelectedItem != null)
+        if (_dateFontWeightComboBox.SelectedItem != null)
         {
-            Settings.FontWeight = _fontWeightComboBox.SelectedItem.ToString() ?? "";
+            Settings.FontWeight = _dateFontWeightComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnWeekDayFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_weekDayFontFamilyComboBox.SelectedItem != null)
+        {
+            Settings.WeekDayFontFamily = _weekDayFontFamilyComboBox.SelectedItem.ToString() ?? "";
+        }
+    }
+
+    private void OnWeekDayFontWeightChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_weekDayFontWeightComboBox.SelectedItem != null)
+        {
+            Settings.WeekDayFontWeight = _weekDayFontWeightComboBox.SelectedItem.ToString() ?? "";
         }
     }
 
     private void UpdateControlsEnabled()
     {
-        var fontSizeEnabled = Settings.EnableCustomFontSize;
-        var fontColorEnabled = Settings.EnableCustomFontColor;
-        var fontFamilyEnabled = Settings.EnableCustomFontFamily;
-        var fontWeightEnabled = Settings.EnableCustomFontWeight;
-        _colorTextBox.IsEnabled = fontColorEnabled;
-        _fontSizeTextBox.IsEnabled = fontSizeEnabled;
-        _fontFamilyComboBox.IsEnabled = fontFamilyEnabled;
-        _fontWeightComboBox.IsEnabled = fontWeightEnabled;
+        var dateFontSizeEnabled = Settings.EnableCustomFontSize;
+        var dateFontColorEnabled = Settings.EnableCustomFontColor;
+        var dateFontFamilyEnabled = Settings.EnableCustomFontFamily;
+        var dateFontWeightEnabled = Settings.EnableCustomFontWeight;
+        _dateColorPicker.IsEnabled = dateFontColorEnabled;
+        _dateFontSizeNumericUpDown.IsEnabled = dateFontSizeEnabled;
+        _dateFontFamilyComboBox.IsEnabled = dateFontFamilyEnabled;
+        _dateFontWeightComboBox.IsEnabled = dateFontWeightEnabled;
+
+        var weekDayEnabled = Settings.ShowWeekDay;
+        var weekDayFontSizeEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontSize;
+        var weekDayFontColorEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontColor;
+        var weekDayFontFamilyEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontFamily;
+        var weekDayFontWeightEnabled = weekDayEnabled && Settings.WeekDayEnableCustomFontWeight;
+        _weekDayColorPicker.IsEnabled = weekDayFontColorEnabled;
+        _weekDayFontSizeNumericUpDown.IsEnabled = weekDayFontSizeEnabled;
+        _weekDayFontFamilyComboBox.IsEnabled = weekDayFontFamilyEnabled;
+        _weekDayFontWeightComboBox.IsEnabled = weekDayFontWeightEnabled;
+        _weekDayEnableCustomFontSizeToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontColorToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontFamilyToggle.IsEnabled = weekDayEnabled;
+        _weekDayEnableCustomFontWeightToggle.IsEnabled = weekDayEnabled;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
-        UpdateThemeColors();
-        _showWeekDayToggle.IsChecked = Settings.ShowWeekDay;
-        _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
-        _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
-        _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
-        _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
+        ShowWeekDayCard.IsOn = Settings.ShowWeekDay;
+        _contentOrderComboBox.SelectedIndex = Settings.DateContentOrder;
+        _dateSeparatorComboBox.SelectedIndex = Settings.DateSeparator;
+        _dateEnableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
+        _dateEnableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
+        _dateEnableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
+        _dateEnableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
+        _weekDayEnableCustomFontSizeToggle.IsChecked = Settings.WeekDayEnableCustomFontSize;
+        _weekDayEnableCustomFontColorToggle.IsChecked = Settings.WeekDayEnableCustomFontColor;
+        _weekDayEnableCustomFontFamilyToggle.IsChecked = Settings.WeekDayEnableCustomFontFamily;
+        _weekDayEnableCustomFontWeightToggle.IsChecked = Settings.WeekDayEnableCustomFontWeight;
         UpdateControlsEnabled();
-        _colorTextBox.Text = Settings.FontColor;
-        _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
-        _fontWeightComboBox.SelectedItem = Settings.FontWeight;
+        _dateColorPicker.Color = ParseColor(Settings.FontColor);
+        _dateFontSizeNumericUpDown.Value = (decimal)Settings.DateFontSize;
+        _dateFontFamilyComboBox.SelectedItem = Settings.FontFamily;
+        _dateFontWeightComboBox.SelectedItem = Settings.FontWeight;
+        _weekDayColorPicker.Color = ParseColor(Settings.WeekDayFontColor);
+        _weekDayFontSizeNumericUpDown.Value = (decimal)Settings.WeekDayFontSize;
+        _weekDayFontFamilyComboBox.SelectedItem = Settings.WeekDayFontFamily;
+        _weekDayFontWeightComboBox.SelectedItem = Settings.WeekDayFontWeight;
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+    }
+
+    private void OnContentOrderChanged(object? sender, SelectionChangedEventArgs e)
+    {
+        if (_contentOrderComboBox.SelectedIndex >= 0)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            Settings.DateContentOrder = _contentOrderComboBox.SelectedIndex;
         }
     }
 
-    private void OnShowWeekDayChanged(object? sender, EventArgs e)
+    private void OnDateSeparatorChanged(object? sender, SelectionChangedEventArgs e)
     {
-        Settings.ShowWeekDay = _showWeekDayToggle.IsChecked == true;
-    }
-
-    private void OnColorLostFocus(object? sender, RoutedEventArgs e)
-    {
-        var color = _colorTextBox.Text ?? ThemeHelper.GetTextColorHex();
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        if (_dateSeparatorComboBox.SelectedIndex >= 0)
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.FontColor = color;
-            }
-            catch
-            {
-                _colorTextBox.Text = Settings.FontColor;
-            }
-        }
-        else
-        {
-            _colorTextBox.Text = Settings.FontColor;
+            Settings.DateSeparator = _dateSeparatorComboBox.SelectedIndex;
         }
     }
 
-    private void OnFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnDateColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        if (double.TryParse(_fontSizeTextBox.Text, out double size))
+        Settings.FontColor = _dateColorPicker.Color.ToString();
+    }
+
+    private void OnDateFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_dateFontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.DateFontSize = size;
-            _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Settings.DateFontSize = (double)_dateFontSizeNumericUpDown.Value.Value;
         }
-        else
+    }
+
+    private void OnWeekDayColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.WeekDayFontColor = _weekDayColorPicker.Color.ToString();
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
         {
-            _fontSizeTextBox.Text = Settings.DateFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            return ThemeHelper.ParseColor(colorString);
+        }
+        catch
+        {
+            return ThemeHelper.ParseColor(ThemeHelper.GetTextColorHex());
+        }
+    }
+
+    private void OnWeekDayFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_weekDayFontSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.WeekDayFontSize = (double)_weekDayFontSizeNumericUpDown.Value.Value;
         }
     }
 }

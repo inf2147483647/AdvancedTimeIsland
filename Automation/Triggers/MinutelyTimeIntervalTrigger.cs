@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.minutely_time_interval", "每分钟时间范围间隔触发", "\uecdc")]
+[TriggerInfo("advancedtimeisland.minutely_time_interval", "每分钟时间范围间隔触发", PackIconKind.TimerSync)]
 public class MinutelyTimeIntervalTrigger : TimeTriggerBase<MinutelyTimeIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

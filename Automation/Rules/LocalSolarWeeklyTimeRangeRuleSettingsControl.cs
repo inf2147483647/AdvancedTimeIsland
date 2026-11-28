@@ -1,12 +1,9 @@
 using System;
 using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -21,8 +18,8 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
     private Panel _dmsPanel = null!;
     private ComboBox _startDayOfWeekComboBox = null!;
     private ComboBox _endDayOfWeekComboBox = null!;
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
     private readonly PluginSettings? _pluginSettings;
 
     public LocalSolarWeeklyTimeRangeRuleSettingsControl() : this(null)
@@ -57,52 +54,62 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
     {
         if (_pluginSettings == null) return;
         var isDms = _pluginSettings.LongitudeDisplayMode == Models.LongitudeDisplayMode.Dms;
-        _longitudeBox.IsVisible = !isDms;
-        _dmsPanel.IsVisible = isDms;
+        _longitudeBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _dmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
         if (isDms)
         {
             UpdateDmsFromLongitude();
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+        _isLoading = true;
+        try
         {
-            _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
-        }
-        else
-        {
-            _startDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
-        {
-            _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
-        }
-        else
-        {
-            _endDayOfWeekComboBox.SelectedIndex = 0;
-        }
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
 
-        var startInitialValue = Settings.StartTime;
-        ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            if (Settings.StartDayOfWeek >= 0 && Settings.StartDayOfWeek < 7)
+            {
+                _startDayOfWeekComboBox.SelectedIndex = Settings.StartDayOfWeek;
+            }
+            else
+            {
+                _startDayOfWeekComboBox.SelectedIndex = 0;
+            }
 
-        var endInitialValue = Settings.EndTime;
-        ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+            if (Settings.EndDayOfWeek >= 0 && Settings.EndDayOfWeek < 7)
+            {
+                _endDayOfWeekComboBox.SelectedIndex = Settings.EndDayOfWeek;
+            }
+            else
+            {
+                _endDayOfWeekComboBox.SelectedIndex = 0;
+            }
+
+            var startInitialValue = Settings.StartTime;
+            ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            var endInitialValue = Settings.EndTime;
+            ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -112,7 +119,6 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -135,7 +141,6 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -152,8 +157,7 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         {
             Width = 120,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)",
-            IsVisible = !isDms
+            Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
@@ -161,22 +165,21 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         _dmsPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Left,
-            IsVisible = isDms
+            Visibility = isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
-        _dmsDegreesBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesBox = new TextBox { Width = 50 };
         _dmsDegreesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsDegreesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsMinutesBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesBox = new TextBox { Width = 45 };
         _dmsMinutesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsMinutesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsSecondsBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsBox = new TextBox { Width = 45 };
         _dmsSecondsBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsSecondsBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
@@ -190,8 +193,7 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
         var container = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
+            Orientation = Orientation.Vertical
         };
         container.Children.Add(_longitudeBox);
         container.Children.Add(_dmsPanel);
@@ -213,7 +215,6 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -260,7 +261,6 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -271,7 +271,7 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -338,6 +338,7 @@ public class LocalSolarWeeklyTimeRangeRuleSettingsControl : RuleSettingsControlB
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.StartDayOfWeek = _startDayOfWeekComboBox.SelectedIndex;

@@ -1,11 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
-using ClassIsland.Core.Abstractions.Controls;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -15,17 +12,51 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase<TimeZoneDailyTimeRangeRuleSettings>
 {
     private ComboBox _timeZoneComboBox = null!;
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneDailyTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
     }
 
-    protected override void OnInitialized()
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        base.OnInitialized();
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseTimeString(Settings.StartTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseTimeString(Settings.EndTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
         if (Settings != null)
         {
             foreach (var item in _timeZoneComboBox.Items)
@@ -46,7 +77,6 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -59,7 +89,7 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         // 结束时间
         mainPanel.Children.Add(CreateTimePickerGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -72,7 +102,6 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -106,7 +135,6 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -118,7 +146,7 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         });
 
         // 时间选择器
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 260,
             ClockIdentifier = "24HourClock",
@@ -168,6 +196,7 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 开始时间
@@ -192,6 +221,3 @@ public class TimeZoneDailyTimeRangeRuleSettingsControl : RuleSettingsControlBase
         if (parts.Length >= 3 && int.TryParse(parts[2], out int s)) second = s;
     }
 }
-
-
-

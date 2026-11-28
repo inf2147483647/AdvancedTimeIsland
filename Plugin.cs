@@ -4,22 +4,23 @@ using Microsoft.Extensions.Configuration;
 using ClassIsland.Core.Abstractions;
 using ClassIsland.Core.Attributes;
 using ClassIsland.Core.Extensions.Registry;
-using ClassIsland.Shared.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Services.NotificationProviders;
 using AdvancedTimeIsland.Views.Main;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Automation.Triggers;
-using AdvancedTimeIsland.Automation.Conditions;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Automation.Actions;
 using AdvancedTimeIsland.Helpers;
-using Avalonia.Controls;
-using Avalonia.Styling;
-using Avalonia.Input;
+using AdvancedTimeIsland.Shared;
+using MaterialDesignThemes.Wpf;
 using System.IO;
 using System.Text.Json;
 using System.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Input;
 
 namespace AdvancedTimeIsland;
 
@@ -229,22 +230,39 @@ public class Plugin : PluginBase
             DebugSettings.PropertyChanged += OnDebugSettingsPropertyChanged;
         }
 
+        // 汉服 Markdown 内容热更新：后台从 GitHub 最新 release 检查并下载，
+        // 解压到插件目录的 Markdown 文件夹，不阻塞插件启动与 UI。
+        Helpers.HanfuMarkdownUpdater.Start();
+
         services.AddSingleton(Settings);
 
-        services.AddSingleton<LunarInstallerService>();
-
-        LunarInstallerService.AutoInstallAsync();
-
         services.AddSingleton<TimeBaseService>();
+        services.AddSingleton<SharedRenderClockService>();
+        services.AddSingleton<AttendanceCalendarService>();
         services.AddNotificationProvider<CountdownNotificationProvider>();
         services.AddHostedService<Shared.ServicesFetcherService>();
+        services.AddHostedService<StartupDelayService>();
+        services.AddHostedService<Services.FontSizeSyncService>();
+        // 【启动顺序】悬浮窗独立进程宿主服务必须先于 FloatingScheduleService 注册：
+        //   HostedService 按注册顺序启动、逆序停止 —— 先启动的 HostProcessService 会把命名管道
+        //   listener 先建好，FloatingScheduleService 起来后即可直接向子进程推送；退出时 FloatingScheduleService
+        //   先收尾、再由 HostProcessService 终止子进程。同一实例以"具体类型单例 + 工厂注册 IHostedService"方式注册，
+        //   便于设置页/其它服务从容器取到同一个实例。
+        services.AddSingleton<Services.FloatScheduleHostProcessService>();
+        services.AddHostedService(sp => sp.GetRequiredService<Services.FloatScheduleHostProcessService>());
+        services.AddHostedService<Services.FloatingScheduleService>();
+        services.AddHostedService<Services.SemesterStartService>();
 
         RegisterButtonPointerCursorStyle();
+        RegisterScrollViewerTouchPanning();
 
         services.AddComponent<AdvancedDateControl, AdvancedDateSettingsControl>();
         services.AddComponent<CountdownControl, CountdownSettingsControl>();
         services.AddComponent<ForwardTimerControl, ForwardTimerSettingsControl>();
         services.AddComponent<PeriodicCountdownControl, PeriodicCountdownSettingsControl>();
+        services.AddComponent<YearWeekControl, YearWeekSettingsControl>();
+        services.AddComponent<SemesterWeekControl, SemesterWeekSettingsControl>();
+        services.AddComponent<AttendanceControl, AttendanceSettingsControl>();
 
         if (Settings.EnableLunarCalendar)
         {
@@ -293,13 +311,12 @@ public class Plugin : PluginBase
 
         if (Settings.EnableExperimentalFeatures)
         {
+            services.AddComponent<SevenSegmentClockControl, SevenSegmentClockSettingsControl>();
             services.AddComponent<FpsMonitorControl, FpsMonitorSettingsControl>();
             services.AddHostedService<Services.FpsBackgroundCollectorService>();
         }
 
         services.AddSingleton<ExactTimeTrigger>();
-
-        services.AddSingleton<TimeRangeCondition>();
 
         // ========== 现有条件：时间基准改为插件全局偏移后的时间 ==========
 
@@ -307,7 +324,7 @@ public class Plugin : PluginBase
         services.AddRule<ExactTimeRangeRuleSettings, ExactTimeRangeRuleSettingsControl>(
             "advancedtimeisland.exact_time_range",
             "精确时间在范围",
-            "\uecc2",
+            PackIconKind.ClockOutline,
             settings =>
             {
                 if (settings is not ExactTimeRangeRuleSettings s)
@@ -329,7 +346,7 @@ public class Plugin : PluginBase
         services.AddRule<YearlyTimeRangeRuleSettings, YearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.yearly_time_range",
             "每年时间范围",
-            "\uecc3",
+            PackIconKind.CalendarOutline,
             settings =>
             {
                 if (settings is not YearlyTimeRangeRuleSettings s)
@@ -377,7 +394,7 @@ public class Plugin : PluginBase
         services.AddRule<MonthlyTimeRangeRuleSettings, MonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.monthly_time_range",
             "每月时间范围",
-            "\uecc4",
+            PackIconKind.CalendarMonth,
             settings =>
             {
                 if (settings is not MonthlyTimeRangeRuleSettings s)
@@ -423,7 +440,7 @@ public class Plugin : PluginBase
         services.AddRule<DailyTimeRangeRuleSettings, DailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.daily_time_range",
             "每天时间范围",
-            "\uecc5",
+            PackIconKind.CalendarToday,
             settings =>
             {
                 if (settings is not DailyTimeRangeRuleSettings s)
@@ -467,7 +484,7 @@ public class Plugin : PluginBase
         services.AddRule<HourlyTimeRangeRuleSettings, HourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.hourly_time_range",
             "每小时时间范围",
-            "\uecc6",
+            PackIconKind.Clock,
             settings =>
             {
                 if (settings is not HourlyTimeRangeRuleSettings s)
@@ -509,7 +526,7 @@ public class Plugin : PluginBase
         services.AddRule<MinutelyTimeRangeRuleSettings, MinutelyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.minutely_time_range",
             "每分钟时间范围",
-            "\uecc7",
+            PackIconKind.TimerSand,
             settings =>
             {
                 if (settings is not MinutelyTimeRangeRuleSettings s)
@@ -546,7 +563,7 @@ public class Plugin : PluginBase
             services.AddRule<LocalSolarExactTimeRuleSettings, LocalSolarExactTimeRuleSettingsControl>(
             "advancedtimeisland.local_solar_exact_time_range",
             "地方时精确时间在范围",
-            "\uecc2",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarExactTimeRuleSettings s)
@@ -568,7 +585,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarYearlyTimeRangeRuleSettings, LocalSolarYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_yearly_time_range",
             "地方时每年时间范围",
-            "\uecc3",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarYearlyTimeRangeRuleSettings s)
@@ -616,7 +633,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarMonthlyTimeRangeRuleSettings, LocalSolarMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_monthly_time_range",
             "地方时每月时间范围",
-            "\uecc4",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarMonthlyTimeRangeRuleSettings s)
@@ -662,7 +679,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarDailyTimeRangeRuleSettings, LocalSolarDailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_daily_time_range",
             "地方时每天时间范围",
-            "\uecc5",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarDailyTimeRangeRuleSettings s)
@@ -706,7 +723,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarHourlyTimeRangeRuleSettings, LocalSolarHourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_hourly_time_range",
             "地方时每小时时间范围",
-            "\uecc6",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarHourlyTimeRangeRuleSettings s)
@@ -748,7 +765,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarMinutelyTimeRangeRuleSettings, LocalSolarMinutelyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_minutely_time_range",
             "地方时每分钟时间范围",
-            "\uecc7",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarMinutelyTimeRangeRuleSettings s)
@@ -781,7 +798,7 @@ public class Plugin : PluginBase
         services.AddRule<LocalSolarWeeklyTimeRangeRuleSettings, LocalSolarWeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.local_solar_weekly_time_range",
             "地方时每周时间范围",
-            "\uecd5",
+            PackIconKind.Earth,
             settings =>
             {
                 if (settings is not LocalSolarWeeklyTimeRangeRuleSettings s)
@@ -806,7 +823,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetLocalSolarTime(GetCurrentTime(), s.Longitude);
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
@@ -845,7 +862,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneExactTimeRuleSettings, TimeZoneExactTimeRuleSettingsControl>(
             "advancedtimeisland.time_zone_exact_time_range",
             "区时精确时间在范围",
-            "\uecc2",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneExactTimeRuleSettings s)
@@ -867,7 +884,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneYearlyTimeRangeRuleSettings, TimeZoneYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_yearly_time_range",
             "区时每年时间范围",
-            "\uecc3",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneYearlyTimeRangeRuleSettings s)
@@ -915,7 +932,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneMonthlyTimeRangeRuleSettings, TimeZoneMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_monthly_time_range",
             "区时每月时间范围",
-            "\uecc4",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneMonthlyTimeRangeRuleSettings s)
@@ -961,7 +978,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneDailyTimeRangeRuleSettings, TimeZoneDailyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_daily_time_range",
             "区时每天时间范围",
-            "\uecc5",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneDailyTimeRangeRuleSettings s)
@@ -1005,7 +1022,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneHourlyTimeRangeRuleSettings, TimeZoneHourlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_hourly_time_range",
             "区时每小时时间范围",
-            "\uecc6",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneHourlyTimeRangeRuleSettings s)
@@ -1047,7 +1064,7 @@ public class Plugin : PluginBase
         services.AddRule<TimeZoneWeeklyTimeRangeRuleSettings, TimeZoneWeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.time_zone_weekly_time_range",
             "区时每周时间范围",
-            "\uecd6",
+            PackIconKind.GlobeModel,
             settings =>
             {
                 if (settings is not TimeZoneWeeklyTimeRangeRuleSettings s)
@@ -1072,7 +1089,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetTimeZoneTime(GetCurrentTime(), s.TimeZone);
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
@@ -1109,7 +1126,7 @@ public class Plugin : PluginBase
         services.AddRule<WeeklyTimeRangeRuleSettings, WeeklyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.weekly_time_range",
             "每周时间范围",
-            "\uecd0",
+            PackIconKind.CalendarWeek,
             settings =>
             {
                 if (settings is not WeeklyTimeRangeRuleSettings s)
@@ -1134,7 +1151,7 @@ public class Plugin : PluginBase
                     return false;
 
                 var now = GetCurrentTime();
-                var currentDayOfWeek = (int)now.DayOfWeek;
+                var currentDayOfWeek = WeekNumberHelper.GetMondayBasedDayIndex(now);
 
                 bool isInDayRange;
                 if (s.StartDayOfWeek <= s.EndDayOfWeek)
@@ -1172,7 +1189,7 @@ public class Plugin : PluginBase
             services.AddRule<LunarExactTimeRangeRuleSettings, LunarExactTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_exact_time_in_range",
             "农历精确时间范围",
-            "\uece8",
+            PackIconKind.MoonNew,
             settings =>
             {
                 if (settings is not LunarExactTimeRangeRuleSettings s)
@@ -1232,7 +1249,7 @@ public class Plugin : PluginBase
         services.AddRule<LunarYearlyTimeRangeRuleSettings, LunarYearlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_yearly_time_in_range",
             "农历每年时间范围",
-            "\uece9",
+            PackIconKind.MoonWaningCrescent,
             settings =>
             {
                 if (settings is not LunarYearlyTimeRangeRuleSettings s)
@@ -1312,7 +1329,7 @@ public class Plugin : PluginBase
         services.AddRule<LunarMonthlyTimeRangeRuleSettings, LunarMonthlyTimeRangeRuleSettingsControl>(
             "advancedtimeisland.lunar_monthly_time_in_range",
             "农历每月时间范围",
-            "\uecea",
+            PackIconKind.MoonFull,
             settings =>
             {
                 if (settings is not LunarMonthlyTimeRangeRuleSettings s)
@@ -1417,7 +1434,7 @@ public class Plugin : PluginBase
         services.AddRule<UnixTimestampRangeRuleSettings, UnixTimestampRangeRuleSettingsControl>(
             "advancedtimeisland.unix_timestamp_range",
             "绝对时间范围",
-            "\ueceb",
+            PackIconKind.Counter,
             settings =>
             {
                 if (settings is not UnixTimestampRangeRuleSettings s)
@@ -1512,7 +1529,13 @@ public class Plugin : PluginBase
         }
 
         services.AddSettingsPage<Views.Settings.AboutPage>();
+        services.AddSettingsPage<Views.Settings.FloatingScheduleSettingsPage>();
+        services.AddSettingsPage<Views.Settings.AttendanceCalendarPage>();
         services.AddSettingsPage<Views.Settings.DebugPage>();
+        services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+        services.AddSettingsPage<Views.Settings.WomenswearPage>();
+        services.AddSettingsPage<Views.Settings.UsingPointerPage>();
+        services.AddSettingsPage<Views.Settings.IssueFeedbackPage>();
         if (Settings.EnableExperimentalFeatures)
         {
             services.AddSettingsPage<Views.Settings.FpsChartPage>();
@@ -1535,11 +1558,187 @@ public class Plugin : PluginBase
             services.AddSettingsPage<Views.Settings.ChangShanAoShuLingPage>();
             services.AddSettingsPage<Views.Settings.ChangShanAoJiaoLingPage>();
             services.AddSettingsPage<Views.Settings.HanfuPointNorthPage>();
-            services.AddSettingsPage<Views.Settings.HanfuPageTemplate>();
+            services.AddSettingsPage<Views.Settings.NanNvTongYongHanFuZhiBei>();
+            services.AddSettingsPage<Views.Settings.MaMianQunMale>();
+            services.AddSettingsPage<Views.Settings.ManZheQunMalePage>();
+            services.AddSettingsPage<Views.Settings.SongMoPage>();
+            services.AddSettingsPage<Views.Settings.JiaHao>();
+            services.AddSettingsPage<Views.Settings.HanfuXuanGouZhiNanPage>();
+            services.AddSettingsPage<Views.Settings.HanfuIssuesPage>();
+            services.AddSettingsPage<Views.Settings.AoShanJiaolingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.AoShanJiaolingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.AoShanYuanlingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.AoShanYuanlingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.AoShanZhilingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BaidiequnJinweiheSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BaidiequnTuohoukuanSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BanbiTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.BanxiuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.BanxiuqunruBixiJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.BanxiuqunruDonghanshiJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.BaofuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BeixinBeisongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BeixinNansongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BeixinSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.BeiziTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.BijiaBeixinMingstyleMalePage>();
+            services.AddSettingsPage<Views.Settings.BijiaBeixinMingstylePage>();
+            services.AddSettingsPage<Views.Settings.BuziBufuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanBeisongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanJiaolingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanJiaolingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanNansongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanYuanlingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanYuanlingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanZhilingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangaoShanZhilingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangbeiziMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangbeiziSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangruDanyiXianqinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangruFuyiXianqinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangruJiayiXianqinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangruQujushiHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangruZhijushiHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangshanAoFanglingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangshanAoYuanlingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangshanAoZhilingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangxiDaxiJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangxiuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChangyiMingstyleMalePage>();
+            services.AddSettingsPage<Views.Settings.ChangyiMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChangyiSongzhiMalePage>();
+            services.AddSettingsPage<Views.Settings.ChangyiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChaofuFutouMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ChaofuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ChenpaoChenbeiziSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DahuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DangSongkuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DanyiBixiJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.DanyiHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.DaofuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DaofuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DaopaoMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DaxiulianshangTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.DaxiuqunruTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.DaxiushanXiapeiMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DaxiuyiHengpeiXiapeiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DiguanMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DiyiMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DuanaoShanBeisongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DuanaoShanJiaolingSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DuanaoShanNansongshiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.DuanshanAoFanglingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DuanshanAoYuanlingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.DuanshanAoZhilingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.FuyiHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.GongfuLiangguanMingstylePage>();
+            services.AddSettingsPage<Views.Settings.GongfuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.GongfuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.GunmianSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.GunmianTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.HanshanAoziJiaolingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.HanshanAoziYuanlingTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.HexiuMoxiuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.HexiuMoxiuSongzhiMalePage>();
+            services.AddSettingsPage<Views.Settings.HexiuMoxiuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.HuangshengmoxiongSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.HuiyiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.HuiyiTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunDuanqunYaoqunTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunLongqunTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunPandaishiTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunQunchenqunTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunShoushengkuanTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunWuyuanqunJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunXianqinzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiaoyuqunYouyuanqunJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.JiayiHanzhiPage>();
+            services.AddSettingsPage<Views.Settings.JifuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.JifuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.KuKaidangkuSongzhiMalePage>();
+            services.AddSettingsPage<Views.Settings.KuKaidangkuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.KuMingstyleMalePage>();
+            services.AddSettingsPage<Views.Settings.KuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.KunHedangkuSongzhiMalePage>();
+            services.AddSettingsPage<Views.Settings.KunHedangkuSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.KunKuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.KunKuTangzhiMalePage>();
+            services.AddSettingsPage<Views.Settings.KunKuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.KunKuXianqinzhiPage>();
+            services.AddSettingsPage<Views.Settings.LanpaoLanshanTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.LanshanLanpaoMingstylePage>();
+            services.AddSettingsPage<Views.Settings.LanshanSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.LiangdangJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.LiangpianqunSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ManzhequnPage>();
+            services.AddSettingsPage<Views.Settings.MianfuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.MoruMofuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.MujiMuxieJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.PeiziJiapeiziPiboTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.PeiziJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.PiAoMingstylePage>();
+            services.AddSettingsPage<Views.Settings.PiaoPishanTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.PifengMingstyleMalePage>();
+            services.AddSettingsPage<Views.Settings.PifengMingstylePage>();
+            services.AddSettingsPage<Views.Settings.PipaoPishanTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.QunxiKuxiJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.RuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.SanchanSanchuanSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.SanjianqunDuojianqunTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.SanjianqunSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShanAoJiaolingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ShanAoYuanlingMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ShanruChuihuxiuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShanruDaxiuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShanruQulingJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShanruZhaixiuZhixiuJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShanruZhilingJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.ShenyiDadaiFujinMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ShenyiDadaiFujinSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.TongtianguanfuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.XiShanJinzhiPage>();
+            services.AddSettingsPage<Views.Settings.YaodaiTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.YefuMingstylePage>();
+            services.AddSettingsPage<Views.Settings.YisaMingstylePage>();
+            services.AddSettingsPage<Views.Settings.YuanlingjuyiMingstylePage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoKuipaoSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoLanpaoshanSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoShanMingstyleMalePage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoShanMingstylePage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoshanQuekuapaoshanTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.YuanlingpaoSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.YudiSongzhiPage>();
+            services.AddSettingsPage<Views.Settings.YunjianMingstylePage>();
+            services.AddSettingsPage<Views.Settings.YupaoTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.YuxiuTangzhiPage>();
+            services.AddSettingsPage<Views.Settings.ZhaojiaMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ZhiduoMingstylePage>();
+            services.AddSettingsPage<Views.Settings.ZhishenMingstylePage>();
         }
 
-        services.AddAction<Automation.Actions.SyncClassIslandTimeAction>();
-        services.AddAction<Automation.Actions.SyncPluginTimeAction>();
+        services.AddAction("advancedtimeisland.sync_classisland_time", "同步ClassIsland时间", PackIconKind.TimerSync, (_, _) =>
+        {
+            _ = System.Threading.Tasks.Task.Run(() =>
+            {
+                GlobalConstants.HostInterfaces.ExactTimeService?.Sync();
+            });
+        });
+        services.AddAction("advancedtimeisland.sync_plugin_time", "同步AdvancedTimeIsland插件时间", PackIconKind.Sync, (_, _) =>
+        {
+            _ = TimeBaseService.Instance?.SyncTimeNowAsync(TimeSpan.FromSeconds(10));
+        });
+        services.AddAction<SetFloatingScheduleActionSettings, SetFloatingScheduleActionSettingsControl>(
+            "advancedtimeisland.set_floating_schedule",
+            "设置悬浮时间表开关",
+            PackIconKind.ToggleSwitch,
+            (settings, _) =>
+            {
+                if (settings is not SetFloatingScheduleActionSettings actionSettings) return;
+                if (Instance?.Settings is not { } pluginSettings) return;
+                pluginSettings.EnableFloatingSchedule = actionSettings.Enabled;
+            });
 
         // ========== 新增条件：星座、节气、生肖 ==========
         if (Settings.EnableXingZuo)
@@ -1547,7 +1746,7 @@ public class Plugin : PluginBase
             services.AddRule<XingZuoRuleSettings, XingZuoRuleSettingsControl>(
                 "advancedtimeisland.xingzuo",
                 "当前星座是",
-                "\uE120",
+                PackIconKind.Star,
                 settings =>
                 {
                     if (settings is not XingZuoRuleSettings s)
@@ -1568,7 +1767,7 @@ public class Plugin : PluginBase
             services.AddRule<JieQiRuleSettings, JieQiRuleSettingsControl>(
                 "advancedtimeisland.jieqi",
                 "当前节气是",
-                "\uE123",
+                PackIconKind.WeatherSunny,
                 settings =>
                 {
                     if (settings is not JieQiRuleSettings s)
@@ -1589,7 +1788,7 @@ public class Plugin : PluginBase
             services.AddRule<ShengXiaoRuleSettings, ShengXiaoRuleSettingsControl>(
                 "advancedtimeisland.shengxiao",
                 "当前生肖是",
-                "\uE124",
+                PackIconKind.Paw,
                 settings =>
                 {
                     if (settings is not ShengXiaoRuleSettings s)
@@ -1610,7 +1809,7 @@ public class Plugin : PluginBase
             services.AddRule<FestivalRuleSettings, FestivalRuleSettingsControl>(
                 "advancedtimeisland.festival",
                 "当前节日是",
-                "\uE125",
+                PackIconKind.Gift,
                 settings =>
                 {
                     if (settings is not FestivalRuleSettings s)
@@ -1724,17 +1923,57 @@ public class Plugin : PluginBase
 
     private void RegisterButtonPointerCursorStyle()
     {
-        if (Avalonia.Application.Current != null)
+        if (Application.Current != null)
         {
-            var buttonStyle = new Style(x => x.OfType<Button>())
-            {
-                Setters =
-                {
-                    new Setter(Control.CursorProperty, new Cursor(StandardCursorType.Hand))
-                }
-            };
-            Avalonia.Application.Current.Styles.Add(buttonStyle);
+            var buttonStyle = new Style(typeof(Button));
+            buttonStyle.Setters.Add(new Setter(FrameworkElement.CursorProperty, Cursors.Hand));
+            Application.Current.Resources[typeof(Button)] = buttonStyle;
         }
+    }
+
+    /// <summary>
+    /// 启用 ScrollViewer 触摸平移（触屏滚动）。
+    /// 优先通过 OverrideMetadata 将 PanningMode 默认值改为 Both；
+    /// 同时通过 Loaded 类处理器按各 ScrollViewer 的滚动条可见性自动选择精确方向：
+    /// 仅垂直（页面主体）→ VerticalOnly；仅水平（代码块/表格块）→ HorizontalOnly；
+    /// 双向 → Both；均不可滚 → None。
+    /// 仅当 PanningMode 未被显式设置（仍为默认值）时生效，不覆盖宿主显式配置。
+    /// </summary>
+    private static void RegisterScrollViewerTouchPanning()
+    {
+        try
+        {
+            ScrollViewer.PanningModeProperty.OverrideMetadata(
+                typeof(ScrollViewer),
+                new FrameworkPropertyMetadata(PanningMode.Both));
+        }
+        catch
+        {
+            // 元数据已被宿主应用，走 Loaded 兜底
+        }
+
+        EventManager.RegisterClassHandler(
+            typeof(ScrollViewer),
+            FrameworkElement.LoadedEvent,
+            new RoutedEventHandler(OnScrollViewerLoaded));
+    }
+
+    private static void OnScrollViewerLoaded(object sender, RoutedEventArgs e)
+    {
+        if (sender is not ScrollViewer scrollViewer) return;
+        var source = DependencyPropertyHelper.GetValueSource(scrollViewer, ScrollViewer.PanningModeProperty);
+        if (source.BaseValueSource != BaseValueSource.Default) return;
+
+        var canScrollVertical = scrollViewer.VerticalScrollBarVisibility is ScrollBarVisibility.Auto or ScrollBarVisibility.Visible;
+        var canScrollHorizontal = scrollViewer.HorizontalScrollBarVisibility is ScrollBarVisibility.Auto or ScrollBarVisibility.Visible;
+
+        scrollViewer.PanningMode = (canScrollVertical, canScrollHorizontal) switch
+        {
+            (true, true) => PanningMode.Both,
+            (true, false) => PanningMode.VerticalOnly,
+            (false, true) => PanningMode.HorizontalOnly,
+            _ => PanningMode.None
+        };
     }
 }
 

@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_yearly_time_interval", "地方时每年时间范围间隔触发", "\uecde")]
+[TriggerInfo("advancedtimeisland.local_solar_yearly_time_interval", "地方时每年时间范围间隔触发", PackIconKind.TimerSync)]
 public class LocalSolarYearlyTimeIntervalTrigger : TimeTriggerBase<LocalSolarYearlyTimeIntervalTriggerSettings>
 {
     protected override DateTime GetCurrentTime()

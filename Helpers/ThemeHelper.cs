@@ -1,21 +1,49 @@
 using System;
-using Avalonia;
-using Avalonia.Media;
-using Avalonia.Styling;
+using System.Windows;
+using System.Windows.Media;
+using ClassIsland.Core.Abstractions.Services;
+using ClassIsland.Shared;
 
 namespace AdvancedTimeIsland.Helpers;
 
 public static class ThemeHelper
 {
+    /// <summary>
+    /// 当前是否为深色主题。优先使用 ClassIsland 的 <see cref="IThemeService"/>，
+    /// 服务不可用时回退为 Windows 系统应用主题。
+    /// </summary>
     public static bool IsDarkTheme()
     {
-        var themeVariant = Application.Current?.ActualThemeVariant;
-        if (themeVariant == ThemeVariant.Dark) return true;
-        if (themeVariant == ThemeVariant.Light) return false;
+        try
+        {
+            var themeService = IAppHost.TryGetService<IThemeService>();
+            if (themeService != null)
+            {
+                return themeService.CurrentRealThemeMode == 1;
+            }
+        }
+        catch
+        {
+        }
+
+        try
+        {
+            using var key = Microsoft.Win32.Registry.CurrentUser.OpenSubKey(
+                @"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+            var value = key?.GetValue("AppsUseLightTheme");
+            if (value is int appsUseLightTheme)
+            {
+                return appsUseLightTheme == 0;
+            }
+        }
+        catch
+        {
+        }
+
         return true;
     }
 
-    public static IBrush GetTextBrush()
+    public static Brush GetTextBrush()
     {
         return IsDarkTheme() ? Brushes.White : Brushes.Black;
     }
@@ -25,9 +53,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#FFFFFF" : "#000000";
     }
 
-    public static IBrush GetSubTextBrush()
+    public static Brush GetSubTextBrush()
     {
-        return IsDarkTheme() ? Brushes.LightGray : new SolidColorBrush(Color.Parse("#222222"));
+        return IsDarkTheme() ? Brushes.LightGray : new SolidColorBrush(ParseColor("#222222"));
     }
 
     public static string GetSubTextColorHex()
@@ -35,7 +63,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#D3D3D3" : "#222222";
     }
 
-    public static IBrush GetGrayBrush()
+    public static Brush GetGrayBrush()
     {
         return IsDarkTheme() ? Brushes.Gray : Brushes.DimGray;
     }
@@ -45,7 +73,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#808080" : "#696969";
     }
 
-    public static IBrush GetLightBlueBrush()
+    public static Brush GetLightBlueBrush()
     {
         return IsDarkTheme() ? Brushes.LightBlue : Brushes.RoyalBlue;
     }
@@ -55,7 +83,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#ADD8E6" : "#4169E1";
     }
 
-    public static IBrush GetYellowBrush()
+    public static Brush GetYellowBrush()
     {
         return IsDarkTheme() ? Brushes.Yellow : Brushes.Goldenrod;
     }
@@ -65,7 +93,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#FFFF00" : "#DAA520";
     }
 
-    public static IBrush GetOrangeBrush()
+    public static Brush GetOrangeBrush()
     {
         return IsDarkTheme() ? Brushes.Orange : Brushes.DarkOrange;
     }
@@ -75,9 +103,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#FFA500" : "#FF8C00";
     }
 
-    public static IBrush GetCardBackgroundBrush()
+    public static Brush GetCardBackgroundBrush()
     {
-        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#2D2D30")) : new SolidColorBrush(Color.Parse("#F5F5F5"));
+        return IsDarkTheme() ? new SolidColorBrush(ParseColor("#2D2D30")) : new SolidColorBrush(ParseColor("#F5F5F5"));
     }
 
     public static string GetCardBackgroundColorHex()
@@ -85,9 +113,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#2D2D30" : "#F5F5F5";
     }
 
-    public static IBrush GetSeparatorBrush()
+    public static Brush GetSeparatorBrush()
     {
-        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#555555")) : new SolidColorBrush(Color.Parse("#CCCCCC"));
+        return IsDarkTheme() ? new SolidColorBrush(ParseColor("#555555")) : new SolidColorBrush(ParseColor("#CCCCCC"));
     }
 
     public static string GetSeparatorColorHex()
@@ -95,13 +123,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#555555" : "#CCCCCC";
     }
 
-    public static IBrush GetProgressRingBackgroundBrush()
+    public static Brush GetProgressRingBackgroundBrush()
     {
-        if (Application.Current?.Styles.TryGetResource("ControlStrongStrokeColorDisabledBrush", Application.Current.ActualThemeVariant, out var resource) == true && resource is IBrush brush)
-        {
-            return brush;
-        }
-        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#404040")) : new SolidColorBrush(Color.Parse("#E8E8E8"));
+        return IsDarkTheme() ? new SolidColorBrush(ParseColor("#404040")) : new SolidColorBrush(ParseColor("#E8E8E8"));
     }
 
     public static string GetProgressRingBackgroundColorHex()
@@ -109,9 +133,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#404040" : "#E8E8E8";
     }
 
-    public static IBrush GetQuoteBackgroundBrush()
+    public static Brush GetQuoteBackgroundBrush()
     {
-        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#252528")) : new SolidColorBrush(Color.Parse("#F0F0F0"));
+        return IsDarkTheme() ? new SolidColorBrush(ParseColor("#252528")) : new SolidColorBrush(ParseColor("#F0F0F0"));
     }
 
     public static string GetQuoteBackgroundColorHex()
@@ -119,9 +143,9 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#252528" : "#F0F0F0";
     }
 
-    public static IBrush GetHanfuBackgroundBrush()
+    public static Brush GetHanfuBackgroundBrush()
     {
-        return IsDarkTheme() ? new SolidColorBrush(Color.Parse("#1E1E1E")) : new SolidColorBrush(Color.Parse("#FFFFFF"));
+        return IsDarkTheme() ? new SolidColorBrush(ParseColor("#1E1E1E")) : new SolidColorBrush(ParseColor("#FFFFFF"));
     }
 
     public static string GetHanfuBackgroundColorHex()
@@ -129,7 +153,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#1E1E1E" : "#FFFFFF";
     }
 
-    public static IBrush GetYiBrush()
+    public static Brush GetYiBrush()
     {
         return IsDarkTheme() ? Brushes.LightGreen : Brushes.DarkGreen;
     }
@@ -139,7 +163,7 @@ public static class ThemeHelper
         return IsDarkTheme() ? "#90EE90" : "#006400";
     }
 
-    public static IBrush GetJiBrush()
+    public static Brush GetJiBrush()
     {
         return Brushes.Red;
     }
@@ -149,21 +173,20 @@ public static class ThemeHelper
         return "#FF0000";
     }
 
-    public static IBrush ParseColorOrThemeDefault(string? colorStr)
+    public static Brush ParseColorOrThemeDefault(string? colorStr)
     {
         if (!string.IsNullOrEmpty(colorStr) && colorStr.StartsWith("#") && (colorStr.Length == 7 || colorStr.Length == 9))
         {
             try
             {
-                var color = Color.Parse(colorStr);
-                return new SolidColorBrush(color);
+                return new SolidColorBrush(ParseColor(colorStr));
             }
             catch { }
         }
         return GetTextBrush();
     }
 
-    public static IBrush GetColorBrush(string? colorStr, bool enableCustom)
+    public static Brush GetColorBrush(string? colorStr, bool enableCustom)
     {
         if (enableCustom)
         {
@@ -174,15 +197,25 @@ public static class ThemeHelper
 
     public static event EventHandler? ThemeChanged;
 
+    /// <summary>
+    /// 订阅 ClassIsland 主题变更事件。插件初始化时调用一次。
+    /// </summary>
     public static void Initialize()
     {
-        if (Application.Current != null)
+        try
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            var themeService = IAppHost.TryGetService<IThemeService>();
+            if (themeService != null)
+            {
+                themeService.ThemeUpdated += OnThemeUpdated;
+            }
+        }
+        catch
+        {
         }
     }
 
-    private static void OnThemeVariantChanged(object? sender, EventArgs e)
+    private static void OnThemeUpdated(object? sender, ClassIsland.Core.Models.Theming.ThemeUpdatedEventArgs e)
     {
         ThemeChanged?.Invoke(null, EventArgs.Empty);
     }
@@ -191,7 +224,7 @@ public static class ThemeHelper
     {
         try
         {
-            var color = Color.Parse(colorHex);
+            var color = ParseColor(colorHex);
             var brightness = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
             if (brightness > 0.5)
             {
@@ -214,7 +247,7 @@ public static class ThemeHelper
     {
         try
         {
-            var color = Color.Parse(colorHex);
+            var color = ParseColor(colorHex);
             var brightness = (0.299 * color.R + 0.587 * color.G + 0.114 * color.B) / 255;
             return brightness > 0.5;
         }
@@ -228,7 +261,7 @@ public static class ThemeHelper
     {
         var isDark = IsDarkTheme();
         var isLight = IsLightColor(colorHex);
-        
+
         if (isDark)
         {
             if (isLight)
@@ -245,5 +278,33 @@ public static class ThemeHelper
             }
             return "#000000";
         }
+    }
+
+    /// <summary>
+    /// 将十六进制颜色字符串解析为 <see cref="Color"/>，兼容 6 位（#RRGGBB）与 8 位（#AARRGGBB）格式。
+    /// </summary>
+    public static Color ParseColor(string colorHex)
+    {
+        if (string.IsNullOrEmpty(colorHex))
+        {
+            return Colors.Black;
+        }
+
+        // 兼容 Avalonia 风格的无 # 前缀输入
+        var hex = colorHex.TrimStart('#');
+        if (hex.Length == 6)
+        {
+            hex = "FF" + hex;
+        }
+        else if (hex.Length == 8)
+        {
+            // 保持原样（AARRGGBB 顺序与 WPF 一致）
+        }
+        else
+        {
+            throw new FormatException($"无法解析颜色字符串: {colorHex}");
+        }
+
+        return (Color)ColorConverter.ConvertFromString("#" + hex);
     }
 }

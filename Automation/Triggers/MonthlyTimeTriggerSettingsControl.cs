@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -14,7 +12,7 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<MonthlyTimeRangeRuleSettings>
 {
     private ComboBox _dayComboBox = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public MonthlyTimeTriggerSettingsControl()
     {
@@ -34,7 +32,6 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -61,7 +58,6 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
         var panel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -96,7 +92,6 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -107,7 +102,7 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -122,27 +117,38 @@ public class MonthlyTimeTriggerSettingsControl : TriggerSettingsControlBase<Mont
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
-
-        if (day >= 1 && day <= 31)
+        _isLoading = true;
+        try
         {
-            _dayComboBox.SelectedIndex = day - 1;
-        }
-        else
-        {
-            _dayComboBox.SelectedIndex = 0;
-        }
+            if (Settings == null) return;
 
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int day, out int hour, out int minute, out int second);
+
+            if (day >= 1 && day <= 31)
+            {
+                _dayComboBox.SelectedIndex = day - 1;
+            }
+            else
+            {
+                _dayComboBox.SelectedIndex = 0;
+            }
+
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var day = _dayComboBox.SelectedIndex + 1;

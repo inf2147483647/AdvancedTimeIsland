@@ -1,10 +1,12 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_weekly_time", "区时每周", "\uece5")]
+[TriggerInfo("advancedtimeisland.timezone_weekly_time", "区时每周", PackIconKind.ClockOutline)]
 public class TimeZoneWeeklyTimeTrigger : TimeTriggerBase<TimeZoneWeeklyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()
@@ -26,7 +28,7 @@ public class TimeZoneWeeklyTimeTrigger : TimeTriggerBase<TimeZoneWeeklyTimeRange
             !int.TryParse(timeParts[2], out int second))
             return false;
 
-        return (int)now.DayOfWeek == Settings.StartDayOfWeek &&
+        return WeekNumberHelper.GetMondayBasedDayIndex(now) == Settings.StartDayOfWeek &&
                now.Hour == hour &&
                now.Minute == minute &&
                now.Second == second;

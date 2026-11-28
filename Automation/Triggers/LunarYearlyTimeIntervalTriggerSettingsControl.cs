@@ -1,11 +1,9 @@
 using System;
 using System.Collections.Generic;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -17,14 +15,14 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
     private ComboBox _startLunarMonthComboBox = null!;
     private ComboBox _startLunarDayComboBox = null!;
     private CheckBox _startLeapMonthCheckBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     private ComboBox _endLunarMonthComboBox = null!;
     private ComboBox _endLunarDayComboBox = null!;
     private CheckBox _endLeapMonthCheckBox = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
 
-    private NumericUpDown _intervalNumericUpDown = null!;
+    private WpfNumericUpDown _intervalNumericUpDown = null!;
     private ComboBox _intervalUnitComboBox = null!;
     private bool _isLoading = false;
 
@@ -46,7 +44,6 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -67,7 +64,6 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -76,13 +72,12 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
             Text = label,
             Foreground = ThemeHelper.GetTextBrush(),
             VerticalAlignment = VerticalAlignment.Center,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeights.Bold
         });
 
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -133,7 +128,6 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -172,7 +166,6 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -183,7 +176,7 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 300,
             ClockIdentifier = "24HourClock",
@@ -213,7 +206,6 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -227,11 +219,10 @@ public class LunarYearlyTimeIntervalTriggerSettingsControl : TriggerSettingsCont
         var intervalPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _intervalNumericUpDown = new NumericUpDown
+        _intervalNumericUpDown = new WpfNumericUpDown
         {
             Width = 225,
             Minimum = 0.001m,

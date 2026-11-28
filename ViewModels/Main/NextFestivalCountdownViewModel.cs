@@ -5,7 +5,8 @@ using System.Timers;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -27,6 +28,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
     private string _text3Display = string.Empty;
     private string _timeDisplay = string.Empty;
     private bool _isDisposed;
+    private bool _enableExperimentalFeatures;
 
     public string Text1Display { get => _text1Display; private set { if (_text1Display != value) { _text1Display = value; OnPropertyChanged(); } } }
     public string NameDisplay { get => _nameDisplay; private set { if (_nameDisplay != value) { _nameDisplay = value; OnPropertyChanged(); } } }
@@ -51,11 +53,25 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         _updateTimeFontSize = updateTimeFontSize;
         
         _settings.PropertyChanged += OnSettingsChanged;
+
+        _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged += OnPluginSettingsPropertyChanged;
+
         UpdateDisplay();
         _updateTimer = new System.Timers.Timer(1000);
         _updateTimer.Elapsed += OnTimerElapsed;
         _updateTimer.AutoReset = true;
         _updateTimer.Enabled = true;
+    }
+
+    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+            UpdateDisplay();
+        }
     }
 
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
@@ -68,7 +84,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text1FontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text1EnableCustomFontSize))
         {
-            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1FontSize?.Invoke(_settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontColor))
@@ -78,7 +94,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.NameFontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.NameEnableCustomFontSize))
         {
-            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameFontSize?.Invoke(_settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontColor))
@@ -88,7 +104,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.Text3FontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.Text3EnableCustomFontSize))
         {
-            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3FontSize?.Invoke(_settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontColor) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontColor))
@@ -98,9 +114,10 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFontSize) ||
             e.PropertyName == nameof(NextFestivalCountdownSettings.TimeEnableCustomFontSize))
         {
-            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeFontSize?.Invoke(_settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(NextFestivalCountdownSettings.TimeFormat) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text1) || e.PropertyName == nameof(NextFestivalCountdownSettings.Text3) ||
+                 e.PropertyName == nameof(NextFestivalCountdownSettings.EnableTimeCorrection) ||
                  e.PropertyName == nameof(NextFestivalCountdownSettings.EnableInternationalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableChineseTraditionalFestivals) || e.PropertyName == nameof(NextFestivalCountdownSettings.EnableRedFestivals))
         {
             UpdateDisplay();
@@ -133,7 +150,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
             var nextFestival = GetNextFestival(now);
             var targetTime = new DateTime(nextFestival.Year, nextFestival.Month, nextFestival.Day, 0, 0, 0);
             var timeLeft = targetTime - now;
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await UIThread.Dispatcher.InvokeAsync(() =>
             {
                 Text1Display = _settings.Text1;
                 NameDisplay = nextFestival.Name;
@@ -209,6 +226,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("寒食节", GetQingMingDate(date.Year).AddDays(-1)));
         festivals.Add(("清明节", GetQingMingDate(date.Year)));
         festivals.Add(("端午节", LunarToSolar(lunarYear, 5, 5)));
+        festivals.Add(("上巳节", LunarToSolar(lunarYear, 3, 3)));
         festivals.Add(("七夕节", LunarToSolar(lunarYear, 7, 7)));
         festivals.Add(("中元节", LunarToSolar(lunarYear, 7, 15)));
         festivals.Add(("中秋节", LunarToSolar(lunarYear, 8, 15)));
@@ -217,6 +235,11 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("腊八节", LunarToSolar(lunarYear, 12, 8)));
         festivals.Add(("小年", LunarToSolar(lunarYear, 12, 23)));
         festivals.Add(("除夕", GetChuXiDate(lunarYear)));
+
+        if (_enableExperimentalFeatures)
+        {
+            festivals.Add(("花朝节", LunarToSolar(lunarYear, 2, 15)));
+        }
     }
 
     private void AddRedFestivals(List<(string Name, DateTime Date)> festivals, DateTime date)
@@ -231,6 +254,7 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         festivals.Add(("烈士纪念日", new DateTime(date.Year, 9, 30)));
         festivals.Add(("十一国庆节", new DateTime(date.Year, 10, 1)));
         festivals.Add(("中国工农红军长征胜利纪念日", new DateTime(date.Year, 10, 22)));
+        festivals.Add(("台湾光复纪念日", new DateTime(date.Year, 10, 25)));
         festivals.Add(("南京大屠杀死难者国家公祭日", new DateTime(date.Year, 12, 13)));
     }
 
@@ -295,6 +319,58 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         var seconds = (int)(remainingSeconds % 60);
         var milliseconds = (int)(totalMilliseconds % 1000);
         var format = string.IsNullOrEmpty(_settings.TimeFormat) ? "%d天" : _settings.TimeFormat;
+
+        // 差一矫正：精度不足时将最小显示单位加一（与多倒计时组件一致）
+        if (_settings.EnableTimeCorrection && totalSeconds > 0 && !format.Contains("%x") && !format.Contains("%X"))
+        {
+            if (format.Contains("%s") || format.Contains("%S"))
+            {
+                seconds++;
+                if (seconds >= 60)
+                {
+                    seconds = 0;
+                    minutes++;
+                    if (minutes >= 60)
+                    {
+                        minutes = 0;
+                        hours++;
+                        if (hours >= 24)
+                        {
+                            hours = 0;
+                            days++;
+                        }
+                    }
+                }
+            }
+            else if (format.Contains("%m") || format.Contains("%M"))
+            {
+                minutes++;
+                if (minutes >= 60)
+                {
+                    minutes = 0;
+                    hours++;
+                    if (hours >= 24)
+                    {
+                        hours = 0;
+                        days++;
+                    }
+                }
+            }
+            else if (format.Contains("%h") || format.Contains("%H"))
+            {
+                hours++;
+                if (hours >= 24)
+                {
+                    hours = 0;
+                    days++;
+                }
+            }
+            else if (format.Contains("%d"))
+            {
+                days++;
+            }
+        }
+
         return format
             .Replace("%d", days.ToString())
             .Replace("%h", hours.ToString())
@@ -315,6 +391,8 @@ public class NextFestivalCountdownViewModel : INotifyPropertyChanged, IDisposabl
         if (_isDisposed) return;
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged -= OnPluginSettingsPropertyChanged;
         _updateTimer?.Stop();
         _updateTimer?.Dispose();
     }

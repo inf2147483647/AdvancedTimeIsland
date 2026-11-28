@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -19,8 +17,8 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
     private ComboBox _lunarMonthComboBox = null!;
     private CheckBox _leapMonthCheckBox = null!;
     private ComboBox _lunarDayComboBox = null!;
-    private TimePicker _startTimePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
 
     public LunarTimeRangeTriggerSettingsControl()
     {
@@ -40,21 +38,18 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var yearPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var yearRangePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -83,7 +78,6 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         var tgDzPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -139,7 +133,6 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -179,7 +172,6 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         var dayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -222,7 +214,6 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -233,7 +224,7 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 380,
             ClockIdentifier = "24HourClock",
@@ -264,72 +255,83 @@ public class LunarTimeRangeTriggerSettingsControl : TriggerSettingsControlBase<L
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings != null && Settings.LunarYear > 0)
+        _isLoading = true;
+        try
         {
-            var tg = LunarCalendarHelper.GetTiangan(Settings.LunarYear);
-            var dz = LunarCalendarHelper.GetDizhi(Settings.LunarYear);
-            _tianganComboBox.SelectedItem = tg;
-            _dizhiComboBox.SelectedItem = dz;
-
-            foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+            if (Settings != null && Settings.LunarYear > 0)
             {
-                if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                var tg = LunarCalendarHelper.GetTiangan(Settings.LunarYear);
+                var dz = LunarCalendarHelper.GetDizhi(Settings.LunarYear);
+                _tianganComboBox.SelectedItem = tg;
+                _dizhiComboBox.SelectedItem = dz;
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
                 {
-                    if (Settings.LunarYear >= startYear && Settings.LunarYear <= endYear)
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
                     {
-                        _yearRangeComboBox.SelectedItem = range;
-                        break;
+                        if (Settings.LunarYear >= startYear && Settings.LunarYear <= endYear)
+                        {
+                            _yearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
                     }
                 }
             }
-        }
-        else
-        {
-            _yearRangeComboBox.SelectedIndex = 2;
-            _tianganComboBox.SelectedIndex = 0;
-            _dizhiComboBox.SelectedIndex = 0;
-        }
+            else
+            {
+                _yearRangeComboBox.SelectedIndex = 2;
+                _tianganComboBox.SelectedIndex = 0;
+                _dizhiComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings != null && Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
-        {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
-        }
-        else
-        {
-            _lunarMonthComboBox.SelectedIndex = 0;
-        }
+            if (Settings != null && Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
 
-        if (Settings != null)
-        {
-            _leapMonthCheckBox.IsChecked = Settings.IsLeapMonth;
-        }
-        else
-        {
-            _leapMonthCheckBox.IsChecked = false;
-        }
+            if (Settings != null)
+            {
+                _leapMonthCheckBox.IsChecked = Settings.IsLeapMonth;
+            }
+            else
+            {
+                _leapMonthCheckBox.IsChecked = false;
+            }
 
-        if (Settings != null && Settings.LunarDay > 0 && Settings.LunarDay <= 30)
-        {
-            _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
-        }
-        else
-        {
-            _lunarDayComboBox.SelectedIndex = 0;
-        }
+            if (Settings != null && Settings.LunarDay > 0 && Settings.LunarDay <= 30)
+            {
+                _lunarDayComboBox.SelectedIndex = Settings.LunarDay - 1;
+            }
+            else
+            {
+                _lunarDayComboBox.SelectedIndex = 0;
+            }
 
-        var startInitialValue = Settings?.StartTime ?? "";
-        ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
-        _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+            var startInitialValue = Settings?.StartTime ?? "";
+            ParseTimeString(startInitialValue, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
 
-        var endInitialValue = Settings?.EndTime ?? "";
-        ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
-        _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+            var endInitialValue = Settings?.EndTime ?? "";
+            ParseTimeString(endInitialValue, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var yearRange = _yearRangeComboBox.SelectedItem as string;

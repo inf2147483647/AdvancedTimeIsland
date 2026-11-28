@@ -1,13 +1,11 @@
 using System;
 using System.ComponentModel;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -59,35 +57,45 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
     {
         if (_pluginSettings == null) return;
         var isDms = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
-        _longitudeBox.IsVisible = !isDms;
-        _dmsPanel.IsVisible = isDms;
+        _longitudeBox.Visibility = isDms ? Visibility.Collapsed : Visibility.Visible;
+        _dmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
         if (isDms)
         {
             UpdateDmsFromLongitude();
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
         UpdateLongitudeDisplay();
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        _longitudeBox.Text = Settings.Longitude.ToString("F4");
-        UpdateDmsFromLongitude();
-
-        var initialValue = Settings.StartSecond;
-        if (int.TryParse(initialValue, out int second))
+        _isLoading = true;
+        try
         {
-            _startSecondBox.Text = second.ToString("D2");
+            if (Settings == null) return;
+
+            _longitudeBox.Text = Settings.Longitude.ToString("F4");
+            UpdateDmsFromLongitude();
+
+            var initialValue = Settings.StartSecond;
+            if (int.TryParse(initialValue, out int second))
+            {
+                _startSecondBox.Text = second.ToString("D2");
+            }
+            else
+            {
+                _startSecondBox.Text = "00";
+            }
         }
-        else
+        finally
         {
-            _startSecondBox.Text = "00";
+            _isLoading = false;
         }
     }
 
@@ -98,7 +106,6 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -130,7 +137,6 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -147,8 +153,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         {
             Width = 120,
             HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "经度 (-180~180)",
-            IsVisible = !isDms
+            Visibility = isDms ? Visibility.Collapsed : Visibility.Visible
         };
 
         _longitudeBox.TextChanged += (s, e) => UpdateLongitude();
@@ -156,22 +161,21 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         _dmsPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             HorizontalAlignment = HorizontalAlignment.Left,
-            IsVisible = isDms
+            Visibility = isDms ? Visibility.Visible : Visibility.Collapsed
         };
 
-        _dmsDegreesBox = new TextBox { Width = 50, Watermark = "度" };
+        _dmsDegreesBox = new TextBox { Width = 50 };
         _dmsDegreesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsDegreesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsMinutesBox = new TextBox { Width = 45, Watermark = "分" };
+        _dmsMinutesBox = new TextBox { Width = 45 };
         _dmsMinutesBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsMinutesBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center });
 
-        _dmsSecondsBox = new TextBox { Width = 45, Watermark = "秒" };
+        _dmsSecondsBox = new TextBox { Width = 45 };
         _dmsSecondsBox.TextChanged += (s, e) => UpdateLongitudeFromDms();
         _dmsPanel.Children.Add(_dmsSecondsBox);
         _dmsPanel.Children.Add(new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center });
@@ -185,8 +189,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
 
         var container = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 4
+            Orientation = Orientation.Vertical
         };
         container.Children.Add(_longitudeBox);
         container.Children.Add(_dmsPanel);
@@ -208,7 +211,6 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -222,8 +224,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
         _startSecondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         _startSecondBox.TextChanged += (s, e) => UpdateSettingsValue();
@@ -298,6 +299,7 @@ public class LocalSolarMinutelyTimeTriggerSettingsControl : TriggerSettingsContr
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

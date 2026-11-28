@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.unix_timestamp_interval", "绝对时间戳范围间隔触发", "\uecd7")]
+[TriggerInfo("advancedtimeisland.unix_timestamp_interval", "绝对时间戳范围间隔触发", PackIconKind.Counter)]
 public class UnixTimestampIntervalTrigger : TimeTriggerBase<UnixTimestampIntervalTriggerSettings>
 {
     protected override bool CheckTrigger(DateTime now)

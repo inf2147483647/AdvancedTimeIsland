@@ -1,11 +1,9 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -13,7 +11,7 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 
 public class DailyTimeTriggerSettingsControl : TriggerSettingsControlBase<DailyTimeRangeRuleSettings>
 {
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     public DailyTimeTriggerSettingsControl()
     {
@@ -33,7 +31,6 @@ public class DailyTimeTriggerSettingsControl : TriggerSettingsControlBase<DailyT
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -59,7 +56,6 @@ public class DailyTimeTriggerSettingsControl : TriggerSettingsControlBase<DailyT
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -70,7 +66,7 @@ public class DailyTimeTriggerSettingsControl : TriggerSettingsControlBase<DailyT
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _startTimePicker = new TimePicker
+        _startTimePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -85,17 +81,28 @@ public class DailyTimeTriggerSettingsControl : TriggerSettingsControlBase<DailyT
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _startTimePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;

@@ -1,10 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -14,13 +12,16 @@ namespace AdvancedTimeIsland.Automation.Triggers;
 public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBase<TimeZoneHourlyTimeRangeRuleSettings>
 {
     private ComboBox _timeZoneComboBox = null!;
-    private NumericUpDown _startMinuteNumeric = null!;
-    private NumericUpDown _startSecondNumeric = null!;
+    private WpfNumericUpDown _startMinuteNumeric = null!;
+    private WpfNumericUpDown _startSecondNumeric = null!;
+    private bool _isLoading;
+    private bool _hasLoaded;
 
     public TimeZoneHourlyTimeTriggerSettingsControl()
     {
         InitializeComponent();
         Loaded += OnLoaded;
+        Dispatcher.BeginInvoke(new Action(() => LoadSettingsToUi()));
     }
 
     private void OnLoaded(object? sender, RoutedEventArgs e)
@@ -35,7 +36,6 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -55,7 +55,6 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -89,7 +88,6 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -102,11 +100,10 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
         var numericPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
-        var minuteNumeric = new NumericUpDown
+        var minuteNumeric = new WpfNumericUpDown
         {
             Width = 100,
             Minimum = 0,
@@ -115,7 +112,7 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
             FormatString = "00"
         };
 
-        var secondNumeric = new NumericUpDown
+        var secondNumeric = new WpfNumericUpDown
         {
             Width = 100,
             Minimum = 0,
@@ -162,20 +159,29 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
     {
         if (Settings == null) return;
 
-        foreach (var item in _timeZoneComboBox.Items)
+        // 加载期间屏蔽 ValueChanged，避免 setter 重入导致读取未初始化的另一个控件
+        _isLoading = true;
+        try
         {
-            if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+            foreach (var item in _timeZoneComboBox.Items)
             {
-                _timeZoneComboBox.SelectedItem = item;
-                break;
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
             }
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int minute, out int second);
+
+            _startMinuteNumeric.Value = minute;
+            _startSecondNumeric.Value = second;
         }
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int minute, out int second);
-
-        _startMinuteNumeric.Value = minute;
-        _startSecondNumeric.Value = second;
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateTimeZone()
@@ -189,9 +195,9 @@ public class TimeZoneHourlyTimeTriggerSettingsControl : TriggerSettingsControlBa
 
     private void UpdateSettingsValue()
     {
-        if (Settings == null) return;
+        if (Settings == null || _isLoading) return;
 
-        Settings.StartTime = $"{(int)_startMinuteNumeric.Value:D2}-{(int)_startSecondNumeric.Value:D2}";
+        Settings.StartTime = $"{(int)(_startMinuteNumeric.Value ?? 0):D2}-{(int)(_startSecondNumeric.Value ?? 0):D2}";
     }
 
     private void ParseTimeString(string value, out int minute, out int second)

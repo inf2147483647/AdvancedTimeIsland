@@ -217,6 +217,17 @@ public class NextJieQiCountdownSettings : INotifyPropertyChanged
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -438,6 +449,17 @@ public class NextXingZuoCountdownSettings : INotifyPropertyChanged
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -645,6 +667,21 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         }
     }
 
+    private bool _enableExperimentalFeatures = false;
+
+    public bool EnableExperimentalFeatures
+    {
+        get => _enableExperimentalFeatures;
+        set
+        {
+            if (_enableExperimentalFeatures != value)
+            {
+                _enableExperimentalFeatures = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
     private bool _text1EnableCustomFontSize = false;
     public bool Text1EnableCustomFontSize
     {
@@ -701,6 +738,17 @@ public class NextFestivalCountdownSettings : INotifyPropertyChanged
         set { if (_timeEnableCustomFontColor != value) { _timeEnableCustomFontColor = value; OnPropertyChanged(); } }
     }
 
+    private bool _enableTimeCorrection = true;
+
+    /// <summary>
+    /// 差一矫正：当格式化精度不足时最小显示单位加一（默认开启）
+    /// </summary>
+    public bool EnableTimeCorrection
+    {
+        get => _enableTimeCorrection;
+        set { if (_enableTimeCorrection != value) { _enableTimeCorrection = value; OnPropertyChanged(); } }
+    }
+
     public event PropertyChangedEventHandler? PropertyChanged;
 
     protected virtual void OnPropertyChanged([CallerMemberName] string? propertyName = null)
@@ -719,6 +767,7 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
     private double _jiValueFontSize = 14;
     private string _yiLabelFontColor = "";
     private string _jiLabelFontColor = "";
+    private int _displayMode = 1;
 
     public string YiLabel
     {
@@ -744,6 +793,12 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
                 OnPropertyChanged();
             }
         }
+    }
+
+    public int DisplayMode
+    {
+        get => _displayMode;
+        set { if (_displayMode != value) { _displayMode = value; OnPropertyChanged(); } }
     }
 
     public double YiLabelFontSize
@@ -976,6 +1031,14 @@ public class TomorrowYiJiSettings : INotifyPropertyChanged
     {
         get => _jiValueEnableCustomFontWeight;
         set { if (_jiValueEnableCustomFontWeight != value) { _jiValueEnableCustomFontWeight = value; OnPropertyChanged(); } }
+    }
+
+    private bool _infoBarDismissed = false;
+
+    public bool InfoBarDismissed
+    {
+        get => _infoBarDismissed;
+        set { if (_infoBarDismissed != value) { _infoBarDismissed = value; OnPropertyChanged(); } }
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;

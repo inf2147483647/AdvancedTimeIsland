@@ -1,14 +1,13 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
+using MaterialDesignThemes.Wpf;
+using System.Windows.Media;
+using System.Windows.Shapes;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Shapes;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
 
@@ -17,12 +16,13 @@ namespace AdvancedTimeIsland.Views.Main;
 [ComponentInfo(
     "77889900-1122-3344-5566-778899071122",
     "周期性倒计时（ATI）",
-    "\uE121",
+    PackIconKind.Refresh,
     "显示周期性重复的倒计时，支持每小时/每天/每周/每月/每年"
 )]
 public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
 {
     private PeriodicCountdownViewModel vm;
+    private bool _initCompleted;
     private TextBlock tbText1;
     private TextBlock tbText2;
     private TextBlock tbText3;
@@ -34,7 +34,7 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
     private ProgressBar progressBar;
     private Panel circleProgressRoot;
     private Ellipse circleProgressBackground;
-    private Avalonia.Controls.Shapes.Path circleProgressPath;
+    private System.Windows.Shapes.Path circleProgressPath;
 
     public PeriodicCountdownControl(TimeBaseService tbs)
     {
@@ -55,7 +55,6 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         contentPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 4,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
         };
@@ -74,9 +73,9 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
 
         outerGrid.Children.Add(contentPanel);
 
-        circleProgressRoot = new Panel
+        circleProgressRoot = new Grid
         {
-            IsVisible = false,
+            Visibility = Visibility.Collapsed,
             VerticalAlignment = VerticalAlignment.Center,
             Margin = new Thickness(15, 0, 4, 0)
         };
@@ -92,13 +91,13 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
             HorizontalAlignment = HorizontalAlignment.Center
         };
 
-        circleProgressPath = new Avalonia.Controls.Shapes.Path
+        circleProgressPath = new System.Windows.Shapes.Path
         {
             Width = 22,
             Height = 22,
             Fill = Brushes.Transparent,
             Stroke = ThemeHelper.GetLightBlueBrush(),
-            StrokeLineCap = PenLineCap.Round,
+
             StrokeThickness = 3.1,
             VerticalAlignment = VerticalAlignment.Center,
             HorizontalAlignment = HorizontalAlignment.Center
@@ -114,7 +113,7 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
             Maximum = 100,
             Minimum = 0,
             MinWidth = 0,
-            IsVisible = false,
+            Visibility = Visibility.Collapsed,
             Value = 0,
             HorizontalAlignment = HorizontalAlignment.Stretch,
             VerticalAlignment = VerticalAlignment.Bottom,
@@ -154,18 +153,30 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
 
     private void UpdateTextBlockStyle(TextBlock tb, string colorStr, double fontSize, bool enableCustomColor)
     {
-        tb.FontSize = fontSize;
+        if (fontSize > 0)
+            tb.FontSize = fontSize;
+        else
+            tb.FontSize = FontFamilyHelper.GetBodyFontSize(tb);
         tb.Foreground = ThemeHelper.GetColorBrush(colorStr, enableCustomColor);
     }
 
     private void OnThemeVariantChanged(object? sender, EventArgs e)
     {
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressColors();
+    }
+
+    private void OnBodyFontSizeChanged(object? sender, EventArgs e)
+    {
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
     }
 
     private void UpdateProgressColors()
@@ -179,10 +190,12 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         }
         else
         {
-            if (Application.Current?.Styles.TryGetResource("AccentFillColorDefaultBrush", Application.Current.ActualThemeVariant, out var accentBrush) == true && accentBrush is IBrush brush)
+            var accentBrush = Application.Current?.TryFindResource("PrimaryHueMidBrush") as Brush
+                ?? Application.Current?.TryFindResource("MaterialDesign.Brush.Primary") as Brush;
+            if (accentBrush != null)
             {
-                circleProgressPath.Stroke = brush;
-                progressBar.Foreground = brush;
+                circleProgressPath.Stroke = accentBrush;
+                progressBar.Foreground = accentBrush;
             }
             else
             {
@@ -192,56 +205,47 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         }
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
+        _initCompleted = true;
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged += OnBodyFontSizeChanged;
+        Unloaded += OnUnloaded;
         vm = new PeriodicCountdownViewModel(_timeBaseService, Settings,
             UpdateText1Style, UpdateText2Style, UpdateText3Style, UpdateTimeStyle, UpdateText4Style);
         DataContext = vm;
 
         UpdateDisplays();
 
-        vm.PropertyChanged += (s, e) =>
-        {
-            switch (e.PropertyName)
-            {
-                case nameof(vm.Text1Display):
-                    tbText1.Text = vm.Text1Display;
-                    break;
-                case nameof(vm.Text2Display):
-                    tbText2.Text = vm.Text2Display;
-                    break;
-                case nameof(vm.Text3Display):
-                    tbText3.Text = vm.Text3Display;
-                    break;
-                case nameof(vm.TimeDisplay):
-                    tbTime.Text = vm.TimeDisplay;
-                    break;
-                case nameof(vm.Text4Display):
-                    tbText4.Text = vm.Text4Display;
-                    break;
-                case nameof(vm.Percent):
-                    UpdateProgressDisplay();
-                    break;
-                case nameof(vm.IsAllCompleted):
-                case nameof(vm.IsEmpty):
-                    UpdateDisplays();
-                    break;
-            }
-        };
+        vm.PropertyChanged += OnVmPropertyChanged;
 
         Settings.PropertyChanged += OnSettingsChanged;
 
-        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 14);
-        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 14);
-        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 14);
-        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 14);
-        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 14);
+        UpdateText1Style(Settings.Text1FontColor, Settings.Text1EnableCustomFontSize ? Settings.Text1FontSize : 0);
+        UpdateText2Style(Settings.Text2FontColor, Settings.Text2EnableCustomFontSize ? Settings.Text2FontSize : 0);
+        UpdateText3Style(Settings.Text3FontColor, Settings.Text3EnableCustomFontSize ? Settings.Text3FontSize : 0);
+        UpdateTimeStyle(Settings.TimeFontColor, Settings.TimeEnableCustomFontSize ? Settings.TimeFontSize : 0);
+        UpdateText4Style(Settings.Text4FontColor, Settings.Text4EnableCustomFontSize ? Settings.Text4FontSize : 0);
         UpdateProgressDisplayMode();
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
     }
 
     private void UpdateDisplays()
@@ -256,9 +260,10 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         }
         else if (vm.IsAllCompleted)
         {
-            tbText1.Text = "";
-            tbText2.Text = "";
-            tbText3.Text = "倒计时已结束";
+            // 结束状态由 ViewModel 计算（三段式或回退单行），此处直接呈现
+            tbText1.Text = vm.Text1Display;
+            tbText2.Text = vm.Text2Display;
+            tbText3.Text = vm.Text3Display;
             tbTime.Text = "";
             tbText4.Text = "";
         }
@@ -277,20 +282,20 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         switch (Settings.ProgressDisplayMode)
         {
             case ProgressDisplayMode.None:
-                circleProgressRoot.IsVisible = false;
-                progressBar.IsVisible = false;
+                circleProgressRoot.Visibility = Visibility.Collapsed;
+                progressBar.Visibility = Visibility.Collapsed;
                 break;
             case ProgressDisplayMode.Bar:
-                circleProgressRoot.IsVisible = false;
-                progressBar.IsVisible = true;
+                circleProgressRoot.Visibility = Visibility.Collapsed;
+                progressBar.Visibility = Visibility.Visible;
                 break;
             case ProgressDisplayMode.Ring:
-                circleProgressRoot.IsVisible = true;
-                progressBar.IsVisible = false;
+                circleProgressRoot.Visibility = Visibility.Visible;
+                progressBar.Visibility = Visibility.Collapsed;
                 break;
             case ProgressDisplayMode.Both:
-                circleProgressRoot.IsVisible = true;
-                progressBar.IsVisible = true;
+                circleProgressRoot.Visibility = Visibility.Visible;
+                progressBar.Visibility = Visibility.Visible;
                 break;
         }
     }
@@ -300,7 +305,7 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         progressBar.Value = vm.Percent;
         var geometry = PercentToPathGeometry(vm.Percent);
         circleProgressPath.Data = geometry;
-        circleProgressBackground.IsVisible = geometry != null;
+        circleProgressBackground.Visibility = geometry != null ? Visibility.Visible : Visibility.Collapsed;
     }
 
     private Geometry PercentToPathGeometry(double percentage)
@@ -325,7 +330,7 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
             center.Y + radius * Math.Sin(angleRad)
         );
 
-        var segments = new PathSegments
+        var segments = new PathSegmentCollection
         {
             new ArcSegment
             {
@@ -364,14 +369,41 @@ public class PeriodicCountdownControl : ComponentBase<PeriodicCountdownSettings>
         }
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnVmPropertyChanged(object? sender, System.ComponentModel.PropertyChangedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+        switch (e.PropertyName)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            case nameof(vm.Text1Display):
+                tbText1.Text = vm.Text1Display;
+                break;
+            case nameof(vm.Text2Display):
+                tbText2.Text = vm.Text2Display;
+                break;
+            case nameof(vm.Text3Display):
+                tbText3.Text = vm.Text3Display;
+                break;
+            case nameof(vm.TimeDisplay):
+                tbTime.Text = vm.TimeDisplay;
+                break;
+            case nameof(vm.Text4Display):
+                tbText4.Text = vm.Text4Display;
+                break;
+            case nameof(vm.Percent):
+                UpdateProgressDisplay();
+                break;
+            case nameof(vm.IsAllCompleted):
+            case nameof(vm.IsEmpty):
+                UpdateDisplays();
+                break;
         }
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
+        FontFamilyHelper.BodyFontSizeChanged -= OnBodyFontSizeChanged;
         Settings.PropertyChanged -= OnSettingsChanged;
+        vm.PropertyChanged -= OnVmPropertyChanged;
         (vm as IDisposable)?.Dispose();
     }
 }

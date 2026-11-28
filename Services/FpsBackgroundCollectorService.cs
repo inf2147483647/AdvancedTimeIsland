@@ -1,14 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Media;
+using System.Windows.Threading;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.ApplicationLifetimes;
-using Avalonia.Threading;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 
@@ -18,20 +16,20 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 {
     private const int WindowSeconds = 10;
     private const int RetryDelayMs = 100;
-    private const int FpsReportIntervalMs = 10;
+    private const int FpsReportIntervalMs = 50;
 
     private readonly ILogger<FpsBackgroundCollectorService> _logger;
     private CancellationTokenSource? _cts;
     private Task? _waitForTopLevelTask;
     private Task? _reportTask;
     private double _currentFps;
-    private readonly List<(DateTime Time, double Fps)> _fpsSamples = new();
-    private readonly List<double> _rawSamplesBuffer = new(3);
+    private readonly Queue<(DateTime Time, double Fps)> _fpsSamples = new();
+    private readonly Queue<double> _rawSamplesBuffer = new();
     private bool _isDisposed;
     private bool _isRunning;
     private bool _isPaused;
     private IDisposable? _renderTimerSubscription;
-    private TopLevel? _currentTopLevel;
+    private Window? _currentTopLevel;
 
     private bool _useInternalFps;
     private int _frameCount;
@@ -76,7 +74,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
     {
         try
         {
-            TopLevel? topLevel = null;
+            Window? topLevel = null;
             while (!ct.IsCancellationRequested && _isRunning)
             {
                 topLevel = await GetTopLevelAsync(ct);
@@ -94,7 +92,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 
             if (topLevel == null || ct.IsCancellationRequested || !_isRunning) return;
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await UIThread.Dispatcher.InvokeAsync(() =>
             {
                 if (!_isRunning || ct.IsCancellationRequested) return;
                 StartCollecting(topLevel);
@@ -108,7 +106,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
         }
     }
 
-    private void StartCollecting(TopLevel topLevel)
+    private void StartCollecting(Window topLevel)
     {
         _currentTopLevel = topLevel;
 
@@ -129,8 +127,8 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
             return;
         }
 
-        topLevel.RequestAnimationFrame(OnAnimationFrame);
-        _logger.LogInformation("Using RequestAnimationFrame (counting method) for FPS collection.");
+        CompositionTarget.Rendering += OnAnimationFrame;
+        _logger.LogInformation("Using CompositionTarget.Rendering (counting method) for FPS collection.");
     }
 
     private void OnRenderTimerTick(TimeSpan timestamp)
@@ -140,16 +138,11 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
         _oneSecondFrameCount++;
     }
 
-    private void OnAnimationFrame(TimeSpan timestamp)
+    private void OnAnimationFrame(object? sender, EventArgs e)
     {
         if (!_isRunning || _isPaused) return;
         _frameCount++;
         _oneSecondFrameCount++;
-
-        if (_currentTopLevel != null && _isRunning && !_isPaused)
-        {
-            _currentTopLevel.RequestAnimationFrame(OnAnimationFrame);
-        }
     }
 
     private async Task RunReportLoop(CancellationToken ct)
@@ -226,23 +219,25 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
     {
         if (fps <= 0 || double.IsNaN(fps) || double.IsInfinity(fps)) return;
 
-        _rawSamplesBuffer.Add(fps);
+        _rawSamplesBuffer.Enqueue(fps);
 
         if (_rawSamplesBuffer.Count < 3)
             return;
 
-        var avgFps = _rawSamplesBuffer.Average();
-        _currentFps = avgFps;
+        var samples = _rawSamplesBuffer.ToArray();
         _rawSamplesBuffer.Clear();
+
+        var avgFps = samples.Average();
+        _currentFps = avgFps;
 
         var now = DateTime.Now;
 
-        _fpsSamples.Add((now, avgFps));
+        _fpsSamples.Enqueue((now, avgFps));
 
         var windowStart = now - TimeSpan.FromSeconds(WindowSeconds);
-        while (_fpsSamples.Count > 0 && _fpsSamples[0].Time < windowStart)
+        while (_fpsSamples.Count > 0 && _fpsSamples.Peek().Time < windowStart)
         {
-            _fpsSamples.RemoveAt(0);
+            _fpsSamples.Dequeue();
         }
 
         var currentSamples = _fpsSamples.Select(s => s.Fps).ToList();
@@ -274,58 +269,18 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
         return sum / targetCount;
     }
 
-    private Task<TopLevel?> GetTopLevelAsync(CancellationToken ct)
+    private Task<Window?> GetTopLevelAsync(CancellationToken ct)
     {
-        return Dispatcher.UIThread.InvokeAsync<TopLevel?>(() =>
+        return UIThread.Dispatcher.InvokeAsync<Window?>(() =>
         {
             try
             {
-                if (Application.Current?.ApplicationLifetime is IClassicDesktopStyleApplicationLifetime desktop)
-                {
-                    if (desktop.MainWindow != null)
-                        return desktop.MainWindow;
+                if (Application.Current?.MainWindow != null)
+                    return Application.Current.MainWindow;
 
-                    if (desktop.Windows?.Count > 0)
-                        return TopLevel.GetTopLevel(desktop.Windows[0]);
-                }
-
-                if (Application.Current?.ApplicationLifetime is ISingleViewApplicationLifetime singleView)
-                {
-                    if (singleView.MainView != null)
-                        return TopLevel.GetTopLevel(singleView.MainView);
-                }
-
-                var lifetime = Application.Current?.ApplicationLifetime;
-                if (lifetime != null)
-                {
-                    var lifetimeType = lifetime.GetType();
-                    var mainWindowProp = lifetimeType.GetProperty("MainWindow", BindingFlags.Public | BindingFlags.Instance);
-                    if (mainWindowProp != null)
-                    {
-                        var window = mainWindowProp.GetValue(lifetime) as Window;
-                        if (window != null) return window;
-                    }
-
-                    var windowsProp = lifetimeType.GetProperty("Windows", BindingFlags.Public | BindingFlags.Instance);
-                    if (windowsProp != null)
-                    {
-                        var windows = windowsProp.GetValue(lifetime) as IEnumerable<Window>;
-                        if (windows != null)
-                        {
-                            foreach (var w in windows)
-                            {
-                                if (w != null) return w;
-                            }
-                        }
-                    }
-
-                    var mainViewProp = lifetimeType.GetProperty("MainView", BindingFlags.Public | BindingFlags.Instance);
-                    if (mainViewProp != null)
-                    {
-                        var view = mainViewProp.GetValue(lifetime) as Visual;
-                        if (view != null) return TopLevel.GetTopLevel(view);
-                    }
-                }
+                var windows = Application.Current?.Windows;
+                if (windows != null && windows.Count > 0)
+                    return windows[0];
 
                 return null;
             }
@@ -333,7 +288,7 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
             {
                 return null;
             }
-        }).GetTask()!;
+        }).Task;
     }
 
     public async Task StopAsync(CancellationToken cancellationToken)
@@ -346,13 +301,27 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
 
             if (_cts != null)
             {
-                _cts.Cancel();
+                try
+                {
+                    _cts.Cancel();
+                }
+                catch
+                {
+                }
+
                 try
                 {
                     if (_waitForTopLevelTask != null)
                     {
                         await _waitForTopLevelTask;
                     }
+                }
+                catch
+                {
+                }
+
+                try
+                {
                     if (_reportTask != null)
                     {
                         await _reportTask;
@@ -361,15 +330,43 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
                 catch
                 {
                 }
-                _cts.Dispose();
+
+                try
+                {
+                    _cts.Dispose();
+                }
+                catch
+                {
+                }
                 _cts = null;
             }
 
-            _renderTimerSubscription?.Dispose();
+            try
+            {
+                _renderTimerSubscription?.Dispose();
+            }
+            catch
+            {
+            }
             _renderTimerSubscription = null;
             _currentTopLevel = null;
 
-            ViewModels.Settings.FpsSampler.Stop();
+            try
+            {
+                CompositionTarget.Rendering -= OnAnimationFrame;
+            }
+            catch
+            {
+            }
+
+            try
+            {
+                ViewModels.Settings.FpsSampler.Stop();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to stop FpsSampler.");
+            }
         }
         catch (Exception ex)
         {
@@ -408,6 +405,14 @@ public class FpsBackgroundCollectorService : IHostedService, IDisposable
             _renderTimerSubscription?.Dispose();
             _renderTimerSubscription = null;
             _currentTopLevel = null;
+
+            try
+            {
+                CompositionTarget.Rendering -= OnAnimationFrame;
+            }
+            catch
+            {
+            }
         }
         catch
         {

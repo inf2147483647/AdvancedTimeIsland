@@ -7,7 +7,8 @@ using System.Timers;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 using Lunar;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
@@ -62,7 +63,7 @@ public class JieQiViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(JieQiSettings.LabelFontWeight) ||
                  e.PropertyName == nameof(JieQiSettings.LabelEnableCustomFontWeight))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(JieQiSettings.ValueFontColor) ||
                  e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontColor) ||
@@ -78,7 +79,7 @@ public class JieQiViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(JieQiSettings.ValueFontWeight) ||
                  e.PropertyName == nameof(JieQiSettings.ValueEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 
@@ -134,7 +135,7 @@ public class JieQiViewModel : INotifyPropertyChanged, IDisposable
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
             var jieQiInfo = GetCurrentOrRecentJieQi(now);
             
-            await Dispatcher.UIThread.InvokeAsync(() => 
+            await UIThread.Dispatcher.InvokeAsync(() => 
             {
                 LabelText = "当前节气：";
                 ValueText = $"{jieQiInfo.Name} ({jieQiInfo.DateRange})";

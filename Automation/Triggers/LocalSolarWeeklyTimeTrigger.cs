@@ -1,10 +1,12 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
+using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.local_solar_weekly_time", "地方时每周", "\uecde")]
+[TriggerInfo("advancedtimeisland.local_solar_weekly_time", "地方时每周", PackIconKind.Earth)]
 public class LocalSolarWeeklyTimeTrigger : TimeTriggerBase<LocalSolarWeeklyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()
@@ -28,7 +30,7 @@ public class LocalSolarWeeklyTimeTrigger : TimeTriggerBase<LocalSolarWeeklyTimeR
             !int.TryParse(timeParts[2], out int second))
             return false;
 
-        return (int)now.DayOfWeek == Settings.StartDayOfWeek &&
+        return WeekNumberHelper.GetMondayBasedDayIndex(now) == Settings.StartDayOfWeek &&
                now.Hour == hour &&
                now.Minute == minute &&
                now.Second == second;

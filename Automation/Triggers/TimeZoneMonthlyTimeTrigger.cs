@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_monthly_time", "区时每月", "\uece4")]
+[TriggerInfo("advancedtimeisland.timezone_monthly_time", "区时每月", PackIconKind.ClockOutline)]
 public class TimeZoneMonthlyTimeTrigger : TimeTriggerBase<TimeZoneMonthlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

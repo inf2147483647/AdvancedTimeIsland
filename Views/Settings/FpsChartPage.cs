@@ -1,13 +1,11 @@
 using System;
+using System.IO;
 using System.Text;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Platform.Storage;
-using Avalonia.Threading;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using System.Windows.Threading;
 
 using AdvancedTimeIsland.ViewModels.Settings;
 using AdvancedTimeIsland.Views.Controls;
@@ -39,8 +37,7 @@ public class FpsChartPage : SettingsPageBase
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Margin = new Thickness(16),
-            Spacing = 12
+            Margin = new Thickness(16)
         };
 
         
@@ -49,7 +46,7 @@ public class FpsChartPage : SettingsPageBase
         {
             Text = "帧率折线图",
             FontSize = 24,
-            FontWeight = FontWeight.Bold,
+            FontWeight = FontWeights.Bold,
             Foreground = ThemeHelper.GetTextBrush()
         };
         mainPanel.Children.Add(_titleTextBlock);
@@ -68,7 +65,6 @@ public class FpsChartPage : SettingsPageBase
         var toolbar = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -106,7 +102,7 @@ public class FpsChartPage : SettingsPageBase
             Content = mainPanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            BringIntoViewOnFocusChange = false
+
         };
 
         var rootGrid = new Grid();
@@ -128,27 +124,34 @@ public class FpsChartPage : SettingsPageBase
         Content = rootGrid;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
+        base.OnInitialized(e);
 
         _viewModel = new FpsChartViewModel();
         DataContext = _viewModel;
 
         UpdateStatus();
 
-        _statusTimer = new DispatcherTimer(
-            TimeSpan.FromSeconds(1),
-            DispatcherPriority.Background,
-            (s, e) => UpdateStatus());
+        _statusTimer = new DispatcherTimer { Interval = TimeSpan.FromSeconds(1) };
+        _statusTimer.Tick += (s, args) => UpdateStatus();
         _statusTimer.Start();
 
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
-        }
+        ThemeHelper.ThemeChanged += OnThemeVariantChanged;
+        Unloaded += OnUnloaded;
 
         UpdateThemeColors();
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        _statusTimer?.Stop();
+        _statusTimer = null;
+
+        _chartControl?.Dispose();
+        (_viewModel as IDisposable)?.Dispose();
+
+        ThemeHelper.ThemeChanged -= OnThemeVariantChanged;
     }
 
     private void UpdateStatus()
@@ -167,7 +170,7 @@ public class FpsChartPage : SettingsPageBase
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "PrimaryButtonText", "确定");
         FluentAvaloniaCompatibilityHelper.SetContentDialogProperty(dialog, "CloseButtonText", "取消");
 
-        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, TopLevel.GetTopLevel(this));
+        var result = await FluentAvaloniaCompatibilityHelper.ShowContentDialogAsync(dialog, Window.GetWindow(this));
         if (FluentAvaloniaCompatibilityHelper.IsContentDialogResultPrimary(result))
         {
             FpsSampler.Clear();
@@ -182,35 +185,25 @@ public class FpsChartPage : SettingsPageBase
     {
         if (_viewModel == null) return;
 
-        var topLevel = TopLevel.GetTopLevel(this);
-        if (topLevel == null) return;
-
-        var file = await topLevel.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        var saveDialog = new Microsoft.Win32.SaveFileDialog
         {
             Title = "导出帧率数据到 CSV",
-            DefaultExtension = "csv",
-            SuggestedFileName = $"fps_data_{DateTime.Now:yyyyMMdd_HHmmss}.csv",
-            FileTypeChoices = new[]
-            {
-                new FilePickerFileType("CSV 文件")
-                {
-                    Patterns = new[] { "*.csv" }
-                }
-            }
-        });
-
-        if (file == null) return;
+            DefaultExt = "csv",
+            Filter = "CSV 文件 (*.csv)|*.csv",
+            FileName = $"fps_data_{DateTime.Now:yyyyMMdd_HHmmss}.csv"
+        };
+        if (saveDialog.ShowDialog(Window.GetWindow(this)) != true) return;
 
         try
         {
-            await using var stream = await file.OpenWriteAsync();
+            await using var stream = File.Create(saveDialog.FileName);
             var bom = Encoding.UTF8.GetPreamble();
             await stream.WriteAsync(bom);
             _viewModel.WriteCsvData(stream);
 
             if (_statusTextBlock != null)
             {
-                _statusTextBlock.Text = $"已导出 {_viewModel.RecordCount} 条记录到 {file.Name}";
+                _statusTextBlock.Text = $"已导出 {_viewModel.RecordCount} 条记录到 {Path.GetFileName(saveDialog.FileName)}";
             }
         }
         catch (Exception ex)
@@ -219,22 +212,6 @@ public class FpsChartPage : SettingsPageBase
             {
                 _statusTextBlock.Text = $"导出失败: {ex.Message}";
             }
-        }
-    }
-
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
-    {
-        base.OnDetachedFromVisualTree(e);
-
-        _statusTimer?.Stop();
-        _statusTimer = null;
-
-        _chartControl?.Dispose();
-        (_viewModel as IDisposable)?.Dispose();
-
-        if (Application.Current != null)
-        {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
         }
     }
 

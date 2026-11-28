@@ -1,11 +1,9 @@
 using System;
-using AdvancedTimeIsland.Helpers;using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -33,7 +31,6 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -59,7 +56,6 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -73,8 +69,7 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
         _startSecondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         _startSecondBox.TextChanged += (s, e) => UpdateSettingsValue();
@@ -93,18 +88,28 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
 
-        var initialValue = Settings.StartSecond;
-        if (int.TryParse(initialValue, out int second))
-        {
-            _startSecondBox.Text = second.ToString("D2");
+            var initialValue = Settings.StartSecond;
+            if (int.TryParse(initialValue, out int second))
+            {
+                _startSecondBox.Text = second.ToString("D2");
+            }
+            else
+            {
+                _startSecondBox.Text = "00";
+            }
         }
-        else
+        finally
         {
-            _startSecondBox.Text = "00";
+            _isLoading = false;
         }
     }
 
@@ -131,6 +136,7 @@ public class MinutelyTimeTriggerSettingsControl : TriggerSettingsControlBase<Min
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         int startSecond = ParseSecond(_startSecondBox.Text);

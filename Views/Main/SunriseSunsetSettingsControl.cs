@@ -1,84 +1,61 @@
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
-using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
+public partial class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 {
     private readonly PluginSettings? _pluginSettings;
+    private bool _initCompleted;
 
-    private TextBlock _titleTextBlock;
-    private TextBlock _descTextBlock;
+    private TextBox _longitudeTextBox = null!;
+    private TextBox _longitudeDmsDegreesTextBox = null!;
+    private TextBox _longitudeDmsMinutesTextBox = null!;
+    private TextBox _longitudeDmsSecondsTextBox = null!;
+    private ComboBox _longitudeDmsDirectionComboBox = null!;
+    private StackPanel _longitudeDmsPanel = null!;
 
-    private TextBlock _coordTitleTextBlock;
+    private TextBox _latitudeTextBox = null!;
+    private TextBox _latitudeDmsDegreesTextBox = null!;
+    private TextBox _latitudeDmsMinutesTextBox = null!;
+    private TextBox _latitudeDmsSecondsTextBox = null!;
+    private ComboBox _latitudeDmsDirectionComboBox = null!;
+    private StackPanel _latitudeDmsPanel = null!;
 
-    private TextBox _longitudeTextBox;
-    private TextBox _longitudeDmsDegreesTextBox;
-    private TextBox _longitudeDmsMinutesTextBox;
-    private TextBox _longitudeDmsSecondsTextBox;
-    private ComboBox _longitudeDmsDirectionComboBox;
-    private Panel _longitudeDmsPanel;
-    private TextBlock _longitudeLabelTextBlock;
-    private TextBlock _dmsDegreeSymbol;
-    private TextBlock _dmsMinuteSymbol;
-    private TextBlock _dmsSecondSymbol;
+    private Button _getLocationButton = null!;
+    private TextBlock _statusText = null!;
 
-    private TextBox _latitudeTextBox;
-    private TextBox _latitudeDmsDegreesTextBox;
-    private TextBox _latitudeDmsMinutesTextBox;
-    private TextBox _latitudeDmsSecondsTextBox;
-    private ComboBox _latitudeDmsDirectionComboBox;
-    private Panel _latitudeDmsPanel;
-    private TextBlock _latitudeLabelTextBlock;
-    private TextBlock _latDmsDegreeSymbol;
-    private TextBlock _latDmsMinuteSymbol;
-    private TextBlock _latDmsSecondSymbol;
+    private ComboBox _timeZoneComboBox = null!;
+    private Button _getTimeZoneButton = null!;
 
-    private Button _getLocationButton;
-    private TextBlock _statusText;
+    private CheckBox _sunriseLabelEnableCustomFontSizeToggle = null!;
+    private CheckBox _sunriseLabelEnableCustomFontColorToggle = null!;
+    private CheckBox _sunriseTimeEnableCustomFontSizeToggle = null!;
+    private CheckBox _sunriseTimeEnableCustomFontColorToggle = null!;
+    private CheckBox _sunsetLabelEnableCustomFontSizeToggle = null!;
+    private CheckBox _sunsetLabelEnableCustomFontColorToggle = null!;
+    private CheckBox _sunsetTimeEnableCustomFontSizeToggle = null!;
+    private CheckBox _sunsetTimeEnableCustomFontColorToggle = null!;
 
-    private TextBlock _timeZoneTitleTextBlock;
-    private ComboBox _timeZoneComboBox;
-    private Button _getTimeZoneButton;
-    private TextBlock _timeZoneLabelTextBlock;
+    private WpfColorPicker _sunriseLabelColorPicker = null!;
+    private WpfNumericUpDown _sunriseLabelSizeNumericUpDown = null!;
 
-    private ToggleSwitch _sunriseLabelEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunriseLabelEnableCustomFontColorToggle;
-    private ToggleSwitch _sunriseTimeEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunriseTimeEnableCustomFontColorToggle;
-    private ToggleSwitch _sunsetLabelEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunsetLabelEnableCustomFontColorToggle;
-    private ToggleSwitch _sunsetTimeEnableCustomFontSizeToggle;
-    private ToggleSwitch _sunsetTimeEnableCustomFontColorToggle;
+    private WpfColorPicker _sunriseTimeColorPicker = null!;
+    private WpfNumericUpDown _sunriseTimeSizeNumericUpDown = null!;
 
-    private TextBlock _styleTitleTextBlock;
+    private WpfColorPicker _sunsetLabelColorPicker = null!;
+    private WpfNumericUpDown _sunsetLabelSizeNumericUpDown = null!;
 
-    private TextBlock _sunriseLabelLabel;
-    private TextBox _sunriseLabelColorTextBox;
-    private TextBox _sunriseLabelSizeTextBox;
-
-    private TextBlock _sunriseTimeLabel;
-    private TextBox _sunriseTimeColorTextBox;
-    private TextBox _sunriseTimeSizeTextBox;
-
-    private TextBlock _sunsetLabelLabel;
-    private TextBox _sunsetLabelColorTextBox;
-    private TextBox _sunsetLabelSizeTextBox;
-
-    private TextBlock _sunsetTimeLabel;
-    private TextBox _sunsetTimeColorTextBox;
-    private TextBox _sunsetTimeSizeTextBox;
+    private WpfColorPicker _sunsetTimeColorPicker = null!;
+    private WpfNumericUpDown _sunsetTimeSizeNumericUpDown = null!;
 
     public SunriseSunsetSettingsControl() : this(null)
     {
@@ -92,367 +69,121 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
         }
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _statusText = StatusText;
+        _longitudeTextBox = (TextBox)((StackPanel)LongitudeItem.Switcher).Children[0];
+        _longitudeDmsPanel = (StackPanel)((StackPanel)LongitudeItem.Switcher).Children[1];
+        _longitudeDmsDegreesTextBox = (TextBox)_longitudeDmsPanel.Children[0];
+        _longitudeDmsMinutesTextBox = (TextBox)_longitudeDmsPanel.Children[2];
+        _longitudeDmsSecondsTextBox = (TextBox)_longitudeDmsPanel.Children[4];
+        _longitudeDmsDirectionComboBox = (ComboBox)_longitudeDmsPanel.Children[6];
 
-        _titleTextBlock = new TextBlock { Text = "日出日落设置", FontSize = 14, FontWeight = FontWeight.Bold };
-        sp.Children.Add(_titleTextBlock);
+        _latitudeTextBox = (TextBox)((StackPanel)LatitudeItem.Switcher).Children[0];
+        _latitudeDmsPanel = (StackPanel)((StackPanel)LatitudeItem.Switcher).Children[1];
+        _latitudeDmsDegreesTextBox = (TextBox)_latitudeDmsPanel.Children[0];
+        _latitudeDmsMinutesTextBox = (TextBox)_latitudeDmsPanel.Children[2];
+        _latitudeDmsSecondsTextBox = (TextBox)_latitudeDmsPanel.Children[4];
+        _latitudeDmsDirectionComboBox = (ComboBox)_latitudeDmsPanel.Children[6];
 
-        _descTextBlock = new TextBlock { Text = "配置日出日落时间显示选项", FontSize = 12, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_descTextBlock);
+        _getLocationButton = (Button)((StackPanel)GetLocationItem.Switcher).Children[0];
+        _timeZoneComboBox = (ComboBox)((StackPanel)TimeZoneItem.Switcher).Children[0];
+        _getTimeZoneButton = (Button)((StackPanel)GetTimeZoneItem.Switcher).Children[0];
 
-        _coordTitleTextBlock = new TextBlock { Text = "经纬度设置", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_coordTitleTextBlock);
+        _sunriseLabelSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)SunriseLabelFontSizeItem.Switcher).Children[0];
+        _sunriseLabelEnableCustomFontSizeToggle = (CheckBox)((StackPanel)SunriseLabelFontSizeItem.Switcher).Children[1];
+        _sunriseLabelColorPicker = (WpfColorPicker)((StackPanel)SunriseLabelColorItem.Switcher).Children[0];
+        _sunriseLabelEnableCustomFontColorToggle = (CheckBox)((StackPanel)SunriseLabelColorItem.Switcher).Children[1];
 
-        var longitudeRow = new Grid();
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _sunriseTimeSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)SunriseTimeFontSizeItem.Switcher).Children[0];
+        _sunriseTimeEnableCustomFontSizeToggle = (CheckBox)((StackPanel)SunriseTimeFontSizeItem.Switcher).Children[1];
+        _sunriseTimeColorPicker = (WpfColorPicker)((StackPanel)SunriseTimeColorItem.Switcher).Children[0];
+        _sunriseTimeEnableCustomFontColorToggle = (CheckBox)((StackPanel)SunriseTimeColorItem.Switcher).Children[1];
 
-        _longitudeLabelTextBlock = new TextBlock { Text = "经度:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_longitudeLabelTextBlock, 0);
-        longitudeRow.Children.Add(_longitudeLabelTextBlock);
+        _sunsetLabelSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)SunsetLabelFontSizeItem.Switcher).Children[0];
+        _sunsetLabelEnableCustomFontSizeToggle = (CheckBox)((StackPanel)SunsetLabelFontSizeItem.Switcher).Children[1];
+        _sunsetLabelColorPicker = (WpfColorPicker)((StackPanel)SunsetLabelColorItem.Switcher).Children[0];
+        _sunsetLabelEnableCustomFontColorToggle = (CheckBox)((StackPanel)SunsetLabelColorItem.Switcher).Children[1];
 
-        var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        _sunsetTimeSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)SunsetTimeFontSizeItem.Switcher).Children[0];
+        _sunsetTimeEnableCustomFontSizeToggle = (CheckBox)((StackPanel)SunsetTimeFontSizeItem.Switcher).Children[1];
+        _sunsetTimeColorPicker = (WpfColorPicker)((StackPanel)SunsetTimeColorItem.Switcher).Children[0];
+        _sunsetTimeEnableCustomFontColorToggle = (CheckBox)((StackPanel)SunsetTimeColorItem.Switcher).Children[1];
 
-        _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
-        Grid.SetColumn(_longitudeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
-        longitudeRow.Children.Add(_longitudeTextBox);
-
-        _longitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
-        Grid.SetColumn(_longitudeDmsPanel, 1);
-
-        _longitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsDegreesTextBox);
-        _dmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsDegreeSymbol);
-
-        _longitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsMinutesTextBox);
-        _dmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsMinuteSymbol);
-
-        _longitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsSecondsTextBox);
-        _dmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsSecondSymbol);
-
-        _longitudeDmsDirectionComboBox = new ComboBox { Width = 90 };
         _longitudeDmsDirectionComboBox.Items.Add("东经");
         _longitudeDmsDirectionComboBox.Items.Add("西经");
-        _longitudeDmsDirectionComboBox.SelectedIndex = 0;
-        _longitudeDmsDirectionComboBox.SelectionChanged += OnLongitudeDmsValueChanged;
-        _longitudeDmsPanel.Children.Add(_longitudeDmsDirectionComboBox);
-
-        longitudeRow.Children.Add(_longitudeDmsPanel);
-        sp.Children.Add(longitudeRow);
-
-        var latitudeRow = new Grid();
-        latitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        latitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _latitudeLabelTextBlock = new TextBlock { Text = "纬度:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_latitudeLabelTextBlock, 0);
-        latitudeRow.Children.Add(_latitudeLabelTextBlock);
-
-        _latitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
-        Grid.SetColumn(_latitudeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeTextBox, OnLatitudeLostFocus);
-        latitudeRow.Children.Add(_latitudeTextBox);
-
-        _latitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
-        Grid.SetColumn(_latitudeDmsPanel, 1);
-
-        _latitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsDegreesTextBox, OnLatitudeDmsValueChanged);
-        _latitudeDmsPanel.Children.Add(_latitudeDmsDegreesTextBox);
-        _latDmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
-        _latitudeDmsPanel.Children.Add(_latDmsDegreeSymbol);
-
-        _latitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsMinutesTextBox, OnLatitudeDmsValueChanged);
-        _latitudeDmsPanel.Children.Add(_latitudeDmsMinutesTextBox);
-        _latDmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
-        _latitudeDmsPanel.Children.Add(_latDmsMinuteSymbol);
-
-        _latitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsSecondsTextBox, OnLatitudeDmsValueChanged);
-        _latitudeDmsPanel.Children.Add(_latitudeDmsSecondsTextBox);
-        _latDmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
-        _latitudeDmsPanel.Children.Add(_latDmsSecondSymbol);
-
-        _latitudeDmsDirectionComboBox = new ComboBox { Width = 90 };
         _latitudeDmsDirectionComboBox.Items.Add("北纬");
         _latitudeDmsDirectionComboBox.Items.Add("南纬");
-        _latitudeDmsDirectionComboBox.SelectedIndex = 0;
-        _latitudeDmsDirectionComboBox.SelectionChanged += OnLatitudeDmsValueChanged;
-        _latitudeDmsPanel.Children.Add(_latitudeDmsDirectionComboBox);
 
-        latitudeRow.Children.Add(_latitudeDmsPanel);
-        sp.Children.Add(latitudeRow);
-
-        _getLocationButton = new Button
-        {
-            Content = "获取当前位置",
-            Padding = new Thickness(8, 4),
-            Margin = new Thickness(0, 4, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Left
-        };
-        _getLocationButton.Click += OnGetLocationClick;
-        sp.Children.Add(_getLocationButton);
-
-        _statusText = new TextBlock { Text = "", FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_statusText);
-
-        _timeZoneTitleTextBlock = new TextBlock { Text = "时区设置", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_timeZoneTitleTextBlock);
-
-        var timeZoneRow = new Grid();
-        timeZoneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        timeZoneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        timeZoneRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-
-        _timeZoneLabelTextBlock = new TextBlock { Text = "时区:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_timeZoneLabelTextBlock, 0);
-        timeZoneRow.Children.Add(_timeZoneLabelTextBlock);
-
-        _timeZoneComboBox = new ComboBox { Width = 200 };
         _timeZoneComboBox.Items.Add("跟随插件设置");
         foreach (var tz in TimeZoneInfo.GetSystemTimeZones())
         {
             _timeZoneComboBox.Items.Add(tz);
         }
-        _timeZoneComboBox.ItemTemplate = new Avalonia.Controls.Templates.FuncDataTemplate<object>((item, ns) => new TextBlock { Text = item is TimeZoneInfo tz ? tz.DisplayName : item?.ToString() ?? "" });
-        _timeZoneComboBox.SelectionChanged += OnTimeZoneChanged;
-        Grid.SetColumn(_timeZoneComboBox, 1);
-        timeZoneRow.Children.Add(_timeZoneComboBox);
 
-        _getTimeZoneButton = new Button
-        {
-            Content = "获取时区",
-            Padding = new Thickness(6, 3),
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-        _getTimeZoneButton.Click += OnGetTimeZoneClick;
-        Grid.SetColumn(_getTimeZoneButton, 2);
-        timeZoneRow.Children.Add(_getTimeZoneButton);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
+        _longitudeDmsDirectionComboBox.SelectionChanged += OnLongitudeDmsValueChanged;
 
-        sp.Children.Add(timeZoneRow);
-
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
-
-        var sunriseLabelRow = new Grid();
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunriseLabelLabel = new TextBlock { Text = "日出标签:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunriseLabelLabel, 0);
-        sunriseLabelRow.Children.Add(_sunriseLabelLabel);
-
-        _sunriseLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunriseLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelColorTextBox, (s, e) => OnColorLostFocus(_sunriseLabelColorTextBox, nameof(Settings.SunriseLabelFontColor)));
-        sunriseLabelRow.Children.Add(_sunriseLabelColorTextBox);
-
-        _sunriseLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunriseLabelSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseLabelSizeTextBox, nameof(Settings.SunriseLabelFontSize)));
-        sunriseLabelRow.Children.Add(_sunriseLabelSizeTextBox);
-        sp.Children.Add(sunriseLabelRow);
-
-        _sunriseLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_sunriseLabelEnableCustomFontColorToggle);
-
-        _sunriseLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunriseLabelEnableCustomFontSizeToggle);
-
-        var sunriseTimeRow = new Grid();
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunriseTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunriseTimeLabel = new TextBlock { Text = "日出时间:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunriseTimeLabel, 0);
-        sunriseTimeRow.Children.Add(_sunriseTimeLabel);
-
-        _sunriseTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunriseTimeColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeColorTextBox, (s, e) => OnColorLostFocus(_sunriseTimeColorTextBox, nameof(Settings.SunriseTimeFontColor)));
-        sunriseTimeRow.Children.Add(_sunriseTimeColorTextBox);
-
-        _sunriseTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunriseTimeSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunriseTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunriseTimeSizeTextBox, nameof(Settings.SunriseTimeFontSize)));
-        sunriseTimeRow.Children.Add(_sunriseTimeSizeTextBox);
-        sp.Children.Add(sunriseTimeRow);
-
-        _sunriseTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontColorChanged;
-        sp.Children.Add(_sunriseTimeEnableCustomFontColorToggle);
-
-        _sunriseTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunriseTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunriseTimeEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunriseTimeEnableCustomFontSizeToggle);
-
-        var sunsetLabelRow = new Grid();
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetLabelRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunsetLabelLabel = new TextBlock { Text = "日落标签:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunsetLabelLabel, 0);
-        sunsetLabelRow.Children.Add(_sunsetLabelLabel);
-
-        _sunsetLabelColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunsetLabelColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelColorTextBox, (s, e) => OnColorLostFocus(_sunsetLabelColorTextBox, nameof(Settings.SunsetLabelFontColor)));
-        sunsetLabelRow.Children.Add(_sunsetLabelColorTextBox);
-
-        _sunsetLabelSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunsetLabelSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetLabelSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetLabelSizeTextBox, nameof(Settings.SunsetLabelFontSize)));
-        sunsetLabelRow.Children.Add(_sunsetLabelSizeTextBox);
-        sp.Children.Add(sunsetLabelRow);
-
-        _sunsetLabelEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetLabelEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontColorChanged;
-        sp.Children.Add(_sunsetLabelEnableCustomFontColorToggle);
-
-        _sunsetLabelEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetLabelEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetLabelEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunsetLabelEnableCustomFontSizeToggle);
-
-        var sunsetTimeRow = new Grid();
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        sunsetTimeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        _sunsetTimeLabel = new TextBlock { Text = "日落时间:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_sunsetTimeLabel, 0);
-        sunsetTimeRow.Children.Add(_sunsetTimeLabel);
-
-        _sunsetTimeColorTextBox = new TextBox { Width = 100, Watermark = "#FFFFFF" };
-        Grid.SetColumn(_sunsetTimeColorTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeColorTextBox, (s, e) => OnColorLostFocus(_sunsetTimeColorTextBox, nameof(Settings.SunsetTimeFontColor)));
-        sunsetTimeRow.Children.Add(_sunsetTimeColorTextBox);
-
-        _sunsetTimeSizeTextBox = new TextBox { Width = 60, Watermark = "14" };
-        Grid.SetColumn(_sunsetTimeSizeTextBox, 3);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_sunsetTimeSizeTextBox, (s, e) => OnFontSizeLostFocus(_sunsetTimeSizeTextBox, nameof(Settings.SunsetTimeFontSize)));
-        sunsetTimeRow.Children.Add(_sunsetTimeSizeTextBox);
-        sp.Children.Add(sunsetTimeRow);
-
-        _sunsetTimeEnableCustomFontColorToggle = new ToggleSwitch { Content = "使用自定义颜色", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetTimeEnableCustomFontColorToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontColorChanged;
-        sp.Children.Add(_sunsetTimeEnableCustomFontColorToggle);
-
-        _sunsetTimeEnableCustomFontSizeToggle = new ToggleSwitch { Content = "使用自定义大小", HorizontalAlignment = HorizontalAlignment.Left };
-        _sunsetTimeEnableCustomFontSizeToggle.IsCheckedChanged += OnSunsetTimeEnableCustomFontSizeChanged;
-        sp.Children.Add(_sunsetTimeEnableCustomFontSizeToggle);
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = sp
-        };
-        Content = scrollViewer;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeTextBox, OnLatitudeLostFocus);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsDegreesTextBox, OnLatitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsMinutesTextBox, OnLatitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_latitudeDmsSecondsTextBox, OnLatitudeDmsValueChanged);
+        _latitudeDmsDirectionComboBox.SelectionChanged += OnLatitudeDmsValueChanged;
     }
 
-    private void UpdateThemeColors()
-    {
-        _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _descTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
-        _coordTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _longitudeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _latitudeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _dmsDegreeSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _dmsMinuteSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _dmsSecondSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _latDmsDegreeSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _latDmsMinuteSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _latDmsSecondSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _statusText.Foreground = ThemeHelper.GetGrayBrush();
-        _timeZoneTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _timeZoneLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetLabelEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetLabelEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetTimeEnableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetTimeEnableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseLabelLabel.Foreground = ThemeHelper.GetTextBrush();
-        _sunriseTimeLabel.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetLabelLabel.Foreground = ThemeHelper.GetTextBrush();
-        _sunsetTimeLabel.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnSunriseLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnSunriseLabelEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunriseLabelEnableCustomFontSize = _sunriseLabelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunriseLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnSunriseLabelEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunriseLabelEnableCustomFontColor = _sunriseLabelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunriseTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnSunriseTimeEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunriseTimeEnableCustomFontSize = _sunriseTimeEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunriseTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnSunriseTimeEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunriseTimeEnableCustomFontColor = _sunriseTimeEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunsetLabelEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnSunsetLabelEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunsetLabelEnableCustomFontSize = _sunsetLabelEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunsetLabelEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnSunsetLabelEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunsetLabelEnableCustomFontColor = _sunsetLabelEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunsetTimeEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnSunsetTimeEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunsetTimeEnableCustomFontSize = _sunsetTimeEnableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnSunsetTimeEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnSunsetTimeEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.SunsetTimeEnableCustomFontColor = _sunsetTimeEnableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
@@ -460,24 +191,45 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
     private void UpdateControlsEnabled()
     {
-        _sunriseLabelColorTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontColor;
-        _sunriseLabelSizeTextBox.IsEnabled = Settings.SunriseLabelEnableCustomFontSize;
-        _sunriseTimeColorTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontColor;
-        _sunriseTimeSizeTextBox.IsEnabled = Settings.SunriseTimeEnableCustomFontSize;
-        _sunsetLabelColorTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontColor;
-        _sunsetLabelSizeTextBox.IsEnabled = Settings.SunsetLabelEnableCustomFontSize;
-        _sunsetTimeColorTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontColor;
-        _sunsetTimeSizeTextBox.IsEnabled = Settings.SunsetTimeEnableCustomFontSize;
+        _sunriseLabelColorPicker.IsEnabled = Settings.SunriseLabelEnableCustomFontColor;
+        _sunriseLabelSizeNumericUpDown.IsEnabled = Settings.SunriseLabelEnableCustomFontSize;
+        _sunriseTimeColorPicker.IsEnabled = Settings.SunriseTimeEnableCustomFontColor;
+        _sunriseTimeSizeNumericUpDown.IsEnabled = Settings.SunriseTimeEnableCustomFontSize;
+        _sunsetLabelColorPicker.IsEnabled = Settings.SunsetLabelEnableCustomFontColor;
+        _sunsetLabelSizeNumericUpDown.IsEnabled = Settings.SunsetLabelEnableCustomFontSize;
+        _sunsetTimeColorPicker.IsEnabled = Settings.SunsetTimeEnableCustomFontColor;
+        _sunsetTimeSizeNumericUpDown.IsEnabled = Settings.SunsetTimeEnableCustomFontSize;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
-        UpdateThemeColors();
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
 
         _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
         UpdateLongitudeDmsFromValue();
@@ -485,10 +237,10 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         UpdateLatitudeDmsFromValue();
 
         var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
-        _longitudeTextBox.IsVisible = !isDms;
-        _longitudeDmsPanel.IsVisible = isDms;
-        _latitudeTextBox.IsVisible = !isDms;
-        _latitudeDmsPanel.IsVisible = isDms;
+        _longitudeTextBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _longitudeDmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
+        _latitudeTextBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _latitudeDmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
 
         if (string.IsNullOrEmpty(Settings.TimeZoneId))
         {
@@ -516,23 +268,82 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         _sunsetTimeEnableCustomFontColorToggle.IsChecked = Settings.SunsetTimeEnableCustomFontColor;
         UpdateControlsEnabled();
 
-        _sunriseLabelColorTextBox.Text = Settings.SunriseLabelFontColor;
-        _sunriseLabelSizeTextBox.Text = Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunriseTimeColorTextBox.Text = Settings.SunriseTimeFontColor;
-        _sunriseTimeSizeTextBox.Text = Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunsetLabelColorTextBox.Text = Settings.SunsetLabelFontColor;
-        _sunsetLabelSizeTextBox.Text = Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        _sunsetTimeColorTextBox.Text = Settings.SunsetTimeFontColor;
-        _sunsetTimeSizeTextBox.Text = Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _sunriseLabelColorPicker.Color = ParseColor(Settings.SunriseLabelFontColor);
+        _sunriseLabelSizeNumericUpDown.Value = (decimal)Settings.SunriseLabelFontSize;
+        _sunriseTimeColorPicker.Color = ParseColor(Settings.SunriseTimeFontColor);
+        _sunriseTimeSizeNumericUpDown.Value = (decimal)Settings.SunriseTimeFontSize;
+        _sunsetLabelColorPicker.Color = ParseColor(Settings.SunsetLabelFontColor);
+        _sunsetLabelSizeNumericUpDown.Value = (decimal)Settings.SunsetLabelFontSize;
+        _sunsetTimeColorPicker.Color = ParseColor(Settings.SunsetTimeFontColor);
+        _sunsetTimeSizeNumericUpDown.Value = (decimal)Settings.SunsetTimeFontSize;
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private Color ParseColor(string colorString)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+        try
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            return ThemeHelper.ParseColor(colorString);
         }
+        catch
+        {
+            return Colors.White;
+        }
+    }
+
+    private void OnSunriseLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunriseLabelSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunriseLabelFontSize = (double)_sunriseLabelSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunriseTimeFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunriseTimeSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunriseTimeFontSize = (double)_sunriseTimeSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunsetLabelFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunsetLabelSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunsetLabelFontSize = (double)_sunsetLabelSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunsetTimeFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
+    {
+        if (_sunsetTimeSizeNumericUpDown.Value.HasValue)
+        {
+            Settings.SunsetTimeFontSize = (double)_sunsetTimeSizeNumericUpDown.Value.Value;
+        }
+    }
+
+    private void OnSunriseLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunriseLabelFontColor = _sunriseLabelColorPicker.Color.ToString();
+    }
+
+    private void OnSunriseTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunriseTimeFontColor = _sunriseTimeColorPicker.Color.ToString();
+    }
+
+    private void OnSunsetLabelColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunsetLabelFontColor = _sunsetLabelColorPicker.Color.ToString();
+    }
+
+    private void OnSunsetTimeColorChanged(object? sender, ColorChangedEventArgs e)
+    {
+        Settings.SunsetTimeFontColor = _sunsetTimeColorPicker.Color.ToString();
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
         if (_pluginSettings != null)
         {
             _pluginSettings.PropertyChanged -= OnPluginSettingsPropertyChanged;
@@ -619,7 +430,7 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         }
     }
 
-    private async void OnGetLocationClick(object? sender, EventArgs e)
+    private async void OnGetLocationClick(object? sender, RoutedEventArgs e)
     {
         _getLocationButton.IsEnabled = false;
         _getLocationButton.Content = "获取中...";
@@ -668,7 +479,7 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         }
     }
 
-    private async void OnGetTimeZoneClick(object? sender, EventArgs e)
+    private async void OnGetTimeZoneClick(object? sender, RoutedEventArgs e)
     {
         _getTimeZoneButton.IsEnabled = false;
         _getTimeZoneButton.Content = "获取中...";
@@ -677,19 +488,19 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         {
             var timeZoneId = await GetTimeZoneByLocationAsync();
             if (!string.IsNullOrEmpty(timeZoneId))
+            {
+                Settings.TimeZoneId = timeZoneId;
+                foreach (var item in _timeZoneComboBox.Items)
                 {
-                    Settings.TimeZoneId = timeZoneId;
-                    foreach (var item in _timeZoneComboBox.Items)
+                    if (item is TimeZoneInfo tz && tz.Id == timeZoneId)
                     {
-                        if (item is TimeZoneInfo tz && tz.Id == timeZoneId)
-                        {
-                            _timeZoneComboBox.SelectedItem = item;
-                            break;
-                        }
+                        _timeZoneComboBox.SelectedItem = item;
+                        break;
                     }
-                    _statusText.Text = $"已获取时区：{timeZoneId}";
-                    _statusText.Foreground = ThemeHelper.GetYiBrush();
                 }
+                _statusText.Text = $"已获取时区：{timeZoneId}";
+                _statusText.Foreground = ThemeHelper.GetYiBrush();
+            }
             else
             {
                 _statusText.Text = "无法获取时区";
@@ -708,7 +519,7 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         }
     }
 
-    private void OnTimeZoneChanged(object? sender, EventArgs e)
+    private void OnTimeZoneChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_timeZoneComboBox.SelectedIndex == 0)
         {
@@ -791,105 +602,6 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
         }
     }
 
-    private void OnColorLostFocus(TextBox textBox, string propertyName)
-    {
-        var color = textBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
-        {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                switch (propertyName)
-                {
-                    case nameof(Settings.SunriseLabelFontColor):
-                        Settings.SunriseLabelFontColor = color;
-                        break;
-                    case nameof(Settings.SunriseTimeFontColor):
-                        Settings.SunriseTimeFontColor = color;
-                        break;
-                    case nameof(Settings.SunsetLabelFontColor):
-                        Settings.SunsetLabelFontColor = color;
-                        break;
-                    case nameof(Settings.SunsetTimeFontColor):
-                        Settings.SunsetTimeFontColor = color;
-                        break;
-                }
-            }
-            catch
-            {
-                textBox.Text = GetColorPropertyValue(propertyName);
-            }
-        }
-        else
-        {
-            textBox.Text = GetColorPropertyValue(propertyName);
-        }
-    }
-
-    private string GetColorPropertyValue(string propertyName)
-    {
-        switch (propertyName)
-        {
-            case nameof(Settings.SunriseLabelFontColor):
-                return Settings.SunriseLabelFontColor;
-            case nameof(Settings.SunriseTimeFontColor):
-                return Settings.SunriseTimeFontColor;
-            case nameof(Settings.SunsetLabelFontColor):
-                return Settings.SunsetLabelFontColor;
-            case nameof(Settings.SunsetTimeFontColor):
-                return Settings.SunsetTimeFontColor;
-            default:
-                return "#FFFFFF";
-        }
-    }
-
-    private void OnFontSizeLostFocus(TextBox textBox, string propertyName)
-    {
-        if (double.TryParse(textBox.Text, out double size))
-        {
-            switch (propertyName)
-            {
-                case nameof(Settings.SunriseLabelFontSize):
-                    Settings.SunriseLabelFontSize = size;
-                    textBox.Text = Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunriseTimeFontSize):
-                    Settings.SunriseTimeFontSize = size;
-                    textBox.Text = Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunsetLabelFontSize):
-                    Settings.SunsetLabelFontSize = size;
-                    textBox.Text = Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-                case nameof(Settings.SunsetTimeFontSize):
-                    Settings.SunsetTimeFontSize = size;
-                    textBox.Text = Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-                    break;
-            }
-        }
-        else
-        {
-            textBox.Text = GetFontSizePropertyValue(propertyName);
-        }
-    }
-
-    private string GetFontSizePropertyValue(string propertyName)
-    {
-        switch (propertyName)
-        {
-            case nameof(Settings.SunriseLabelFontSize):
-                return Settings.SunriseLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunriseTimeFontSize):
-                return Settings.SunriseTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunsetLabelFontSize):
-                return Settings.SunsetLabelFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            case nameof(Settings.SunsetTimeFontSize):
-                return Settings.SunsetTimeFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-            default:
-                return "14";
-        }
-    }
-
     private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
     {
         if (e.PropertyName == nameof(PluginSettings.LongitudeDisplayMode))
@@ -905,10 +617,10 @@ public class SunriseSunsetSettingsControl : ComponentBase<SunriseSunsetSettings>
 
         var isDms = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
 
-        _longitudeTextBox.IsVisible = !isDms;
-        _longitudeDmsPanel.IsVisible = isDms;
-        _latitudeTextBox.IsVisible = !isDms;
-        _latitudeDmsPanel.IsVisible = isDms;
+        _longitudeTextBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _longitudeDmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
+        _latitudeTextBox.Visibility = !isDms ? Visibility.Visible : Visibility.Collapsed;
+        _latitudeDmsPanel.Visibility = isDms ? Visibility.Visible : Visibility.Collapsed;
 
         if (isDms)
         {

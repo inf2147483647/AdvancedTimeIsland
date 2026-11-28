@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_last_day_time", "农历年倒数第n天", "\uecdb")]
+[TriggerInfo("advancedtimeisland.lunar_last_day_time", "农历年倒数第n天", PackIconKind.MoonWaningCrescent)]
 public class LunarLastDayTimeTrigger : TimeTriggerBase<LunarLastDayRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

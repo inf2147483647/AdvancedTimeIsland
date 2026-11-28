@@ -5,7 +5,8 @@ using System.Timers;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -22,6 +23,8 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
     private string _valueText = string.Empty;
     private bool _isDisposed;
 
+    private bool _enableExperimentalFeatures;
+
     public FestivalViewModel(TimeBaseService timeBaseService, FestivalSettings settings, 
         Action<string> updateLabelFontColor = null, Action<double> updateLabelFontSize = null,
         Action<string> updateValueFontColor = null, Action<double> updateValueFontSize = null)
@@ -35,6 +38,10 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         
         _settings.PropertyChanged += OnSettingsChanged;
         
+        _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged += OnPluginSettingsPropertyChanged;
+        
         UpdateDisplay();
         
         _updateTimer = new System.Timers.Timer(60000);
@@ -43,8 +50,27 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         _updateTimer.Enabled = true;
     }
 
+    private void OnPluginSettingsPropertyChanged(object? sender, PropertyChangedEventArgs e)
+    {
+        if (e.PropertyName == nameof(PluginSettings.EnableExperimentalFeatures))
+        {
+            _enableExperimentalFeatures = Plugin.Instance?.Settings?.EnableExperimentalFeatures ?? false;
+            UpdateDisplay();
+            _ = UpdateDisplayAsync();
+        }
+    }
+
     private void OnSettingsChanged(object? sender, PropertyChangedEventArgs e)
     {
+        if (e.PropertyName == nameof(FestivalSettings.EnableInternationalFestivals) ||
+            e.PropertyName == nameof(FestivalSettings.EnableChineseTraditionalFestivals) ||
+            e.PropertyName == nameof(FestivalSettings.EnableRedFestivals))
+        {
+            UpdateDisplay();
+            _ = UpdateDisplayAsync();
+            return;
+        }
+
         if (e.PropertyName == nameof(FestivalSettings.LabelFontColor) ||
             e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontColor) ||
             e.PropertyName == nameof(FestivalSettings.LabelFontFamily) ||
@@ -59,7 +85,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(FestivalSettings.LabelFontWeight) ||
                  e.PropertyName == nameof(FestivalSettings.LabelEnableCustomFontWeight))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(FestivalSettings.ValueFontColor) ||
                  e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontColor) ||
@@ -75,7 +101,7 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(FestivalSettings.ValueFontWeight) ||
                  e.PropertyName == nameof(FestivalSettings.ValueEnableCustomFontWeight))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 
@@ -115,7 +141,11 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = _timeBaseService.GetCurrentTime();
-            var festivals = LunarHelper.GetFestivals(now);
+            var festivals = LunarHelper.GetFestivals(now,
+                _settings.EnableInternationalFestivals,
+                _settings.EnableChineseTraditionalFestivals,
+                _settings.EnableRedFestivals,
+                _enableExperimentalFeatures);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             LabelText = "当前节日：";
             ValueText = festivalsText;
@@ -130,10 +160,14 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         try
         {
             var now = await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false);
-            var festivals = LunarHelper.GetFestivals(now);
+            var festivals = LunarHelper.GetFestivals(now,
+                _settings.EnableInternationalFestivals,
+                _settings.EnableChineseTraditionalFestivals,
+                _settings.EnableRedFestivals,
+                _enableExperimentalFeatures);
             var festivalsText = festivals.Length == 0 ? "无" : string.Join("、", festivals);
             
-            await Dispatcher.UIThread.InvokeAsync(() => 
+            await UIThread.Dispatcher.InvokeAsync(() => 
             {
                 LabelText = "当前节日：";
                 ValueText = festivalsText;
@@ -157,6 +191,8 @@ public class FestivalViewModel : INotifyPropertyChanged, IDisposable
         
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
+        if (Plugin.Instance?.Settings != null)
+            Plugin.Instance.Settings.PropertyChanged -= OnPluginSettingsPropertyChanged;
         _updateTimer?.Stop();
         _updateTimer?.Dispose();
     }

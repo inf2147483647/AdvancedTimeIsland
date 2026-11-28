@@ -4,7 +4,8 @@ using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
 using AdvancedTimeIsland.Services;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -12,8 +13,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 {
     private readonly TimeBaseService _timeBaseService;
     private readonly ForwardTimerSettings _settings;
-    private DispatcherTimer? _updateTimer;
-    private DispatcherTimer? _highFrequencyTimer;
+    private IDisposable? _subscription;
     private readonly Action<string, double> _updateText1Style;
     private readonly Action<string, double> _updateNameStyle;
     private readonly Action<string, double> _updateText3Style;
@@ -21,8 +21,6 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
     private readonly Action<string, double> _updateText4Style;
     private bool _isDisposed;
     private bool _requiresHighFrequencyRefresh;
-    private readonly TimeSpan _normalInterval = TimeSpan.FromMilliseconds(200);
-    private readonly TimeSpan _highFrequencyInterval = TimeSpan.FromMilliseconds(16.67);
 
     private string _text1Display = string.Empty;
     private string _nameDisplay = string.Empty;
@@ -118,6 +116,12 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
     {
         _timeBaseService = timeBaseService;
         _settings = settings;
+        // 迁移旧版时间基准值
+        var migrated = TimeBaseTypeHelper.Migrate((int)_settings.TimeBaseType);
+        if (migrated != _settings.TimeBaseType)
+        {
+            _settings.TimeBaseType = migrated;
+        }
         _updateText1Style = updateText1Style;
         _updateNameStyle = updateNameStyle;
         _updateText3Style = updateText3Style;
@@ -127,30 +131,16 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         _settings.PropertyChanged += OnSettingsChanged;
 
         UpdateTimer();
+
         _requiresHighFrequencyRefresh = RequiresHighFrequencyRefresh(_settings.TimeFormat);
-        InitializeTimers();
+        SubscribeToClock();
     }
 
-    private void InitializeTimers()
+    private void SubscribeToClock()
     {
-        _updateTimer = new DispatcherTimer
-        {
-            Interval = _normalInterval
-        };
-        _updateTimer.Tick += OnTimerElapsed;
-        _updateTimer.Start();
-
-        _highFrequencyTimer = new DispatcherTimer
-        {
-            Interval = _highFrequencyInterval
-        };
-        _highFrequencyTimer.Tick += OnHighFrequencyTimerElapsed;
-
-        if (_requiresHighFrequencyRefresh)
-        {
-            _updateTimer.Stop();
-            _highFrequencyTimer.Start();
-        }
+        _subscription?.Dispose();
+        _subscription = SharedRenderClockService.Instance.Subscribe(OnClockTick, _requiresHighFrequencyRefresh);
+        SharedRenderClockService.Instance.EnsureStarted();
     }
 
     private static bool RequiresHighFrequencyRefresh(string? timeFormat)
@@ -168,17 +158,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         if (_requiresHighFrequencyRefresh != newRequiresHighFrequency)
         {
             _requiresHighFrequencyRefresh = newRequiresHighFrequency;
-
-            if (_requiresHighFrequencyRefresh)
-            {
-                _updateTimer?.Stop();
-                _highFrequencyTimer?.Start();
-            }
-            else
-            {
-                _highFrequencyTimer?.Stop();
-                _updateTimer?.Start();
-            }
+            SubscribeToClock();
         }
     }
 
@@ -207,7 +187,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text1FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text1EnableCustomFontWeight))
         {
-            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 14);
+            _updateText1Style?.Invoke(_settings.Text1FontColor, _settings.Text1EnableCustomFontSize ? _settings.Text1FontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.NameFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameFontColor) ||
@@ -218,7 +198,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.NameFontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.NameEnableCustomFontWeight))
         {
-            _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 14);
+            _updateNameStyle?.Invoke(_settings.NameFontColor, _settings.NameEnableCustomFontSize ? _settings.NameFontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text3FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3FontColor) ||
@@ -229,7 +209,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text3FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text3EnableCustomFontWeight))
         {
-            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 14);
+            _updateText3Style?.Invoke(_settings.Text3FontColor, _settings.Text3EnableCustomFontSize ? _settings.Text3FontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.TimeFontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeFontColor) ||
@@ -240,7 +220,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.TimeFontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.TimeEnableCustomFontWeight))
         {
-            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 14);
+            _updateTimeStyle?.Invoke(_settings.TimeFontColor, _settings.TimeEnableCustomFontSize ? _settings.TimeFontSize : 0);
         }
         if (e.PropertyName == nameof(ForwardTimerSettings.Text4FontSize) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4FontColor) ||
@@ -251,18 +231,13 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
                  e.PropertyName == nameof(ForwardTimerSettings.Text4FontWeight) ||
                  e.PropertyName == nameof(ForwardTimerSettings.Text4EnableCustomFontWeight))
         {
-            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 14);
+            _updateText4Style?.Invoke(_settings.Text4FontColor, _settings.Text4EnableCustomFontSize ? _settings.Text4FontSize : 0);
         }
     }
 
-    private void OnTimerElapsed(object? sender, EventArgs e)
+    private void OnClockTick(DateTime now)
     {
-        _ = UpdateTimerAsync();
-    }
-
-    private void OnHighFrequencyTimerElapsed(object? sender, EventArgs e)
-    {
-        _ = UpdateTimerAsync();
+        _ = UpdateTimerAsync(now);
     }
 
     private void UpdateTimer()
@@ -277,13 +252,13 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         }
     }
 
-    private async System.Threading.Tasks.Task UpdateTimerAsync()
+    private async System.Threading.Tasks.Task UpdateTimerAsync(DateTime? clockTime = null)
     {
         try
         {
-            var now = await GetCurrentTimeAsync().ConfigureAwait(false);
+            var now = clockTime ?? await GetCurrentTimeAsync().ConfigureAwait(false);
 
-            await Dispatcher.UIThread.InvokeAsync(() =>
+            await UIThread.Dispatcher.InvokeAsync(() =>
             {
                 ProcessTimer(now);
             });
@@ -298,9 +273,8 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => _timeBaseService.GetCurrentTime(),
-            TimeBaseType.PluginOffsetSystemTime => _timeBaseService.GetPluginOffsetSystemTime(),
             TimeBaseType.RawServerTime => _timeBaseService.GetRawServerTime(),
-            TimeBaseType.RawSystemTime => DateTime.Now,
+            TimeBaseType.ClassIslandTime => _timeBaseService.GetClassIslandTime(),
             _ => _timeBaseService.GetCurrentTime()
         };
     }
@@ -310,9 +284,8 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
         return _settings.TimeBaseType switch
         {
             TimeBaseType.PluginOffsetServerTime => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false),
-            TimeBaseType.PluginOffsetSystemTime => await _timeBaseService.GetPluginOffsetSystemTimeAsync().ConfigureAwait(false),
             TimeBaseType.RawServerTime => await _timeBaseService.GetRawServerTimeAsync().ConfigureAwait(false),
-            TimeBaseType.RawSystemTime => await System.Threading.Tasks.Task.FromResult(DateTime.Now).ConfigureAwait(false),
+            TimeBaseType.ClassIslandTime => await _timeBaseService.GetClassIslandTimeAsync().ConfigureAwait(false),
             _ => await _timeBaseService.GetCurrentTimeAsync().ConfigureAwait(false)
         };
     }
@@ -352,95 +325,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
     private string FormatTime(string format, long secondsElapsed, double millisecondsElapsed, DateTime startTimeDate, DateTime now)
     {
-        var totalSeconds = secondsElapsed;
-        var totalMilliseconds = millisecondsElapsed;
-        var totalMinutes = Math.Ceiling(totalSeconds / 60.0);
-        var totalHours = Math.Ceiling(totalSeconds / 3600.0);
-        var totalDays = Math.Ceiling(totalSeconds / 86400.0);
-
-        var days = (int)(totalSeconds / 86400);
-        var remainingSeconds = totalSeconds % 86400;
-        var hours = (int)(remainingSeconds / 3600);
-        remainingSeconds %= 3600;
-        var minutes = (int)(remainingSeconds / 60);
-        var seconds = (int)(remainingSeconds % 60);
-        var milliseconds = (int)(totalMilliseconds % 1000);
-
-        var totalDuration = totalSeconds;
-
-        string remainingPercent = "0";
-        string elapsedPercent = "0";
-        string elapsedPercentDecimal = "0.00";
-
-        if (totalDuration > 0)
-        {
-            elapsedPercent = "100";
-            elapsedPercentDecimal = "100.00";
-            remainingPercent = "0";
-        }
-
-        bool hasMonth = format.Contains("%mo") || format.Contains("%MO");
-        bool hasYear = format.Contains("%yy") || format.Contains("%YY");
-
-        int displayYears = 0;
-        int displayMonths = 0;
-        int displayDays = days;
-
-        if (hasYear || hasMonth)
-        {
-            var tempDate = startTimeDate;
-            displayYears = 0;
-
-            while (LunarHelper.SolarAddYears(tempDate, 1) <= now)
-            {
-                tempDate = LunarHelper.SolarAddYears(tempDate, 1);
-                displayYears++;
-            }
-
-            if (hasMonth)
-            {
-                displayMonths = 0;
-                while (LunarHelper.SolarAddMonths(tempDate, 1) <= now)
-                {
-                    tempDate = LunarHelper.SolarAddMonths(tempDate, 1);
-                    displayMonths++;
-                }
-
-                var dayDiff = (int)Math.Floor(LunarHelper.DaysBetween(tempDate, now));
-                displayDays = Math.Max(0, dayDiff);
-            }
-            else
-            {
-                var dayDiff = (int)Math.Floor(LunarHelper.DaysBetween(tempDate, now));
-                displayDays = Math.Max(0, dayDiff);
-            }
-        }
-
-        var yy = displayYears.ToString();
-        var mo = ((int)(totalSeconds / (30.4375 * 86400.0))).ToString();
-        var YY = (totalSeconds / (365.25 * 86400.0)).ToString("F2");
-        var MO = (totalSeconds / (30.4375 * 86400.0)).ToString("F2");
-
-        var result = format
-            .Replace("%D", ((int)totalDays).ToString())
-            .Replace("%H", ((int)totalHours).ToString())
-            .Replace("%M", ((int)totalMinutes).ToString())
-            .Replace("%S", totalSeconds.ToString())
-            .Replace("%X", ((int)totalMilliseconds).ToString())
-            .Replace("%L", remainingPercent)
-            .Replace("%P", elapsedPercent)
-            .Replace("%p", elapsedPercentDecimal)
-            .Replace("%yy", yy)
-            .Replace("%YY", YY)
-            .Replace("%mo", displayMonths.ToString())
-            .Replace("%MO", displayMonths.ToString())
-            .Replace("%d", displayDays.ToString())
-            .Replace("%h", hours.ToString())
-            .Replace("%m", minutes.ToString("D2"))
-            .Replace("%s", seconds.ToString("D2"))
-            .Replace("%x", milliseconds.ToString("D3"));
-
-        return result;
+        return OptimizedTimeFormatter.FormatForwardTime(format, secondsElapsed, millisecondsElapsed, startTimeDate, now);
     }
 
     public event PropertyChangedEventHandler? PropertyChanged;
@@ -456,8 +341,7 @@ public class ForwardTimerViewModel : INotifyPropertyChanged, IDisposable
 
         _isDisposed = true;
         _settings.PropertyChanged -= OnSettingsChanged;
-        _updateTimer?.Stop();
-        _highFrequencyTimer?.Stop();
+        _subscription?.Dispose();
     }
 }
 

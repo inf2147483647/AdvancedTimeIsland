@@ -1,6 +1,5 @@
-using Avalonia.Controls;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
+using System.Windows;
+using System.Windows.Controls;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -24,8 +23,7 @@ public class JieQiRuleSettingsControl : RuleSettingsControlBase<JieQiRuleSetting
     {
         var panel = new StackPanel
         {
-            Orientation = Orientation.Vertical,
-            Spacing = 8
+            Orientation = Orientation.Vertical
         };
 
         var label = new TextBlock { Text = "选择节气：" };
@@ -41,14 +39,25 @@ public class JieQiRuleSettingsControl : RuleSettingsControlBase<JieQiRuleSetting
         Content = panel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-        _jieQiComboBox.SelectedItem = Settings.TargetJieQi;
+        _isLoading = true;
+        try
+        {
+            if (Settings == null) return;
+            _jieQiComboBox.SelectedItem = Settings.TargetJieQi;
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
         Settings.TargetJieQi = _jieQiComboBox.SelectedItem as string ?? string.Empty;
     }

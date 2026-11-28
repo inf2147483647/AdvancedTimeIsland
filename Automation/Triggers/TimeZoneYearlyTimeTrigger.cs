@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.timezone_yearly_time", "区时每年", "\uece3")]
+[TriggerInfo("advancedtimeisland.timezone_yearly_time", "区时每年", PackIconKind.ClockOutline)]
 public class TimeZoneYearlyTimeTrigger : TimeTriggerBase<TimeZoneYearlyTimeRangeRuleSettings>
 {
     protected override DateTime GetCurrentTime()

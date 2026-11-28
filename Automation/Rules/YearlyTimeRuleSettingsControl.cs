@@ -1,10 +1,7 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -14,7 +11,7 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class YearlyTimeRuleSettingsControl : RuleSettingsControlBase<YearlyTimeRangeRuleSettings>
 {
     private DatePicker _datePicker = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public YearlyTimeRuleSettingsControl()
     {
@@ -34,7 +31,6 @@ public class YearlyTimeRuleSettingsControl : RuleSettingsControlBase<YearlyTimeR
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -60,7 +56,6 @@ public class YearlyTimeRuleSettingsControl : RuleSettingsControlBase<YearlyTimeR
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -74,11 +69,10 @@ public class YearlyTimeRuleSettingsControl : RuleSettingsControlBase<YearlyTimeR
         _datePicker = new DatePicker
         {
             Width = 300,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            YearVisible = false
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -95,25 +89,36 @@ public class YearlyTimeRuleSettingsControl : RuleSettingsControlBase<YearlyTimeR
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var initialValue = Settings.StartTime;
-        ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (month > 0 && day > 0)
+        _isLoading = true;
+        try
         {
-            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(2024, month, day));
+            if (Settings == null) return;
+
+            var initialValue = Settings.StartTime;
+            ParseTimeString(initialValue, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (month > 0 && day > 0)
+            {
+                _datePicker.SelectedDate = new DateTime(2024, month, day);
+            }
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
-        var date = _datePicker.SelectedDate?.DateTime ?? new DateTime(2024, 1, 1);
+        var date = _datePicker.SelectedDate ?? new DateTime(2024, 1, 1);
         var time = _timePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{date.Month:D2}-{date.Day:D2}-{time.Hours:D2}-{time.Minutes:D2}-{time.Seconds:D2}";
     }

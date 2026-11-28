@@ -1,8 +1,9 @@
 using System;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Shared;
-using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Automation;
 using ClassIsland.Core.Abstractions.Services;
 
@@ -38,7 +39,7 @@ public abstract class TimeTriggerBase<T> : TriggerBase<T> where T : class
                 {
                     if (CheckTrigger(now))
                     {
-                        Dispatcher.UIThread.Invoke(Trigger);
+                        UIThread.Invoke(Trigger);
                         _lastTriggeredSecond = now;
                     }
                 }

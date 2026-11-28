@@ -5,8 +5,9 @@ using System.Linq;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia.Media;
-using Avalonia.Threading;
+using System.Windows.Media;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 
 namespace AdvancedTimeIsland.ViewModels.Main;
 
@@ -20,12 +21,12 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     private readonly FpsMonitorSettings _settings;
     private readonly Action<string>? _updateLabelFontColor;
     private readonly Action<double>? _updateLabelFontSize;
-    private readonly Action<IBrush>? _updateFpsForeground;
-    private readonly Action<IBrush>? _updateMaxForeground;
-    private readonly Action<IBrush>? _updateAvgForeground;
-    private readonly Action<IBrush>? _updateMinForeground;
-    private readonly Action<IBrush>? _updateLow1Foreground;
-    private readonly Action<IBrush>? _updateOneSecondFrameCountForeground;
+    private readonly Action<Brush>? _updateFpsForeground;
+    private readonly Action<Brush>? _updateMaxForeground;
+    private readonly Action<Brush>? _updateAvgForeground;
+    private readonly Action<Brush>? _updateMinForeground;
+    private readonly Action<Brush>? _updateLow1Foreground;
+    private readonly Action<Brush>? _updateOneSecondFrameCountForeground;
     private readonly Action<double>? _updateValueFontSize;
     private readonly Action<string>? _updateValueFontColor;
     private bool _isDisposed;
@@ -45,12 +46,12 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
     public FpsMonitorViewModel(FpsMonitorSettings settings,
         Action<string>? updateLabelFontColor = null,
         Action<double>? updateLabelFontSize = null,
-        Action<IBrush>? updateFpsForeground = null,
-        Action<IBrush>? updateMaxForeground = null,
-        Action<IBrush>? updateAvgForeground = null,
-        Action<IBrush>? updateMinForeground = null,
-        Action<IBrush>? updateLow1Foreground = null,
-        Action<IBrush>? updateOneSecondFrameCountForeground = null,
+        Action<Brush>? updateFpsForeground = null,
+        Action<Brush>? updateMaxForeground = null,
+        Action<Brush>? updateAvgForeground = null,
+        Action<Brush>? updateMinForeground = null,
+        Action<Brush>? updateLow1Foreground = null,
+        Action<Brush>? updateOneSecondFrameCountForeground = null,
         Action<double>? updateValueFontSize = null,
         Action<string>? updateValueFontColor = null)
     {
@@ -115,7 +116,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
             var low1Str = low1Fps.ToString("F1");
             var oneSecondFrameCountStr = Math.Round(oneSecondFrameCount).ToString();
 
-            Dispatcher.UIThread.InvokeAsync(() =>
+            UIThread.Dispatcher.InvokeAsync(() =>
             {
                 FpsText = fpsStr;
                 MaxText = maxStr;
@@ -165,7 +166,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         return count > 0 ? sum / count : 0;
     }
 
-    public static IBrush GetFpsBrush(double fps)
+    public static Brush GetFpsBrush(double fps)
     {
         if (fps >= 30)
             return new SolidColorBrush(Color.FromRgb(0, 255, 0));
@@ -184,7 +185,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(FpsMonitorSettings.LabelFontSize) ||
             e.PropertyName == nameof(FpsMonitorSettings.LabelEnableCustomFontSize))
         {
-            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 14);
+            _updateLabelFontSize?.Invoke(_settings.LabelEnableCustomFontSize ? _settings.LabelFontSize : 0);
         }
         if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontColor) ||
             e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontColor))
@@ -194,7 +195,7 @@ public class FpsMonitorViewModel : INotifyPropertyChanged, IDisposable
         if (e.PropertyName == nameof(FpsMonitorSettings.ValueFontSize) ||
             e.PropertyName == nameof(FpsMonitorSettings.ValueEnableCustomFontSize))
         {
-            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 14);
+            _updateValueFontSize?.Invoke(_settings.ValueEnableCustomFontSize ? _settings.ValueFontSize : 0);
         }
     }
 

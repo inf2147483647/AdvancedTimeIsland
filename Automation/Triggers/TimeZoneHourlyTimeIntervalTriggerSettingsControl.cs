@@ -1,12 +1,10 @@
 using System;
 using System.Collections.Generic;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
@@ -19,7 +17,7 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
     private TextBox _startSecondBox = null!;
     private TextBox _endMinuteBox = null!;
     private TextBox _endSecondBox = null!;
-    private NumericUpDown _intervalNumericUpDown = null!;
+    private WpfNumericUpDown _intervalNumericUpDown = null!;
     private ComboBox _intervalUnitComboBox = null!;
     private bool _isLoading = false;
 
@@ -41,7 +39,6 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -63,7 +60,6 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -96,7 +92,6 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -109,22 +104,19 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
 
         var inputPanel = new StackPanel
         {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8
+            Orientation = Orientation.Horizontal
         };
 
         var minuteBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "分钟 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var secondBox = new TextBox
         {
             Width = 120,
-            HorizontalAlignment = HorizontalAlignment.Left,
-            Watermark = "秒数 (0-59)"
+            HorizontalAlignment = HorizontalAlignment.Left
         };
 
         if (isStart)
@@ -164,7 +156,6 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -178,11 +169,10 @@ public class TimeZoneHourlyTimeIntervalTriggerSettingsControl : TriggerSettingsC
         var intervalPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _intervalNumericUpDown = new NumericUpDown
+        _intervalNumericUpDown = new WpfNumericUpDown
         {
             Width = 225,
             Minimum = 0.001m,

@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.monthly_time", "每月", "\uecd2")]
+[TriggerInfo("advancedtimeisland.monthly_time", "每月", PackIconKind.CalendarMonth)]
 public class MonthlyTimeTrigger : TimeTriggerBase<MonthlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

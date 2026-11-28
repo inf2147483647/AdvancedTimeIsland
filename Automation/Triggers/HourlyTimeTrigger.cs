@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.hourly_time", "每小时", "\uecd5")]
+[TriggerInfo("advancedtimeisland.hourly_time", "每小时", PackIconKind.Clock)]
 public class HourlyTimeTrigger : TimeTriggerBase<HourlyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

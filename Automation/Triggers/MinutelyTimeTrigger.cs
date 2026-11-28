@@ -1,10 +1,11 @@
 using System;
 using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.minutely_time", "每分钟", "\uecd6")]
+[TriggerInfo("advancedtimeisland.minutely_time", "每分钟", PackIconKind.TimerSand)]
 public class MinutelyTimeTrigger : TimeTriggerBase<MinutelyTimeRangeRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

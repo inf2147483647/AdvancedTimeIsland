@@ -1,0 +1,187 @@
+<ci:ComponentBase x:Class="AdvancedTimeIsland.Views.Main.SevenSegmentClockSettingsControl"
+                  x:TypeArguments="models:SevenSegmentClockSettings"
+                  xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+                  xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                  xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
+                  xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+                  xmlns:local="clr-namespace:AdvancedTimeIsland.Views.Main"
+                  xmlns:models="clr-namespace:AdvancedTimeIsland.Models"
+                  xmlns:helpers="clr-namespace:AdvancedTimeIsland.Helpers"
+                  xmlns:ci="http://classisland.tech/schemas/xaml/core"
+                  xmlns:materialDesign="http://materialdesigninxaml.net/winfx/xaml/themes"
+                  mc:Ignorable="d"
+                  d:DesignHeight="700" d:DesignWidth="800"
+                  DataContext="{Binding RelativeSource={RelativeSource FindAncestor, AncestorType=local:SevenSegmentClockSettingsControl}}"
+                  TextElement.Foreground="{DynamicResource MaterialDesignBody}"
+                  Background="{DynamicResource MaterialDesignPaper}"
+                  FontFamily="{DynamicResource HarmonyOsSans}"
+                  TextElement.FontWeight="Regular"
+                  TextElement.FontSize="14"
+                  TextOptions.TextFormattingMode="Ideal"
+                  TextOptions.TextRenderingMode="Auto">
+    <ScrollViewer VerticalScrollBarVisibility="Auto"
+                  HorizontalScrollBarVisibility="Disabled">
+        <StackPanel Style="{DynamicResource SettingsPageStackPanelStyle}">
+
+            <TextBlock Text="以七段数码管（三横四纵）样式显示当前时间。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,8" />
+
+            <!-- 显示设置 -->
+            <ci:IconText Kind="ClockOutline" Text="显示设置" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="ShowSecondsItem"
+                                IconGlyph="TimerOutline"
+                                Header="显示秒数"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox HorizontalAlignment="Left"
+                              Checked="OnShowSecondsChanged"
+                              Unchecked="OnShowSecondsChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="关闭后仅显示“时:分”（HH:mm）。默认为开启。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <ci:SettingsControl x:Name="TimeBaseItem"
+                                IconGlyph="ClockOutline"
+                                Header="时间基准（时间差值）"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <ComboBox Width="240"
+                              HorizontalAlignment="Left"
+                              SelectionChanged="OnTimeBaseSelectionChanged">
+                        <ComboBoxItem Content="插件偏移后的服务器时间" />
+                        <ComboBoxItem Content="原始服务器时间" />
+                        <ComboBoxItem Content="ClassIsland时间" />
+                    </ComboBox>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="选择数码管时钟取时所依据的时间差值来源。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <!-- 外观设置 -->
+            <Separator Margin="0 16 0 8" />
+            <ci:IconText Kind="Palette" Text="外观设置" Margin="0 0 0 8" />
+
+            <ci:SettingsControl x:Name="ZoomItem"
+                                IconGlyph="FormatSize"
+                                Header="缩放"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <!-- 范围与步长对应 SevenSegmentClockSettings 的 MinZoom / MaxZoom 与 0.01 步长 -->
+                        <Slider Width="240"
+                                Minimum="0.6"
+                                Maximum="1.0"
+                                SmallChange="0.01"
+                                LargeChange="0.05"
+                                TickFrequency="0.01"
+                                IsSnapToTickEnabled="True"
+                                VerticalAlignment="Center"
+                                ValueChanged="OnZoomValueChanged" />
+                        <TextBlock Text="0.80"
+                                   FontSize="12"
+                                   MinWidth="32"
+                                   VerticalAlignment="Center"
+                                   Margin="8,0,0,0" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="整体缩放数码管尺寸，范围 0.6~1.0，默认 0.8，步长 0.01。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <ci:SettingsControl x:Name="SkewModeItem"
+                                IconGlyph="FormatItalic"
+                                Header="倾斜模式"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox HorizontalAlignment="Left"
+                              Checked="OnSkewModeChanged"
+                              Unchecked="OnSkewModeChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="开启后，纵向数码管向右顺时针倾斜 6°，即数码管的斜体显示效果。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <ci:SettingsControl x:Name="AccentColorItem"
+                                IconGlyph="Palette"
+                                Header="强调色"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <StackPanel Orientation="Horizontal">
+                        <helpers:WpfColorPicker Width="120"
+                                                HorizontalAlignment="Left"
+                                                ColorChanged="OnAccentColorChanged" />
+                    </StackPanel>
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="默认为红色，用于数码管边框与段内径向渐变的外圈（四周）色。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <ci:SettingsControl x:Name="SeparatorBlinkItem"
+                                IconGlyph="Eye"
+                                Header="分离管脚闪动"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox HorizontalAlignment="Left"
+                              Checked="OnSeparatorBlinkChanged"
+                              Unchecked="OnSeparatorBlinkChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="开启后，分隔符（冒号）亮灭交替闪动。默认为开启。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+            <ci:SettingsControl x:Name="AnimationItem"
+                                IconGlyph="Animation"
+                                Header="动画"
+                                Margin="0,4">
+                <ci:SettingsControl.Switcher>
+                    <CheckBox HorizontalAlignment="Left"
+                              Checked="OnAnimationChanged"
+                              Unchecked="OnAnimationChanged" />
+                </ci:SettingsControl.Switcher>
+            </ci:SettingsControl>
+
+            <TextBlock Text="开启后，发生变化的数码管使用 0.25s 的渐隐、渐显过渡动画。默认为开启。"
+                       FontSize="12"
+                       Foreground="{DynamicResource MaterialDesignBody}"
+                       Opacity="0.75"
+                       TextWrapping="Wrap"
+                       Margin="0,0,0,4" />
+
+        </StackPanel>
+    </ScrollViewer>
+</ci:ComponentBase>

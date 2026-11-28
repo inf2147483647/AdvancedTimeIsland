@@ -1,11 +1,8 @@
 using System;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
-using ClassIsland.Core.Abstractions.Controls;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
+using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
 
@@ -16,18 +13,60 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
 {
     private ComboBox _timeZoneComboBox = null!;
     private DatePicker _startDatePicker = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
     private DatePicker _endDatePicker = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public TimeZoneExactTimeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
     }
 
-    protected override void OnInitialized()
+    private void OnLoaded(object? sender, RoutedEventArgs e)
     {
-        base.OnInitialized();
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            foreach (var item in _timeZoneComboBox.Items)
+            {
+                if (item is TimeZoneInfo tz && tz.Id == Settings.TimeZoneId)
+                {
+                    _timeZoneComboBox.SelectedItem = item;
+                    break;
+                }
+            }
+
+            ParseDateTimeString(Settings.StartTime, out int startYear, out int startMonth, out int startDay, out int startHour, out int startMinute, out int startSecond);
+            if (startYear > 0 && startMonth > 0 && startDay > 0)
+            {
+                _startDatePicker.SelectedDate = new DateTime(startYear, startMonth, startDay);
+            }
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            ParseDateTimeString(Settings.EndTime, out int endYear, out int endMonth, out int endDay, out int endHour, out int endMinute, out int endSecond);
+            if (endYear > 0 && endMonth > 0 && endDay > 0)
+            {
+                _endDatePicker.SelectedDate = new DateTime(endYear, endMonth, endDay);
+            }
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
+    }
+
+    protected override void OnInitialized(EventArgs e)
+    {
+        base.OnInitialized(e);
         // 设置初始选中的时区
         if (Settings != null)
         {
@@ -49,7 +88,6 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -62,7 +100,7 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         // 结束时间
         mainPanel.Children.Add(CreateDateTimePickerGroup("结束时间:", false));
 
-                Content = new ScrollViewer
+        Content = new ScrollViewer
         {
             Content = mainPanel,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
@@ -75,7 +113,6 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -109,7 +146,6 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -128,7 +164,7 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         };
 
         // 时间选择器
-        var timePicker = new TimePicker
+        var timePicker = new WpfTimePicker
         {
             Width = 360,
             ClockIdentifier = "24HourClock",
@@ -153,7 +189,7 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
 
         if (year > 0 && month > 0 && day > 0)
         {
-            datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
+            datePicker.SelectedDate = new DateTime(year, month, day);
         }
         timePicker.SelectedTime = new TimeSpan(hour, minute, second);
 
@@ -178,15 +214,16 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 开始时间
-        var startDate = _startDatePicker.SelectedDate?.DateTime ?? DateTime.Today;
+        var startDate = _startDatePicker.SelectedDate ?? DateTime.Today;
         var startTime = _startTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.StartTime = $"{startDate.Year:D4}-{startDate.Month:D2}-{startDate.Day:D2}-{startTime.Hours:D2}-{startTime.Minutes:D2}-{startTime.Seconds:D2}";
 
         // 结束时间
-        var endDate = _endDatePicker.SelectedDate?.DateTime ?? DateTime.Today;
+        var endDate = _endDatePicker.SelectedDate ?? DateTime.Today;
         var endTime = _endTimePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.EndTime = $"{endDate.Year:D4}-{endDate.Month:D2}-{endDate.Day:D2}-{endTime.Hours:D2}-{endTime.Minutes:D2}-{endTime.Seconds:D2}";
     }
@@ -207,6 +244,3 @@ public class TimeZoneExactTimeRuleSettingsControl : RuleSettingsControlBase<Time
         if (parts.Length >= 6 && int.TryParse(parts[5], out int s)) second = s;
     }
 }
-
-
-

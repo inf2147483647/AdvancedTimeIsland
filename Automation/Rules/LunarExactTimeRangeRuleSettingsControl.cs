@@ -1,8 +1,8 @@
 using System;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Layout;
-using Avalonia.Media;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Abstractions.Controls;
@@ -21,7 +21,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
     private ComboBox _startLunarMonthComboBox = null!;
     private CheckBox _startLeapMonthCheckBox = null!;
     private ComboBox _startLunarDayComboBox = null!;
-    private TimePicker _startTimePicker = null!;
+    private WpfTimePicker _startTimePicker = null!;
 
     private ComboBox _endTianganComboBox = null!;
     private ComboBox _endDizhiComboBox = null!;
@@ -29,11 +29,124 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
     private ComboBox _endLunarMonthComboBox = null!;
     private CheckBox _endLeapMonthCheckBox = null!;
     private ComboBox _endLunarDayComboBox = null!;
-    private TimePicker _endTimePicker = null!;
+    private WpfTimePicker _endTimePicker = null!;
+    private bool _isLoading;
 
     public LunarExactTimeRangeRuleSettingsControl()
     {
         InitializeComponent();
+        Loaded += OnLoaded;
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        LoadSettingsToUi();
+    }
+
+    private void LoadSettingsToUi()
+    {
+        if (Settings == null) return;
+        _isLoading = true;
+        try
+        {
+            if (Settings.StartLunarYear > 0)
+            {
+                _startTianganComboBox.SelectedItem = LunarCalendarHelper.GetTiangan(Settings.StartLunarYear);
+                _startDizhiComboBox.SelectedItem = LunarCalendarHelper.GetDizhi(Settings.StartLunarYear);
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                {
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    {
+                        if (Settings.StartLunarYear >= startYear && Settings.StartLunarYear <= endYear)
+                        {
+                            _startYearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                _startYearRangeComboBox.SelectedIndex = 2;
+                _startTianganComboBox.SelectedIndex = 0;
+                _startDizhiComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.StartLunarMonth > 0 && Settings.StartLunarMonth <= 12)
+            {
+                _startLunarMonthComboBox.SelectedIndex = Settings.StartLunarMonth - 1;
+            }
+            else
+            {
+                _startLunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _startLeapMonthCheckBox.IsChecked = Settings.StartIsLeapMonth;
+
+            if (Settings.StartLunarDay > 0 && Settings.StartLunarDay <= 30)
+            {
+                _startLunarDayComboBox.SelectedIndex = Settings.StartLunarDay - 1;
+            }
+            else
+            {
+                _startLunarDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.StartTargetTime, out int startHour, out int startMinute, out int startSecond);
+            _startTimePicker.SelectedTime = new TimeSpan(startHour, startMinute, startSecond);
+
+            if (Settings.EndLunarYear > 0)
+            {
+                _endTianganComboBox.SelectedItem = LunarCalendarHelper.GetTiangan(Settings.EndLunarYear);
+                _endDizhiComboBox.SelectedItem = LunarCalendarHelper.GetDizhi(Settings.EndLunarYear);
+
+                foreach (var range in LunarCalendarHelper.GetAllYearRanges())
+                {
+                    if (LunarCalendarHelper.ParseYearRange(range, out var startYear, out var endYear))
+                    {
+                        if (Settings.EndLunarYear >= startYear && Settings.EndLunarYear <= endYear)
+                        {
+                            _endYearRangeComboBox.SelectedItem = range;
+                            break;
+                        }
+                    }
+                }
+            }
+            else
+            {
+                _endYearRangeComboBox.SelectedIndex = 2;
+                _endTianganComboBox.SelectedIndex = 0;
+                _endDizhiComboBox.SelectedIndex = 0;
+            }
+
+            if (Settings.EndLunarMonth > 0 && Settings.EndLunarMonth <= 12)
+            {
+                _endLunarMonthComboBox.SelectedIndex = Settings.EndLunarMonth - 1;
+            }
+            else
+            {
+                _endLunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _endLeapMonthCheckBox.IsChecked = Settings.EndIsLeapMonth;
+
+            if (Settings.EndLunarDay > 0 && Settings.EndLunarDay <= 30)
+            {
+                _endLunarDayComboBox.SelectedIndex = Settings.EndLunarDay - 1;
+            }
+            else
+            {
+                _endLunarDayComboBox.SelectedIndex = 0;
+            }
+
+            ParseTimeString(Settings.EndTargetTime, out int endHour, out int endMinute, out int endSecond);
+            _endTimePicker.SelectedTime = new TimeSpan(endHour, endMinute, endSecond);
+        }
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void InitializeComponent()
@@ -43,7 +156,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -51,7 +163,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startSection = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -60,14 +171,13 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             Text = "开始时间",
             Foreground = Brushes.LightBlue,
             FontSize = 14,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeights.Bold
         });
 
         // 开始年份（年份范围+天干地支选择）
         var startYearPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -75,7 +185,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startYearRangePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -105,7 +214,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startTgDzPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -189,7 +297,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startMonthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -230,8 +337,8 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             IsChecked = Settings?.StartIsLeapMonth ?? false,
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(_startLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
-        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(_startLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        _startLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
+        _startLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
 
         startMonthPanel.Children.Add(_startLeapMonthCheckBox);
         startSection.Children.Add(startMonthPanel);
@@ -240,7 +347,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startDayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -280,7 +386,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var startTimePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -291,7 +396,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _startTimePicker = new TimePicker
+        _startTimePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -315,7 +420,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endSection = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -324,14 +428,13 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             Text = "结束时间",
             Foreground = Brushes.LightPink,
             FontSize = 14,
-            FontWeight = FontWeight.Bold
+            FontWeight = FontWeights.Bold
         });
 
         // 结束年份（年份范围+天干地支选择）
         var endYearPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -339,7 +442,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endYearRangePanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -369,7 +471,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endTgDzPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -453,7 +554,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endMonthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -494,8 +594,8 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             IsChecked = Settings?.EndIsLeapMonth ?? false,
             HorizontalAlignment = HorizontalAlignment.Left
         };
-        FluentAvaloniaCompatibilityHelper.AddCheckedHandler(_endLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
-        FluentAvaloniaCompatibilityHelper.AddUncheckedHandler(_endLeapMonthCheckBox, (s, e) => UpdateSettingsValue());
+        _endLeapMonthCheckBox.Checked += (s, e) => UpdateSettingsValue();
+        _endLeapMonthCheckBox.Unchecked += (s, e) => UpdateSettingsValue();
 
         endMonthPanel.Children.Add(_endLeapMonthCheckBox);
         endSection.Children.Add(endMonthPanel);
@@ -504,7 +604,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endDayPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -544,7 +643,6 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
         var endTimePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -555,7 +653,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _endTimePicker = new TimePicker
+        _endTimePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -585,6 +683,7 @@ public class LunarExactTimeRangeRuleSettingsControl : RuleSettingsControlBase<Lu
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         // 更新开始时间

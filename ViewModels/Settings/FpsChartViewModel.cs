@@ -1,11 +1,13 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
-using Avalonia.Threading;
+using System.Windows.Threading;
+using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.ViewModels.Main;
 using AdvancedTimeIsland.Services;
 
@@ -58,7 +60,7 @@ public static class FpsSampler
     public static void Clear()
     {
         s_records.Clear();
-        Dispatcher.UIThread.Post(() => DataUpdated?.Invoke());
+        UIThread.Post(() => DataUpdated?.Invoke());
     }
 
     private static void OnFpsDataUpdated(DateTime time, double fps, double max, double avg, double min, double low1, double oneSecondFrameCount)
@@ -74,7 +76,7 @@ public static class FpsSampler
                 s_records.Dequeue();
             }
 
-            Dispatcher.UIThread.Post(() => DataUpdated?.Invoke());
+            UIThread.Post(() => DataUpdated?.Invoke());
         }
         catch
         {

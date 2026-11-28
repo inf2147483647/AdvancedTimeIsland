@@ -1,12 +1,7 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using AdvancedTimeIsland.Automation.Rules;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -14,7 +9,7 @@ namespace AdvancedTimeIsland.Automation.Rules;
 public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRuleSettings>
 {
     private DatePicker _datePicker = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public ExactTimeRuleSettingsControl()
     {
@@ -34,7 +29,6 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -53,7 +47,6 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
         var groupPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -70,7 +63,7 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -87,25 +80,36 @@ public class ExactTimeRuleSettingsControl : RuleSettingsControlBase<ExactTimeRul
         return groupPanel;
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        var initialValue = Settings.TargetTime;
-        ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
-
-        if (year > 0 && month > 0 && day > 0)
+        _isLoading = true;
+        try
         {
-            _datePicker.SelectedDate = new DateTimeOffset(new DateTime(year, month, day));
+            if (Settings == null) return;
+
+            var initialValue = Settings.TargetTime;
+            ParseDateTimeString(initialValue, out int year, out int month, out int day, out int hour, out int minute, out int second);
+
+            if (year > 0 && month > 0 && day > 0)
+            {
+                _datePicker.SelectedDate = new DateTime(year, month, day);
+            }
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
+        finally
+        {
+            _isLoading = false;
+        }
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
-        var date = _datePicker.SelectedDate?.DateTime ?? DateTime.Today;
+        var date = _datePicker.SelectedDate ?? DateTime.Today;
         var time = _timePicker.SelectedTime ?? TimeSpan.Zero;
         Settings.TargetTime = $"{date.Year:D4}-{date.Month:D2}-{date.Day:D2}-{time.Hours:D2}-{time.Minutes:D2}-{time.Seconds:D2}";
     }

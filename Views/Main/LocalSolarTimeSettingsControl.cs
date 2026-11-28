@@ -1,49 +1,36 @@
 using System;
 using System.ComponentModel;
 using System.Threading.Tasks;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Controls.Primitives;
+using System.Windows.Media;
 using AdvancedTimeIsland.Helpers;
 using AdvancedTimeIsland.Models;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
-using Avalonia.Styling;
-using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Views.Main;
 
-public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSettings>
+public partial class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSettings>
 {
-    private TextBox _longitudeTextBox;
-    private TextBox _longitudeDmsDegreesTextBox;
-    private TextBox _longitudeDmsMinutesTextBox;
-    private TextBox _longitudeDmsSecondsTextBox;
-    private ComboBox _longitudeDmsDirectionComboBox;
-    private Panel _longitudeDmsPanel;
-    private TextBox _colorTextBox;
-    private TextBox _fontSizeTextBox;
-    private ToggleSwitch _enableCustomFontSizeToggle;
-    private ToggleSwitch _enableCustomFontColorToggle;
-    private ToggleSwitch _enableCustomFontFamilyToggle;
-    private ToggleSwitch _enableCustomFontWeightToggle;
-    private ComboBox _fontFamilyComboBox;
-    private ComboBox _fontWeightComboBox;
-    private Button _getLocationButton;
-    private TextBlock _statusText;
+    private TextBox _longitudeTextBox = null!;
+    private bool _initCompleted;
+    private TextBox _longitudeDmsDegreesTextBox = null!;
+    private TextBox _longitudeDmsMinutesTextBox = null!;
+    private TextBox _longitudeDmsSecondsTextBox = null!;
+    private ComboBox _longitudeDmsDirectionComboBox = null!;
+    private StackPanel _longitudeDmsPanel = null!;
+    private WpfColorPicker _colorPicker = null!;
+    private WpfNumericUpDown _fontSizeNumericUpDown = null!;
+    private CheckBox _enableCustomFontSizeToggle = null!;
+    private CheckBox _enableCustomFontColorToggle = null!;
+    private CheckBox _enableCustomFontFamilyToggle = null!;
+    private CheckBox _enableCustomFontWeightToggle = null!;
+    private ComboBox _fontFamilyComboBox = null!;
+    private ComboBox _fontWeightComboBox = null!;
+    private Button _getLocationButton = null!;
+    private TextBlock _statusText = null!;
     private readonly PluginSettings? _pluginSettings;
-
-    private TextBlock _titleTextBlock;
-    private TextBlock _longitudeLabelTextBlock;
-    private TextBlock _dmsDegreeSymbol;
-    private TextBlock _dmsMinuteSymbol;
-    private TextBlock _dmsSecondSymbol;
-    private TextBlock _hintTextBlock;
-    private TextBlock _styleTitleTextBlock;
-    private TextBlock _colorLabelTextBlock;
-    private TextBlock _fontSizeLabelTextBlock;
 
     public LocalSolarTimeSettingsControl() : this(null)
     {
@@ -57,268 +44,81 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
             _pluginSettings.PropertyChanged += OnPluginSettingsPropertyChanged;
         }
         InitializeComponent();
+        InitializeControlReferences();
     }
 
-    private void InitializeComponent()
+    /// <summary>
+    /// 从 XAML 的 SettingsControl.Switcher 中提取控件引用。
+    /// （SettingsControl 模板内元素无法使用 x:Name，需通过 Switcher 属性访问）
+    /// </summary>
+    private void InitializeControlReferences()
     {
-        var sp = new StackPanel { Orientation = Orientation.Vertical, Spacing = 8 };
+        _statusText = StatusText;
+        _longitudeTextBox = (TextBox)((StackPanel)LongitudeItem.Switcher).Children[0];
+        _longitudeDmsPanel = (StackPanel)((StackPanel)LongitudeItem.Switcher).Children[1];
+        _longitudeDmsDegreesTextBox = (TextBox)_longitudeDmsPanel.Children[0];
+        _longitudeDmsMinutesTextBox = (TextBox)_longitudeDmsPanel.Children[2];
+        _longitudeDmsSecondsTextBox = (TextBox)_longitudeDmsPanel.Children[4];
+        _longitudeDmsDirectionComboBox = (ComboBox)_longitudeDmsPanel.Children[6];
 
-        _titleTextBlock = new TextBlock { Text = "经度设置", FontSize = 14, FontWeight = FontWeight.Bold };
-        sp.Children.Add(_titleTextBlock);
+        _getLocationButton = (Button)((StackPanel)GetLocationItem.Switcher).Children[0];
 
-        var longitudeRow = new Grid();
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-        longitudeRow.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        _fontSizeNumericUpDown = (WpfNumericUpDown)((StackPanel)FontSizeItem.Switcher).Children[0];
+        _enableCustomFontSizeToggle = (CheckBox)((StackPanel)FontSizeItem.Switcher).Children[1];
 
-        _longitudeLabelTextBlock = new TextBlock { Text = "经度:", VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(_longitudeLabelTextBlock, 0);
-        longitudeRow.Children.Add(_longitudeLabelTextBlock);
+        _colorPicker = (WpfColorPicker)((StackPanel)ColorItem.Switcher).Children[0];
+        _enableCustomFontColorToggle = (CheckBox)((StackPanel)ColorItem.Switcher).Children[1];
 
-        var isDms = _pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        _fontFamilyComboBox = (ComboBox)((StackPanel)FontFamilyItem.Switcher).Children[0];
+        _enableCustomFontFamilyToggle = (CheckBox)((StackPanel)FontFamilyItem.Switcher).Children[1];
 
-        _longitudeTextBox = new TextBox { Width = 120, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = !isDms };
-        Grid.SetColumn(_longitudeTextBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
-        longitudeRow.Children.Add(_longitudeTextBox);
+        _fontWeightComboBox = (ComboBox)((StackPanel)FontWeightItem.Switcher).Children[0];
+        _enableCustomFontWeightToggle = (CheckBox)((StackPanel)FontWeightItem.Switcher).Children[1];
 
-        _longitudeDmsPanel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, HorizontalAlignment = HorizontalAlignment.Left, IsVisible = isDms };
-        Grid.SetColumn(_longitudeDmsPanel, 1);
-
-        _longitudeDmsDegreesTextBox = new TextBox { Width = 50, Watermark = "度" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsDegreesTextBox);
-        _dmsDegreeSymbol = new TextBlock { Text = "°", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsDegreeSymbol);
-
-        _longitudeDmsMinutesTextBox = new TextBox { Width = 45, Watermark = "分" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsMinutesTextBox);
-        _dmsMinuteSymbol = new TextBlock { Text = "′", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsMinuteSymbol);
-
-        _longitudeDmsSecondsTextBox = new TextBox { Width = 45, Watermark = "秒" };
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
-        _longitudeDmsPanel.Children.Add(_longitudeDmsSecondsTextBox);
-        _dmsSecondSymbol = new TextBlock { Text = "″", VerticalAlignment = VerticalAlignment.Center };
-        _longitudeDmsPanel.Children.Add(_dmsSecondSymbol);
-
-        _longitudeDmsDirectionComboBox = new ComboBox { Width = 90 };
-        _longitudeDmsDirectionComboBox.Items.Add("东经");
-        _longitudeDmsDirectionComboBox.Items.Add("西经");
-        _longitudeDmsDirectionComboBox.SelectedIndex = 0;
-        _longitudeDmsDirectionComboBox.SelectionChanged += OnLongitudeDmsValueChanged;
-        _longitudeDmsPanel.Children.Add(_longitudeDmsDirectionComboBox);
-
-        longitudeRow.Children.Add(_longitudeDmsPanel);
-
-        _getLocationButton = new Button
-        {
-            Content = "获取当前位置",
-            Padding = new Thickness(8, 4),
-            Margin = new Thickness(8, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
-        Grid.SetColumn(_getLocationButton, 2);
-        _getLocationButton.Click += OnGetLocationClick;
-        longitudeRow.Children.Add(_getLocationButton);
-        sp.Children.Add(longitudeRow);
-
-        _statusText = new TextBlock { Text = "", FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_statusText);
-
-        _hintTextBlock = new TextBlock { Text = "取值范围为(-180到180]，单位为度，正数为东经，负数为西经", FontSize = 11, TextWrapping = TextWrapping.Wrap };
-        sp.Children.Add(_hintTextBlock);
-
-        _styleTitleTextBlock = new TextBlock { Text = "字体样式", FontSize = 14, FontWeight = FontWeight.Bold, Margin = new Thickness(0, 10, 0, 0) };
-        sp.Children.Add(_styleTitleTextBlock);
-
-        sp.Children.Add(CreateFontSizeRow("文本大小", out _fontSizeLabelTextBlock, out _fontSizeTextBox, out _enableCustomFontSizeToggle, OnFontSizeLostFocus, OnEnableCustomFontSizeChanged));
-        sp.Children.Add(CreateColorRow("文本颜色", out _colorLabelTextBlock, out _colorTextBox, out _enableCustomFontColorToggle, OnColorLostFocus, OnEnableCustomFontColorChanged));
-        sp.Children.Add(CreateFontFamilyRow("字体样式", out _fontFamilyComboBox, out _enableCustomFontFamilyToggle, OnEnableCustomFontFamilyChanged, OnFontFamilyChanged));
-        sp.Children.Add(CreateFontWeightRow("字重", out _fontWeightComboBox, out _enableCustomFontWeightToggle, OnEnableCustomFontWeightChanged, OnFontWeightChanged));
-        sp.Children.Add(CreateFontWeightHintTextBlock());
-
-        var scrollViewer = new ScrollViewer
-        {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            Content = sp
-        };
-        Content = scrollViewer;
-    }
-
-    private Grid CreateFontSizeRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        textBox = new TextBox { Width = 80, Watermark = "14", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本大小" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateColorRow(string labelText, out TextBlock label, out TextBox textBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> lostFocusHandler, EventHandler<RoutedEventArgs> toggleHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        textBox = new TextBox { Width = 120, Watermark = "#FFFFFF", HorizontalAlignment = HorizontalAlignment.Left };
-        Grid.SetColumn(textBox, 1);
-        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(textBox, lostFocusHandler);
-        row.Children.Add(textBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义文本颜色" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontFamilyRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var font in FontFamilyHelper.GetSystemFontFamilies())
         {
-            comboBox.Items.Add(font);
+            _fontFamilyComboBox.Items.Add(font);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
-
-        toggle = new ToggleSwitch { Content = "启用自定义字体样式" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
-
-        return row;
-    }
-
-    private Grid CreateFontWeightRow(string labelText, out ComboBox comboBox, out ToggleSwitch toggle,
-        EventHandler<RoutedEventArgs> toggleHandler, EventHandler<SelectionChangedEventArgs> selectionChangedHandler)
-    {
-        var row = new Grid();
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-        row.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-
-        var label = new TextBlock { Text = labelText, VerticalAlignment = VerticalAlignment.Center, Margin = new Thickness(0, 0, 8, 0) };
-        Grid.SetColumn(label, 0);
-        row.Children.Add(label);
-
-        comboBox = new ComboBox { Width = 200, HorizontalAlignment = HorizontalAlignment.Left };
         foreach (var weight in FontFamilyHelper.GetFontWeights())
         {
-            comboBox.Items.Add(weight);
+            _fontWeightComboBox.Items.Add(weight);
         }
-        comboBox.SelectionChanged += selectionChangedHandler;
-        Grid.SetColumn(comboBox, 1);
-        row.Children.Add(comboBox);
 
-        toggle = new ToggleSwitch { Content = "启用自定义字重" };
-        Grid.SetColumn(toggle, 2);
-        toggle.IsCheckedChanged += toggleHandler;
-        row.Children.Add(toggle);
+        _longitudeDmsDirectionComboBox.Items.Add("东经");
+        _longitudeDmsDirectionComboBox.Items.Add("西经");
 
-        return row;
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeTextBox, OnLongitudeLostFocus);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsDegreesTextBox, OnLongitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsMinutesTextBox, OnLongitudeDmsValueChanged);
+        FluentAvaloniaCompatibilityHelper.AddLostFocusHandler(_longitudeDmsSecondsTextBox, OnLongitudeDmsValueChanged);
+        _longitudeDmsDirectionComboBox.SelectionChanged += OnLongitudeDmsValueChanged;
     }
 
-    private TextBlock CreateFontWeightHintTextBlock()
-    {
-        return new TextBlock
-        {
-            Text = "需要对应字体支持所选字重",
-            FontSize = 14,
-            FontWeight = FontWeight.Bold,
-            Foreground = Avalonia.Media.Brushes.Orange,
-            Margin = new Thickness(0, 2, 0, 0)
-        };
-    }
-
-    private void UpdateThemeColors()
-    {
-        _titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _longitudeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _dmsDegreeSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _dmsMinuteSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _dmsSecondSymbol.Foreground = ThemeHelper.GetTextBrush();
-        _statusText.Foreground = ThemeHelper.GetGrayBrush();
-        _hintTextBlock.Foreground = ThemeHelper.GetGrayBrush();
-        _enableCustomFontSizeToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontColorToggle.Foreground = ThemeHelper.GetTextBrush();
-        _enableCustomFontWeightToggle.Foreground = ThemeHelper.GetTextBrush();
-        _styleTitleTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _colorLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-        _fontSizeLabelTextBlock.Foreground = ThemeHelper.GetTextBrush();
-    }
-
-    private void OnThemeVariantChanged(object? sender, EventArgs e)
-    {
-        UpdateThemeColors();
-    }
-
-    private void OnEnableCustomFontSizeChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontSizeChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableCustomFontSize = _enableCustomFontSizeToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontColorChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontColorChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableCustomFontColor = _enableCustomFontColorToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontFamilyChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontFamilyChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableCustomFontFamily = _enableCustomFontFamilyToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnEnableCustomFontWeightChanged(object? sender, EventArgs e)
+    private void OnEnableCustomFontWeightChanged(object? sender, RoutedEventArgs e)
     {
         Settings.EnableCustomFontWeight = _enableCustomFontWeightToggle.IsChecked ?? false;
         UpdateControlsEnabled();
     }
 
-    private void OnFontFamilyChanged(object? sender, EventArgs e)
+    private void OnFontFamilyChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_fontFamilyComboBox.SelectedItem != null)
         {
@@ -326,7 +126,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
     }
 
-    private void OnFontWeightChanged(object? sender, EventArgs e)
+    private void OnFontWeightChanged(object? sender, SelectionChangedEventArgs e)
     {
         if (_fontWeightComboBox.SelectedItem != null)
         {
@@ -340,49 +140,69 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         var fontColorEnabled = Settings.EnableCustomFontColor;
         var fontFamilyEnabled = Settings.EnableCustomFontFamily;
         var fontWeightEnabled = Settings.EnableCustomFontWeight;
-        _colorTextBox.IsEnabled = fontColorEnabled;
-        _fontSizeTextBox.IsEnabled = fontSizeEnabled;
+        _colorPicker.IsEnabled = fontColorEnabled;
+        _fontSizeNumericUpDown.IsEnabled = fontSizeEnabled;
         _fontFamilyComboBox.IsEnabled = fontFamilyEnabled;
         _fontWeightComboBox.IsEnabled = fontWeightEnabled;
     }
 
-    protected override void OnInitialized()
+    protected override void OnInitialized(EventArgs e)
     {
-        base.OnInitialized();
-        if (Application.Current != null)
+        base.OnInitialized(e);
+        RunInitWhenReady();
+    }
+
+    private void RunInitWhenReady()
+    {
+        if (_initCompleted) return;
+        if (Settings == null)
         {
-            Application.Current.ActualThemeVariantChanged += OnThemeVariantChanged;
+            // OnInitialized 可能在组件创建期间提前触发，此时 Settings 尚未注入，延迟到 Loaded 后再初始化
+            Loaded += OnLoadedAfterSettingsReady;
+            return;
         }
-        UpdateThemeColors();
+        _initCompleted = true;
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    private void OnLoadedAfterSettingsReady(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoadedAfterSettingsReady;
+        RunInitWhenReady();
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        Loaded -= OnLoaded;
         _longitudeTextBox.Text = LongitudeConverter.ToDecimalString(Settings.Longitude);
         UpdateDmsFromLongitude();
         if (_pluginSettings?.LongitudeDisplayMode == LongitudeDisplayMode.Dms)
         {
-            _longitudeTextBox.IsVisible = false;
-            _longitudeDmsPanel.IsVisible = true;
+            _longitudeTextBox.Visibility = Visibility.Collapsed;
+            _longitudeDmsPanel.Visibility = Visibility.Visible;
         }
         else
         {
-            _longitudeTextBox.IsVisible = true;
-            _longitudeDmsPanel.IsVisible = false;
+            _longitudeTextBox.Visibility = Visibility.Visible;
+            _longitudeDmsPanel.Visibility = Visibility.Collapsed;
         }
         _enableCustomFontSizeToggle.IsChecked = Settings.EnableCustomFontSize;
         _enableCustomFontColorToggle.IsChecked = Settings.EnableCustomFontColor;
         _enableCustomFontFamilyToggle.IsChecked = Settings.EnableCustomFontFamily;
         _enableCustomFontWeightToggle.IsChecked = Settings.EnableCustomFontWeight;
         UpdateControlsEnabled();
-        _colorTextBox.Text = Settings.FontColor;
-        _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        _colorPicker.Color = ParseColor(Settings.FontColor);
+        _fontSizeNumericUpDown.Value = (decimal)Settings.TextFontSize;
         _fontFamilyComboBox.SelectedItem = Settings.FontFamily;
         _fontWeightComboBox.SelectedItem = Settings.FontWeight;
     }
 
-    protected override void OnDetachedFromVisualTree(Avalonia.VisualTreeAttachmentEventArgs e)
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
     {
-        base.OnDetachedFromVisualTree(e);
-        if (Application.Current != null)
+        if (_pluginSettings != null)
         {
-            Application.Current.ActualThemeVariantChanged -= OnThemeVariantChanged;
+            _pluginSettings.PropertyChanged -= OnPluginSettingsPropertyChanged;
         }
     }
 
@@ -395,7 +215,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         _longitudeDmsDirectionComboBox.SelectedIndex = isEast ? 0 : 1;
     }
 
-    private void OnLongitudeLostFocus(object? sender, EventArgs e)
+    private void OnLongitudeLostFocus(object? sender, RoutedEventArgs e)
     {
         if (LongitudeConverter.TryParseDecimal(_longitudeTextBox.Text, out double lon))
         {
@@ -426,7 +246,7 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
     }
 
-    private async void OnGetLocationClick(object? sender, EventArgs e)
+    private async void OnGetLocationClick(object? sender, RoutedEventArgs e)
     {
         _getLocationButton.IsEnabled = false;
         _getLocationButton.Content = "获取中...";
@@ -472,8 +292,6 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
 
     private async Task<double?> GetLocationAsync()
     {
-        // 直接使用基于 IP 的定位，避免引入 WinRT/Windows SDK 依赖（可显著减小安装包体积）
-        // 精度为城市级，对本地真太阳时计算已足够
         return await GetLocationByIpAsync();
     }
 
@@ -483,15 +301,15 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         {
             using var client = new System.Net.Http.HttpClient();
             client.Timeout = TimeSpan.FromSeconds(10);
-            
+
             var response = await client.GetStringAsync("http://ip-api.com/json/?fields=lon");
-            
+
             var json = System.Text.Json.JsonDocument.Parse(response);
             if (json.RootElement.TryGetProperty("lon", out var lonElement))
             {
                 return lonElement.GetDouble();
             }
-            
+
             return null;
         }
         catch
@@ -500,37 +318,28 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         }
     }
 
-    private void OnColorLostFocus(object? sender, RoutedEventArgs e)
+    private void OnColorChanged(object? sender, ColorChangedEventArgs e)
     {
-        var color = _colorTextBox.Text ?? "#FFFFFF";
-        if (color.StartsWith("#") && (color.Length == 7 || color.Length == 9))
+        Settings.FontColor = _colorPicker.Color.ToString();
+    }
+
+    private Color ParseColor(string colorString)
+    {
+        try
         {
-            try
-            {
-                Avalonia.Media.Color.Parse(color);
-                Settings.FontColor = color;
-            }
-            catch
-            {
-                _colorTextBox.Text = Settings.FontColor;
-            }
+            return ThemeHelper.ParseColor(colorString);
         }
-        else
+        catch
         {
-            _colorTextBox.Text = Settings.FontColor;
+            return ThemeHelper.ParseColor(ThemeHelper.GetTextColorHex());
         }
     }
 
-    private void OnFontSizeLostFocus(object? sender, RoutedEventArgs e)
+    private void OnFontSizeChanged(object? sender, NumericUpDownValueChangedEventArgs e)
     {
-        if (double.TryParse(_fontSizeTextBox.Text, out double size))
+        if (_fontSizeNumericUpDown.Value.HasValue)
         {
-            Settings.TextFontSize = size;
-            _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        }
-        else
-        {
-            _fontSizeTextBox.Text = Settings.TextFontSize.ToString(System.Globalization.CultureInfo.InvariantCulture);
+            Settings.TextFontSize = (double)_fontSizeNumericUpDown.Value.Value;
         }
     }
 
@@ -547,8 +356,8 @@ public class LocalSolarTimeSettingsControl : ComponentBase<LocalSolarTimeSetting
         if (_pluginSettings == null)
             return;
 
-        _longitudeTextBox.IsVisible = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal;
-        _longitudeDmsPanel.IsVisible = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms;
+        _longitudeTextBox.Visibility = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal ? Visibility.Visible : Visibility.Collapsed;
+        _longitudeDmsPanel.Visibility = _pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Dms ? Visibility.Visible : Visibility.Collapsed;
 
         if (_pluginSettings.LongitudeDisplayMode == LongitudeDisplayMode.Decimal)
         {

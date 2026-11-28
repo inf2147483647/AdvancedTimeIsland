@@ -2,10 +2,11 @@ using System;
 using AdvancedTimeIsland.Automation.Rules;
 using AdvancedTimeIsland.Helpers;
 using ClassIsland.Core.Attributes;
+using MaterialDesignThemes.Wpf;
 
 namespace AdvancedTimeIsland.Automation.Triggers;
 
-[TriggerInfo("advancedtimeisland.lunar_monthly_time", "农历每月", "\uecda")]
+[TriggerInfo("advancedtimeisland.lunar_monthly_time", "农历每月", PackIconKind.MoonNew)]
 public class LunarMonthlyTimeTrigger : TimeTriggerBase<LunarMonthlyRuleSettings>
 {
     protected override bool CheckTrigger(DateTime now)

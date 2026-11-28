@@ -1,11 +1,7 @@
 using System;
+using System.Windows;
+using System.Windows.Controls;
 using AdvancedTimeIsland.Helpers;
-using Avalonia;
-using Avalonia.Controls;
-using Avalonia.Controls.Primitives;
-using Avalonia.Interactivity;
-using Avalonia.Layout;
-using Avalonia.Media;
 using ClassIsland.Core.Abstractions.Controls;
 
 namespace AdvancedTimeIsland.Automation.Rules;
@@ -18,7 +14,7 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
 {
     private ComboBox _lunarMonthComboBox = null!;
     private TextBox _daysFromEndTextBox = null!;
-    private TimePicker _timePicker = null!;
+    private WpfTimePicker _timePicker = null!;
 
     public LunarLastDayRuleSettingsControl()
     {
@@ -38,14 +34,12 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         var mainPanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 12,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
         var monthPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -75,7 +69,6 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         var daysPanel = new StackPanel
         {
             Orientation = Orientation.Horizontal,
-            Spacing = 8,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -107,7 +100,6 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         var timePanel = new StackPanel
         {
             Orientation = Orientation.Vertical,
-            Spacing = 6,
             HorizontalAlignment = HorizontalAlignment.Left
         };
 
@@ -118,7 +110,7 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
             VerticalAlignment = VerticalAlignment.Center
         });
 
-        _timePicker = new TimePicker
+        _timePicker = new WpfTimePicker
         {
             Width = 250,
             ClockIdentifier = "24HourClock",
@@ -139,28 +131,39 @@ public class LunarLastDayRuleSettingsControl : RuleSettingsControlBase<LunarLast
         };
     }
 
+    private bool _isLoading;
+
     private void LoadSettingsToUi()
     {
-        if (Settings == null) return;
-
-        if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+        _isLoading = true;
+        try
         {
-            _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            if (Settings == null) return;
+
+            if (Settings.LunarMonth > 0 && Settings.LunarMonth <= 12)
+            {
+                _lunarMonthComboBox.SelectedIndex = Settings.LunarMonth - 1;
+            }
+            else
+            {
+                _lunarMonthComboBox.SelectedIndex = 0;
+            }
+
+            _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
+
+            var initialValue = Settings.TargetTime;
+            ParseTimeString(initialValue, out int hour, out int minute, out int second);
+            _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
         }
-        else
+        finally
         {
-            _lunarMonthComboBox.SelectedIndex = 0;
+            _isLoading = false;
         }
-
-        _daysFromEndTextBox.Text = Settings.DaysFromEnd.ToString();
-
-        var initialValue = Settings.TargetTime;
-        ParseTimeString(initialValue, out int hour, out int minute, out int second);
-        _timePicker.SelectedTime = new TimeSpan(hour, minute, second);
     }
 
     private void UpdateSettingsValue()
     {
+        if (_isLoading) return;
         if (Settings == null) return;
 
         Settings.LunarMonth = _lunarMonthComboBox.SelectedIndex + 1;
