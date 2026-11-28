@@ -263,9 +263,41 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //  这里只负责 Avalonia 侧的 RenderTransform 与回弹定时器，变换挂在 _containerBorder 上
     //  （该 Border 是窗口根内容，全文件仅课间行控件用过 TranslateTransform，根内容变换未被占用）。
     private readonly FloatScheduleJelly _jelly = new();
-    private readonly ScaleTransform _jellyScale = new(1, 1);
+    //  【Avalonia 12 线程亲和】ScaleTransform 不能写成字段初始化器：DI 建本服务时可能不在 UI 线程上，
+    //  而 Avalonia 12 起 AvaloniaObject 在构造瞬间绑定"当时线程的 Dispatcher"（11.x 无此亲和），
+    //  之后在 UI 线程写 ScaleX 就会抛
+    //  "The calling thread cannot access this object because a different thread owns it"
+    //  （表现为调「高级外观 → 边框」等触发材质/果冻重建的设置时插件被宿主自动禁用）。
+    //  改为首次用到时在 UI 线程懒创建（本类全部使用点都在 UI 线程）。
+    private ScaleTransform? _jellyScaleAv;
+    private ScaleTransform JellyScaleAv
+    {
+        get
+        {
+            if (_jellyScaleAv == null)
+            {
+                // 极端情况（非 UI 线程首访）：先切回 UI 线程再创建，避免把错误线程记成亲和线程
+                if (!Dispatcher.UIThread.CheckAccess())
+                    return Dispatcher.UIThread.Invoke(() => JellyScaleAv);
+                _jellyScaleAv = new ScaleTransform(1, 1);
+            }
+            return _jellyScaleAv;
+        }
+    }
     private DispatcherTimer? _jellyTimer;    // 松手回弹的 144Hz 步进定时器（Render 优先级，赶在渲染前写入比例）
     private long _jellyLastTs;               // 上一次 OnDrag 的 Stopwatch 时间戳（0=本次拖动首个移动帧）
+    // ===== 【果冻：窗口尺寸跟随形变】=====
+    // 旧做法是"窗口尺寸固定 + 只缩放内容"：拉伸时内容被窗口裁边、过冲压缩时底部露出没有折射的空白。
+    // 新做法是让整块玻璃（折射层/圆角/描边）一起变形：起拖时冻结内容尺寸作基准，每帧按量化比例改窗口尺寸。
+    private Size _jellyBaseDipAv;                              // 基准窗口客户区尺寸（DIP，也是冻结后的内容尺寸）
+    private PixelPoint _jellyAnchorPxAv;                       // 与"比例=1"对应的窗口左上角（中心锚定的基准）
+    private double _jellyAppliedSxAv = 1, _jellyAppliedSyAv = 1; // 已落到窗口上的量化比例（避免每帧改尺寸重建采样缓冲）
+    private PixelPoint _jellyAppliedPosAv;
+    private bool _jellyAppliedPosValidAv;
+    private bool _jellySizingAv;                               // 是否处于"窗口跟随形变"状态（含松手回弹）
+    private double _jellyPreMinWidthAv, _jellyPreMaxWidthAv;   // 形变期间临时放宽的窗口宽度限制
+    private HorizontalAlignment _jellyPreHAlignAv;
+    private VerticalAlignment _jellyPreVAlignAv;
 
     // ========== 贴边自动隐藏（FloatingScheduleEdgeHide） ==========
     //  窗口贴近任一屏幕边缘 <1px → 沿该边滑出屏幕，只保留约 6px 可见条（需真正贴到边才隐藏）；
@@ -1705,6 +1737,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
             //  还会"取消+重建"一次贴边防抖 DispatcherTimer/CTS，是触摸拖动卡顿/延迟的主要开销来源。
             //  拖动结束 EndDragAv 会统一保存位置并重新评估贴边，这里跳过完全安全。
             if (_dragActiveAv) return;
+            // 形变中（松手回弹）每帧位置都带中心补偿偏移：既不是用户位置，也不能拿去评估贴边
+            if (_jellySizingAv) return;
 
             // 任何位置变化（最大化/最小化/系统拖拽/贴边滑回）都持久化到设置。
             // 【贴边隐藏】滑入/滑出动画过程中与隐藏态下不持久化，避免把"隐藏位"当成用户位置保存。
@@ -1967,8 +2001,134 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         _jelly.Reset();
         _jellyTimer?.Stop();
-        _jellyScale.ScaleX = 1;
-        _jellyScale.ScaleY = 1;
+        JellyScaleAv.ScaleX = 1;
+        JellyScaleAv.ScaleY = 1;
+        EndJellySizingAv();
+    }
+
+    /// <summary>
+    /// 拖动开始：记录基准尺寸/位置，并冻结内容尺寸。
+    /// 为什么必须冻结内容：窗口变大后若内容仍按新宽度重新布局，文字会重新换行，再叠加 RenderTransform 就是双重变形。
+    /// </summary>
+    private void BeginJellySizingAv()
+    {
+        if (_window == null || _containerBorder == null || !IsJellyEnabledAv()) return;
+        // 上一次回弹未收敛时，EndJellySizingAv 会把模式还原成自动 → 这里重新切回 Manual，
+        // 否则 SizeToContent 会忽略下面写的 Width/Height，窗口尺寸就跟不上形变了。
+        if (_window.SizeToContent != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
+        double w = _containerBorder.Bounds.Width, h = _containerBorder.Bounds.Height;
+        if (w < 4 || h < 4)
+        {
+            var cs = _window.ClientSize;
+            w = cs.Width;
+            h = cs.Height;
+        }
+        if (w < 4 || h < 4) return;
+        _jellyBaseDipAv = new Size(w, h);
+        _jellyAnchorPxAv = _window.Position;
+        _jellyAppliedSxAv = 1;
+        _jellyAppliedSyAv = 1;
+        _jellyAppliedPosAv = _jellyAnchorPxAv;
+        _jellyAppliedPosValidAv = true;
+        _jellySizingAv = true;
+        // 形变会让窗口尺寸越出 Min/MaxWidth → 临时放宽，否则窗口被钳制而内容照样缩放 → 裁边
+        _jellyPreMinWidthAv = _window.MinWidth;
+        _jellyPreMaxWidthAv = _window.MaxWidth;
+        _window.MinWidth = 0;
+        _window.MaxWidth = double.PositiveInfinity;
+        // 内容居中：缩放原点（中心）与窗口中心重合，中心锚定公式才成立
+        _jellyPreHAlignAv = _containerBorder.HorizontalAlignment;
+        _jellyPreVAlignAv = _containerBorder.VerticalAlignment;
+        _containerBorder.HorizontalAlignment = HorizontalAlignment.Center;
+        _containerBorder.VerticalAlignment = VerticalAlignment.Center;
+        _containerBorder.Width = w;
+        _containerBorder.Height = h;
+        JellyScaleAv.ScaleX = 1;
+        JellyScaleAv.ScaleY = 1;
+    }
+
+    /// <summary>形变结束：窗口尺寸/位置/SizeToContent/内容尺寸全部回到基准，保证最终窗口矩形与形变前完全一致。</summary>
+    private void EndJellySizingAv()
+    {
+        if (!_jellySizingAv) return;
+        _jellySizingAv = false;
+        JellyScaleAv.ScaleX = 1;
+        JellyScaleAv.ScaleY = 1;
+        if (_window == null) return;
+        // 还原宽度限制必须早于写回尺寸（MaxWidth 会钳制 Width 赋值）
+        _window.MinWidth = _jellyPreMinWidthAv;
+        _window.MaxWidth = _jellyPreMaxWidthAv;
+        if (_containerBorder != null)
+        {
+            _containerBorder.HorizontalAlignment = _jellyPreHAlignAv;
+            _containerBorder.VerticalAlignment = _jellyPreVAlignAv;
+            _containerBorder.Width = double.NaN;    // 解冻：交回 SizeToContent 自动测量
+            _containerBorder.Height = double.NaN;
+        }
+        try
+        {
+            _window.Width = double.NaN;    // 窗口也要回到"由内容决定尺寸"，否则会永久卡在基准尺寸
+            _window.Height = double.NaN;
+            if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
+            if (_window.Position != _jellyAnchorPxAv) _window.Position = _jellyAnchorPxAv;
+            _jellyAppliedPosAv = _jellyAnchorPxAv;
+            _jellyAppliedPosValidAv = true;
+        }
+        catch (Exception ex) { _logger.LogDebug(ex, "果冻形变还原窗口尺寸/位置失败，忽略。"); }
+        RefreshEdgeGeometryOnResizeAv();   // 尺寸刚恢复：贴边隐藏位按真实尺寸重算一次
+        ScheduleEdgeEvalAv();              // 回弹期间被跳过的贴边评估在这里补上
+        PingRenderKeepAliveAv();
+    }
+
+    /// <summary>拖动帧提交点：把基准锚点更新到本帧目标位，再按当前形变落窗口尺寸/位置/缩放。</summary>
+    private void ApplyJellyFrameAv(PixelPoint anchorPx)
+    {
+        _jellyAnchorPxAv = anchorPx;
+        ApplyJellyScaleAv();
+    }
+
+    private void ApplyJellyScaleAv()
+    {
+        if (!_jellySizingAv || _window == null)
+        {
+            // 不在形变状态：只保证内容变换回到 1:1，不动窗口尺寸/位置
+            if (Math.Abs(JellyScaleAv.ScaleX - 1) < 1e-5 && Math.Abs(JellyScaleAv.ScaleY - 1) < 1e-5) return;
+            JellyScaleAv.ScaleX = 1;
+            JellyScaleAv.ScaleY = 1;
+            return;
+        }
+        // 【量化到 0.01 台阶】窗口尺寸一变，液态玻璃采样缓冲就要重建；逐帧改尺寸会每帧重建 → 掉帧/拖影。
+        double sx = Math.Max(0.90, Math.Round(_jelly.ScaleX, 2));
+        double sy = Math.Max(0.90, Math.Round(_jelly.ScaleY, 2));
+        if (Math.Abs(sx - _jellyAppliedSxAv) > 1e-6 || Math.Abs(sy - _jellyAppliedSyAv) > 1e-6)
+        {
+            _jellyAppliedSxAv = sx;
+            _jellyAppliedSyAv = sy;
+            // 基准是 DIP，窗口 Width/Height 也是 DIP → 直接相乘，无需物理像素换算
+            _window.Width = Math.Max(1, _jellyBaseDipAv.Width * sx);
+            _window.Height = Math.Max(1, _jellyBaseDipAv.Height * sy);
+        }
+        // 内容缩放写"真实量化值"：内容最终尺寸 = 基准 × 量化比例 = 窗口尺寸 → 不裁边也不露白
+        JellyScaleAv.ScaleX = sx;
+        JellyScaleAv.ScaleY = sy;
+        ApplyJellyAnchorPositionAv();
+    }
+
+    /// <summary>
+    /// 中心锚定：窗口左上角按 (新尺寸-基准尺寸)/2 反向补偿，让卡片视觉中心固定在拖动落点上
+    /// （否则窗口只在右下方"长大"，形变看起来像整块往右下漂移）。
+    /// </summary>
+    private void ApplyJellyAnchorPositionAv()
+    {
+        if (_window == null) return;
+        double sc = _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
+        int dx = (int)Math.Round((_jellyBaseDipAv.Width * _jellyAppliedSxAv - _jellyBaseDipAv.Width) * sc / 2.0);
+        int dy = (int)Math.Round((_jellyBaseDipAv.Height * _jellyAppliedSyAv - _jellyBaseDipAv.Height) * sc / 2.0);
+        var pos = new PixelPoint(_jellyAnchorPxAv.X - dx, _jellyAnchorPxAv.Y - dy);
+        if (_jellyAppliedPosValidAv && pos == _jellyAppliedPosAv) return;   // 同值不写，避免无谓的平台 Move
+        _jellyAppliedPosAv = pos;
+        _jellyAppliedPosValidAv = true;
+        try { _window.Position = pos; } catch { }
     }
 
     private void ContainerBorder_PointerPressed(object? sender, PointerPressedEventArgs e)
@@ -1993,8 +2153,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             // 【按下瞬间】先唤醒渲染帧保温：让紧随其后的 SizeToContent 切换、布局与重绘落在同一合成帧。
             PingRenderKeepAliveAv();
             // 冻结 SizeToContent.Auto：否则拖动过程中若 Auto 测量触发，会让透明悬浮窗每移动一次重测量 → 桌面合成器抖动
-            _preDragAvSizeMode = _window.SizeToContent;
-            if (_preDragAvSizeMode != SizeToContent.Manual) _window.SizeToContent = SizeToContent.Manual;
+            // 上一次果冻回弹尚未收敛时窗口本来就被切成 Manual → 不能把 Manual 记成"用户原模式"（否则会永久失去自动尺寸）
+            if (!_jellySizingAv) _preDragAvSizeMode = _window.SizeToContent;
+            if (SizeToContent.Manual != _window.SizeToContent) _window.SizeToContent = SizeToContent.Manual;
 
             _dragActiveAv = true;
             _dragPointerAv = e.Pointer;
@@ -2013,12 +2174,16 @@ public class FloatingScheduleService : IHostedService, IDisposable
             if (IsJellyEnabledAv() && _containerBorder != null)
             {
                 _containerBorder.RenderTransformOrigin = RelativePoint.Center;
-                _containerBorder.RenderTransform = _jellyScale;
+                _containerBorder.RenderTransform = JellyScaleAv;
                 _jelly.Reset();
                 _jellyLastTs = 0;
                 _jellyTimer?.Stop();
-                _jellyScale.ScaleX = 1;
-                _jellyScale.ScaleY = 1;
+                JellyScaleAv.ScaleX = 1;
+                JellyScaleAv.ScaleY = 1;
+                // 上一次回弹未收敛：先还原窗口尺寸/位置，否则会把形变后的尺寸记成新基准
+                EndJellySizingAv();
+                // 记录基准尺寸/位置并冻结内容尺寸：此后窗口尺寸跟随形变（整块玻璃一起弹性变形）
+                BeginJellySizingAv();
             }
             // 【高刷适配】按窗口所在显示器的刷新率取位置提交阈值（60Hz 保持约 60fps，120/144/240Hz 相应提高）。
             _dragThrottleMsAv = FloatScheduleDisplayRefresh.GetDragThrottleMs(
@@ -2225,26 +2390,37 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_glassCommitPendingAv) { _glassCommitPendingAv = false; _glassAv.Commit(); }   // 未提交的采样帧直接落地
 
         // 【果冻效果】松手收尾（放在 _window 判空之前：即便窗口已销毁也要把形变复位，避免下次显示带着拉伸）。
-        //   启用且确有形变 → 交给 144Hz 定时器跑欠阻尼弹簧；未启用 / 本来就没形变 → 直接复位成 1:1。
+        //   启用且确有形变 → 交给 144Hz 定时器跑欠阻尼弹簧（收敛后由 EndJellySizingAv 还原窗口尺寸/位置）；
+        //   未启用 / 本来就没形变 → 直接复位成 1:1 并还原窗口。
         if (!IsJellyEnabledAv())
         {
-            _jelly.Reset();
-            _jellyScale.ScaleX = 1;
-            _jellyScale.ScaleY = 1;
-            _jellyTimer?.Stop();
+            ResetJellyAv();
         }
-        else if (_jelly.BeginRelease())
+        else
         {
-            // 定时器只创建一次（复用）；Render 优先级保证比例在渲染前写入，回弹不会慢一帧。
-            _jellyTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(1000.0 / 144.0), DispatcherPriority.Render,
-                (_, _) =>
-                {
-                    bool run = _jelly.Step(1.0 / 144.0);
-                    _jellyScale.ScaleX = _jelly.ScaleX;
-                    _jellyScale.ScaleY = _jelly.ScaleY;
-                    if (!run) _jellyTimer?.Stop();   // 收敛即停，避免空转占 CPU
-                });
-            _jellyTimer.Start();
+            // 形变中：先把基准锚点钉到最终落点（回弹期间窗口位置 = 锚点 + 中心补偿）
+            if (_jellySizingAv && _dragPendingValidAv) { _jellyAnchorPxAv = _dragPendingPosAv; _dragPendingValidAv = false; }
+            if (!_jelly.BeginRelease())
+            {
+                ApplyJellyScaleAv();
+                EndJellySizingAv();   // 本来就几乎没形变：直接还原窗口尺寸/位置
+            }
+            else
+            {
+                // 定时器只创建一次（复用）；Render 优先级保证比例在渲染前写入，回弹不会慢一帧。
+                _jellyTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(1000.0 / 144.0), DispatcherPriority.Render,
+                    (_, _) =>
+                    {
+                        bool run = _jelly.Step(1.0 / 144.0);
+                        ApplyJellyScaleAv();
+                        if (!run)
+                        {
+                            _jellyTimer?.Stop();   // 收敛即停，避免空转占 CPU
+                            EndJellySizingAv();    // 收敛：窗口尺寸/位置/SizeToContent 一并还原
+                        }
+                    });
+                _jellyTimer.Start();
+            }
         }
 
         if (_window == null) return;
@@ -2256,12 +2432,15 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 _window.Position = _dragPendingPosAv;
                 _dragPendingValidAv = false;
             }
-            if (_window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
+            // 形变未收敛时不得恢复 Manual 尺寸模式：交给 EndJellySizingAv 统一还原，避免回弹途中尺寸跳变
+            if (!_jellySizingAv && _window.SizeToContent != _preDragAvSizeMode) _window.SizeToContent = _preDragAvSizeMode;
             try { ApplyWindowLayer(); } catch (Exception ex) { _logger.LogDebug(ex, "拖拽结束 ApplyWindowLayer 出错，忽略。"); }
             // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
             if (ResolveMaterialAv() == 3 && _window.IsVisible) _ = RefreshGlassBackdropAvAsync();
-            _settings.FloatingSchedulePositionX = _window.Position.X;
-            _settings.FloatingSchedulePositionY = _window.Position.Y;
+            // 形变中窗口位置带中心补偿偏移 → 落库"基准锚点"（回弹收敛后窗口就停在该位置）
+            var finalPos = _jellySizingAv ? _jellyAnchorPxAv : _window.Position;
+            _settings.FloatingSchedulePositionX = finalPos.X;
+            _settings.FloatingSchedulePositionY = finalPos.Y;
             ScheduleEdgeEvalAv();
         }
         catch (Exception ex)
@@ -3039,6 +3218,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         if (_window == null || !_window.IsVisible) return;
         if (!_settings.FloatingScheduleEdgeHide) return;
         if (_edgeAnimatingAv || _hideAnimActiveAv) return;   // 贴边滑移 / 隐藏显示过渡中不评估贴边（避免动画期间窗口被挪动）
+        if (_jellySizingAv) return;   // 形变中的尺寸/位置不是最终值：EndJellySizingAv 会重新调度一次评估
         try
         {
             // 取窗口所在屏幕（对齐 ClassIsland MainWindow 用法：TopLevel.Screens 实例属性 + ScreenFromWindow）
@@ -3179,6 +3359,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             if (_window == null) return;
             if (!_edgeDockedAv || _dragActiveAv) return;   // 未贴边 / 拖拽中：与隐藏位无关
+            // 形变中窗口尺寸是被缩放出来的中间态，不能当成用户尺寸记进隐藏位缓存
+            if (_jellySizingAv) return;
             // 【隐藏/显示过渡动画】动画期间窗口位置由动画独占驱动：此处若按尺寸自愈写 Position 会与之争抢
             if (_hideAnimActiveAv) return;
             if (!TryGetWindowDeviceSizeAv(out int w, out int h)) return;
@@ -5161,13 +5343,14 @@ public class FloatingScheduleService : IHostedService, IDisposable
         return null;
     }
 
-    /// <summary>有效材质：未开启实验性功能时，液态玻璃(3)/古卷(4)/自定义图片(5) 回退半透明(0)；
+    /// <summary>有效材质：未开启实验性功能时，古卷(4)/自定义图片(5) 回退半透明(0)；
+    /// 液态玻璃(3) 已转正，不再受实验性开关限制。
     /// 非 Windows 系统无 DWM 系统材质合成（云母/亚克力），一律回退半透明(0)。</summary>
     private int ResolveMaterialAv()
     {
         if (!OperatingSystem.IsWindows()) return 0;
         var m = (int)_settings.FloatingScheduleMaterial;
-        if (!_settings.EnableExperimentalFeatures && (m == 3 || m == 4 || m == 5)) return 0;
+        if (!_settings.EnableExperimentalFeatures && (m == 4 || m == 5)) return 0;
         return m;
     }
 
@@ -5178,6 +5361,8 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   等于每 tick 推倒重建整棵可视树，正是"整表看起来只有 2fps"的根因。
     readonly FloatScheduleGlassBackdrop _glassAv = new();
     int _glassWorkerBusyAv;
+    int _glassCacheRetryPendingAv;      // 采样参数缓存为空时，避免重复向 UI 线程讨要
+    bool _glassContentPublishedAv;      // 上次发布模型时是否已有折射内容（翻转时需重建材质）
     FloatScheduleHighResTicker? _glassTickerAv;
     FloatScheduleRenderModel? _lastModelAv;
 
@@ -5273,26 +5458,24 @@ public class FloatingScheduleService : IHostedService, IDisposable
     //   拖动会话已翻篇（新一次拖动已开始）则丢弃，避免旧任务把窗口拽回旧位置。
     void ApplyDragWindowPosAv(long session, PixelPoint target)
     {
-        if (session != _glassFrameSyncSessionAv) return;
-        try { if (_window != null) _window.Position = target; } catch { }
-        // 【果冻效果】位置真正提交的这一帧才写形变：与窗口位移同帧上屏，避免指针事件与位置提交不同步导致抽搐。
-        if (IsJellyEnabledAv())
+        if (session != _glassFrameSyncSessionAv || _window == null) return;
+        try
         {
-            _jellyScale.ScaleX = _jelly.ScaleX;
-            _jellyScale.ScaleY = _jelly.ScaleY;
+            // 【果冻效果】位置真正提交的这一帧才写形变：与窗口位移同帧上屏，避免指针事件与位置提交不同步导致抽搐。
+            //   形变中位置 = 锚点 + 中心补偿，不能直接写目标位（否则窗口会"长大而右下漂移"）。
+            if (_jellySizingAv) ApplyJellyFrameAv(target);
+            else _window.Position = target;
         }
+        catch { }
     }
 
     // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrameAv(PixelPoint target)
     {
-        _window!.Position = target;
-        // 【果冻效果】同上：形变与位置在同一提交点落地。
-        if (IsJellyEnabledAv())
-        {
-            _jellyScale.ScaleX = _jelly.ScaleX;
-            _jellyScale.ScaleY = _jelly.ScaleY;
-        }
+        if (_window == null) return;
+        // 【果冻效果】同上：形变与位置在同一提交点落地
+        if (_jellySizingAv) ApplyJellyFrameAv(target);
+        else _window.Position = target;
         if (_glassCommitPendingAv)
         {
             _glassCommitPendingAv = false;
@@ -5379,17 +5562,37 @@ public class FloatingScheduleService : IHostedService, IDisposable
     void SampleGlassBackdropAv()
     {
         if (Interlocked.Exchange(ref _glassWorkerBusyAv, 1) == 1) return;   // 上一帧还没算完，跳过本拍
-        try
+        // 【派发到线程池，不占节拍器线程】BitBlt / DwmFlush 偶发会卡几百毫秒，
+        // 若在节拍器线程里同步做，节拍会被单个卡帧吃掉（表现为"偶尔出现约 1s 的位置延迟"）。
+        ThreadPool.UnsafeQueueUserWorkItem(_ =>
         {
-            IntPtr hwnd = _glassHwndAv;
-            int w = _glassPxWAv, h = _glassPxHAv;
-            if (hwnd == IntPtr.Zero || w < 4 || h < 4) return;
-            _glassAv.PreventCapture = _glassPreventCaptureAv;
-            if (!_glassAv.CaptureAndRefract(hwnd, w, h, _glassCornerPxAv)) return;
-            Dispatcher.UIThread.Post(CommitGlassBackdropAv, DispatcherPriority.Render);
+            try { SampleGlassBackdropCoreAv(); }
+            catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景采样异常（已忽略，回退近似边缘光）"); }
+            finally { Interlocked.Exchange(ref _glassWorkerBusyAv, 0); }
+        }, null);
+    }
+
+    void SampleGlassBackdropCoreAv()
+    {
+        IntPtr hwnd = _glassHwndAv;
+        int w = _glassPxWAv, h = _glassPxHAv;
+        if (hwnd == IntPtr.Zero || w < 4 || h < 4)
+        {
+            // 初始化时窗口可能还没可见 / 还没布局 → 缓存没填。让 UI 线程回头补一次，
+            // 否则节拍器会一直空转，必须等用户拖一下触发重建才变成"满血液态玻璃"。
+            if (Interlocked.Exchange(ref _glassCacheRetryPendingAv, 1) == 0)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Interlocked.Exchange(ref _glassCacheRetryPendingAv, 0);
+                    _ = RefreshGlassBackdropAvAsync();
+                });
+            }
+            return;
         }
-        catch (Exception ex) { _logger.LogDebug(ex, "液态玻璃背景采样异常（已忽略，回退近似边缘光）"); }
-        finally { Interlocked.Exchange(ref _glassWorkerBusyAv, 0); }
+        _glassAv.PreventCapture = _glassPreventCaptureAv;
+        if (!_glassAv.CaptureAndRefract(hwnd, w, h, _glassCornerPxAv)) return;
+        Dispatcher.UIThread.Post(CommitGlassBackdropAv, DispatcherPriority.Render);
     }
 
     /// <summary>【UI 线程】只做换图：原位更新位图并就地换背景，绝不 PublishModelAv（那会重建整棵可视树）。</summary>
@@ -5397,11 +5600,34 @@ public class FloatingScheduleService : IHostedService, IDisposable
     {
         try
         {
+            // 【尺寸校验】位图是按采样时的物理尺寸生成的，承载 Border 又是 Stretch.Fill：
+            // 若卡片当前尺寸与之不一致（初始化布局未完成、拖动中尺寸变化），背景就会被硬拉伸 ——
+            // 典型表现就是"首次拖动出现极大的纵向拉伸"。不一致就丢弃本帧并刷新采样参数。
+            var liveSize = _containerBorder?.Bounds.Size ?? default;
+            if (liveSize.Width >= 4 && liveSize.Height >= 4)
+            {
+                double liveSc = _window == null || _window.RenderScaling <= 0 ? 1.0 : _window.RenderScaling;
+                int liveW = (int)Math.Round(liveSize.Width * liveSc), liveH = (int)Math.Round(liveSize.Height * liveSc);
+                if (liveW != _glassPxWAv || liveH != _glassPxHAv)
+                {
+                    _ = RefreshGlassBackdropAvAsync();
+                    return;
+                }
+            }
             // 【直接换图，不再排队等渲染帧】采样已在后台线程完成，本回调又是以 Render 优先级投递的
             // （会在当前渲染帧之前执行）→ 本帧就会被采纳。再丢给 pacer 排队只会平白多等一整帧
             // （16.7~33ms），用户实测到的 50~70ms 滞后里就有这一份。
             _glassAv.Commit(); PingRenderKeepAliveAv();
-            if (_glassAv.NeedsApply && _lastModelAv != null)   // 首次拿到内容时才重套一次材质
+            // 内容"有/无"发生翻转时必须重建一次模型：初始化时材质是按"还没有折射内容"套的
+            // （近似路径：tint + 描边环 + sheen，看起来不是满血液态玻璃），只有重建后
+            // backdropIsRefracted 才会变 true。以前要等用户拖动触发一次重建才"加载满血"。
+            bool needApply = _glassAv.NeedsApply;
+            if (_glassAv.HasContent != _glassContentPublishedAv)
+            {
+                _glassContentPublishedAv = _glassAv.HasContent;
+                needApply = true;
+            }
+            if (needApply && _lastModelAv != null)
             {
                 _glassAv.ClearNeedsApply();
                 PublishModelAv(_lastModelAv);
@@ -5709,6 +5935,230 @@ public class FloatingScheduleService : IHostedService, IDisposable
             return true;
         }
         return false;
+    }
+
+    // ===================== 高级外观预览数据（当前加载档案的真实课表） =====================
+    /// <summary>
+    /// 用宿主当前已加载档案的真实课表填充渲染模型（课程行 / 当前课高亮 / 课间行 / 档案分隔线 / 空表占位），
+    /// 判定口径与悬浮窗 RefreshSchedule 完全一致，供「高级外观」右侧预览使用，避免预览显示写死的示例数据。
+    /// 返回 false 表示宿主服务尚未就绪（调用方可回退到示例数据）。
+    /// </summary>
+    public static bool FillPreviewFromProfile(FloatScheduleRenderModel model, PluginSettings settings)
+    {
+        var host = IAppHost.Host;
+        if (host == null) return false;
+        var sp = host.Services;
+
+        // LessonsService：优先公开接口，其次具体类型（不同宿主版本的 DI 注册方式不同）
+        var tLessons = FindHostServiceType("ClassIsland.Core.Abstractions.Services.ILessonsService")
+                    ?? FindHostServiceType("ClassIsland.Services.LessonsService")
+                    ?? FindHostServiceType("ClassIsland.Core.Services.LessonsService");
+        var lessons = tLessons == null ? null : sp.GetService(tLessons);
+        if (lessons == null) return false;
+
+        var tProfile = FindHostServiceType("ClassIsland.Core.Abstractions.Services.IProfileService")
+                    ?? FindHostServiceType("ClassIsland.Services.ProfileService")
+                    ?? FindHostServiceType("ClassIsland.Core.Services.ProfileService");
+        var profile = tProfile == null ? null : sp.GetService(tProfile);
+
+        // 预览时间与悬浮窗同源（含宿主调试时间偏移），保证"当前课"高亮与真实悬浮窗一致。
+        var nowDateTime = TimeBaseService.Instance?.GetClassIslandTime() ?? DateTime.Now;
+        DateTime todayBase = nowDateTime.Date;
+
+        // ---- 今日 / 明日课表判定（与悬浮窗同一套四档模式）----
+        var todayStateRaw = ReflectProp(lessons, "CurrentState");
+        TimeState todayState = todayStateRaw != null ? (TimeState)todayStateRaw : TimeState.None;
+        object? currentPlan = ReflectProp(lessons, "CurrentClassPlan");
+        object? todayPlanByDate = InvokeGeneric(lessons, "GetClassPlanByDate", todayBase);
+        bool isAfterSchool = todayState == TimeState.AfterSchool || currentPlan == null;
+        bool showTomorrow = settings.FloatingScheduleTomorrowShowMode switch
+        {
+            FloatingScheduleTomorrowShowMode.Always => true,
+            FloatingScheduleTomorrowShowMode.AfterSchool => isAfterSchool,
+            FloatingScheduleTomorrowShowMode.OnEmpty => !PlanHasDisplayableRowsAv(currentPlan ?? todayPlanByDate),
+            _ => false,
+        };
+        model.ShowTomorrow = showTomorrow;
+
+        object? classPlan = showTomorrow
+            ? InvokeGeneric(lessons, "GetClassPlanByDate", todayBase.AddDays(1))
+            : currentPlan
+              ?? InvokeGeneric(lessons, "GetCurrentClassPlan")
+              ?? todayPlanByDate
+              ?? InvokeGeneric(lessons, "GetClassPlan", todayBase);
+
+        var subjectsMap = ReflectBuildSubjectsMap(ReflectProp(profile, "Profile") is { } p
+            ? ReflectProp(p, "Subjects")
+            : ReflectProp(profile, "Subjects"));
+
+        // ---- 收集有效时段 / 课间 / 分隔线（口径同 RefreshSchedule）----
+        var rowItems = new List<(object LayoutItem, Subject? Subject)>();
+        var breakItems = new List<object>();
+        var separatorItems = new List<object>();
+        if (classPlan != null)
+        {
+            var validItems = new List<object>();
+            foreach (var x in ReflectGetValidTimeLayoutItems(classPlan))
+            {
+                if (x == null) continue;
+                switch (ReflectGetTimeType(x))
+                {
+                    case 0: validItems.Add(x); break;
+                    case 1: breakItems.Add(x); break;
+                    case 2: separatorItems.Add(x); break;
+                }
+            }
+            validItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+            breakItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+            separatorItems.Sort((a, b) => ReflectGetStartTime(a).CompareTo(ReflectGetStartTime(b)));
+
+            var classesList = ReflectGetClasses(classPlan);
+            for (int i = 0; i < validItems.Count; i++)
+            {
+                var layoutItem = validItems[i];
+                var layoutStart = ReflectGetStartTime(layoutItem);
+                var layoutEnd = ReflectGetEndTime(layoutItem);
+
+                object? classInfo = null;
+                foreach (var c in classesList)
+                {
+                    if (c == null) continue;
+                    var curLi = ReflectGetCurLayoutItemOfClass(c);
+                    if (curLi == null) continue;
+                    if (ReflectGetStartTime(curLi) == layoutStart && ReflectGetEndTime(curLi) == layoutEnd)
+                    { classInfo = c; break; }
+                }
+                if (classInfo == null && i < classesList.Count)
+                    classInfo = classesList[i];
+                if (classInfo == null || !ReflectGetIsEnabled(classInfo)) continue;
+
+                Subject? subject = null;
+                var sid = ReflectGetSubjectId(classInfo);
+                if (sid != Guid.Empty && subjectsMap.TryGetValue(sid, out var sbj))
+                    subject = sbj;
+
+                rowItems.Add((layoutItem, subject));
+            }
+        }
+
+        // ---- 无课：与悬浮窗一致显示占位文案 ----
+        if (rowItems.Count == 0)
+        {
+            var placeholderText = showTomorrow
+                ? settings.FloatingScheduleTomorrowPlaceholderText
+                : settings.FloatingScheduleTodayPlaceholderText;
+            if (string.IsNullOrWhiteSpace(placeholderText))
+                placeholderText = showTomorrow ? "明天没有课程" : "今天没有课程";
+            model.PlaceholderText = placeholderText;
+            return true;
+        }
+
+        // ---- 课程行（教师名 / 学科色解析与悬浮窗同源）----
+        foreach (var (layoutItem, subject) in rowItems)
+        {
+            string? teacherLine = null;
+            var teacherFull = settings.FloatingScheduleShowTeacher ? subject?.TeacherName : null;
+            if (!string.IsNullOrWhiteSpace(teacherFull))
+            {
+                if (settings.FloatingScheduleEnableFullTeacherName)
+                {
+                    teacherLine = teacherFull.Trim();
+                }
+                else
+                {
+                    var surnameFromHelper = TeacherNameHelper.ExtractTeacherShortName(teacherFull);
+                    var surname = !string.IsNullOrWhiteSpace(surnameFromHelper)
+                        ? surnameFromHelper
+                        : subject!.GetFirstName();
+                    if (!string.IsNullOrWhiteSpace(surname))
+                        teacherLine = surname + "老师";
+                }
+            }
+
+            uint subjectArgb = 0;
+            if (settings.FloatingScheduleSubjectColorEnabled && subject?.Name is { Length: > 0 } sName)
+            {
+#if NET10_0_OR_GREATER
+                subjectArgb = SubjectColorHelper.GetSubjectColorArgb(subject);
+#else
+                if (settings.FloatingScheduleSubjectColorMap.TryGetValue(sName, out var mappedArgb))
+                    subjectArgb = mappedArgb;
+#endif
+            }
+
+            var start = ReflectGetStartTime(layoutItem);
+            var end = ReflectGetEndTime(layoutItem);
+            model.Rows.Add(new FloatScheduleRowModel
+            {
+                Course = subject?.Name ?? "(未安排)",
+                Teacher = teacherLine,
+                TimeText = $"{FormatHhMm(start)} - {FormatHhMm(end)}",
+                StartSec = start.TotalSeconds,
+                EndSec = end.TotalSeconds,
+                SubjectColorArgb = subjectArgb,
+            });
+        }
+
+        var now = nowDateTime.TimeOfDay;
+
+        // ---- 当前课高亮：真实时间落在课区间内才高亮（明日课表不高亮）----
+        if (!showTomorrow)
+        {
+            for (int i = 0; i < rowItems.Count; i++)
+            {
+                var st = ReflectGetStartTime(rowItems[i].LayoutItem);
+                var ed = ReflectGetEndTime(rowItems[i].LayoutItem);
+                if (now < st || now >= ed) continue;
+                model.CurrentClassIndex = i;
+                var spanSec = (ed - st).TotalSeconds;
+                model.ClassProgressRatio = spanSec > 0 ? Math.Clamp((now - st).TotalSeconds / spanSec, 0, 1) : 0;
+                break;
+            }
+        }
+
+        // ---- 课间行：真实时间命中某个课间项时插入（未在课间则不显示，与悬浮窗一致）----
+        if (!showTomorrow)
+        {
+            foreach (var b in breakItems)
+            {
+                var bs = ReflectGetStartTime(b);
+                var be = ReflectGetEndTime(b);
+                if (now < bs || now >= be) continue;
+                if (be <= bs) continue;
+                // 插入位置 = 位于该课间之前的最后一节课（课前 / 课后课间不插行）
+                int afterIdx = -1;
+                for (int k = 0; k < rowItems.Count; k++)
+                {
+                    if (ReflectGetEndTime(rowItems[k].LayoutItem) <= bs) afterIdx = k;
+                    else break;
+                }
+                if (afterIdx < 0 || afterIdx >= rowItems.Count - 1) continue;
+                model.Break = new FloatScheduleBreakModel
+                {
+                    AfterClassIndex = afterIdx,
+                    Name = ReflectGetBreakNameText(b),
+                    TimeText = $"{FormatHhMm(bs)} - {FormatHhMm(be)}",
+                    StartSec = bs.TotalSeconds,
+                    EndSec = be.TotalSeconds,
+                };
+                break;
+            }
+        }
+
+        // ---- 档案分隔线：在相邻两节课之间插入 ----
+        foreach (var s in separatorItems)
+        {
+            var sStart = ReflectGetStartTime(s);
+            int afterIdx = -1;
+            for (int k = 0; k < rowItems.Count; k++)
+            {
+                if (ReflectGetEndTime(rowItems[k].LayoutItem) <= sStart) afterIdx = k;
+                else break;
+            }
+            if (afterIdx >= 0 && afterIdx < rowItems.Count - 1)
+                model.SeparatorAfterClassIndex.Add(afterIdx);
+        }
+        return true;
     }
 
     // ===================== 进度刷新 =====================

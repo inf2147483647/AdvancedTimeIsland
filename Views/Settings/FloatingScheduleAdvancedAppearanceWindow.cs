@@ -32,8 +32,6 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     readonly Canvas _previewCanvas = new();
     // 背景透卡（预览专用）：透出"卡片正下方"那块示例背景并按材质施加不同模糊（云母/亚克力/液态玻璃差异的核心）。
     Border? _previewBackdropLayer;
-    // 液态玻璃实验性提示条：仅在该材质被选中时显示，切换材质时联动开合。
-    Control? _glassWarn;
     int _previewBackdropMaterial;   // 3=液态玻璃 → 背景层走"真实 SDF 折射"，其余走模糊
     double _bdLeft = double.NaN, _bdTop = double.NaN, _bdW = double.NaN, _bdH = double.NaN, _bdZoom = double.NaN;
     double _zoom = 1.0;
@@ -42,6 +40,15 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     bool _previewDragging;
     double _dragStartX, _dragStartY, _cardStartX, _cardStartY;
     IPointer? _dragPointer;
+
+    // ===== 自制标题栏（宿主禁用「使用系统标题栏」时跟随宿主样式）=====
+    const double TitleBarHeight = 32;
+    const double CaptionButtonWidth = 46;
+    // 宿主是否处于自制标题栏模式：宿主该设置需重启生效，故构造期读取一次即可。
+    readonly bool _customChrome = UseCustomTitleBar();
+    readonly List<(Border Button, TextBlock Glyph, bool IsClose)> _captionButtons = new();
+    TextBlock? _titleBarTitle;
+    TextBlock? _maximizeGlyph;
 
     public static void ShowWindow(PluginSettings? settings, Window? owner)
     {
@@ -66,6 +73,16 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
         ShowInTaskbar = true;
         Opened += OnEditorOpened;
+        // 宿主禁用系统标题栏时，本窗口同步改为"无系统标题栏 + 自制标题栏"，样式与宿主窗口一致。
+        if (_customChrome)
+        {
+#if NET10_0_OR_GREATER
+            // Avalonia 12：SystemDecorations 换为 WindowDecorations
+            WindowDecorations = WindowDecorations.BorderOnly;
+#else
+            SystemDecorations = SystemDecorations.BorderOnly;
+#endif
+        }
 
         var root = new Grid { Margin = new Thickness(12, 0, 12, 12) };
         root.ColumnDefinitions.Add(new ColumnDefinition(new GridLength(160)));
@@ -131,11 +148,188 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         DockPanel.SetDock(devWarn, Dock.Top);
         outer.Children.Add(devWarn);
         outer.Children.Add(root);
-        Content = outer;
+
+        if (_customChrome)
+        {
+            // 自制标题栏（与宿主同名/同高 32px、右侧 WinUI 风格最小化/最大化/关闭）+ 原有内容
+            var shell = new Grid { RowDefinitions = RowDefinitions.Parse("Auto,*") };
+            var titleBar = BuildCustomTitleBar();
+            Grid.SetRow(titleBar, 0);
+            shell.Children.Add(titleBar);
+            Grid.SetRow(outer, 1);
+            shell.Children.Add(outer);
+            Content = shell;
+            UpdateCaptionGlyph();
+            PropertyChanged += (_, e) =>
+            {
+                if (e.Property == WindowStateProperty) UpdateCaptionGlyph();
+            };
+            // 标题栏配色随深浅主题自适应（ThemeHelper.ThemeChanged 未初始化，直接跟随应用主题变体）
+            if (Application.Current != null)
+            {
+                Application.Current.ActualThemeVariantChanged += OnTitleBarThemeChanged;
+                Closed += (_, _) => Application.Current.ActualThemeVariantChanged -= OnTitleBarThemeChanged;
+            }
+        }
+        else
+        {
+            Content = outer;
+        }
 
         if (_settings != null) _settings.PropertyChanged += (_, _) => Dispatcher.UIThread.Post(RebuildPreview);
         SwitchPanel(0);
         RebuildPreview();
+    }
+
+    // ===================== 自制标题栏（宿主「使用系统标题栏」关闭时） =====================
+    /// <summary>宿主是否处于自制标题栏模式：读取 ClassIsland 的 <c>IThemeService.UseNativeTitlebar</c>（反射以兼容各宿主版本）。</summary>
+    static bool UseCustomTitleBar()
+    {
+        var t = FloatingScheduleService.FindHostServiceType("ClassIsland.Core.Abstractions.Services.IThemeService");
+        var pi = t?.GetProperty("UseNativeTitlebar", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static);
+        return pi?.GetValue(null) is bool useNative && !useNative;
+    }
+
+    Control BuildCustomTitleBar()
+    {
+        var bar = new Grid
+        {
+            Height = TitleBarHeight,
+            Background = Brushes.Transparent,
+            ColumnDefinitions = ColumnDefinitions.Parse("Auto,Auto,*,Auto"),
+        };
+        // 左侧图标（复用插件根图标，与宿主标题栏图标位一致）
+        var icon = new Image
+        {
+            Width = 16,
+            Height = 16,
+            Margin = new Thickness(12, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            Source = PluginIconHelper.LoadIconBitmap(),
+            IsHitTestVisible = false,
+        };
+        Grid.SetColumn(icon, 0);
+        bar.Children.Add(icon);
+        // 标题文字（字号与宿主标题栏一致）
+        _titleBarTitle = new TextBlock
+        {
+            Text = Title,
+            FontSize = 12,
+            Margin = new Thickness(10, 0, 0, 0),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+        };
+        Grid.SetColumn(_titleBarTitle, 1);
+        bar.Children.Add(_titleBarTitle);
+        // 右侧窗口按钮：最小化 / 最大化（还原）/ 关闭
+        var buttons = new StackPanel { Orientation = Orientation.Horizontal, HorizontalAlignment = HorizontalAlignment.Right };
+        buttons.Children.Add(CreateCaptionButton("\uE921", false, () => WindowState = WindowState.Minimized).Button);
+        var (maxButton, maxGlyph) = CreateCaptionButton("\uE922", false, ToggleMaximize);
+        _maximizeGlyph = maxGlyph;
+        buttons.Children.Add(maxButton);
+        buttons.Children.Add(CreateCaptionButton("\uE8BB", true, Close).Button);
+        Grid.SetColumn(buttons, 3);
+        bar.Children.Add(buttons);
+
+        ApplyTitleBarTheme();
+        bar.PointerPressed += TitleBar_PointerPressed;
+        return bar;
+    }
+
+    (Border Button, TextBlock Glyph) CreateCaptionButton(string glyph, bool isClose, Action onClick)
+    {
+        var text = new TextBlock
+        {
+            Text = glyph,
+            FontSize = 10,
+            FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+        };
+        var btn = new Border
+        {
+            Width = CaptionButtonWidth,
+            Height = TitleBarHeight,
+            Background = Brushes.Transparent,
+            Child = text,
+        };
+        _captionButtons.Add((btn, text, isClose));
+        bool pressed = false;
+        btn.PointerEntered += (_, _) =>
+        {
+            btn.Background = isClose ? CloseHoverBrush() : CaptionHoverBrush();
+            if (isClose) text.Foreground = Brushes.White;
+        };
+        btn.PointerExited += (_, _) => { pressed = false; ResetCaptionButton(btn, text, isClose); };
+        btn.PointerPressed += (_, e) =>
+        {
+            if (!e.GetCurrentPoint(btn).Properties.IsLeftButtonPressed) return;
+            pressed = true;
+            btn.Background = isClose ? CloseHoverBrush() : CaptionPressedBrush();
+            e.Handled = true;
+        };
+        btn.PointerReleased += (_, e) =>
+        {
+            var click = pressed && e.InitialPressMouseButton == MouseButton.Left;
+            pressed = false;
+            ResetCaptionButton(btn, text, isClose);
+            if (!click) return;
+            e.Handled = true;
+            onClick();
+        };
+        return (btn, text);
+    }
+
+    void ResetCaptionButton(Border btn, TextBlock glyph, bool isClose)
+    {
+        btn.Background = Brushes.Transparent;
+        if (isClose) glyph.Foreground = ThemeHelper.GetTextBrush();
+    }
+
+    void ApplyTitleBarTheme()
+    {
+        var fg = ThemeHelper.GetTextBrush();
+        if (_titleBarTitle != null) _titleBarTitle.Foreground = fg;
+        foreach (var (_, glyph, _) in _captionButtons) glyph.Foreground = fg;
+    }
+
+    void OnTitleBarThemeChanged(object? sender, EventArgs e) => Dispatcher.UIThread.Post(ApplyTitleBarTheme);
+
+    static IBrush CaptionHoverBrush() => ThemeHelper.IsDarkTheme()
+        ? new SolidColorBrush(Color.Parse("#18FFFFFF"))
+        : new SolidColorBrush(Color.Parse("#10000000"));
+
+    static IBrush CaptionPressedBrush() => ThemeHelper.IsDarkTheme()
+        ? new SolidColorBrush(Color.Parse("#24FFFFFF"))
+        : new SolidColorBrush(Color.Parse("#18000000"));
+
+    static IBrush CloseHoverBrush() => new SolidColorBrush(Color.Parse("#C42B1C"));
+
+    void TitleBar_PointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        if (!e.GetCurrentPoint(this).Properties.IsLeftButtonPressed) return;
+        if (e.ClickCount == 2 && CanMaximize)
+        {
+            ToggleMaximize();
+            e.Handled = true;
+            return;
+        }
+        // 触摸指针不走 BeginMoveDrag（其内部异步捕获鼠标在触摸下会抛异常），仅鼠标拖动标题栏
+        if (e.Pointer.Type != PointerType.Mouse) return;
+        BeginMoveDrag(e);
+        e.Handled = true;
+    }
+
+    void ToggleMaximize()
+    {
+        if (!CanMaximize) return;
+        WindowState = WindowState == WindowState.Maximized ? WindowState.Normal : WindowState.Maximized;
+    }
+
+    void UpdateCaptionGlyph()
+    {
+        if (_maximizeGlyph != null)
+            _maximizeGlyph.Text = WindowState == WindowState.Maximized ? "\uE923" : "\uE922";
     }
 
     // 窗口显示后按所在屏幕工作区校准尺寸：高 = 工作区高 × 0.615（旧版 0.82 降低 25%；给标题栏/任务栏留安全余量），
@@ -180,22 +374,10 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
     Control BuildWindowPanel()
     {
         var p = NewExpander("窗口");
-        // 液态玻璃提示：仅在选用该材质时显示，警告级、可关闭；文案保持中性，不再使用劝退式措辞。
-        var glassWarn = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
-        _glassWarn = glassWarn;
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Severity", FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityWarning());
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Title", "实验性材质");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Message", "液态玻璃仍在实验阶段，性能开销较高、可能出现显示异常；如遇问题可随时切换回其他材质。");
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsOpen", _s.FloatingScheduleMaterial == FloatingScheduleMaterialType.LiquidGlass);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "IsClosable", true);
-        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(glassWarn, "Margin", new Thickness(0, 0, 0, 8));
-        p.Items.Add(glassWarn);
-        p.Items.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃（实验性）", "古卷（实验性）", "自定义图片" },
+        p.Items.Add(RowCombo("窗口材质", new[] { "半透明", "云母", "亚克力", "液态玻璃", "古卷（实验性）", "自定义图片" },
             OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0, i =>
             {
                 _s.FloatingScheduleMaterial = (FloatingScheduleMaterialType)i;
-                if (_glassWarn != null)
-                    FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(_glassWarn, "IsOpen", i == (int)FloatingScheduleMaterialType.LiquidGlass);
             },
             out var matCombo));
         if (!OperatingSystem.IsWindows())
@@ -444,17 +626,18 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
 #endif
 
     // ===================== 预览 =====================
+    // 预览课表取自"当前实际加载的档案"（与悬浮窗同一数据源）；仅宿主服务未就绪时才回退到这份示例数据。
     static readonly string[] SampleSubjects = { "语文", "数学", "英语", "物理", "化学" };
 
     void RebuildPreview()
     {
         if (_settings == null) return;
-        var model = BuildSampleModel();
+        var model = BuildPreviewModel();
         FloatScheduleRenderer.ApplyCardStyle(_previewCard, model);
         var (root, _) = FloatScheduleRenderer.Build(model);
         // 非 Windows 无系统材质合成 → 预览锁定半透明（与真实悬浮窗 FloatingScheduleService.ResolveMaterialAv 一致）
         int mat = OperatingSystem.IsWindows() ? (int)_s.FloatingScheduleMaterial : 0;
-        if (!_s.EnableExperimentalFeatures && (mat == 3 || mat == 4 || mat == 5)) mat = 0;
+        if (!_s.EnableExperimentalFeatures && (mat == 4 || mat == 5)) mat = 0;   // 液态玻璃(3) 已转正
         // 背景透卡：云母/亚克力/液态玻璃需要"背后内容"才成立。编辑器是不透明窗口，采不到真实桌面，
         // 故在卡片内裁出"卡片正下方的示例背景"这块，由材质层按材质施加不同模糊（云母轻 / 亚克力中 / 液态玻璃≈0）。
         _previewBackdropMaterial = mat;
@@ -474,7 +657,7 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         UpdatePreviewBackdrop();
     }
 
-    FloatScheduleRenderModel BuildSampleModel()
+    FloatScheduleRenderModel BuildPreviewModel()
     {
         // 预览配色解析（镜像服务侧覆盖逻辑的简化版）
         Color cardBase, textBase, subBase, sepBase, accent;
@@ -503,8 +686,6 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             HighlightArgb = ((uint)0x66 << 24) | ((uint)accent.R << 16) | ((uint)accent.G << 8) | accent.B,
             BreakRowBackgroundArgb = (fl || (!fd && !ThemeHelper.IsDarkTheme())) ? 0x14000000u : 0x14FFFFFFu,
             SeparatorArgb = FloatScheduleRenderer.ToArgb(sepCol),
-            CurrentClassIndex = 1,
-            ClassProgressRatio = 0.45,
             LayoutDirection = (int)_s.FloatingScheduleLayoutDirection,
             RowSpacingFactor = _s.FloatingScheduleRowSpacingFactor,
             ColumnSpacingMode = (int)_s.FloatingScheduleColumnSpacingMode,
@@ -514,7 +695,12 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
             FontWeightCustom = _s.FloatingScheduleFontWeightEnabled ? _s.FloatingScheduleTextFontWeight : 0,
             SeparatorThickness = _s.FloatingScheduleSeparatorThickness,
             ShowFps = _s.FloatingScheduleShowFps,
+            CurrentClassIndex = -1,
         };
+        // 预览内容 = 当前实际加载档案的时间表（课程/时间/教师/学科色/当前课高亮/课间行/分隔线，
+        //   口径与悬浮窗 RefreshSchedule 完全一致）；宿主服务未就绪时返回 false → 回退下方示例数据。
+        if (FloatingScheduleService.FillPreviewFromProfile(m, _s)) return m;
+
         string[] times = { "08:00 - 08:40", "08:50 - 09:30", "09:40 - 10:20", "10:30 - 11:10", "11:20 - 12:00" };
         string[] teachers = { "张老师", "李老师", "王老师", "陈老师", "赵老师" };
         for (int i = 0; i < SampleSubjects.Length; i++)
@@ -533,6 +719,8 @@ public sealed class FloatingScheduleAdvancedAppearanceWindow : Window
         }
         m.Break = new FloatScheduleBreakModel { AfterClassIndex = 2, Name = "课间休息", TimeText = "10:20 - 10:30" };
         m.SeparatorAfterClassIndex.Add(3);
+        m.CurrentClassIndex = 1;
+        m.ClassProgressRatio = 0.45;
         return m;
     }
 

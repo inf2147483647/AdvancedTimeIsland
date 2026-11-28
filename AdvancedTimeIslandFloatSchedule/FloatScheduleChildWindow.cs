@@ -233,14 +233,20 @@ internal sealed class FloatScheduleChildWindow : Window
     void ApplyDragWindowPos(long session, PixelPoint target)
     {
         if (session != _glassFrameSyncSession) return;
-        try { Position = target; } catch { }
+        try
+        {
+            // 形变中位置 = 锚点 + 中心补偿，不能直接写目标位（否则窗口会"长大而右下漂移"）
+            if (_jellySizing) ApplyJellyFrame(target);
+            else Position = target;
+        }
+        catch { }
     }
 
     // 应用一帧拖动（**渲染帧同步关闭时的直接提交路径**）：位置 → 采样换图。
     void ApplyDragFrame(PixelPoint target)
     {
-        Position = target;
-        if (_jellyEnabled) ApplyJellyScale();   // 形变与窗口位置同帧提交（见 SampleJellyDrag 注释）
+        if (_jellySizing) ApplyJellyFrame(target);   // 形变与窗口位置/尺寸同帧提交（见 SampleJellyDrag 注释）
+        else Position = target;
         if (_glassCommitPending)
         {
             _glassCommitPending = false;
@@ -314,6 +320,8 @@ internal sealed class FloatScheduleChildWindow : Window
     int _glassPxW, _glassPxH;
     double _glassCornerPx;
     int _glassWorkerBusy;
+    int _glassCacheRetryPending;      // 采样参数缓存为空时，避免重复向 UI 线程讨要
+    bool _glassContentPublished;      // 上次发布模型时是否已有折射内容（翻转时需重建材质）
 
     /// <summary>
     /// 【任意线程】抓帧 + 折射，完成后把"换图"投递回 UI 线程。
@@ -323,17 +331,37 @@ internal sealed class FloatScheduleChildWindow : Window
     void SampleGlassBackdrop()
     {
         if (Interlocked.Exchange(ref _glassWorkerBusy, 1) == 1) return;   // 上一帧还没算完，跳过本拍
-        try
+        // 【派发到线程池，不占节拍器线程】BitBlt / DwmFlush 偶发会卡几百毫秒，
+        // 若在节拍器线程里同步做，节拍会被单个卡帧吃掉（表现为"偶尔出现约 1s 的位置延迟"）。
+        ThreadPool.UnsafeQueueUserWorkItem(_ =>
         {
-            IntPtr hwnd = _glassHwnd;
-            int w = _glassPxW, h = _glassPxH;
-            if (hwnd == IntPtr.Zero || w < 4 || h < 4) return;
-            _glass.PreventCapture = _snap.PreventCapture;
-            if (!_glass.CaptureAndRefract(hwnd, w, h, _glassCornerPx)) return;
-            Dispatcher.UIThread.Post(CommitGlassBackdrop, DispatcherPriority.Render);
+            try { SampleGlassBackdropCore(); }
+            catch { }
+            finally { Interlocked.Exchange(ref _glassWorkerBusy, 0); }
+        }, null);
+    }
+
+    void SampleGlassBackdropCore()
+    {
+        IntPtr hwnd = _glassHwnd;
+        int w = _glassPxW, h = _glassPxH;
+        if (hwnd == IntPtr.Zero || w < 4 || h < 4)
+        {
+            // 初始化时窗口可能还没可见 / 还没布局 → 缓存没填。让 UI 线程回头补一次，
+            // 否则节拍器一直空转，必须等用户拖一下才变成"满血液态玻璃"。
+            if (Interlocked.Exchange(ref _glassCacheRetryPending, 1) == 0)
+            {
+                Dispatcher.UIThread.Post(() =>
+                {
+                    Interlocked.Exchange(ref _glassCacheRetryPending, 0);
+                    _ = RefreshGlassBackdropAsync();
+                });
+            }
+            return;
         }
-        catch { }
-        finally { Interlocked.Exchange(ref _glassWorkerBusy, 0); }
+        _glass.PreventCapture = _snap.PreventCapture;
+        if (!_glass.CaptureAndRefract(hwnd, w, h, _glassCornerPx)) return;
+        Dispatcher.UIThread.Post(CommitGlassBackdrop, DispatcherPriority.Render);
     }
 
     /// <summary>【UI 线程】只做换图：原位更新位图并就地换背景，绝不重建可视树。</summary>
@@ -341,10 +369,32 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         try
         {
+            // 【尺寸校验】位图按采样时的物理尺寸生成、承载 Border 是 Stretch.Fill：
+            // 卡片当前尺寸与之不一致（初始化布局未完成 / 拖动中尺寸变化）就会被硬拉伸 ——
+            // 典型表现是"首次拖动出现极大的纵向拉伸"。不一致就丢弃本帧并刷新采样参数。
+            var liveSize = _card.Bounds.Size;
+            if (liveSize.Width >= 4 && liveSize.Height >= 4)
+            {
+                double liveSc = RenderScaling <= 0 ? 1.0 : RenderScaling;
+                int liveW = (int)Math.Round(liveSize.Width * liveSc), liveH = (int)Math.Round(liveSize.Height * liveSc);
+                if (liveW != _glassPxW || liveH != _glassPxH)
+                {
+                    _ = RefreshGlassBackdropAsync();
+                    return;
+                }
+            }
             // 【直接换图，不再排队等渲染帧】采样已在后台线程完成，本回调以 Render 优先级投递
             // （渲染前执行）→ 本帧即被采纳；再经 pacer 排队只会平白多等一整帧（16.7~33ms）。
             _glass.Commit(); PingRenderKeepAlive();
-            if (_glass.NeedsApply && _lastModel != null)   // 首次拿到内容时才重套一次材质
+            // 内容"有/无"翻转时重建一次模型：初始化时材质按"还没有折射内容"套的是近似路径，
+            // 只有重建后 backdropIsRefracted 才会变 true（以前要等拖动触发才"加载满血"）。
+            bool needApply = _glass.NeedsApply;
+            if (_glass.HasContent != _glassContentPublished)
+            {
+                _glassContentPublished = _glass.HasContent;
+                needApply = true;
+            }
+            if (needApply && _lastModel != null)
             {
                 _glass.ClearNeedsApply();
                 RenderModel(_lastModel);
@@ -1175,6 +1225,19 @@ internal sealed class FloatScheduleChildWindow : Window
     bool _dragPendingValid;
     SizeToContent _preDragSizeMode;
 
+    // ===== 【果冻：窗口尺寸跟随形变】=====
+    // 旧做法是"窗口尺寸固定 + 只缩放内容"：拉伸时内容被窗口裁掉、压缩（过冲）时底部露出没有折射的空白。
+    // 新做法是让整块玻璃（折射层/圆角/描边）一起变形：起拖时冻结内容尺寸作为基准，每帧按量化比例改窗口尺寸。
+    Size _jellyBaseDip;                              // 基准窗口客户区尺寸（DIP，同时也是冻结后的内容尺寸）
+    PixelPoint _jellyAnchorPx;                       // 与"比例=1"对应的窗口左上角（形变绕它做中心锚定）
+    double _jellyAppliedSx = 1, _jellyAppliedSy = 1; // 已落到窗口上的量化比例（避免每帧改尺寸重建采样缓冲）
+    PixelPoint _jellyAppliedPos;                     // 已应用的窗口位置（同值不重复写）
+    bool _jellyAppliedPosValid;
+    bool _jellySizing;                               // 是否处于"窗口跟随形变"状态（含松手回弹）
+    double _jellyPreMinWidth, _jellyPreMaxWidth;     // 形变期间临时放宽的窗口宽度限制
+    HorizontalAlignment _jellyPreHAlign;
+    VerticalAlignment _jellyPreVAlign;
+
     void Card_PointerPressed(object? sender, PointerPressedEventArgs e)
     {
         if (_snap.ClickThrough) return;
@@ -1189,8 +1252,9 @@ internal sealed class FloatScheduleChildWindow : Window
         {
             // 【按下瞬间】先唤醒渲染帧保温：让紧随其后的 SizeToContent 切换、布局与重绘落在同一合成帧。
             PingRenderKeepAlive();
-            _preDragSizeMode = SizeToContent;
-            if (_preDragSizeMode != SizeToContent.Manual) SizeToContent = SizeToContent.Manual;
+            // 上一次果冻回弹尚未收敛时窗口本来就被切成 Manual → 不能把 Manual 记成"用户原模式"（否则会永久失去自动尺寸）
+            if (!_jellySizing) _preDragSizeMode = SizeToContent;
+            if (SizeToContent != SizeToContent.Manual) SizeToContent = SizeToContent.Manual;
             _dragActive = true;
             _dragPointer = e.Pointer;
             StartGlassVSync();              // 位移帧同步：拖动开始时启动渲染帧节拍（位置与背景在同一渲染帧提交）
@@ -1205,8 +1269,10 @@ internal sealed class FloatScheduleChildWindow : Window
             _dragThrottleMs = FloatScheduleDisplayRefresh.GetDragThrottleMs(Hwnd);
             _dragScreenBounds = null;   // 让首次 Moved 按实际屏幕记录（跨屏后重算）
             _dragStartScreenPx = this.PointToScreen(e.GetPosition(this));
-            _dragStartWindowPx = Position;
             ResetJellyForDrag();   // 果冻：拖动开始清掉上一次回弹残留，形变从 1 起算
+            BeginJellySizing();    // 果冻：记录基准尺寸/位置并冻结内容尺寸（窗口尺寸随后跟随形变）
+            // 取"形变复位之后"的真实窗口位：否则上一次回弹留下的中心补偿偏移会被算进拖动基准
+            _dragStartWindowPx = Position;
             try { e.Pointer.Capture(_card); } catch { }
             try { e.Handled = true; } catch { }
         }
@@ -1280,7 +1346,7 @@ internal sealed class FloatScheduleChildWindow : Window
         _jellyTimer?.Stop();
         _jelly.Reset();
         _jellyLastTs = 0;
-        ApplyJellyScale();
+        EndJellySizing();   // 上次回弹未收敛就被再次按下：先把尺寸/位置还原，避免基准错乱
     }
 
     /// <summary>关闭果冻效果（或切走液态玻璃）时立即复位，避免停在半形变状态。</summary>
@@ -1289,7 +1355,127 @@ internal sealed class FloatScheduleChildWindow : Window
         _jellyTimer?.Stop();
         _jelly.Reset();
         _jellyLastTs = 0;
+        EndJellySizing();
+    }
+
+    /// <summary>
+    /// 拖动开始：记录基准尺寸/位置，并冻结内容尺寸。
+    /// 为什么必须冻结内容：窗口变大后若内容仍按新宽度重新布局，文字会重新换行，再叠加 RenderTransform 就是双重变形。
+    /// </summary>
+    void BeginJellySizing()
+    {
+        if (!_jellyEnabled) return;
+        // 上一次回弹未收敛时，EndJellySizing 会把模式还原成自动 → 这里重新切回 Manual，
+        // 否则 SizeToContent 会忽略下面写的 Width/Height，窗口尺寸就跟不上形变了。
+        if (SizeToContent != SizeToContent.Manual) SizeToContent = SizeToContent.Manual;
+        double w = _card.Bounds.Width, h = _card.Bounds.Height;
+        if (w < 4 || h < 4)
+        {
+            var cs = ClientSize;
+            w = cs.Width;
+            h = cs.Height;
+        }
+        if (w < 4 || h < 4) return;
+        _jellyBaseDip = new Size(w, h);
+        _jellyAnchorPx = Position;
+        _jellyAppliedSx = 1;
+        _jellyAppliedSy = 1;
+        _jellyAppliedPos = _jellyAnchorPx;
+        _jellyAppliedPosValid = true;
+        _jellySizing = true;
+        // 形变会让窗口尺寸越出 Min/MaxWidth → 临时放宽，否则窗口被钳制而内容照样缩放 → 裁边
+        _jellyPreMinWidth = MinWidth;
+        _jellyPreMaxWidth = MaxWidth;
+        MinWidth = 0;
+        MaxWidth = double.PositiveInfinity;
+        // 内容居中：缩放原点（中心）与窗口中心重合，中心锚定公式才成立
+        _jellyPreHAlign = _card.HorizontalAlignment;
+        _jellyPreVAlign = _card.VerticalAlignment;
+        _card.HorizontalAlignment = HorizontalAlignment.Center;
+        _card.VerticalAlignment = VerticalAlignment.Center;
+        _card.Width = w;
+        _card.Height = h;
+        _jellyScale.ScaleX = 1;
+        _jellyScale.ScaleY = 1;
+    }
+
+    /// <summary>形变结束：窗口尺寸/位置/SizeToContent/内容尺寸全部回到基准，保证最终窗口矩形与形变前完全一致。</summary>
+    void EndJellySizing()
+    {
+        if (!_jellySizing) return;
+        _jellySizing = false;
+        _jellyScale.ScaleX = 1;
+        _jellyScale.ScaleY = 1;
+        // 还原宽度限制必须早于写回尺寸（MaxWidth 会钳制 Width 赋值）
+        MinWidth = _jellyPreMinWidth;
+        MaxWidth = _jellyPreMaxWidth;
+        _card.HorizontalAlignment = _jellyPreHAlign;
+        _card.VerticalAlignment = _jellyPreVAlign;
+        _card.Width = double.NaN;    // 解冻：交回 SizeToContent 自动测量
+        _card.Height = double.NaN;
+        try
+        {
+            Width = double.NaN;      // 窗口也要回到"由内容决定尺寸"，否则会永久卡在基准尺寸
+            Height = double.NaN;
+            if (SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
+            if (Position != _jellyAnchorPx) Position = _jellyAnchorPx;
+            _jellyAppliedPos = _jellyAnchorPx;
+            _jellyAppliedPosValid = true;
+        }
+        catch { }
+        RefreshEdgeGeometryOnResize();   // 尺寸刚恢复：贴边隐藏位按真实尺寸重算一次
+        ScheduleEdgeEval();              // 回弹期间被跳过的贴边评估在这里补上
+        PingRenderKeepAlive();
+    }
+
+    /// <summary>拖动帧提交点：把基准锚点更新到本帧目标位，再按当前形变落窗口尺寸/位置/缩放。</summary>
+    void ApplyJellyFrame(PixelPoint anchorPx)
+    {
+        _jellyAnchorPx = anchorPx;
         ApplyJellyScale();
+    }
+
+    void ApplyJellyScale()
+    {
+        if (!_jellySizing)
+        {
+            // 不在形变状态：只保证内容变换回到 1:1，不动窗口尺寸/位置
+            if (Math.Abs(_jellyScale.ScaleX - 1) < 1e-5 && Math.Abs(_jellyScale.ScaleY - 1) < 1e-5) return;
+            _jellyScale.ScaleX = 1;
+            _jellyScale.ScaleY = 1;
+            return;
+        }
+        // 【量化到 0.01 台阶】窗口尺寸一变，液态玻璃采样缓冲就要重建；逐帧改尺寸会每帧重建 → 掉帧/拖影。
+        double sx = Math.Max(0.90, Math.Round(_jelly.ScaleX, 2));
+        double sy = Math.Max(0.90, Math.Round(_jelly.ScaleY, 2));
+        if (Math.Abs(sx - _jellyAppliedSx) > 1e-6 || Math.Abs(sy - _jellyAppliedSy) > 1e-6)
+        {
+            _jellyAppliedSx = sx;
+            _jellyAppliedSy = sy;
+            // 基准是 DIP，窗口 Width/Height 也是 DIP → 直接相乘，无需物理像素换算
+            Width = Math.Max(1, _jellyBaseDip.Width * sx);
+            Height = Math.Max(1, _jellyBaseDip.Height * sy);
+        }
+        // 内容缩放写"真实量化值"：内容最终尺寸 = 基准 × 量化比例 = 窗口尺寸 → 不裁边也不露白
+        _jellyScale.ScaleX = sx;
+        _jellyScale.ScaleY = sy;
+        ApplyJellyAnchorPosition();
+    }
+
+    /// <summary>
+    /// 中心锚定：窗口左上角按 (新尺寸-基准尺寸)/2 反向补偿，让卡片视觉中心固定在拖动落点上
+    /// （否则窗口只在右下方"长大"，形变看起来像整块往右下漂移）。
+    /// </summary>
+    void ApplyJellyAnchorPosition()
+    {
+        double sc = RenderScaling <= 0 ? 1.0 : RenderScaling;
+        int dx = (int)Math.Round((_jellyBaseDip.Width * _jellyAppliedSx - _jellyBaseDip.Width) * sc / 2.0);
+        int dy = (int)Math.Round((_jellyBaseDip.Height * _jellyAppliedSy - _jellyBaseDip.Height) * sc / 2.0);
+        var pos = new PixelPoint(_jellyAnchorPx.X - dx, _jellyAnchorPx.Y - dy);
+        if (_jellyAppliedPosValid && pos == _jellyAppliedPos) return;   // 同值不写，避免无谓的平台 Move
+        _jellyAppliedPos = pos;
+        _jellyAppliedPosValid = true;
+        try { Position = pos; } catch { }
     }
 
     /// <summary>拖动中：只把指针坐标交给共享数学累积速度与目标形变（不写 UI 变换）。</summary>
@@ -1308,7 +1494,8 @@ internal sealed class FloatScheduleChildWindow : Window
     void StartJellySpring()
     {
         if (!_jellyEnabled) { ResetJelly(); return; }
-        if (!_jelly.BeginRelease()) return;   // 本来就几乎没形变：不启动定时器
+        // 本来就几乎没形变：不启动定时器，直接还原窗口尺寸/位置
+        if (!_jelly.BeginRelease()) { ApplyJellyScale(); EndJellySizing(); return; }
         _jellyTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(1000.0 / 144.0), DispatcherPriority.Render,
             (_, _) => StepJellySpring());
         _jellyTimer.Start();
@@ -1320,18 +1507,10 @@ internal sealed class FloatScheduleChildWindow : Window
         {
             ApplyJellyScale();
             _jellyTimer?.Stop();
+            EndJellySizing();   // 收敛：窗口尺寸/位置/SizeToContent 一并还原
             return;
         }
         ApplyJellyScale();
-    }
-
-    void ApplyJellyScale()
-    {
-        double sx = _jelly.ScaleX, sy = _jelly.ScaleY;
-        // 值没变就不写（否则每帧都触发一次无谓的重绘）
-        if (Math.Abs(_jellyScale.ScaleX - sx) < 1e-5 && Math.Abs(_jellyScale.ScaleY - sy) < 1e-5) return;
-        _jellyScale.ScaleX = sx;
-        _jellyScale.ScaleY = sy;
     }
 
     void EndDrag()
@@ -1339,7 +1518,9 @@ internal sealed class FloatScheduleChildWindow : Window
         if (!_dragActive) return;
         _dragActive = false;
         _suppressTopmostRefresh = false;
-        StartJellySpring();   // 果冻：松手后由欠阻尼弹簧回弹到 1
+        // 形变中：先把基准锚点钉到最终落点（回弹期间窗口位置 = 锚点 + 中心补偿）
+        if (_jellySizing && _dragPendingValid) { _jellyAnchorPx = _dragPendingPos; _dragPendingValid = false; }
+        StartJellySpring();   // 果冻：松手后由欠阻尼弹簧回弹到 1（收敛后还原窗口尺寸/位置）
         try { _dragPointer?.Capture(null); } catch { }
         _dragPointer = null;
         StopGlassVSync();   // 位移帧同步：拖动结束即停渲染帧节拍，此后不会再有节拍回调插入
@@ -1348,7 +1529,8 @@ internal sealed class FloatScheduleChildWindow : Window
         try
         {
             if (_dragPendingValid) { Position = _dragPendingPos; _dragPendingValid = false; }
-            if (SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
+            // 形变未收敛时不得恢复 Manual 尺寸模式：交给 EndJellySizing 统一还原，避免回弹途中尺寸跳变
+            if (!_jellySizing && SizeToContent != _preDragSizeMode) SizeToContent = _preDragSizeMode;
             ApplyWindowLayer();
             // 立即按最终位置重抓一帧（不占 UI 线程：抓帧 + 折射都在后台）；避免松手瞬间残留旧位置背景。
             if (_snap.Material == 3 && _hostVisible) _ = RefreshGlassBackdropAsync();
@@ -1469,7 +1651,9 @@ internal sealed class FloatScheduleChildWindow : Window
         {
             if (_edgeAnimating || _edgeHiddenAv || _hideAnimActive) return;   // 隐藏态/动画中位置不是用户位置
             if (!force && !_positionReportArmed) return;   // 稳定期内不落库，避免瞬态位置污染存档
-            _pipe.Send(FloatScheduleIpcMsgType.Position, new FloatSchedulePositionPayload { X = Position.X, Y = Position.Y });
+            // 形变中窗口位置带中心补偿偏移 → 上报"基准锚点"（回弹收敛后窗口就停在该位置）
+            var p = _jellySizing ? _jellyAnchorPx : Position;
+            _pipe.Send(FloatScheduleIpcMsgType.Position, new FloatSchedulePositionPayload { X = p.X, Y = p.Y });
         }
         catch { }
     }
@@ -1531,6 +1715,8 @@ internal sealed class FloatScheduleChildWindow : Window
     void OnPositionChanged(object? sender, PixelPointEventArgs e)
     {
         if (_dragActive) return;
+        // 形变中（松手回弹）每帧位置都带中心补偿偏移：既不是用户位置，也不能拿去评估贴边
+        if (_jellySizing) return;
         // 过渡动画驱动的位置变化不上报：动画期间窗口会滑到屏幕顶端之外，上报会被插件当成用户位置持久化
         if (_hostVisible && IsVisible && !_edgeAnimating && !_edgeHiddenAv && !_hideAnimActive)
             ReportPosition();
@@ -1574,6 +1760,7 @@ internal sealed class FloatScheduleChildWindow : Window
     void EvaluateEdgeDock()
     {
         if (!IsVisible || !_snap.EdgeHide || _edgeAnimating || _hideAnimActive) return;   // 过渡动画中不评估贴边（避免动画期间窗口被挪动）
+        if (_jellySizing) return;   // 形变中的尺寸/位置不是最终值：EndJellySizing 会重新调度一次评估
         try
         {
             // 工作区用缓存兜底：窗口已离屏（贴边隐藏）时 ScreenFromWindow 为 null，不能因此放弃评估
@@ -1702,6 +1889,8 @@ internal sealed class FloatScheduleChildWindow : Window
         try
         {
             if (!_edgeDockedAv || _dragActive) return;      // 未贴边 / 拖拽中：与隐藏位无关
+            // 形变中窗口尺寸是被缩放出来的中间态，不能当成用户尺寸记进隐藏位缓存
+            if (_jellySizing) return;
             if (_hideAnimActive) return;                    // 过渡动画期间窗口位置由动画独占驱动
             if (!TryGetWindowDeviceSize(out int w, out int h)) return;
             if (w == _edgeLastSizeW && h == _edgeLastSizeH) return;   // 尺寸没变 → 零开销返回（避免布局回调循环）

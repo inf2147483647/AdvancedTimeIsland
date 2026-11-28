@@ -920,28 +920,6 @@ public class AboutPage : SettingsPageBase
         authorPanel.Children.Add(_authorTextBlock);
         authorPanel.Children.Add(projectButton);
 
-        // 反馈问题按钮
-        var feedbackButton = new Button
-        {
-            Content = "反馈问题",
-            FontSize = 12,
-            Padding = new Thickness(8, 2),
-            Background = Brushes.Transparent,
-            Foreground = GetAccentBrush(),
-            BorderBrush = GetAccentBrush(),
-            BorderThickness = new Thickness(1),
-            CornerRadius = new CornerRadius(4),
-            Margin = new Thickness(8, 0, 0, 0)
-        };
-
-        feedbackButton.Click += (s, e) =>
-        {
-            // 反馈问题 → 跳转到 issue_feedback 页面（内含 GitHub / GitCode 双提交渠道）
-            FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandIssueFeedback");
-        };
-
-        authorPanel.Children.Add(feedbackButton);
-
         infoPanel.Children.Add(_nameTextBlock);
         infoPanel.Children.Add(authorPanel);
 

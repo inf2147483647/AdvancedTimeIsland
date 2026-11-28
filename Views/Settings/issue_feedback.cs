@@ -13,7 +13,7 @@ namespace AdvancedTimeIsland.Views.Settings;
 
 /// <summary>
 /// 反馈问题页面：提供 GitHub Issue 与 GitCode 两条提交渠道。
-/// 由各版本插件设置中"关于"页面的"反馈问题"按钮导航进入
+/// 由各版本插件设置中"插件设置 → 通用设置"的"反馈问题"项导航进入
 /// （hideDefault=true：不显示在设置导航列表中，仅通过 classisland:// URI 进入）。
 /// 样式与交互继承 <see cref="HanfuPageTemplate"/>，随主题深浅自适应。
 /// </summary>
@@ -29,8 +29,13 @@ public class IssueFeedbackPage : HanfuPageTemplate
     /// <summary>已创建的按钮，供主题切换时统一刷新配色。</summary>
     private readonly List<Button> _feedbackButtons = new();
 
+    /// <summary>「开发节奏说明」InfoBar 是否已在本进程内被关闭（关闭后不再重复弹出）。</summary>
+    private static bool _devPaceNoticeDismissed;
+
     protected override void BuildContent(StackPanel panel)
     {
+        AddDevPaceNotice(panel);
+
         // 顶部说明（会被模板统一记录，主题切换时自动重设配色）
         AddParagraph(panel, "在使用过程中遇到问题或有改进建议？请通过以下任一渠道提交 issue，帮助我们做得更好：");
 
@@ -45,6 +50,30 @@ public class IssueFeedbackPage : HanfuPageTemplate
         AddFeedbackButton(buttonPanel, "GitCode提交issue", GitCodeIssueUrl);
 
         panel.Children.Add(buttonPanel);
+    }
+
+    /// <summary>
+    /// 顶部公告：以 FA InfoBar（Informational 级别、可关闭）呈现当前开发节奏，
+    /// 配色与关闭按钮由 FluentAvalonia 官方控件提供，随主题深浅自适应。
+    /// </summary>
+    private static void AddDevPaceNotice(StackPanel panel)
+    {
+        if (_devPaceNoticeDismissed)
+        {
+            return;
+        }
+
+        var infoBar = FluentAvaloniaCompatibilityHelper.CreateInfoBar();
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Severity",
+            FluentAvaloniaCompatibilityHelper.GetInfoBarSeverityInformational());
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Message",
+            "当前开发节奏以 UI/UX 优化为主，欢迎 issue 反馈。");
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsOpen", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "IsClosable", true);
+        FluentAvaloniaCompatibilityHelper.SetInfoBarProperty(infoBar, "Margin", new Thickness(0, 0, 0, 12));
+        FluentAvaloniaCompatibilityHelper.AddInfoBarClosedHandler(infoBar, (_, _) => _devPaceNoticeDismissed = true);
+
+        panel.Children.Add(infoBar);
     }
 
     private void AddFeedbackButton(StackPanel panel, string text, string url)

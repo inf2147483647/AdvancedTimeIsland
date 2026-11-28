@@ -18,15 +18,17 @@ public sealed class FloatScheduleJelly
     /// <summary>速度拉满阈值（px/ms）：达到该合速度即用满最大形变。</summary>
     const double FullSpeed = 3.0;
     /// <summary>跟手系数：每次采样向目标形变/目标主轴靠近的比例（过大抖动、过小迟滞）。</summary>
-    const double FollowRate = 0.35;
+    const double FollowRate = 0.175;
     /// <summary>松手初速系数（px/ms → 变形量/秒）：甩得越快回弹越猛。</summary>
-    const double ReleaseGain = 0.0045;
-    /// <summary>弹簧角频率：越大回弹越快。</summary>
-    const double Omega = 26.0;
+    const double ReleaseGain = 0.00225;
+    /// <summary>弹簧角频率：越大回弹越快（13 ≈ 回弹时长约为 26 的两倍）。</summary>
+    const double Omega = 13.0;
     /// <summary>阻尼比 &lt;1 → 有 1~2 次可见过冲（"Q 弹"的来源）。</summary>
     const double Zeta = 0.32;
-    /// <summary>垂直方向压缩相对主轴拉伸的比例（0.72 接近体积守恒）。</summary>
-    const double SquashRatio = 0.72;
+    /// <summary>过冲（回弹把卡片压得比原尺寸还小）的衰减系数。
+    /// 窗口尺寸固定，卡片一旦缩小就会在窗口边上露出没有折射内容的空白（底部折射带整体上移，观感像"折射没有跟着弹"），
+    /// 因此负向变形只保留一小部分：既有 Q 弹的节奏感，又不会明显露白。</summary>
+    const double OvershootDamp = 0.3;
 
     double _d;        // 变形量（>0 表示沿主轴拉伸）
     double _v;        // 弹簧速度（变形量/秒）
@@ -38,10 +40,13 @@ public sealed class FloatScheduleJelly
     bool _hasLast;    // 是否已有上一采样点（决定能否算速度）
     double _lastSpeed; // 松手时的合速度（px/ms）
 
-    /// <summary>横向缩放：主轴为横向时拉伸，主轴为纵向时压缩（斜向自动过渡，无跳变）。</summary>
-    public double ScaleX => 1.0 + _d * (2.0 * _ax - 1.0);
-    /// <summary>纵向缩放：与横向相反（保持面积近似守恒）。</summary>
-    public double ScaleY => 1.0 - _d * SquashRatio * (2.0 * _ax - 1.0);
+    /// <summary>主轴方向的有效变形量（过冲的负向部分被衰减，见 OvershootDamp 说明）。</summary>
+    double EffectiveD => _d >= 0 ? _d : _d * OvershootDamp;
+
+    /// <summary>横向缩放：主轴为横向时沿横向拉伸，纵向拖动时保持 1（不压缩，避免底部露出没有折射的空白）。</summary>
+    public double ScaleX => _ax >= 0.5 ? 1.0 + EffectiveD * (2.0 * _ax - 1.0) : 1.0;
+    /// <summary>纵向缩放：主轴为纵向时沿纵向拉伸，横向拖动时保持 1（保证底部折射带始终贴合窗口下沿）。</summary>
+    public double ScaleY => _ax < 0.5 ? 1.0 + EffectiveD * (1.0 - 2.0 * _ax) : 1.0;
     public double Stretch => _d;
     /// <summary>当前主轴权重（仅供调试/宿主判断）。</summary>
     public double Axis => _ax;

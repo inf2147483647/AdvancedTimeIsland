@@ -563,6 +563,19 @@ public class PluginSettingsPage : UserControl
                 "选择区时显示使用的时区",
                 CreateTimeZoneComboBox());
 
+            // 反馈问题（原在「关于」标签页顶部，现移入通用设置）
+            var feedbackButton = new Button
+            {
+                Content = "提交反馈...",
+                Width = 120
+            };
+            feedbackButton.Click += (s, e) =>
+                FluentAvaloniaCompatibilityHelper.NavigateToSettingsPage(this, "AdvancedTimeIslandIssueFeedback");
+            AddSettingsExpanderItem(generalExpander,
+                "反馈问题",
+                "提交问题反馈（支持 GitHub / GitCode 渠道）",
+                feedbackButton);
+
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(generalExpander));
 
             // 许可证声明
