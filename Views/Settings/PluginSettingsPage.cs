@@ -443,8 +443,12 @@ public class PluginSettingsPage : UserControl
     private TextBox? _dmsMinutesTextBox;
     private TextBox? _dmsSecondsTextBox;
     private ComboBox? _dmsDirectionComboBox;
-    private Button? _echoHoleButton;
+    private Control? _echoHoleHost;
+    private Control? _echoHoleExpander;
     private TextBlock? _echoHoleDisplayText;
+    /// <summary>回声洞条目当前显示的是占位提示（决定文本用次级色还是正文色）。</summary>
+    private bool _echoHoleShowingPlaceholder = true;
+    private const string EchoHolePlaceholder = "连续点击查看回声洞文本";
     private CancellationTokenSource? _echoHoleCts;
     private int _lastEchoIndex = -1;
     private System.Timers.Timer? _cursorBlinkTimer;
@@ -638,25 +642,29 @@ public class PluginSettingsPage : UserControl
 
             mainPanel.Children.Add(IntroAnimationHelper.CreateExpandHost(experimentalExpander));
 
-            // 回声洞（实验性功能）
-            _echoHoleButton = new Button
-            {
-                Content = "回声洞",
-                Margin = new Thickness(0, 8, 0, 0),
-                IsVisible = isExperimentalEnabled
-            };
-            _echoHoleButton.Click += OnEchoHoleButtonClick;
-            mainPanel.Children.Add(_echoHoleButton);
+            // 回声洞（实验性功能）：与官方「关于」页一致——带 Fluent 图标的折叠栏，
+            // 展开后点击条目即随机展示一条文本（打字机效果），不再使用脱离官方样式的裸按钮。
+            _echoHoleExpander = FluentAvaloniaCompatibilityHelper.CreateSettingsExpander();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_echoHoleExpander, "Header", "回声洞");
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderProperty(_echoHoleExpander, "IconSource",
+                FluentAvaloniaCompatibilityHelper.CreateFluentGlyphIconSource("\uE55F"));
 
             _echoHoleDisplayText = new TextBlock
             {
-                FontSize = 13,
-                Foreground = ThemeHelper.GetSubTextBrush(),
+                Text = EchoHolePlaceholder,
                 TextWrapping = TextWrapping.Wrap,
-                Margin = new Thickness(0, 4, 0, 0),
-                IsVisible = false
+                Foreground = ThemeHelper.GetSubTextBrush()
             };
-            mainPanel.Children.Add(_echoHoleDisplayText);
+
+            var echoHoleItem = FluentAvaloniaCompatibilityHelper.CreateSettingsExpanderItem();
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(echoHoleItem, "Content", _echoHoleDisplayText);
+            FluentAvaloniaCompatibilityHelper.SetSettingsExpanderItemProperty(echoHoleItem, "IsClickEnabled", true);
+            FluentAvaloniaCompatibilityHelper.AddSettingsExpanderClickHandler(echoHoleItem, OnEchoHoleClick);
+            AddChildToSettingsExpander(_echoHoleExpander, echoHoleItem);
+
+            _echoHoleHost = IntroAnimationHelper.CreateExpandHost(_echoHoleExpander);
+            _echoHoleHost.IsVisible = isExperimentalEnabled;
+            mainPanel.Children.Add(_echoHoleHost);
 
             var scrollViewer = new ScrollViewer
             {
@@ -1355,9 +1363,9 @@ public class PluginSettingsPage : UserControl
     private void OnExperimentalToggled(bool isEnabled)
     {
         _settings!.EnableExperimentalFeatures = isEnabled;
-        if (_echoHoleButton != null)
+        if (_echoHoleHost != null)
         {
-            _echoHoleButton.IsVisible = isEnabled;
+            _echoHoleHost.IsVisible = isEnabled;
         }
         if (!isEnabled)
         {
@@ -1366,13 +1374,12 @@ public class PluginSettingsPage : UserControl
             _cursorBlinkTimer?.Dispose();
             if (_echoHoleDisplayText != null)
             {
-                _echoHoleDisplayText.IsVisible = false;
-                _echoHoleDisplayText.Text = "";
+                _echoHoleDisplayText.Text = EchoHolePlaceholder;
+                _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
+                _echoHoleShowingPlaceholder = true;
+                RefreshEchoHoleHostHeight();
             }
-            if (_echoHoleButton != null)
-            {
-                _echoHoleButton.IsEnabled = true;
-            }
+            _isTyping = false;
         }
 
         RequestRestartAction?.Invoke();
@@ -1392,11 +1399,15 @@ public class PluginSettingsPage : UserControl
         });
     }
 
-    private async void OnEchoHoleButtonClick(object? sender, RoutedEventArgs e)
+    /// <summary>
+    /// 点击「回声洞」条目：随机取一条文本并以打字机效果展示（与官方关于页一致，打字期间忽略再次点击）。
+    /// </summary>
+    private async void OnEchoHoleClick(object? sender, EventArgs e)
     {
-        if (_echoHoleButton == null || _echoHoleDisplayText == null) return;
-
-        _echoHoleButton.IsEnabled = false;
+        if (_echoHoleDisplayText == null || _isTyping)
+        {
+            return;
+        }
 
         _echoHoleCts?.Cancel();
         _echoHoleCts = new CancellationTokenSource();
@@ -1423,7 +1434,12 @@ public class PluginSettingsPage : UserControl
 
         var text = EchoHoleTexts[newIndex];
 
-        _echoHoleDisplayText.IsVisible = true;
+        // 首次点击后从占位提示切到正文文本（正文用主题正文色，不再用次级色）
+        if (_echoHoleShowingPlaceholder)
+        {
+            _echoHoleShowingPlaceholder = false;
+            _echoHoleDisplayText.Foreground = ThemeHelper.GetTextBrush();
+        }
         _echoHoleDisplayText.Text = "";
 
         _isTyping = true;
@@ -1437,6 +1453,7 @@ public class PluginSettingsPage : UserControl
                     break;
 
                 _echoHoleDisplayText.Text = text.Substring(0, i + 1) + "_";
+                RefreshEchoHoleHostHeight();
                 await Task.Delay(charDelay, _echoHoleCts.Token);
             }
 
@@ -1448,12 +1465,22 @@ public class PluginSettingsPage : UserControl
         }
 
         _isTyping = false;
+        RefreshEchoHoleHostHeight();
 
         _cursorBlinkTimer = new System.Timers.Timer(500);
         _cursorBlinkTimer.Elapsed += OnCursorBlink;
         _cursorBlinkTimer.Start();
+    }
 
-        _echoHoleButton.IsEnabled = true;
+    /// <summary>
+    /// 回声洞文本逐字增长会换行改变折叠栏高度，而展开宿主高度是锁定值，需重算后才不会裁掉新行。
+    /// </summary>
+    private void RefreshEchoHoleHostHeight()
+    {
+        if (_echoHoleExpander != null)
+        {
+            IntroAnimationHelper.RefreshExpandHost(_echoHoleExpander);
+        }
     }
 
     private void OnCursorBlink(object? sender, System.Timers.ElapsedEventArgs e)
@@ -1473,6 +1500,8 @@ public class PluginSettingsPage : UserControl
             {
                 _echoHoleDisplayText.Text = currentText + "_";
             }
+
+            RefreshEchoHoleHostHeight();
         });
     }
 
@@ -1506,7 +1535,9 @@ public class PluginSettingsPage : UserControl
         if (_licenseTextBlock != null)
             _licenseTextBlock.Foreground = ThemeHelper.GetSubTextBrush();
         if (_echoHoleDisplayText != null)
-            _echoHoleDisplayText.Foreground = ThemeHelper.GetSubTextBrush();
+            _echoHoleDisplayText.Foreground = _echoHoleShowingPlaceholder
+                ? ThemeHelper.GetSubTextBrush()
+                : ThemeHelper.GetTextBrush();
     }
 
     private void AddSettingsExpanderItem(Control expander, string content, string description, Control? footerContent)

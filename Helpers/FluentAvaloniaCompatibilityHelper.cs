@@ -824,6 +824,26 @@ public static class FluentAvaloniaCompatibilityHelper
         return new object();
     }
 
+    /// <summary>
+    /// 按 ClassIsland 官方的 Fluent Icons 字形创建图标源（如关于页「回声洞」的 <c>\uE55F</c>）。
+    /// FA2 的 <c>FontIconSource</c> 与 FA3 的 <c>FAFontIconSource</c> 类型名不同，这里按运行时版本反射创建，
+    /// 字体统一取宿主的 <see cref="ClassIsland.Core.AppBase.FluentIconsFontFamily"/>，保证与官方图标字形一致。
+    /// </summary>
+    public static object CreateFluentGlyphIconSource(string glyph)
+    {
+        var iconSourceType = ResolveFaType("FluentAvalonia.UI.Controls.FAFontIconSource, FluentAvalonia")
+                             ?? ResolveFaType("FluentAvalonia.UI.Controls.FontIconSource, FluentAvalonia");
+        if (iconSourceType == null)
+        {
+            return CreateSymbolIconSource("Comment");
+        }
+
+        var instance = Activator.CreateInstance(iconSourceType)!;
+        iconSourceType.GetProperty("FontFamily")?.SetValue(instance, ClassIsland.Core.AppBase.FluentIconsFontFamily);
+        iconSourceType.GetProperty("Glyph")?.SetValue(instance, glyph);
+        return instance;
+    }
+
     public static void NavigateBack(Control control)
     {
         if (control == null)

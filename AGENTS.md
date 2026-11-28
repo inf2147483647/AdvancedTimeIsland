@@ -4,7 +4,7 @@
 
 0. 千万千万千万千万千万千万千万千万不要使用终端命令批量替换文件里的内容
 1. 若无特殊解释,全部功能都需要使用异步操作,避免阻塞UI线程造成卡顿
-2. 必要时可前往"C:\Users\seewo\RiderProjects\ClassIsland"查看源代码
+2. 必要时可按先后前往"F:\ClassIsland","R:\ClassIsland","C:\Users\seewo\RiderProjects\ClassIsland","D:\temp\ClassIsland"查看源代码
 3. 所有主界面控件都需要随主题深浅自适应
 4. 需要同时兼容FluentAvalonia 3.0.0.0(C:\Users\Administrator\citemp\FluentAvalonia或D:\temp\FluentAvalonia)（简称FA3）和2.x版本（简称FA2）
 5. 新增页面都需要在Plugin.cs中注册
@@ -14,6 +14,7 @@
 9. 思考链（<thinking>标签内）使用中文
 10. 所有涉及文件写入的操作需使用原子写入
 11. 非必要不要try-catch，让问题暴露以便修复
+12. Fluent图标码点速查表".\FluentIcons-CodePoints.csv"
 
 对于汉服页面：
 
