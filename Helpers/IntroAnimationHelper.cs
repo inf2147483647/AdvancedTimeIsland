@@ -1114,6 +1114,18 @@ public static class IntroAnimationHelper
         return host;
     }
 
+    /// <summary>
+    /// 创建不依赖 Expander 的「平滑展开宿主」：内容被裁剪进一个高度可过渡的容器，
+    /// 切换 <see cref="CollapsibleContentHost.IsExpanded"/> 时按折叠栏同一套节奏推进
+    /// （333ms 高度过渡 + 内容贴着容器底边滑入 / 滑出，展开 KeySpline(0,0,0,1)、收起 KeySpline(1,1,0,1)）。
+    /// 适用于没有 Expander 结构、但需要同款展开动画的场景（如更新日志条目的细节）。
+    /// </summary>
+    public static CollapsibleContentHost CreateCollapsibleContentHost(Control content, bool expanded = false)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        return new CollapsibleContentHost(content, expanded);
+    }
+
     /// <summary>被包裹控件 → 展开宿主状态（供 <see cref="RefreshExpandHost"/> 在内容变化时重算高度）。</summary>
     private static readonly ConditionalWeakTable<Control, ExpandHostState> HostStates = new();
 
@@ -1861,4 +1873,257 @@ public static class IntroAnimationHelper
 
     private static void Log(string message)
         => GlobalConstants.HostInterfaces.PluginLogger?.LogInformation("[IntroAnimation] {Message}", message);
+}
+
+/// <summary>
+/// 不依赖 Expander 的「平滑展开宿主」：把内容裁剪进一个高度可过渡的容器，
+/// 切换 <see cref="IsExpanded"/> 时按折叠栏同一套节奏推进（与 <see cref="IntroAnimationHelper.CreateExpandHost"/> 一致）：
+/// 容器高度做 333ms 过渡，内容块同时贴着容器底边滑入 / 滑出，下方元素被平滑推开 / 收拢。
+/// 由 <see cref="IntroAnimationHelper.CreateCollapsibleContentHost"/> 创建。
+/// </summary>
+public sealed class CollapsibleContentHost : Border
+{
+    /// <summary>是否展开（默认折叠：容器高度为 0）。</summary>
+    public static readonly StyledProperty<bool> IsExpandedProperty =
+        AvaloniaProperty.Register<CollapsibleContentHost, bool>(nameof(IsExpanded));
+
+    private readonly Control _content;
+    private readonly TranslateTransform _contentTranslate = new();
+    private DoubleTransition? _sizeTransition;
+    private DispatcherTimer? _slideTimer;
+    private long _slideStartTicks;
+    private double _slideFromY;
+    private double _slideToY;
+    private double _slideDurationMs = 1;
+    private IEasing _slideEasing = IntroAnimationHelper.ExpanderExpandEasing;
+    // 内容是否已按“折叠态位移（贴着容器底边）”归位过；首次展开前必须归位，否则起点=终点、看不到滑入
+    private bool _slideInitialized;
+    private double _lastWidth = double.NaN;
+    // 是否已挂载到可视树：挂载前设定的初始展开态直接落到最终值，不播放动画
+    private bool _loaded;
+
+    internal CollapsibleContentHost(Control content, bool expanded)
+    {
+        _content = content;
+        ClipToBounds = true;
+        Child = content;
+        content.RenderTransform = _contentTranslate;
+        Height = 0;
+
+        // 动画级别为“禁用”时退化为普通显隐（高度直接落到最终值，不加过渡）
+        if (IntroAnimationHelper.IsEnabled)
+        {
+            _sizeTransition = new DoubleTransition
+            {
+                Property = Layoutable.HeightProperty,
+                Duration = IntroAnimationHelper.ExpanderExpandDuration,
+                Easing = IntroAnimationHelper.ExpanderExpandEasing
+            };
+            Transitions = new Transitions { _sizeTransition };
+        }
+
+        SetCurrentValue(IsExpandedProperty, expanded);
+
+        Loaded += OnLoaded;
+        Unloaded += OnUnloaded;
+    }
+
+    /// <summary>是否展开。</summary>
+    public bool IsExpanded
+    {
+        get => GetValue(IsExpandedProperty);
+        set => SetValue(IsExpandedProperty, value);
+    }
+
+    private void OnLoaded(object? sender, RoutedEventArgs e)
+    {
+        _loaded = true;
+        _lastWidth = Bounds.Width;
+
+        // 初始即为展开态且有过渡：按自然高度锁定容器（与折叠栏宿主一致，高度是锁定值）
+        if (IsExpanded && _sizeTransition != null)
+        {
+            Dispatcher.UIThread.Post(RecomputeHeight, DispatcherPriority.Loaded);
+        }
+    }
+
+    private void OnUnloaded(object? sender, RoutedEventArgs e)
+    {
+        StopSlideAnimation();
+    }
+
+    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
+    {
+        base.OnPropertyChanged(change);
+
+        if (change.Property == IsExpandedProperty)
+        {
+            Apply(IsExpanded);
+        }
+        else if (change.Property == BoundsProperty)
+        {
+            // 宽度变化会让文字重新换行、内容高度随之变化：展开态下重算锁定高度（折叠态高度恒为 0）
+            var width = Bounds.Width;
+            if (!double.IsNaN(_lastWidth) && Math.Abs(width - _lastWidth) > 0.5)
+            {
+                _lastWidth = width;
+                if (IsExpanded)
+                {
+                    Dispatcher.UIThread.Post(RecomputeHeight, DispatcherPriority.Loaded);
+                }
+            }
+            else
+            {
+                _lastWidth = width;
+            }
+        }
+    }
+
+    /// <summary>按目标状态推进展开 / 折叠：容器高度走过渡，内容滑动用手动插值时钟（可被点击打断续播）。</summary>
+    private void Apply(bool expanded)
+    {
+        if (_sizeTransition == null)
+        {
+            StopSlideAnimation();
+            _contentTranslate.Y = 0;
+            Height = expanded ? double.NaN : 0;
+            return;
+        }
+
+        if (!_loaded)
+        {
+            // 构造时设定的初始状态：还没有宽度可测量，直接落到最终态，不播动画
+            StopSlideAnimation();
+            _contentTranslate.Y = 0;
+            Height = expanded ? double.NaN : 0;
+            return;
+        }
+
+        var contentHeight = MeasureContentHeight();
+        if (double.IsNaN(contentHeight))
+        {
+            // 还没布局出宽度：先摆到最终态，宽度可用时由 RecomputeHeight 校正
+            Height = expanded ? double.NaN : 0;
+            return;
+        }
+
+        _sizeTransition.Easing = expanded
+            ? IntroAnimationHelper.ExpanderExpandEasing
+            : IntroAnimationHelper.ExpanderCollapseEasing;
+
+        if (expanded)
+        {
+            if (!_slideInitialized)
+            {
+                _contentTranslate.Y = -contentHeight;
+                _slideInitialized = true;
+            }
+
+            Height = contentHeight;
+            StartSlide(0, IntroAnimationHelper.ExpanderExpandEasing);
+        }
+        else
+        {
+            Height = 0;
+            StartSlide(-contentHeight, IntroAnimationHelper.ExpanderCollapseEasing);
+            _slideInitialized = true;
+        }
+    }
+
+    /// <summary>展开态下宽度变化后重算锁定高度（高度是锁定值，不重算会裁掉重新换行后的内容）。</summary>
+    private void RecomputeHeight()
+    {
+        if (!IsExpanded || _sizeTransition == null)
+        {
+            return;
+        }
+
+        var contentHeight = MeasureContentHeight();
+        if (double.IsNaN(contentHeight))
+        {
+            return;
+        }
+
+        Height = contentHeight;
+        _contentTranslate.Y = 0;
+    }
+
+    /// <summary>按当前可用宽度测量内容自然高度（用两个略有差异的宽度测量以绕开 Avalonia 的测量缓存）。</summary>
+    private double MeasureContentHeight()
+    {
+        var width = Bounds.Width;
+        if (width <= 0 && Parent is Layoutable parent && parent.Bounds.Width > 0)
+        {
+            width = parent.Bounds.Width;
+        }
+        if (width <= 0 && !double.IsNaN(_lastWidth))
+        {
+            width = _lastWidth;
+        }
+        if (width <= 0 || double.IsNaN(width))
+        {
+            width = double.PositiveInfinity;
+        }
+
+        if (!double.IsInfinity(width))
+        {
+            _content.Measure(new Size(width + 0.5, double.PositiveInfinity));
+        }
+        _content.Measure(new Size(width, double.PositiveInfinity));
+
+        var height = _content.DesiredSize.Height;
+        return double.IsNaN(height) || height < 0 ? double.NaN : height;
+    }
+
+    /// <summary>启动内容滑动（起点取当前实际位移，点击打断后可从当前位置续播）。</summary>
+    private void StartSlide(double toY, IEasing easing)
+    {
+        var fromY = _contentTranslate.Y;
+        if (Math.Abs(toY - fromY) < 0.5)
+        {
+            _contentTranslate.Y = toY;
+            StopSlideAnimation();
+            return;
+        }
+
+        _slideFromY = fromY;
+        _slideToY = toY;
+        _slideDurationMs = Math.Max(1, IntroAnimationHelper.ExpanderExpandDuration.TotalMilliseconds);
+        _slideEasing = easing;
+        _slideStartTicks = Stopwatch.GetTimestamp();
+
+        if (_slideTimer != null)
+        {
+            return;
+        }
+
+        _slideTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(16) };
+        _slideTimer.Tick += OnSlideTick;
+        _slideTimer.Start();
+    }
+
+    private void OnSlideTick(object? sender, EventArgs e)
+    {
+        var elapsedMs = (Stopwatch.GetTimestamp() - _slideStartTicks) * 1000.0 / Stopwatch.Frequency;
+        var progress = Math.Clamp(elapsedMs / _slideDurationMs, 0.0, 1.0);
+        _contentTranslate.Y = _slideFromY + (_slideToY - _slideFromY) * _slideEasing.Ease(progress);
+
+        if (progress >= 1.0)
+        {
+            _contentTranslate.Y = _slideToY;
+            StopSlideAnimation();
+        }
+    }
+
+    private void StopSlideAnimation()
+    {
+        if (_slideTimer == null)
+        {
+            return;
+        }
+
+        _slideTimer.Stop();
+        _slideTimer.Tick -= OnSlideTick;
+        _slideTimer = null;
+    }
 }

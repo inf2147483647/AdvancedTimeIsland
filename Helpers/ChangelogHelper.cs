@@ -123,7 +123,24 @@ public static class ChangelogHelper
         {
             if (currentVersion != null)
             {
-                entries.Add(new ChangelogEntry(currentVersion, currentDate, string.Join("\n", currentLines)));
+                // 裁掉正文首尾空行（保留中间空行：空行是 markdown 块级结构的边界，
+                // 例如告警块 > [!caution]、段落、列表的结束，丢空行会让它们连成一块）
+                var start = 0;
+                while (start < currentLines.Count && string.IsNullOrWhiteSpace(currentLines[start]))
+                {
+                    start++;
+                }
+
+                var end = currentLines.Count - 1;
+                while (end >= start && string.IsNullOrWhiteSpace(currentLines[end]))
+                {
+                    end--;
+                }
+
+                var body = start > end
+                    ? string.Empty
+                    : string.Join("\n", currentLines.GetRange(start, end - start + 1));
+                entries.Add(new ChangelogEntry(currentVersion, currentDate, body));
             }
         }
 
@@ -151,11 +168,12 @@ public static class ChangelogHelper
             }
 
             // 版本标题之前的行（文档头）与一级标题不属于任何版本段
-            if (currentVersion == null || string.IsNullOrWhiteSpace(rawLine) || rawLine.TrimStart().StartsWith("# "))
+            if (currentVersion == null || rawLine.TrimStart().StartsWith("# "))
             {
                 continue;
             }
 
+            // 其余行（含空行）原样保留：空行是 markdown 块级结构的边界，不能丢
             currentLines.Add(rawLine.TrimEnd());
         }
 

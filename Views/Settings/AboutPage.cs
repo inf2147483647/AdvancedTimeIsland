@@ -624,7 +624,8 @@ public class AboutPage : SettingsPageBase
             // 第 1 行：分屏（折叠按钮 | 目录 | 正文滚动）。目录只用版本级标题（##），避免小节把目录撑得过长
             var split = HanfuPageTemplate.RenderMarkdownWithTocToPanel(
                 BuildChangelogMarkdown(entries),
-                maxTocLevel: 2);
+                maxTocLevel: 2,
+                collapseListDetails: true);
             Grid.SetRow(split, 1);
             rootGrid.Children.Add(split);
         }

@@ -39,7 +39,8 @@ jobs:
     - name: Restore dependencies
       run: dotnet restore $env:Solution_Name
 
-    - name: Build and package all 3 variants
+    # WPF 版已迁移到 1.7 分支单独维护，master 只构建 Avalonia 两个变体
+    - name: Build and package both variants
       shell: pwsh
       run: |
         .\Build-Package.ps1 -Target both
@@ -57,13 +58,6 @@ jobs:
       with:
         name: AdvancedTimeIsland-net10.0.cipx
         path: cipx/AdvancedTimeIsland-net10.0.cipx
-        if-no-files-found: error
-
-    - name: Upload WPF package
-      uses: actions/upload-artifact@v4
-      with:
-        name: AdvancedTimeIsland-wpf.cipx
-        path: cipx/AdvancedTimeIsland-wpf.cipx
         if-no-files-found: error
 
     - name: Upload all packages (zip)

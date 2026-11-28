@@ -46,6 +46,10 @@ public class HanfuPageTemplate : SettingsPageBase
     private Dictionary<int, LoadingData>? _loadingData;
     private Dictionary<Span, string>? _hyperlinkSpanMap;
 
+    /// <summary>是否把「**主标题**：细节」格式的列表条目渲染为主标题常显、细节默认折叠。
+    /// 仅在更新日志抽屉开启，汉服页面等其它 markdown 场景保持原样。</summary>
+    private bool _collapseListDetails;
+
     // ==================== 分屏目录（左屏目录 / 右屏正文） ====================
     /// <summary>目录面板展开时的固定宽度。</summary>
     private const double TocWidth = 200.0;
@@ -237,12 +241,14 @@ public class HanfuPageTemplate : SettingsPageBase
     /// </summary>
     /// <param name="markdown">要渲染的 markdown 文本。</param>
     /// <param name="maxTocLevel">生成目录时收集的最大标题层级（1~3，超出范围自动收敛）。</param>
-    public static Control RenderMarkdownWithTocToPanel(string markdown, int maxTocLevel = 3)
+    /// <param name="collapseListDetails">是否把「**主标题**：细节」格式的列表条目渲染为主标题常显、细节默认折叠（更新日志用）。</param>
+    public static Control RenderMarkdownWithTocToPanel(string markdown, int maxTocLevel = 3, bool collapseListDetails = false)
     {
         // 延迟初始化构造：不触发页面初始化，仅复用渲染与目录逻辑
         var page = new HanfuPageTemplate(true)
         {
-            _tocMaxLevel = Math.Clamp(maxTocLevel, 1, 3)
+            _tocMaxLevel = Math.Clamp(maxTocLevel, 1, 3),
+            _collapseListDetails = collapseListDetails
         };
         page._collectTocHeadings = true;
 
@@ -1711,6 +1717,12 @@ InfoBar 语法格式：
 
     private Control ConvertParagraph(ParagraphBlock paragraph)
     {
+        // 更新日志专用：「**主标题**：细节」格式的列表条目，细节默认折叠
+        if (_collapseListDetails && TryConvertCollapsibleDetailParagraph(paragraph) is { } collapsible)
+        {
+            return collapsible;
+        }
+
         var segments = new List<ParagraphSegment>();
         var imagePanel = new StackPanel
         {
@@ -1836,6 +1848,164 @@ InfoBar 语法格式：
             VerticalAlignment = VerticalAlignment.Stretch
         };
         return tb;
+    }
+
+    /// <summary>FA 折叠栏同款 chevron 图标（Segoe 图标字体的 ChevronRight）。</summary>
+    private const string ChevronRightGlyph = "\uE76C";
+
+    /// <summary>
+    /// 把「**主标题**：细节」格式的段落渲染为主标题（可点击）+ 默认折叠的细节区。
+    /// 段落必须以加粗片段开头、紧跟全角或半角冒号，且冒号后还有内容；不符合格式的段落返回 null 走普通渲染。
+    /// </summary>
+    private Control? TryConvertCollapsibleDetailParagraph(ParagraphBlock paragraph)
+    {
+        if (paragraph.Inline?.FirstChild is not EmphasisInline { DelimiterChar: '*', DelimiterCount: 2 } title)
+        {
+            return null;
+        }
+
+        if (title.NextSibling is not LiteralInline colonLiteral)
+        {
+            return null;
+        }
+
+        var colonText = colonLiteral.Content.ToString();
+        if (colonText.Length == 0 || (colonText[0] != '：' && colonText[0] != ':'))
+        {
+            return null;
+        }
+
+        var detailText = colonText.Substring(1);
+        if (string.IsNullOrWhiteSpace(detailText) && colonLiteral.NextSibling == null)
+        {
+            return null;
+        }
+
+        // 主标题：加粗部分原样渲染（保留内联样式），左侧配折叠箭头
+        var titleTextBlock = CreateParagraphTextBlock();
+        titleTextBlock.Foreground = ThemeHelper.GetTextBrush();
+        foreach (var inline in ConvertInline(title, titleTextBlock))
+        {
+            titleTextBlock.Inlines!.Add(inline);
+        }
+        AttachHyperlinkClickHandler(titleTextBlock);
+
+        // 折叠箭头：沿用 FA 折叠栏同款 chevron 图标（Segoe 图标字体 E76C），
+        // 用 Viewbox 放大到约 3 倍，布局仍只占 18×18，不会把行高撑大
+        var chevron = new Viewbox
+        {
+            Width = 18,
+            Height = 18,
+            Stretch = Stretch.Uniform,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(0, 0, 6, 0),
+            Child = new TextBlock
+            {
+                Text = ChevronRightGlyph,
+                FontFamily = new FontFamily("Segoe Fluent Icons, Segoe MDL2 Assets, Segoe UI Symbol"),
+                FontSize = 12,
+                Foreground = GetAccentBrush(),
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            }
+        };
+
+        // 箭头随展开旋转 90°，时长 / 缓动与折叠栏展开动画一致（动画级别“禁用”时直接跳变）
+        var chevronRotate = new RotateTransform();
+        chevron.RenderTransform = chevronRotate;
+        chevron.RenderTransformOrigin = RelativePoint.Center;
+        DoubleTransition? chevronTransition = null;
+        if (IntroAnimationHelper.IsEnabled)
+        {
+            chevronTransition = new DoubleTransition
+            {
+                Property = RotateTransform.AngleProperty,
+                Duration = IntroAnimationHelper.ExpanderExpandDuration,
+                Easing = IntroAnimationHelper.ExpanderExpandEasing
+            };
+            chevronRotate.Transitions = new Transitions { chevronTransition };
+        }
+
+        var headerGrid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*")
+        };
+        Grid.SetColumn(chevron, 0);
+        Grid.SetColumn(titleTextBlock, 1);
+        headerGrid.Children.Add(chevron);
+        headerGrid.Children.Add(titleTextBlock);
+
+        var header = new Border
+        {
+            Background = Brushes.Transparent,
+            Padding = new Thickness(0, 2),
+            Cursor = new Cursor(StandardCursorType.Hand),
+            Child = headerGrid
+        };
+
+        // 细节：冒号之后的剩余内容，默认折叠
+        var detailTextBlock = CreateParagraphTextBlock();
+        AppendTextWithLineBreaks(detailTextBlock, detailText);
+        for (var sibling = colonLiteral.NextSibling; sibling != null; sibling = sibling.NextSibling)
+        {
+            foreach (var inline in ConvertInline(sibling, detailTextBlock))
+            {
+                detailTextBlock.Inlines!.Add(inline);
+            }
+        }
+        AttachHyperlinkClickHandler(detailTextBlock);
+
+        // 与插件自制折叠栏同一套展开动画：容器高度 333ms 过渡 + 内容贴着底边滑入 / 滑出
+        var detailContent = new Border
+        {
+            Padding = new Thickness(10, 2, 0, 2),
+            BorderThickness = new Thickness(2, 0, 0, 0),
+            BorderBrush = GetAccentBrush(),
+            Child = detailTextBlock
+        };
+
+        var detailHost = IntroAnimationHelper.CreateCollapsibleContentHost(detailContent);
+        detailHost.Margin = new Thickness(2, 2, 0, 4);
+
+        header.PointerPressed += (_, e) =>
+        {
+            var expanding = !detailHost.IsExpanded;
+            if (chevronTransition != null)
+            {
+                chevronTransition.Easing = expanding
+                    ? IntroAnimationHelper.ExpanderExpandEasing
+                    : IntroAnimationHelper.ExpanderCollapseEasing;
+            }
+            chevronRotate.Angle = expanding ? 90 : 0;
+            detailHost.IsExpanded = expanding;
+            e.Handled = true;
+        };
+
+        var container = new StackPanel
+        {
+            Orientation = Orientation.Vertical,
+            Spacing = 0
+        };
+        container.Children.Add(header);
+        container.Children.Add(detailHost);
+        return container;
+    }
+
+    /// <summary>把一段纯文本按 &lt;br&gt; 拆行后追加到 TextBlock。</summary>
+    private void AppendTextWithLineBreaks(TextBlock textBlock, string text)
+    {
+        foreach (var (part, isBreak) in SplitTextWithBr(text))
+        {
+            if (isBreak)
+            {
+                textBlock.Inlines!.Add(new LineBreak());
+            }
+            else if (!string.IsNullOrEmpty(part))
+            {
+                textBlock.Inlines!.Add(new Run { Text = part });
+            }
+        }
     }
 
     private enum ParagraphSegmentType
