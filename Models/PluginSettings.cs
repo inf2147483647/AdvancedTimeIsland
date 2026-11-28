@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿using System.ComponentModel;
 using System.Runtime.CompilerServices;
 using AdvancedTimeIsland.Helpers;
 
@@ -718,6 +718,43 @@ public class PluginSettings : INotifyPropertyChanged
     }
 
     private long _floatingSchedulePositionResetStamp;
+
+    /// <summary>
+    /// 悬浮时间表窗口卡片宽度（DIP）：由独立进程子进程回报并落盘，
+    /// 仅用于下次启动"初始化的空窗期"用占位符撑出与上次一致的窗口大小。0 表示尚未记录。
+    /// </summary>
+    public double FloatingScheduleWindowWidth
+    {
+        get => _floatingScheduleWindowWidth;
+        set
+        {
+            if (Math.Abs(_floatingScheduleWindowWidth - value) > 0.001)
+            {
+                _floatingScheduleWindowWidth = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private double _floatingScheduleWindowWidth;
+
+    /// <summary>
+    /// 悬浮时间表窗口卡片高度（DIP）：语义同 <see cref="FloatingScheduleWindowWidth"/>。
+    /// </summary>
+    public double FloatingScheduleWindowHeight
+    {
+        get => _floatingScheduleWindowHeight;
+        set
+        {
+            if (Math.Abs(_floatingScheduleWindowHeight - value) > 0.001)
+            {
+                _floatingScheduleWindowHeight = value;
+                OnPropertyChanged();
+            }
+        }
+    }
+
+    private double _floatingScheduleWindowHeight;
 
     /// <summary>
     /// 悬浮背景不透明度（0完全透明 ~ 1完全不透明；仅作用卡片背景，不影响文字与进度条透明度）

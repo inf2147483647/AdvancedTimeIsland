@@ -24,6 +24,13 @@ public sealed class FloatScheduleWindowSettings
     public int PositionY { get; set; } = 100;
     /// <summary>位置复位计数：插件"复位窗口"时递增；子进程检测到变化即强制重新应用位置（平时只在 Init 应用一次）。</summary>
     public long PositionResetStamp { get; set; }
+    /// <summary>
+    /// 上次退出时悬浮窗的卡片尺寸（DIP，宽/高）。仅用于"Init 已到、渲染模型还没到"的空窗期：
+    /// 子进程用它与转圈占位符撑出和上次一致的窗口大小，避免窗口缩成一小块空白；
+    /// 0 表示未知（子进程使用兜底尺寸）。
+    /// </summary>
+    public double SizeWidth { get; set; }
+    public double SizeHeight { get; set; }
     /// <summary>宿主隐藏判定结果（HideMode 规则在插件进程计算，子进程只跟随显示/隐藏）。</summary>
     public bool HostVisible { get; set; } = true;
     /// <summary>跟随启停：插件进程退出（含崩溃，由子进程看门狗感知）后子进程是否随之退出。经 settings 消息热更新。</summary>

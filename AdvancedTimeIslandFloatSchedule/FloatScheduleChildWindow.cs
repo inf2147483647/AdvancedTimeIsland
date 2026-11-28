@@ -73,6 +73,9 @@ internal sealed class FloatScheduleChildWindow : Window
             Background = new SolidColorBrush(Color.FromArgb(0xCC, 0x2D, 0x2D, 0x30)),
         };
         Content = _card;
+        // 【空窗期占位】Init 只带行为设置，课表渲染模型要等宿主整理完档案才推送；这段时间卡片没有内容，
+        //   SizeToContent 会把窗口缩成一小块空白。先挂上"转圈 + 上次尺寸"的占位块，模型到达即移除（见 RenderModel）。
+        ShowLoadingPlaceholder();
         // 【果冻效果】整卡挂在中心缩放的 RenderTransform 上：拖动时按水平速度横向拉伸、纵向压缩，
         // 松手用欠阻尼弹簧回弹。RenderTransform 只走合成层，不触发布局（不影响 SizeToContent）。
         _card.RenderTransformOrigin = RelativePoint.Center;
@@ -91,8 +94,8 @@ internal sealed class FloatScheduleChildWindow : Window
         // 这里在每次布局完成后按新尺寸重算隐藏位（未贴边时零开销早退，且尺寸未变时不重复处理）。
         // 双钩（LayoutUpdated + Resized）：前者覆盖"内容重排但窗口尺寸尚未变"的中间态，
         // 后者是"窗口客户区尺寸真的变了"的权威信号，任一先到都会按最终尺寸重算一次。
-        LayoutUpdated += (_, _) => RefreshEdgeGeometryOnResize();
-        Resized += (_, _) => RefreshEdgeGeometryOnResize();
+        LayoutUpdated += (_, _) => { RefreshEdgeGeometryOnResize(); ReportCardSizeIfChanged(); };
+        Resized += (_, _) => { RefreshEdgeGeometryOnResize(); ReportCardSizeIfChanged(); };
         Activated += (_, _) => { try { if (_snap.ClickThrough) ApplyClickThrough(force: true); else ApplyExStylesSafe(); } catch { } };
 
         _pipe.MessageReceived += OnPipeMessage;
@@ -106,6 +109,120 @@ internal sealed class FloatScheduleChildWindow : Window
 
     /// <summary>管道连接状态（供看门狗误报守卫读取）。</summary>
     public bool PipeConnected => _pipe.Connected;
+
+    // ===================== 空窗期加载占位 =====================
+    // 时序：连接建立 → Init（行为设置，可能还没有渲染模型）→ 窗口 Show() → 宿主整理完档案后才推 Model。
+    // 中间这段窗口没有任何内容，SizeToContent 会让它缩成一小块空白（"初始化后闪出一个小空窗"）。
+    // 做法：用插件随快照下发的"上次退出时的卡片尺寸"撑出占位块，居中一个 20px 转圈；
+    //   RenderModel 一到立即移除并停掉转圈计时器，尺寸交还给真实内容。
+    const double LoadingRingSize = 20;
+    const double LoadingDefaultWidth = 260;      // 从未记录过尺寸时的兜底（接近常见课表窗口）
+    const double LoadingDefaultHeight = 150;
+    const double LoadingTurnDegPerSecond = 300;  // ≈1.2s 一圈（接近 FluentAvalonia ProgressRing 的观感）
+
+    Border? _loadingHost;
+    Avalonia.Controls.Shapes.Path? _loadingArc;
+    RotateTransform? _loadingRotate;
+    DispatcherTimer? _loadingTimer;
+    long _loadingStartTicks;
+
+    void ShowLoadingPlaceholder()
+    {
+        if (_loadingHost != null) return;
+        _loadingRotate = new RotateTransform();
+        _loadingArc = new Avalonia.Controls.Shapes.Path
+        {
+            Data = BuildLoadingArcGeometry(),
+            StrokeThickness = 2,
+            StrokeLineCap = PenLineCap.Round,
+            Width = LoadingRingSize,
+            Height = LoadingRingSize,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center,
+            RenderTransformOrigin = RelativePoint.Center,
+            RenderTransform = _loadingRotate,
+        };
+        _loadingHost = new Border
+        {
+            Background = Brushes.Transparent,
+            Child = _loadingArc,
+        };
+        UpdateLoadingPlaceholderVisual();
+        _card.Child = _loadingHost;
+        _loadingStartTicks = Environment.TickCount64;
+        if (_loadingTimer == null)
+        {
+            // Render 优先级 + 1ms 间隔 = 每个渲染帧一次（与贴边滑移动画同款驱动），只在空窗期短暂运行
+            _loadingTimer = new DispatcherTimer(DispatcherPriority.Render) { Interval = TimeSpan.FromMilliseconds(1) };
+            _loadingTimer.Tick += (_, _) =>
+            {
+                if (_loadingRotate == null) return;
+                _loadingRotate.Angle = (Environment.TickCount64 - _loadingStartTicks) * LoadingTurnDegPerSecond / 1000.0 % 360.0;
+            };
+        }
+        _loadingTimer.Start();
+    }
+
+    /// <summary>空窗期结束（渲染模型到达）：立刻收回占位块并停掉转圈计时器。幂等。</summary>
+    void StopLoadingPlaceholder()
+    {
+        var host = _loadingHost;
+        _loadingHost = null;
+        _loadingArc = null;
+        _loadingRotate = null;
+        try { _loadingTimer?.Stop(); } catch { }
+        _loadingTimer = null;
+        if (host != null && ReferenceEquals(_card.Child, host)) _card.Child = null;
+    }
+
+    /// <summary>按当前快照刷新占位块尺寸与配色（快照带回"上次退出时的尺寸"后调用；不在空窗期时零开销返回）。</summary>
+    void UpdateLoadingPlaceholderVisual()
+    {
+        if (_loadingHost == null) return;
+        _loadingHost.Width = _snap.SizeWidth > 1 ? Math.Min(_snap.SizeWidth, MaxWidth) : LoadingDefaultWidth;
+        _loadingHost.Height = _snap.SizeHeight > 1 ? _snap.SizeHeight : LoadingDefaultHeight;
+        if (_loadingArc != null)
+            _loadingArc.Stroke = new SolidColorBrush(_snap.DarkTheme
+                ? Color.FromArgb(0xC8, 0xFF, 0xFF, 0xFF)
+                : Color.FromArgb(0xC8, 0x20, 0x20, 0x20));
+        // 占位期卡片外观：与快照的主题卡片 tint / 圆角保持一致（材质要等模型颜色才能套）
+        _card.CornerRadius = new CornerRadius(Math.Clamp(_snap.CornerRadius, 0, 10));
+        _card.Background = new SolidColorBrush(FloatScheduleRenderer.FromArgb(_snap.TintArgb));
+    }
+
+    /// <summary>20×20 框内、12 点方向起顺时针 270° 的圆弧（留缺口形成"转圈"观感）。</summary>
+    static StreamGeometry BuildLoadingArcGeometry()
+    {
+        var geo = new StreamGeometry();
+        using (var ctx = geo.Open())
+        {
+            ctx.BeginFigure(new Point(10, 2), false);
+            ctx.ArcTo(new Point(10, 18), new Size(8, 8), 0, false, SweepDirection.Clockwise);
+            ctx.ArcTo(new Point(2, 10), new Size(8, 8), 0, false, SweepDirection.Clockwise);
+            ctx.EndFigure(false);
+        }
+        return geo;
+    }
+
+    // ===== 卡片尺寸回报（插件落盘 → 下次启动空窗期占位用）=====
+    double _lastReportedSizeW, _lastReportedSizeH;
+
+    /// <summary>把当前卡片尺寸（DIP）回报给插件。占位期不上报：占位尺寸不代表真实内容。</summary>
+    void ReportCardSizeIfChanged()
+    {
+        if (_lastModel == null || _loadingHost != null) return;
+        var size = ClientSize;
+        if (size.Width < 1 || size.Height < 1) return;
+        if (Math.Abs(size.Width - _lastReportedSizeW) < 0.5 && Math.Abs(size.Height - _lastReportedSizeH) < 0.5) return;
+        _lastReportedSizeW = size.Width;
+        _lastReportedSizeH = size.Height;
+        try
+        {
+            _pipe.Send(FloatScheduleIpcMsgType.Size,
+                new FloatScheduleSizePayload { Width = size.Width, Height = size.Height });
+        }
+        catch { }
+    }
 
     // ===================== 启动 =====================
 
@@ -662,6 +779,8 @@ internal sealed class FloatScheduleChildWindow : Window
     {
         var prev = _snap;
         _snap = s;
+        // 【空窗期占位】快照带回"上次退出时的卡片尺寸"→ 同步占位块大小与配色（模型已到时零开销返回）
+        UpdateLoadingPlaceholderVisual();
         // 离开液态玻璃（方案2 采样）→ 归还采样期间的排除捕获（对齐 cf78b44 的 RestoreAffinity）。
         if (s.Material != 3) _glass.ReleaseCaptureExclusion();
         Program.FollowHostLifetime = s.FollowHostLifetime;   // 热更新（看门狗触发时读最新值）
@@ -2433,6 +2552,8 @@ internal sealed class FloatScheduleChildWindow : Window
     /// <summary>仅重渲染内容（不刷新"数据新鲜度"时间戳，供本地推进使用）。</summary>
     void RenderModel(FloatScheduleRenderModel model)
     {
+        // 【空窗期结束】渲染模型到达：立刻收回转圈占位块（材质/内容会整块替换卡片的 Child）
+        StopLoadingPlaceholder();
         FloatScheduleRenderer.ApplyCardStyle(_card, model);
         var (root, refs) = FloatScheduleRenderer.Build(model);
         // 高级外观：材质/圆角/边距（卡片级，与进程内同源）；真实悬浮窗为透明窗口 → 走系统亚克力路径

@@ -21,6 +21,7 @@ public enum FloatScheduleIpcMsgType
     Position = 17,   // {X, Y} 拖拽稳定后的新位置（物理像素）
     Error = 18,      // {Code, Message}
     ExitRequested = 19,  // 用户通过子进程托盘图标选择"退出"：插件据此关闭悬浮时间表且不再自动重启
+    Size = 20,       // {Width, Height} 卡片尺寸（DIP）：插件据此记忆"退出时的窗口大小"，供下次空窗期占位
 }
 
 /// <summary>Init 消息体。</summary>
@@ -63,6 +64,13 @@ public sealed class FloatScheduleErrorPayload
     public string? Message { get; set; }
 }
 
+/// <summary>Size 消息体：悬浮窗卡片尺寸（DIP，即 Avalonia 的 ClientSize）。</summary>
+public sealed class FloatScheduleSizePayload
+{
+    public double Width { get; set; }
+    public double Height { get; set; }
+}
+
 public static class FloatScheduleIpc
 {
     /// <summary>固定命名管道名（服务器=插件进程）。</summary>
@@ -74,8 +82,9 @@ public static class FloatScheduleIpc
     /// 是**随快照 JSON 下发**的：旧子进程不认识新字段 → 静默忽略，行为与宿主设置不一致。
     /// 升版本后，旧子进程在 Init 阶段发现版本不符会自行退出（ExitCodeSelfUpdate），插件随即启动与自身匹配的新实例。
     /// 因此**凡是新增/修改快照字段或子进程行为，都必须同步升版本**。
+    /// v3：新增 Size 消息（子进程回报卡片尺寸）与快照的 SizeWidth/SizeHeight（空窗期占位尺寸）。
     /// </summary>
-    public const int ProtocolVersion = 2;
+    public const int ProtocolVersion = 3;
 
     /// <summary>子进程单实例 Mutex 名（"单实例保护"开启时使用）。</summary>
     public const string SingleInstanceMutexName = @"Global\AdvancedTimeIsland.FloatSchedule.v2";

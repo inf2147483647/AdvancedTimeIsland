@@ -8,6 +8,14 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using ClassIsland.Core.Abstractions.Controls;
 using ClassIsland.Core.Attributes;
+using ClassIsland.Core.Helpers.UI;
+using ClassIsland.Core.Models.UI;
+// Toast 的 InfoBar 严重级别枚举：FA2 (net8) 叫 InfoBarSeverity，FA3 (net10) 改名 FAInfoBarSeverity
+#if NET10_0_OR_GREATER
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.FAInfoBarSeverity;
+#else
+using FAInfoBarSeverity = FluentAvalonia.UI.Controls.InfoBarSeverity;
+#endif
 
 namespace AdvancedTimeIsland.Views.Settings;
 
@@ -275,22 +283,19 @@ public partial class FloatingScheduleSettingsPage : SettingsPageBase
             _settings.FloatingScheduleEdgeHideDelay = Math.Clamp((double)v, 0.0, 60.0);
     }
 
-    private async void ResetWindowButton_Click(object? sender, RoutedEventArgs e)
+    private void ResetWindowButton_Click(object? sender, RoutedEventArgs e)
     {
         // 服务经宿主 DI 解析（页面本身只注入 PluginSettings）；解析失败时静默跳过（按钮无副作用）
         var svc = ClassIsland.Shared.IAppHost.TryGetService<Services.FloatingScheduleService>();
         if (svc == null) return;
-        try
+        svc.ResetWindowPositionToDefault();
+        // 结果不再写在按钮文案上：宿主右下角 Success Toast 提示，可关闭且自动消失
+        this.ShowToast(new ToastMessage("悬浮窗已复位：已放回默认位置（100,100），并退出贴边停靠状态。")
         {
-            svc.ResetWindowPositionToDefault();
-            ResetWindowButton.Content = "已复位";
-            await Task.Delay(1500);
-            ResetWindowButton.Content = "复位窗口";
-        }
-        catch
-        {
-            ResetWindowButton.Content = "复位窗口";
-        }
+            Title = "时间表悬浮窗",
+            Severity = FAInfoBarSeverity.Success,
+            AutoClose = true
+        });
     }
 
     // ==================== 3. 窗口与高级 ====================

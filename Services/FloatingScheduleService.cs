@@ -853,6 +853,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
         {
             _hostProcess.Connected += OnIndependentChildConnectedAv;
             _hostProcess.PositionReported += OnIndependentPositionReportedAv;
+            _hostProcess.SizeReported += OnIndependentSizeReportedAv;
             _hostProcess.StatusChanged += OnIndependentStatusChangedAv;
             _hostProcess.ExitRequestedByUser += OnIndependentExitRequestedAv;
         }
@@ -875,6 +876,7 @@ public class FloatingScheduleService : IHostedService, IDisposable
             {
                 _hostProcess.Connected -= OnIndependentChildConnectedAv;
                 _hostProcess.PositionReported -= OnIndependentPositionReportedAv;
+                _hostProcess.SizeReported -= OnIndependentSizeReportedAv;
                 _hostProcess.StatusChanged -= OnIndependentStatusChangedAv;
                 _hostProcess.ExitRequestedByUser -= OnIndependentExitRequestedAv;
             }
@@ -2847,6 +2849,23 @@ public class FloatingScheduleService : IHostedService, IDisposable
                 if (_settings.FloatingSchedulePositionY != y) _settings.FloatingSchedulePositionY = y;
             }
             catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentPositionReportedAv 写回位置异常（忽略）"); }
+        });
+    }
+
+    /// <summary>
+    /// 子进程回报卡片尺寸（DIP）→ 落盘，供下次启动"Init 已到、渲染模型还没到"的空窗期
+    /// 用转圈占位符撑出与上次一致的窗口大小。
+    /// </summary>
+    private void OnIndependentSizeReportedAv(double width, double height)
+    {
+        Dispatcher.UIThread.Post(() =>
+        {
+            try
+            {
+                if (Math.Abs(_settings.FloatingScheduleWindowWidth - width) > 0.5) _settings.FloatingScheduleWindowWidth = width;
+                if (Math.Abs(_settings.FloatingScheduleWindowHeight - height) > 0.5) _settings.FloatingScheduleWindowHeight = height;
+            }
+            catch (Exception ex) { _logger.LogDebug(ex, "OnIndependentSizeReportedAv 写回尺寸异常（忽略）"); }
         });
     }
 
@@ -5763,6 +5782,9 @@ public class FloatingScheduleService : IHostedService, IDisposable
             PreventCapture = _settings.FloatingSchedulePreventCapture,
             PositionX = _settings.FloatingSchedulePositionX,
             PositionY = _settings.FloatingSchedulePositionY,
+            // 上次退出时的卡片尺寸（DIP）：子进程在"Init 已到、模型未到"的空窗期据此撑出占位块
+            SizeWidth = _settings.FloatingScheduleWindowWidth,
+            SizeHeight = _settings.FloatingScheduleWindowHeight,
             PositionResetStamp = _settings.FloatingSchedulePositionResetStamp,
             FollowHostLifetime = _settings.FloatingScheduleFollowHostLifetime,
             // 下传子进程 exe 指纹：旧子进程在插件更新后据此识别自己已过期并退出

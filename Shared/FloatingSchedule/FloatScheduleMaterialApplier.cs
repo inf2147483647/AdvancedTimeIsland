@@ -46,7 +46,7 @@ public static class FloatScheduleMaterialApplier
     /// <summary>
     /// 把材质应用到卡片 Border（就地修改 Background/Child）。
     /// osBackdrop=true 表示当前宿主是"透明窗口 + 可拿到 OS 合成背景"（真实悬浮窗进程内/子进程），
-    ///   云母 走窗口级系统云母背板（窗口 TransparencyLevelHint=Mica 提供，卡片只叠着色膜）；
+    ///   云母 走窗口级系统云母背板（窗口 TransparencyLevelHint=Mica 提供，卡片不再叠着色膜，与宿主 Mica 对齐）；
     ///   亚克力 走系统合成材质（ExperimentalAcrylicBorder，真实桌面背景模糊）；
     /// osBackdrop=false 表示不透明宿主（编辑器预览）——系统材质采不到背后画面，改走自绘玻璃图层。
     /// 液态玻璃无论何种宿主都走自绘"折射"管线（真实窗口刻意不启用系统模糊，Apple 取向）。
@@ -71,7 +71,7 @@ public static class FloatScheduleMaterialApplier
                 // 导致「按在没有文字的地方拖不动」以及悬停进出失效；透明画刷不影响材质透出。
                 card.Background = Brushes.Transparent;
                 card.Child = osBackdrop
-                    ? BuildOsMica(inner, cr, tint, intensity)
+                    ? BuildOsMica(inner, cr)
                     : BuildMica(inner, cr, tint, intensity, PrepareBackdrop(backdropLayer, 1, intensity));
                 break;
             case 2: // 亚克力（Win11 五层配方）
@@ -115,7 +115,7 @@ public static class FloatScheduleMaterialApplier
     // 注意：OS 侧模糊半径不可调（只有 AcrylicBlur/Blur 两档），因此亚克力的观感靠
     //   tint 不透明度 + 亮度层 + 颗粒来体现（可辨识背景 + ~2% 噪点）。
     // 云母（Material=1）不走 ExperimentalAcrylicBorder：其背板由窗口 TransparencyLevelHint=Mica 提供
-    //   （见 FloatingScheduleService / 子进程的窗口透明级别联动），卡片只叠着色膜承接该背板。
+    //   （见 FloatingScheduleService / 子进程的窗口透明级别联动）；卡片不再叠着色膜，直接透出系统云母。
     private static Control BuildOsAcrylic(Control content, CornerRadius cr, Color tint, double intensity)
     {
         double it = Math.Clamp(intensity, 0, 1);
@@ -141,18 +141,13 @@ public static class FloatScheduleMaterialApplier
         return grid;
     }
 
-    // 云母（Mica）：窗口级系统合成背板（Win11 DWM/云母，以桌面壁纸为底、近不透明）已由窗口提供；
-    //   卡片只叠一层按强度映射的着色膜 + 微弱亮度膜 + 1px 柔和内描边，承接系统背板并保证文字可读性。
-    //   与亚克力取向不同：云母不"透视模糊背后窗口"，而是"壁纸着色 + 去饱和"。
-    private static Control BuildOsMica(Control content, CornerRadius cr, Color tint, double intensity)
+    // 云母（Mica）：直接使用窗口级系统云母背板，与 ClassIsland 设置页 MyWindow 的用法保持一致
+    //   （宿主只设 TransparencyLevelHint=Mica + Background=Transparent，不再额外叠着色膜）。
+    //   此前额外叠的 ~47.5% 卡片色膜会把系统云母的壁纸色洗成中性灰，导致与宿主 Mica 观感不一致。
+    private static Control BuildOsMica(Control content, CornerRadius cr)
     {
-        double it = Math.Clamp(intensity, 0, 1);
         var grid = new Grid();
-        // ① 着色膜：承接窗口级云母背板（TintColor/TintOpacity 语义对齐 ClassIsland 的 MicaMaterial，取 ~0.5 中值）
-        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(WithAlpha(tint, 0.30 + 0.35 * it)) });
-        // ② 微弱亮度膜（云母的"纸感"提亮，α≈10/255，对齐 Win11 亮度层）
-        grid.Children.Add(new Border { CornerRadius = cr, IsHitTestVisible = false, Background = Solid(0x0A, 0xFF, 0xFF, 0xFF) });
-        // ③ 1px 柔和内描边（云母的细微边框）
+        // 仅保留 1px 柔和内描边（卡片轮廓），背板颜色完全交给系统云母。
         grid.Children.Add(Ring(cr, 1, 0x2E, 0xFF, 0xFF, 0xFF));
         grid.Children.Add(content);
         return grid;

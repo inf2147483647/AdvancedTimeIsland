@@ -191,6 +191,8 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
 
     public event Action? Connected;
     public event Action<int, int>? PositionReported;
+    /// <summary>子进程回报的卡片尺寸（DIP，宽/高）：插件据此记忆"退出时的窗口大小"。</summary>
+    public event Action<double, double>? SizeReported;
     public event Action? StatusChanged;
     /// <summary>用户在子进程托盘图标点了"退出"（上层据此关闭悬浮时间表相关设置）。</summary>
     public event Action? ExitRequestedByUser;
@@ -1303,6 +1305,14 @@ public class FloatScheduleHostProcessService : IHostedService, IDisposable
                 {
                     try { PositionReported?.Invoke(pos.X, pos.Y); }
                     catch (Exception ex) { _logger.LogDebug(ex, "PositionReported 回调异常（忽略）"); }
+                }
+                break;
+            case FloatScheduleIpcMsgType.Size:
+                var size = FloatScheduleIpc.Deserialize<FloatScheduleSizePayload>(data);
+                if (size != null && size.Width > 0 && size.Height > 0)
+                {
+                    try { SizeReported?.Invoke(size.Width, size.Height); }
+                    catch (Exception ex) { _logger.LogDebug(ex, "SizeReported 回调异常（忽略）"); }
                 }
                 break;
             case FloatScheduleIpcMsgType.Error:
